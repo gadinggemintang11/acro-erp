@@ -3,52 +3,43 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 
 class Customer_model extends CI_Model {
 
-    private $_table = "customers";
+    private $table = 'customers';
 
-    public function getAll()
-    {
-        return $this->db->get($this->_table)->result_array();
+    public function get_all() {
+        return $this->db->order_by('id', 'DESC')->get($this->table)->result();
     }
 
-    public function getById($id)
-    {
-        return $this->db->get_where($this->_table, ["id" => $id])->row_array();
+    public function insert($data) {
+        return $this->db->insert($this->table, $data);
     }
 
-    public function save()
-    {
-        $post = $this->input->post();
-        // Menggunakan array untuk insert agar lebih rapi
-        $data = [
-            'customer_code' => $post["customer_code"],
-            'customer_name' => $post["customer_name"],
-            'address' => $post["address"],
-            'phone' => $post["phone"],
-            'npwp' => $post["npwp"],
-            'country' => $post["country"],
-            'created_at' => date('Y-m-d H:i:s')
-        ];
-        return $this->db->insert($this->_table, $data);
+    // ✅ DITAMBAHKAN: 'return' agar controller bisa cek status
+    public function update($id, $data) {
+        return $this->db->where('id', $id)->update($this->table, $data);
     }
 
-    public function update()
-    {
-        $post = $this->input->post();
-        // Menggunakan array untuk update
-        $data = [
-            'customer_code' => $post["customer_code"],
-            'customer_name' => $post["customer_name"],
-            'address' => $post["address"],
-            'phone' => $post["phone"],
-            'npwp' => $post["npwp"],
-            'country' => $post["country"],
-            'updated_at' => date('Y-m-d H:i:s')
-        ];
-        return $this->db->update($this->_table, $data, array('id' => $post['id']));
+    // ✅ DIUBAH: Sekarang menggunakan Soft Delete
+    public function delete($id) {
+        return $this->db->where('id', $id)->update($this->table, ['status' => 'inactive']);
     }
 
-    public function delete($id)
-    {
-        return $this->db->delete($this->_table, array("id" => $id));
+    public function generate_kode($jenis) {
+        // ✅ Disederhanakan: Menggunakan data dari common_code
+        // Pastikan 'Lokal' -> 'LOK', 'Ekspor' -> 'EKS' di common_code atau sesuaikan logika ini
+        $prefix = strtoupper(substr($jenis, 0, 3)); 
+        if ($jenis == 'Lokal') $prefix = 'CUS'; // Menjaga logika lama jika 'Lokal' -> 'CUS'
+        
+        $this->db->like('kode_customer', $prefix . '-', 'after');
+        $this->db->order_by('id', 'DESC');
+        $last = $this->db->get($this->table)->row();
+
+        if ($last) {
+            $last_number = (int)substr($last->kode_customer, -4);
+            $new_number = str_pad($last_number + 1, 4, '0', STR_PAD_LEFT);
+        } else {
+            $new_number = '0001';
+        }
+
+        return $prefix . '-' . $new_number;
     }
 }

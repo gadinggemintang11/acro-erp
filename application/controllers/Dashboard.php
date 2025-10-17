@@ -1,25 +1,28 @@
 <?php
 defined('BASEPATH') OR exit('No direct script access allowed');
 
-class Dashboard extends MY_Controller {
+class Dashboard extends CI_Controller {
 
-    public function __construct()
-    {
+    public function __construct() {
         parent::__construct();
-        // Ini penting agar base_url() dikenali
-        $this->load->helper('url');
+        check_login(); // Pastikan user login dulu
+
+        $this->load->model('Role_model');
+        $this->load->library('session');
     }
 
-    public function index()
-    {
-        // 1. Ambil "nampan" yang sudah disiapkan oleh MY_Controller
-        $data = $this->data;
-
-        // 2. Tambahkan barang spesifik untuk halaman ini
+    public function index() {
         $data['title'] = 'Dashboard';
-        $data['content'] = 'dashboard_view'; 
+        $data['username'] = $this->session->userdata('full_name');
+        $data['role_name'] = $this->db->get_where('roles', ['id' => $this->session->userdata('role_id')])->row('role_name');
+        $data['menu_count'] = $this->db->count_all('menus');
+        $data['user_count'] = $this->db->count_all('users');
+        $data['role_count'] = $this->db->count_all('roles');
 
-        // 3. Kirim nampan yang sudah lengkap ke view
-        $this->load->view('layouts/main_template', $data);
+        $this->load->view('templates/header', $data);
+        $this->load->view('templates/sidebar', $data);
+        $this->load->view('templates/topbar', $data);
+        $this->load->view('dashboard/index', $data);
+        $this->load->view('templates/footer');
     }
 }

@@ -1,61 +1,181 @@
-<div class="d-sm-flex align-items-center justify-content-between mb-4">
-    <h1 class="h3 mb-0 text-gray-800">Master Material</h1>
-    <a href="<?php echo base_url('material/add'); ?>" class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm">
-        <i class="fas fa-plus fa-sm text-white-50"></i> Tambah Material Baru
-    </a>
-    <?php if($this->session->flashdata('success')): ?>
-    <div class="alert alert-success" role="alert">
-        <?php echo $this->session->flashdata('success'); ?>
+<div class="container-fluid">
+    <div class="d-flex justify-content-between align-items-center mb-4">
+        <h3 class="text-gray-800 mb-0">
+            <i class="fas fa-cubes text-primary mr-2"></i><?= htmlspecialchars($title); ?>
+        </h3>
+
+        <?php if (check_access('master_material', 'add')): ?>
+            <button class="btn btn-primary shadow-sm" data-toggle="modal" data-target="#addModal">
+                <i class="fas fa-plus-circle mr-1"></i> Tambah Material
+            </button>
+        <?php endif; ?>
     </div>
-    <?php endif; ?>
+
+    <div class="card border-0 shadow-sm rounded">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover align-middle">
+                    <thead class="thead-light text-center">
+                        <tr>
+                            <th>#</th>
+                            <th>Kode</th>
+                            <th>Nama Material</th>
+                            <th>Kategori</th>
+                            <th>Asal</th>
+                            <th>Satuan</th>
+                            <th>Status</th>
+                            <th width="150">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php $no=1; foreach($materials as $m): ?>
+                        <tr class="text-center">
+                            <td><?= $no++; ?></td>
+                            <td><span class="font-weight-bold text-primary"><?= htmlspecialchars($m->kode_material); ?></span></td>
+                            <td class="text-left"><?= htmlspecialchars($m->nama_material); ?></td>
+                            <td><?= htmlspecialchars($m->kategori); ?></td>
+                            <td><?= htmlspecialchars($m->asal); ?></td>
+                            <td><?= htmlspecialchars($m->satuan); ?></td>
+                            <td>
+                                <span class="badge badge-<?= $m->status=='active'?'success':'secondary'; ?> px-3 py-1">
+                                    <?= ucfirst($m->status); ?>
+                                </span>
+                            </td>
+                            <td>
+                                <?php if (check_access('master_material', 'edit')): ?>
+                                <button class="btn btn-sm btn-warning text-white" data-toggle="modal" data-target="#editModal<?= $m->id; ?>">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <?php endif; ?>
+
+                                <?php if (check_access('master_material', 'delete')): ?>
+                                <a href="<?= base_url('master_material/delete/'.$m->id); ?>" class="btn btn-sm btn-danger btn-delete">
+                                    <i class="fas fa-trash-alt"></i>
+                                </a>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+
+                        <div class="modal fade" id="editModal<?= $m->id; ?>" tabindex="-1" role="dialog" aria-hidden="true">
+                            <div class="modal-dialog modal-dialog-centered" role="document">
+                                <form method="post" action="<?= base_url('master_material/update/'.$m->id); ?>">
+                                    <div class="modal-content border-0 shadow">
+                                        <div class="modal-header bg-gradient-primary text-white">
+                                            <h5 class="modal-title"><i class="fas fa-edit mr-2"></i>Edit Material</h5>
+                                            <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+                                        </div>
+                                        <div class="modal-body">
+                                            <div class="form-group">
+                                                <label>Nama Material</label>
+                                                <input type="text" name="nama_material" class="form-control" value="<?= htmlspecialchars($m->nama_material); ?>" required>
+                                            </div>
+
+                                            <div class="form-group">
+                                                <label>Kategori</label>
+                                                <select name="kategori" class="form-control">
+                                                    <?php foreach($kategori_list as $k): ?>
+                                                        <option value="<?= $k->code; ?>" <?= $k->code == $m->kategori ? 'selected' : ''; ?>>
+                                                            <?= htmlspecialchars($k->description); ?>
+                                                        </option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                            </div>
+
+                                            <div class="form-group">
+                                                <label>Asal</label>
+                                                <select name="asal" class="form-control">
+                                                    <?php foreach($asal_list as $a): ?>
+                                                        <option value="<?= $a->code; ?>" <?= $a->code == $m->asal ? 'selected' : ''; ?>>
+                                                            <?= htmlspecialchars($a->description); ?>
+                                                        </option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                            </div>
+
+                                            <div class="form-group">
+                                                <label>Satuan</label>
+                                                <select name="satuan" class="form-control">
+                                                    <?php foreach($satuan_list as $s): ?>
+                                                        <option value="<?= $s->code; ?>" <?= $s->code == $m->satuan ? 'selected' : ''; ?>>
+                                                            <?= htmlspecialchars($s->description); ?>
+                                                        </option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                            </div>
+
+                                            <div class="form-group">
+                                                <label>Status</label>
+                                                <select name="status" class="form-control">
+                                                    <option value="active" <?= $m->status=='active'?'selected':''; ?>>Active</option>
+                                                    <option value="inactive" <?= $m->status=='inactive'?'selected':''; ?>>Inactive</option>
+                                                </select>
+                                            </div>
+                                        </div>
+                                        <div class="modal-footer">
+                                            <button type="submit" class="btn btn-success btn-load"><i class="fas fa-save mr-1"></i> Update</button>
+                                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                                        </div>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                        <?php endforeach; ?>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
 </div>
 
-<div class="card shadow mb-4">
-    <div class="card-header py-3">
-        <h6 class="m-0 font-weight-bold text-primary">Daftar Material</h6>
-    </div>
-    <div class="card-body">
-        <div class="table-responsive">
-            <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
-                <thead>
-                    <tr>
-                        <th>Kode Barang</th>
-                        <th>Sub-Kategori</th> <th>Nama Barang</th>
-                        <th>Tipe</th>
-                        <th>Satuan</th>
-                        <th>Aksi</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php if (!empty($materials)) : ?>
-                        <?php foreach ($materials as $item) : ?>
-                            <tr>
-                                <td><?php echo html_escape($item['item_code']); ?></td>
-                                <td><?php echo html_escape($item['sub_category']); ?></td> <td><?php echo html_escape($item['item_name']); ?></td>
-                                <td>
-                                    <?php if ($item['item_type'] == 'import') : ?>
-                                        <span class="badge badge-primary">IMPORT</span>
-                                    <?php else : ?>
-                                        <span class="badge badge-success">LOKAL</span>
-                                    <?php endif; ?>
-                                </td>
-                                <td><?php echo html_escape($item['unit']); ?></td>
-                                <td>
-                                    <a href="<?php echo base_url('material/edit/'.$item['id']); ?>" class="btn btn-warning btn-sm">
-    <i class="fas fa-edit"></i>
-</a>
-                                    <a href="<?php echo base_url('material/delete/'.$item['id']); ?>" 
-                                        class="btn btn-danger btn-sm" 
-                                        onclick="return confirm('Apakah Anda yakin ingin menghapus data ini?');">
-                                        <i class="fas fa-trash"></i>
-                                    </a>
-                                </td>
-                            </tr>
-                        <?php endforeach; ?>
-                    <?php else : ?>
-                        <?php endif; ?>
-                </tbody>
-            </table>
-        </div>
+<div class="modal fade" id="addModal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered" role="document">
+        <form method="post" action="<?= base_url('master_material/add'); ?>">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-gradient-primary text-white">
+                    <h5 class="modal-title"><i class="fas fa-plus-circle mr-2"></i>Tambah Material Baru</h5>
+                    <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label>Nama Material</label>
+                        <input type="text" name="nama_material" class="form-control" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Kategori</label>
+                        <select name="kategori" class="form-control" required>
+                            <option value="">-- Pilih Kategori --</option>
+                            <?php foreach($kategori_list as $k): ?>
+                                <option value="<?= $k->code; ?>"><?= htmlspecialchars($k->description); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Asal</label>
+                        <select name="asal" class="form-control" required>
+                            <option value="">-- Pilih Asal --</option>
+                            <?php foreach($asal_list as $a): ?>
+                                <option value="<?= $a->code; ?>"><?= htmlspecialchars($a->description); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Satuan</label>
+                        <select name="satuan" class="form-control" required>
+                            <option value="">-- Pilih Satuan --</option>
+                            <?php foreach($satuan_list as $s): ?>
+                                <option value="<?= $s->code; ?>"><?= htmlspecialchars($s->description); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-primary btn-load"><i class="fas fa-save mr-1"></i> Simpan</button>
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                </div>
+            </div>
+        </form>
     </div>
 </div>

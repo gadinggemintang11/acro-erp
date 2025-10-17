@@ -3,64 +3,44 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 
 class User_model extends CI_Model {
 
-    private $_table = "users";
-
-    public function getAll()
-    {
-        $this->db->select('users.*, roles.role_name');
-        $this->db->from($this->_table);
-        $this->db->join('roles', 'users.role_id = roles.id');
-        $this->db->order_by('users.id', 'ASC');
-        return $this->db->get()->result_array();
+    public function get_all() {
+        $this->db->select('users.id, users.username, users.fullname, users.email, users.status, users.last_login, roles.role_name, users.role_id');
+        $this->db->from('users');
+        $this->db->join('roles', 'users.role_id = roles.id', 'left');
+        $this->db->order_by('users.id', 'DESC');
+        return $this->db->get()->result();
     }
 
-    public function getById($id)
-    {
-        return $this->db->get_where($this->_table, ["id" => $id])->row_array();
+    public function get_by_id($id) {
+        return $this->db->get_where('users', ['id' => $id])->row();
     }
 
-    public function save()
-    {
-        $post = $this->input->post();
-        $data = [
-            'username' => $post["username"],
-            'full_name' => $post["full_name"],
-            'role_id' => $post["role_id"],
-            'is_active' => $post["is_active"],
-            'password' => password_hash($post["password"], PASSWORD_DEFAULT),
-            'created_at' => date('Y-m-d H:i:s')
-        ];
-        return $this->db->insert($this->_table, $data);
+    public function insert($data) {
+        return $this->db->insert('users', $data);
     }
 
-    public function update()
-    {
-        $post = $this->input->post();
-        $data = [
-            'username' => $post["username"],
-            'full_name' => $post["full_name"],
-            'role_id' => $post["role_id"],
-            'is_active' => $post["is_active"],
-        ];
-
-        // Hanya update password jika diisi
-        if (!empty($post["password"])) {
-            $data['password'] = password_hash($post["password"], PASSWORD_DEFAULT);
-        }
-
-        return $this->db->update($this->_table, $data, array('id' => $post['id']));
+    public function update($id, $data) {
+        return $this->db->where('id', $id)->update('users', $data);
     }
 
-    public function delete($id)
-    {
-        return $this->db->delete($this->_table, array("id" => $id));
+    public function delete($id) {
+        // Soft delete: ubah status jadi inactive
+        return $this->db->where('id', $id)->update('users', ['status' => 'inactive']);
     }
-    public function login($username)
-    {
-        // Cari user berdasarkan username dan pastikan statusnya aktif
-        $this->db->where('username', $username);
-        $this->db->where('is_active', 1);
-        $query = $this->db->get($this->_table);
-        return $query->row_array();
+
+    public function get_roles() {
+        return $this->db->where('status', 'active')->get('roles')->result();
+    }
+
+    /**
+     * Update last_login by username (dipanggil saat login sukses)
+     * Pastikan hanya ada 1 method ini di model.
+     *
+     * @param string $username
+     * @return bool
+     */
+    public function update_last_login($username) {
+        return $this->db->where('username', $username)
+                        ->update('users', ['last_login' => date('Y-m-d H:i:s')]);
     }
 }

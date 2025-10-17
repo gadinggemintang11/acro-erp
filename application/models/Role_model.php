@@ -3,74 +3,57 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 
 class Role_model extends CI_Model {
 
-    private $_table = "roles";
-
-    public function getAll()
+    public function get_all_roles()
     {
-        // Mengurutkan berdasarkan ID dari yang terkecil
-        $this->db->order_by('id', 'ASC');
-        return $this->db->get($this->_table)->result_array();
+        return $this->db->get('roles')->result();
     }
 
-    public function getById($id)
+    public function get_role_by_id($id)
     {
-        return $this->db->get_where($this->_table, ["id" => $id])->row_array();
+        return $this->db->get_where('roles', ['id' => $id])->row();
     }
 
-    public function save()
+    public function insert_role($data)
     {
-        $post = $this->input->post();
-        $data = [
-            'role_name' => $post["role_name"],
-            'description' => $post["description"],
-        ];
-        return $this->db->insert($this->_table, $data);
+        return $this->db->insert('roles', $data);
     }
 
-    public function update()
+    public function update_role($id, $data)
     {
-        $post = $this->input->post();
-        $data = [
-            'role_name' => $post["role_name"],
-            'description' => $post["description"],
-        ];
-        return $this->db->update($this->_table, $data, array('id' => $post['id']));
+        return $this->db->where('id', $id)->update('roles', $data);
     }
 
-    public function delete($id)
+    public function delete_role($id)
     {
-        return $this->db->delete($this->_table, array("id" => $id));
-    }
-    public function getAccessByRoleId($role_id)
-    {
-        $this->db->where('role_id', $role_id);
-        $query = $this->db->get('role_access');
-        return $query->result_array();
+        return $this->db->delete('roles', ['id' => $id]);
     }
 
-    /**
-     * Mengupdate izin akses untuk sebuah role
-     */
-    public function updateAccess($role_id, $controllers)
+    public function get_permissions_by_role($role_id)
     {
-        // 1. Hapus semua izin lama untuk role ini
-        $this->db->where('role_id', $role_id);
-        $this->db->delete('role_access');
+        $this->db->select('menus.id as menu_id, menus.menu_name, rp.can_view, rp.can_add, rp.can_edit, rp.can_delete');
+        $this->db->from('menus');
+        $this->db->join('role_permissions rp', "rp.menu_id = menus.id AND rp.role_id = $role_id", 'left');
+        $this->db->order_by('menus.order_no', 'ASC');
+        return $this->db->get()->result();
+    }
 
-        // 2. Siapkan data baru untuk dimasukkan
-        $data = [];
-        foreach ($controllers as $controller) {
-            $data[] = [
-                'role_id' => $role_id,
-                'controller_name' => $controller
-            ];
+    public function save_permissions($role_id, $permissions)
+    {
+        // Hapus semua dulu, lalu insert ulang agar bersih
+        $this->db->where('role_id', $role_id)->delete('role_permissions');
+
+        if (!empty($permissions)) {
+            foreach ($permissions as $menu_id => $perm) {
+                $data = [
+                    'role_id' => $role_id,
+                    'menu_id' => $menu_id,
+                    'can_view' => isset($perm['view']) ? 1 : 0,
+                    'can_add' => isset($perm['add']) ? 1 : 0,
+                    'can_edit' => isset($perm['edit']) ? 1 : 0,
+                    'can_delete' => isset($perm['delete']) ? 1 : 0,
+                ];
+                $this->db->insert('role_permissions', $data);
+            }
         }
-
-        // 3. Masukkan semua izin baru (jika ada)
-        if (!empty($data)) {
-            return $this->db->insert_batch('role_access', $data);
-        }
-
-        return true; // Kembalikan true jika tidak ada izin yang dipilih
     }
 }

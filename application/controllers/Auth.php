@@ -3,60 +3,67 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 
 class Auth extends CI_Controller {
 
-    public function __construct()
-    {
+    public function __construct() {
         parent::__construct();
         $this->load->model('User_model');
         $this->load->library('session');
-        $this->load->helper('url');
+        $this->load->helper(['url', 'form']);
     }
 
-    // 1. Menampilkan Halaman Login
-    public function index()
-    {
-        // Jika user sudah login, tendang ke dashboard
-        if ($this->session->userdata('user_id')) {
+    // ==============================
+    // HALAMAN LOGIN
+    // ==============================
+    public function index() {
+        // Jika sudah login, langsung ke dashboard
+        if ($this->session->userdata('logged_in')) {
             redirect('dashboard');
         }
-        $this->load->view('auth/login'); // Memuat view login
+
+        $this->load->view('auth/login');
     }
 
-    // 2. Memproses Usaha Login
-    public function process_login()
-    {
-        $username = $this->input->post('username');
+    // ==============================
+    // PROSES LOGIN
+    // ==============================
+    public function login_action() {
+        $username = trim($this->input->post('username'));
         $password = $this->input->post('password');
 
-        // Panggil model untuk mencari user
-        $user = $this->User_model->login($username);
+        // Ambil data user berdasarkan username
+        $user = $this->db->get_where('users', [
+            'username' => $username,
+            'status' => 'active'
+        ])->row();
 
-        // Cek apakah user ada dan password cocok
-        if ($user && password_verify($password, $user['password'])) {
-            // Jika berhasil, siapkan data session
-            $session_data = [
-                'user_id'   => $user['id'],
-                'username'  => $user['username'],
-                'full_name' => $user['full_name'],
-                'role_id'   => $user['role_id'],
-                'logged_in' => TRUE
-            ];
-            $this->session->set_userdata($session_data);
+        // Validasi login
+        if ($user && password_verify($password, $user->password)) {
+            // Simpan data session
+            $this->session->set_userdata([
+                'user_id'   => $user->id,
+                'username'  => $user->username,
+                'fullname'  => $user->fullname,
+                'role_id'   => $user->role_id,
+                'logged_in' => true
+            ]);
 
-            // Arahkan ke dashboard
+            // Update waktu last_login
+            $this->User_model->update_last_login($user->username);
+
+            // Redirect ke dashboard
+            $this->session->set_flashdata('success', 'Selamat datang, '.$user->fullname.'!');
             redirect('dashboard');
         } else {
-            // Jika gagal, buat notifikasi error dan kembalikan ke halaman login
-            $this->session->set_flashdata('error', 'Username atau Password salah!');
+            // Login gagal
+            $this->session->set_flashdata('error', 'Username atau password salah!');
             redirect('auth');
         }
     }
 
-    // 3. Proses Logout
-    public function logout()
-    {
-        // Hapus semua data session
+    // ==============================
+    // LOGOUT
+    // ==============================
+    public function logout() {
         $this->session->sess_destroy();
-        // Arahkan kembali ke halaman login
         redirect('auth');
     }
 }
