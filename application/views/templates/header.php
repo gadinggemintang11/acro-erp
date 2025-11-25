@@ -7,15 +7,24 @@
   <meta name="author" content="Neokaber System">
   <title><?= isset($title) ? $title . ' | Neokaber' : 'Neokaber System'; ?></title>
 
-  <!-- Google Font - Poppins -->
+  <!-- Google Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">
 
-  <!-- SB Admin 2 Core -->
+  <!-- Font Awesome -->
   <link href="<?= base_url('assets/vendor/fontawesome-free/css/all.min.css'); ?>" rel="stylesheet" type="text/css">
-  <link href="<?= base_url('assets/css/sb-admin-2.min.css'); ?>" rel="stylesheet">
-    <link href="<?= base_url('assets/'); ?>vendor/select2/css/select2.min.css" rel="stylesheet" />
 
-  <!-- Custom Modern Style -->
+  <!-- SB Admin 2 -->
+  <link href="<?= base_url('assets/css/sb-admin-2.min.css'); ?>" rel="stylesheet">
+
+  <!-- DataTables -->
+  <link href="<?= base_url('assets/vendor/datatables/dataTables.bootstrap4.min.css'); ?>" rel="stylesheet">
+
+  <!-- Select2 -->
+  <link href="<?= base_url('assets/vendor/select2/css/select2.min.css'); ?>" rel="stylesheet" />
+
+  <!-- Custom Styles -->
+  <link href="<?= base_url('assets/css/style.css'); ?>" rel="stylesheet">
+
   <style>
     body {
       font-family: 'Poppins', sans-serif;
@@ -26,7 +35,7 @@
 
     /* Sidebar gradient */
     .navbar-nav.bg-gradient-primary {
-      background: linear-gradient(180deg, #1d3557 0%, #457b9d 100%);
+      background: linear-gradient(180deg, #316ec4ff 0%rgba(53, 94, 119, 1)9d 100%);
     }
 
     /* Button styling */
@@ -60,7 +69,7 @@
       overflow: hidden;
     }
 
-    /* Loader animation base (in case called before footer) */
+    /* Loader animation base */
     #loader-wrapper {
       display: none;
       position: fixed;
@@ -94,11 +103,21 @@
       0% { transform: rotate(0deg); } 
       100% { transform: rotate(360deg); } 
     }
+
+    #loader-text {
+      position: absolute;
+      top: calc(50% + 80px);
+      left: 50%;
+      transform: translateX(-50%);
+      font-weight: 500;
+      color: #1d3557;
+      font-size: 14px;
+      letter-spacing: 0.3px;
+    }
   </style>
 
-  <!-- jQuery & Bootstrap Core -->
+  <!-- jQuery -->
   <script src="<?= base_url('assets/vendor/jquery/jquery.min.js'); ?>"></script>
-  <script src="<?= base_url('assets/vendor/bootstrap/js/bootstrap.bundle.min.js'); ?>"></script>
 
   <!-- SweetAlert2 -->
   <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -108,28 +127,40 @@
 <body id="page-top">
 <div id="wrapper">
 
-<!-- Global Loader (active before content) -->
+<!-- ==================== Global Loader ==================== -->
 <div id="loader-wrapper">
   <div class="loader"></div>
-  <div id="loader-text" style="margin-top:180px;font-weight:500;color:#1d3557;font-size:14px;">
-    Memuat halaman, harap tunggu...
-  </div>
+  <div id="loader-text">Memuat halaman, harap tunggu...</div>
 </div>
 
 <script>
-$(function(){
-  const showLoader = () => $("#loader-wrapper").fadeIn(150);
+$(document).ready(function() {
+  const showLoader = () => $("#loader-wrapper").fadeIn(200);
   const hideLoader = () => $("#loader-wrapper").fadeOut(300);
 
-  // Saat pindah halaman
-  $(document).on('click', 'a.btn-load, a.nav-link', function(e){
+  // Loader saat pertama kali halaman dimuat
+  $(window).on('load', function() {
+    hideLoader();
+  });
+
+  // Loader saat klik link atau tombol navigasi
+  $(document).on('click', 'a.btn-load, a.nav-link, a.page-link', function(e){
     const href = $(this).attr('href');
-    if (href && href !== '#' && !href.startsWith('javascript:')) {
+    if (href && href !== '#' && !href.startsWith('javascript:') && !$(this).attr('target')) {
       showLoader();
     }
   });
 
-  // Saat halaman selesai
-  $(window).on('load', hideLoader);
+  // Jika ada form submit manual, tampilkan loader juga
+  $(document).on('submit', 'form', function(e) {
+    showLoader();
+  });
+
+  // Jika terjadi AJAX request global
+  $(document).ajaxStart(function() {
+    showLoader();
+  }).ajaxStop(function() {
+    hideLoader();
+  });
 });
 </script>

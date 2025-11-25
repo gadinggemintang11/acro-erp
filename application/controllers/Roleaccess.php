@@ -1,7 +1,7 @@
 <?php
 defined('BASEPATH') OR exit('No direct script access allowed');
 
-class Roleaccess extends CI_Controller {
+class Roleaccess extends MY_Controller {
 
     public function __construct()
     {
@@ -20,6 +20,7 @@ class Roleaccess extends CI_Controller {
 
         $this->load->view('templates/header', $data);
         $this->load->view('templates/sidebar', $data);
+        $this->load->view('templates/topbar', $data);
         $this->load->view('roleaccess/index', $data);
         $this->load->view('templates/footer');
     }
@@ -32,6 +33,7 @@ class Roleaccess extends CI_Controller {
 
         $this->load->view('templates/header', $data);
         $this->load->view('templates/sidebar', $data);
+        $this->load->view('templates/topbar', $data);
         $this->load->view('roleaccess/manage', $data);
         $this->load->view('templates/footer');
     }

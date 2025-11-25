@@ -38,4 +38,10 @@ class Supplier_model extends CI_Model {
 
         return $prefix . '-' . $new_number;
     }
+    public function get_all_suppliers() {
+        $this->db->select('id, nama_supplier, jenis');
+        $this->db->where('status', 'active');
+        $this->db->order_by('nama_supplier', 'ASC');
+        return $this->db->get('suppliers')->result();
+    }
 }

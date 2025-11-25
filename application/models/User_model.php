@@ -31,6 +31,14 @@ class User_model extends CI_Model {
     public function get_roles() {
         return $this->db->where('status', 'active')->get('roles')->result();
     }
+    public function get_user_name($user_id) {
+        $query = $this->db->select('fullname')
+                          ->where('id', $user_id)
+                          ->get('users')
+                          ->row_array();
+
+        return $query['fullname'] ?? null;
+    }
 
     /**
      * Update last_login by username (dipanggil saat login sukses)

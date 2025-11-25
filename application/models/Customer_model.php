@@ -13,6 +13,11 @@ class Customer_model extends CI_Model {
         return $this->db->insert($this->table, $data);
     }
 
+    // ✅ DITAMBAHKAN: Fungsi untuk mengambil data berdasarkan ID
+    public function get_by_id($id) {
+        return $this->db->get_where($this->table, ['id' => $id])->row();
+    }
+
     // ✅ DITAMBAHKAN: 'return' agar controller bisa cek status
     public function update($id, $data) {
         return $this->db->where('id', $id)->update($this->table, $data);

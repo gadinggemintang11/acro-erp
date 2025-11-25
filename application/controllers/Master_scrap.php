@@ -1,7 +1,7 @@
 <?php
 defined('BASEPATH') OR exit('No direct script access allowed');
 
-class Master_scrap extends CI_Controller {
+class Master_scrap extends MY_Controller {
 
     public function __construct() {
         parent::__construct();

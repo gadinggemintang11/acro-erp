@@ -7,7 +7,7 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 
-class Warehouse_in extends CI_Controller {
+class Warehouse_in extends MY_Controller {
 
     public function __construct() {
         parent::__construct();
@@ -39,33 +39,71 @@ class Warehouse_in extends CI_Controller {
         $this->load->view('templates/footer');
     }
 
-    public function add_header() {
-        if (!check_access('warehouse_in', 'add')) {
-            show_error('Anda tidak memiliki izin.', 403);
-        }
+    public function add_header()
+{
+    // Atur rules validasi Anda di sini
+    $this->form_validation->set_rules('grn_date', 'Tanggal', 'required');
+    $this->form_validation->set_rules('base_on', 'Dasar Penerimaan', 'required');
+    $this->form_validation->set_rules('warehouse_type', 'Tipe Gudang', 'required');
+    // Tambahkan validasi lain jika perlu
+
+    if ($this->form_validation->run() == FALSE) {
+        // Jika validasi gagal
+        $this->session->set_flashdata('error', 'Input tidak valid. ' . validation_errors());
+        redirect('warehouse_in');
+    } else {
+        
+        // =========================================================
+        // MULAI DATABASE TRANSACTION
+        // Ini untuk mengunci proses dan mencegah "race condition"
+        // =========================================================
+        $this->db->trans_start();
+
+        // 1. Panggil fungsi generator nomor
+        $grn_number = $this->_generate_grn_number();
+
+        // 2. Siapkan data untuk insert
         $data = [
-            'grn_number'           => $this->Warehouse_in_model->generate_grn_number(),
-            'grn_date'             => $this->input->post('grn_date'),
-            'base_on'              => $this->input->post('base_on'),
-            'warehouse_type'       => $this->input->post('warehouse_type'),
-            'supplier_id'          => NULL,
+            'grn_number'          => $grn_number, // Gunakan nomor yang baru dibuat
+            'grn_date'            => $this->input->post('grn_date'),
+            'base_on'             => $this->input->post('base_on'),
+            'warehouse_type'      => $this->input->post('warehouse_type'),
+            // 'supplier_id'      => NULL, // Biarkan NULL, akan diisi saat add item PO
             'delivery_note_number' => $this->input->post('delivery_note_number'),
-            'bc_type_code'         => $this->input->post('bc_type_code'),
-            'bc_date'              => $this->input->post('bc_date') ?: NULL,
-            'bc_number'            => $this->input->post('bc_number'),
-            'remarks'              => $this->input->post('remarks'),
-            'status'               => 'Draft',
-            'created_by'           => $this->session->userdata('user_id') ?? null
+            'bc_type_code'        => $this->input->post('bc_type_code') ?: NULL, // Set NULL jika kosong
+            'bc_date'             => $this->input->post('bc_date') ?: NULL, // Set NULL jika kosong
+            'bc_number'           => $this->input->post('bc_number') ?: NULL, // Set NULL jika kosong
+            'remarks'             => $this->input->post('remarks'),
+            'status'              => 'Draft',
+            'created_by'          => $this->session->userdata('user_id') // Pastikan session ini ada
         ];
-        $new_grn_id = $this->Warehouse_in_model->insert_header($data);
-        if ($new_grn_id) {
-            $this->session->set_flashdata('success', 'Header GRN dibuat. Silakan tambah item.');
-            redirect('warehouse_in/detail/' . $new_grn_id);
-        } else {
-            $this->session->set_flashdata('error', 'Gagal membuat header GRN!');
+
+        // 3. Panggil model untuk insert
+        // Ganti 'Warehouse_in_model' dengan nama model Anda yang benar
+        $insert_id = $this->Warehouse_in_model->add_header($data); 
+
+        // =========================================================
+        // SELESAI DATABASE TRANSACTION
+        // =========================================================
+        $this->db->trans_complete();
+
+        if ($this->db->trans_status() === FALSE) {
+            // Jika transaksi gagal (termasuk jika ada error duplicate lagi)
+            $this->session->set_flashdata('error', 'Gagal membuat GRN. Terjadi kesalahan database.');
             redirect('warehouse_in');
+        } else {
+            // Jika transaksi berhasil
+            if ($insert_id) {
+                $this->session->set_flashdata('success', 'Header GRN ' . $grn_number . ' berhasil dibuat. Silakan tambahkan item.');
+                // Langsung arahkan ke halaman detail untuk tambah item
+                redirect('warehouse_in/detail/' . $insert_id);
+            } else {
+                $this->session->set_flashdata('error', 'Gagal membuat GRN. Model tidak mengembalikan ID.');
+                redirect('warehouse_in');
+            }
         }
     }
+}
 
     public function update_header($id) {
         if (!check_access('warehouse_in', 'edit')) {
@@ -93,102 +131,116 @@ class Warehouse_in extends CI_Controller {
     }
 
     public function delete_header($id) {
-        if (!check_access('warehouse_in', 'delete')) {
-            show_error('Anda tidak memiliki izin.', 403);
-        }
+        if (!check_access('warehouse_in', 'delete')) { show_error('Anda tidak memiliki izin.', 403); return; }
+        if (empty($id) || !is_numeric($id)) { show_404(); }
+
         $header = $this->Warehouse_in_model->get_header_by_id($id);
         if (!$header || $header->status != 'Draft') {
-             $this->session->set_flashdata('error', 'GRN tidak bisa dihapus!');
-             redirect('warehouse_in');
+            $this->session->set_flashdata('error', 'GRN tidak bisa dihapus (status bukan Draft)!');
+            redirect('warehouse_in');
+            return;
         }
-        // Cek detail sebelum hapus
-        $details = $this->Warehouse_in_model->get_details_by_id($id);
-         if (!empty($details)) {
-             $this->session->set_flashdata('warning', 'GRN tidak bisa dihapus karena sudah memiliki item. Hapus item terlebih dahulu!');
-             redirect('warehouse_in');
-        }
-
+        
+        // Model delete_header() yang baru sudah mengecek detail
         if ($this->Warehouse_in_model->delete_header($id)) {
-            $this->session->set_flashdata('success', 'GRN dihapus.');
+            $this->session->set_flashdata('success', 'GRN Draft berhasil dihapus.');
         } else {
-            $this->session->set_flashdata('error', 'Gagal menghapus GRN.');
+            $this->session->set_flashdata('error', 'Gagal menghapus GRN (pastikan tidak ada item detail).');
         }
         redirect('warehouse_in');
     }
 
     public function detail($id) {
-        if (!check_access('warehouse_in', 'view')) {
-            show_error('Anda tidak memiliki izin.', 403);
-        }
+        if (!check_access('warehouse_in', 'view')) { show_error('Anda tidak memiliki izin.', 403); return; }
+        if (empty($id) || !is_numeric($id)) { show_404(); }
+
         $header = $this->Warehouse_in_model->get_header_by_id($id);
-        if (!$header) show_404();
+        if (!$header) { show_404(); }
+
         $data = [
-            'title'     => 'Detail Penerimaan Barang',
-            'header'    => $header,
-            'details'   => $this->Warehouse_in_model->get_details_by_id($id),
-            'bc_types'  => $this->Commoncode_model->get_by_group('BC_TYPE')
+            'title'   => 'Detail Penerimaan Barang',
+            'header'  => $header,
+            'details' => $this->Warehouse_in_model->get_details_by_id($id),
+            'bc_types' => $this->Commoncode_model->get_by_group('BC_TYPE')
+            // Tambahkan data lain jika perlu untuk modal edit
         ];
         $this->load->view('templates/header', $data);
         $this->load->view('templates/sidebar', $data);
         $this->load->view('templates/topbar', $data);
         $this->load->view('warehouse_in/detail', $data);
-        // Footer dipanggil di view
+        // Footer dipanggil di view detail.php
     }
 
     // === Confirm / Unconfirm ===
     public function confirm_grn($id) {
-        if (!check_access('warehouse_in', 'edit')) {
-            show_error('Anda tidak memiliki izin.', 403);
-        }
+        if (!check_access('warehouse_in', 'edit')) { show_error('Anda tidak memiliki izin.', 403); return; }
+        if (empty($id) || !is_numeric($id)) { show_404(); }
+
         $header = $this->Warehouse_in_model->get_header_by_id($id);
         if (!$header || $header->status != 'Draft') {
-             $this->session->set_flashdata('warning', 'GRN tidak bisa dikonfirmasi.');
-             redirect('warehouse_in/detail/' . $id);
+            $this->session->set_flashdata('warning', 'Hanya GRN status Draft yang bisa dikonfirmasi.');
+            redirect('warehouse_in/detail/' . $id);
+            return;
         }
         $details = $this->Warehouse_in_model->get_details_by_id($id);
         if (empty($details)) {
-             $this->session->set_flashdata('error', 'GRN kosong, tidak bisa dikonfirmasi.');
-             redirect('warehouse_in/detail/' . $id);
+            $this->session->set_flashdata('error', 'GRN kosong, tidak bisa dikonfirmasi.');
+            redirect('warehouse_in/detail/' . $id);
+            return;
         }
 
-        // 1. Tambah Stok
+        // 1. Tambah Stok (Model sudah FIFO & Traceability)
         if ($this->Warehouse_in_model->add_stock_to_ledger_and_batch($id)) {
+            // 2. Update Status Header
             $user_id = $this->session->userdata('user_id') ?? null;
             if ($this->Warehouse_in_model->update_status($id, 'Completed', $user_id)) {
-                $this->session->set_flashdata('success', 'GRN dikonfirmasi. Stok batch ditambahkan.');
+                $this->session->set_flashdata('success', 'GRN dikonfirmasi. Stok batch dan ledger telah ditambahkan.');
             } else {
-                 $this->Warehouse_in_model->remove_stock_from_ledger_and_batch($id); // Rollback
-                 $this->session->set_flashdata('error', 'Gagal update status GRN!');
+                // Rollback manual (jarang terjadi, tapi untuk keamanan)
+                log_message('error', 'GRN: Kritis! Gagal update status ke Completed setelah stok ditambah. GRN ID: ' . $id);
+                $this->Warehouse_in_model->remove_stock_from_ledger_and_batch($id); // Rollback stok
+                $this->session->set_flashdata('error', 'Gagal update status GRN! Stok dibatalkan.');
             }
         } else {
-             $this->session->set_flashdata('error', 'Gagal menambahkan stok batch!');
+            // Model add_stock... return false (kemungkinan DB error)
+            $this->session->set_flashdata('error', 'Gagal menambahkan stok batch/ledger! Transaksi dibatalkan.');
         }
         redirect('warehouse_in/detail/' . $id);
     }
 
     public function unconfirm_grn($id) {
-        if (!check_access('warehouse_in', 'edit')) {
-            show_error('Anda tidak memiliki izin.', 403);
-        }
+        if (!check_access('warehouse_in', 'edit')) { show_error('Anda tidak memiliki izin.', 403); return; }
+        if (empty($id) || !is_numeric($id)) { show_404(); }
+
         $header = $this->Warehouse_in_model->get_header_by_id($id);
         if (!$header || $header->status != 'Completed') {
-             $this->session->set_flashdata('warning', 'GRN tidak bisa dibatalkan.');
-             redirect('warehouse_in/detail/' . $id);
+            $this->session->set_flashdata('warning', 'Hanya GRN status Completed yang bisa dibatalkan.');
+            redirect('warehouse_in/detail/' . $id);
+            return;
         }
 
-        // OPTIONAL: Validasi Stok Terpakai
-        // ...
+        // 1. Hapus Stok (Model sudah validasi stok terpakai)
+        $remove_result = $this->Warehouse_in_model->remove_stock_from_ledger_and_batch($id);
 
-        // 1. Hapus Stok
-        if ($this->Warehouse_in_model->remove_stock_from_ledger_and_batch($id)) {
-             if ($this->Warehouse_in_model->update_status($id, 'Draft')) {
-                  $this->session->set_flashdata('success', 'Konfirmasi GRN dibatalkan, stok batch dikembalikan.');
-             } else {
-                  $this->session->set_flashdata('error', 'Gagal update status GRN!');
-             }
+        // --- REVISI DI SINI ---
+        if ($remove_result === true) { // Jika sukses (true)
+            // 2. Update Status Header
+            if ($this->Warehouse_in_model->update_status($id, 'Draft')) {
+                $this->session->set_flashdata('success', 'Konfirmasi GRN dibatalkan. Stok batch dan ledger telah dikembalikan/dihapus.');
+            } else {
+                // Kritis: Stok sudah dihapus tapi status gagal update
+                log_message('error', 'GRN: Kritis! Gagal update status ke Draft setelah stok dihapus. GRN ID: ' . $id);
+                $this->session->set_flashdata('error', 'Stok berhasil dihapus, tapi gagal update status header!');
+            }
+        } elseif ($remove_result === false) { // Jika gagal (false)
+             // Model mengembalikan false, artinya stok sudah terpakai
+             $this->session->set_flashdata('error', 'Gagal membatalkan GRN! Sebagian stok dari batch ini sudah terpakai di produksi.');
         } else {
-            $this->session->set_flashdata('error', 'Gagal mengembalikan stok batch!');
+             // Handle jika ada return lain (meskipun model saat ini hanya true/false)
+             $this->session->set_flashdata('error', 'Gagal mengembalikan stok batch (Database Error).');
         }
+        // --- AKHIR REVISI ---
+
         redirect('warehouse_in/detail/' . $id);
     }
 
@@ -222,6 +274,37 @@ class Warehouse_in extends CI_Controller {
                       . '</option>';
         }
         echo $options;
+    }
+    private function _generate_grn_number()
+    {
+        $prefix = 'GRN';
+        $period = date('Ym'); // e.g., 202510
+        $full_prefix = $prefix . '/' . $period . '/';
+        $padding_length = 4; // 0001, 0002, ... 9999
+
+        // 1. Cari nomor MAX di periode yang sama
+        // Query: SELECT MAX(grn_number) as max_num FROM grn_header WHERE grn_number LIKE 'GRN/202510/%'
+        $this->db->select_max('grn_number', 'max_num');
+        $this->db->like('grn_number', $full_prefix, 'after'); // 'after' = LIKE 'prefix%'
+        $query = $this->db->get('grn_header');
+        $row = $query->row();
+
+        $running_number = 1; // Default nomor 1 jika ini yang pertama di bulan ini
+
+        if ($row && $row->max_num) {
+            // 2. Jika sudah ada data (e.g., GRN/202510/0001)
+            // Ambil bagian nomor urutnya saja ("0001")
+            $last_number_str = substr($row->max_num, strlen($full_prefix)); 
+            
+            // Ubah jadi integer (1), lalu tambah 1 (jadi 2)
+            $running_number = (int)$last_number_str + 1;
+        }
+
+        // 3. Tambahkan padding nol di depan (e.g., 2 -> "0002")
+        $new_running_number = str_pad($running_number, $padding_length, '0', STR_PAD_LEFT);
+
+        // 4. Gabungkan (e.g., "GRN/202510/0002")
+        return $full_prefix . $new_running_number;
     }
 
     // === Item Actions ===

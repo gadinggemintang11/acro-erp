@@ -5,13 +5,15 @@ require FCPATH . 'vendor/autoload.php';
 use Dompdf\Dompdf;
 use Dompdf\Options;
 
-class Mir extends CI_Controller {
+class Mir extends MY_Controller {
 
     public function __construct() {
         parent::__construct();
         check_login();
         $this->load->model(['Mir_model', 'Commoncode_model', 'Sc_model', 'Supplier_model']);
         $this->load->helper('url');
+        $this->load->library('session'); // Load session
+        $this->load->library('user_agent'); // Load user agent untuk redirect back
     }
 
     public function index() {
@@ -184,6 +186,67 @@ class Mir extends CI_Controller {
         $this->Mir_model->insert_item($data);
         $this->session->set_flashdata('success', 'Item berhasil ditambahkan.');
         redirect('mir/detail/' . $mir_id);
+    }
+    public function approve_mir($id) {
+        // Gunakan izin 'edit' atau buat izin 'approve_mir'
+        if (!check_access('mir', 'edit')) { show_error('Izin Ditolak.', 403); return; }
+        if (empty($id) || !is_numeric($id)) show_404();
+
+        $header = $this->Mir_model->get_header_by_id($id);
+        if (!$header || $header->status != 'Draft') {
+            $this->session->set_flashdata('warning', 'Hanya MIR status Draft yang bisa diapprove!');
+            redirect($this->agent->referrer() ?? 'mir/detail/' . $id); // Redirect back
+            return;
+        }
+        // Validasi: Pastikan ada item detail
+        $details = $this->Mir_model->get_details_by_id($id);
+        if (empty($details)) {
+             $this->session->set_flashdata('error', 'MIR tidak bisa diapprove karena belum memiliki item detail!');
+             redirect('mir/detail/' . $id);
+             return;
+        }
+
+        $userId = $this->session->userdata('user_id') ?? null;
+        if (!$userId) { // User ID harus ada
+             $this->session->set_flashdata('error', 'Gagal approve: User ID tidak ditemukan!');
+             redirect('mir/detail/' . $id);
+             return;
+        }
+
+        $update_status = $this->Mir_model->update_status($id, 'Approved', $userId);
+
+        if ($update_status === true) { // Cek boolean true
+            $this->session->set_flashdata('success', 'Material Import Request berhasil diapprove.');
+        } else {
+            // Error sudah di-log di model, beri pesan umum
+            $this->session->set_flashdata('error', 'Gagal mengapprove Material Import Request!');
+        }
+        redirect('mir/detail/' . $id);
+    }
+    public function unapprove_mir($id) {
+        // Gunakan izin 'edit' atau buat izin 'approve_mir'
+        if (!check_access('mir', 'edit')) { show_error('Izin Ditolak.', 403); return; }
+        if (empty($id) || !is_numeric($id)) show_404();
+
+        $header = $this->Mir_model->get_header_by_id($id);
+        if (!$header || $header->status != 'Approved') {
+            $this->session->set_flashdata('warning', 'Hanya MIR status Approved yang bisa dibatalkan approvalnya!');
+            redirect($this->agent->referrer() ?? 'mir/detail/' . $id); // Redirect back
+            return;
+        }
+
+        // Panggil model update_status (model akan cek penerimaan & handle error)
+        $update_status = $this->Mir_model->update_status($id, 'Draft'); // Target status Draft
+
+        if ($update_status === true) {
+            $this->session->set_flashdata('success', 'Approval Material Import Request berhasil dibatalkan (Status: Draft).');
+        } elseif ($update_status === 'received') { // Cek return spesifik dari model
+            $this->session->set_flashdata('error', 'Gagal membatalkan approval: MIR sudah digunakan dalam Penerimaan Barang!');
+        } else {
+            // Error lain (status awal salah, DB error)
+             $this->session->set_flashdata('error', 'Gagal membatalkan approval Material Import Request!');
+        }
+        redirect('mir/detail/' . $id);
     }
     
     public function delete_item($mir_id, $item_id) {

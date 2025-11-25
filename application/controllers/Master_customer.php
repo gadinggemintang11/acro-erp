@@ -1,7 +1,8 @@
 <?php
 defined('BASEPATH') OR exit('No direct script access allowed');
 
-class Master_customer extends CI_Controller {
+class Master_customer extends MY_Controller {
+    protected $module_name = 'Master Pelanggan';
 
     public function __construct() {
         parent::__construct();
@@ -50,7 +51,11 @@ class Master_customer extends CI_Controller {
             'status'        => 'active',
         ];
 
+        $nama_customer = $this->input->post('nama_customer');
+
         if ($this->Customer_model->insert($data)) {
+            $deskripsi = "Membuat pelanggan baru: {$nama_customer} (Kode: {$data['kode_customer']})";
+            $this->_log('CREATE', $deskripsi);
             $this->session->set_flashdata('success', 'Data pelanggan berhasil ditambahkan!');
         } else {
             $this->session->set_flashdata('error', 'Gagal menambahkan data!');
@@ -65,6 +70,10 @@ class Master_customer extends CI_Controller {
         }
         if (empty($id)) show_404(); // ✅ Pengecekan ID
 
+        // Ambil data lama untuk log
+        $old_data = $this->Customer_model->get_by_id($id);
+        if (!$old_data) show_404();
+
         $data = [
             'nama_customer' => $this->input->post('nama_customer'),
             'jenis'         => $this->input->post('jenis'),
@@ -75,7 +84,11 @@ class Master_customer extends CI_Controller {
             'status'        => $this->input->post('status'),
         ];
 
+        $nama_customer_baru = $this->input->post('nama_customer');
+
         if ($this->Customer_model->update($id, $data)) {
+            $deskripsi = "Memperbarui data pelanggan: {$old_data->nama_customer} (ID: $id) menjadi {$nama_customer_baru}";
+            $this->_log('UPDATE', $deskripsi);
             $this->session->set_flashdata('success', 'Data pelanggan berhasil diperbarui!');
         } else {
             $this->session->set_flashdata('error', 'Gagal memperbarui data!');
@@ -90,7 +103,12 @@ class Master_customer extends CI_Controller {
         }
         if (empty($id)) show_404(); // ✅ Pengecekan ID
 
+        // Ambil data untuk log sebelum dihapus
+        $customer_data = $this->Customer_model->get_by_id($id);
+
         if ($this->Customer_model->delete($id)) {
+            $deskripsi = "Menonaktifkan pelanggan: " . ($customer_data->nama_customer ?? "ID: $id");
+            $this->_log('UPDATE', $deskripsi); 
             // ✅ DIUBAH: Pesan disesuaikan dengan soft delete
             $this->session->set_flashdata('success', 'Data pelanggan berhasil dinonaktifkan!');
         } else {

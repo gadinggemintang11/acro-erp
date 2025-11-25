@@ -3,22 +3,31 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 
 class Bom_model extends CI_Model {
 
+    // --- Definisi Nama Tabel ---
     private $table_header = 'bom_header';
     private $table_details = 'bom_details';
+    private $table_fg = 'finished_goods'; // Nama tabel Finished Goods
+    private $table_materials = 'materials';
+    private $table_semifinished = 'semifinished_goods';
+    // --- Akhir Definisi ---
+
+    public function __construct() {
+        parent::__construct();
+        $this->load->database();
+    }
 
     // === HEADER ===
     public function get_all($filters = []) {
         $this->db->select('h.id, h.status, h.revision, fg.kode_barang as fg_code, fg.nama_barang as fg_name');
         $this->db->from($this->table_header . ' h');
-        $this->db->join('finished_goods fg', 'h.fg_id = fg.id', 'inner'); // Inner join karena BOM harus punya FG
+        $this->db->join($this->table_fg . ' fg', 'h.fg_id = fg.id', 'inner');
 
-        // Filter Search
         if (!empty($filters['search'])) {
-             $term = $this->db->escape_like_str($filters['search']);
-             $this->db->group_start();
-             $this->db->like('fg.kode_barang', $term);
-             $this->db->or_like('fg.nama_barang', $term);
-             $this->db->group_end();
+            $term = $this->db->escape_like_str($filters['search']);
+            $this->db->group_start();
+            $this->db->like('fg.kode_barang', $term);
+            $this->db->or_like('fg.nama_barang', $term);
+            $this->db->group_end();
         }
 
         $this->db->order_by('fg.nama_barang', 'ASC');
@@ -28,92 +37,177 @@ class Bom_model extends CI_Model {
     public function get_header_by_id($id) {
         $this->db->select('h.*, fg.kode_barang as fg_code, fg.nama_barang as fg_name');
         $this->db->from($this->table_header . ' h');
-        $this->db->join('finished_goods fg', 'h.fg_id = fg.id', 'inner');
+        $this->db->join($this->table_fg .' fg', 'h.fg_id = fg.id', 'inner');
         $this->db->where('h.id', $id);
         return $this->db->get()->row();
     }
 
-    // Cek apakah FG sudah punya BOM
     public function check_bom_exists_for_fg($fg_id) {
         return $this->db->where('fg_id', $fg_id)->count_all_results($this->table_header) > 0;
     }
 
     public function insert_header($data) {
-        // Pastikan FG belum punya BOM
         if ($this->check_bom_exists_for_fg($data['fg_id'])) {
-            return false; // Gagal insert jika sudah ada
+            return false;
+        }
+        // Pastikan status default adalah Draft jika tidak diset
+        if (empty($data['status'])) {
+            $data['status'] = 'Draft';
         }
         $this->db->insert($this->table_header, $data);
         return $this->db->insert_id();
     }
 
+    // Update Header (Tidak mengizinkan ubah FG atau status secara langsung)
     public function update_header($id, $data) {
-        // FG tidak boleh diubah
-        unset($data['fg_id']);
+        unset($data['fg_id'], $data['status']); // Hapus field yang tidak boleh diubah di sini
         return $this->db->where('id', $id)->update($this->table_header, $data);
     }
 
+    /**
+     * Delete Header (MODIFIKASI: Menggunakan Transaction)
+     * Hanya bisa hapus jika status Draft
+     */
     public function delete_header($id) {
-        // ON DELETE CASCADE akan hapus detail
-        return $this->db->where('id', $id)->delete($this->table_header);
+        $this->db->trans_start();
+        // Hapus detail dulu
+        $this->db->where('bom_header_id', $id)->delete($this->table_details);
+        // Hapus header (hanya jika Draft)
+        $this->db->where('id', $id)->where('status', 'Draft')->delete($this->table_header);
+        $affected_header = $this->db->affected_rows(); // Cek apakah header terhapus
+        $this->db->trans_complete();
+        
+        if ($this->db->trans_status() === FALSE) {
+            log_message('error', 'Gagal menghapus BOM (ID: ' . $id . ') dari database.');
+        }
+
+        // Return true hanya jika transaksi berhasil DAN header benar-benar terhapus
+        return ($this->db->trans_status() && $affected_header > 0);
     }
+
+    public function update_status($id, $new_status) {
+        $this->db->where('id', $id);
+        $update_result = $this->db->update($this->table_header, ['status' => $new_status]);
+        return ($update_result && $this->db->affected_rows() > 0);
+    }
+
 
     // === DETAILS ===
     public function get_details_by_header_id($bom_header_id) {
         $select_clause = "
-            d.id, d.bom_header_id, d.quantity_required, d.unit_measure,
+            d.id, d.bom_header_id, d.quantity_required,
             d.component_item_id as item_id, d.component_item_type as item_type,
             CASE
                 WHEN d.component_item_type = 'material' THEN m.kode_material
                 WHEN d.component_item_type = 'semifinished' THEN sf.kode_barang
-            END as item_code,
+                ELSE 'N/A'
+            END as component_code,
             CASE
                 WHEN d.component_item_type = 'material' THEN m.nama_material
                 WHEN d.component_item_type = 'semifinished' THEN sf.nama_barang
-            END as item_name
+                ELSE 'Unknown Item'
+            END as component_name,
+             CASE
+                WHEN d.component_item_type = 'material' THEN m.satuan
+                WHEN d.component_item_type = 'semifinished' THEN sf.satuan
+                ELSE 'N/A'
+            END as component_unit /* Ambil satuan dari master */
         ";
         $this->db->select($select_clause, FALSE);
         $this->db->from($this->table_details . ' d');
-        $this->db->join('materials m', 'd.component_item_id = m.id AND d.component_item_type = "material"', 'left');
-        $this->db->join('semifinished_goods sf', 'd.component_item_id = sf.id AND d.component_item_type = "semifinished"', 'left');
+        $this->db->join($this->table_materials . ' m', 'd.component_item_id = m.id AND d.component_item_type = "material"', 'left');
+        $this->db->join($this->table_semifinished . ' sf', 'd.component_item_id = sf.id AND d.component_item_type = "semifinished"', 'left');
         $this->db->where('d.bom_header_id', $bom_header_id);
-        $this->db->order_by('item_name', 'ASC');
+        $this->db->order_by('component_name', 'ASC');
         return $this->db->get()->result();
     }
 
     public function insert_item($data) {
-        // Ambil satuan dari master data
-        $component = null;
-        if($data['component_item_type'] == 'material'){
-            $component = $this->db->select('satuan')->where('id', $data['component_item_id'])->get('materials')->row();
-        } else if ($data['component_item_type'] == 'semifinished'){
-             $component = $this->db->select('satuan')->where('id', $data['component_item_id'])->get('semifinished_goods')->row();
+        // Cek duplikasi sebelum insert
+        $exists = $this->db->where('bom_header_id', $data['bom_header_id'])
+                             ->where('component_item_id', $data['component_item_id'])
+                             ->where('component_item_type', $data['component_item_type'])
+                             ->count_all_results($this->table_details);
+        if ($exists > 0) {
+            return false; // Komponen sudah ada
         }
-        $data['unit_measure'] = $component ? $component->satuan : null;
-
         return $this->db->insert($this->table_details, $data);
     }
 
-    // Opsional: Fungsi update item jika diperlukan
-    // public function update_item($id, $data) { ... }
+    /**
+     * Update Item Detail (FUNGSI BARU)
+     * Hanya bisa update jika status header Draft
+     */
+    public function update_item($detail_id, $data) {
+        // 1. Dapatkan header_id dari detail
+        $this->db->select('bom_header_id');
+        $this->db->where('id', $detail_id);
+        $detail = $this->db->get($this->table_details)->row();
+        if (!$detail) {
+            log_message('error', 'Update BOM item gagal: Detail ID ' . $detail_id . ' tidak ditemukan.');
+            return false;
+        }
+
+        // 2. Cek status header
+        $this->db->select('status');
+        $this->db->where('id', $detail->bom_header_id);
+        $header = $this->db->get($this->table_header)->row();
+
+        // ================================================================
+        // PERBAIKAN: Gunakan trim() dan strtoupper()
+        // Ini memperbaiki bug di mana 'Draft ' (dengan spasi) dianggap tidak valid
+        // ================================================================
+        if (!$header || strtoupper(trim($header->status)) != 'DRAFT') {
+            log_message('error', 'Update BOM item gagal: Status header bukan Draft (ID Header: ' . $detail->bom_header_id . '). Status terdeteksi: "' . $header->status . '"');
+            return false;
+        }
+        // ================================================================
+        // AKHIR PERBAIKAN
+        // ================================================================
+
+        // 3. Lakukan Update (Hanya kolom yang diizinkan, misal quantity)
+        $allowed_updates = ['quantity_required']; // Kolom yang boleh diupdate
+        $update_data = array_intersect_key($data, array_flip($allowed_updates));
+
+        if (empty($update_data)) {
+             log_message('error', 'Update BOM item gagal: Tidak ada data valid untuk diupdate.');
+             return false; // Tidak ada data valid untuk diupdate
+        }
+
+        $this->db->where('id', $detail_id);
+        $update_result = $this->db->update($this->table_details, $update_data);
+        log_message('debug', 'Update BOM Item SQL: ' . $this->db->last_query());
+
+        // Cek jika update berhasil ATAU jika data tidak berubah (affected_rows == 0 tapi tidak error)
+        if ($update_result) {
+            return true; // Berhasil, atau tidak ada yg berubah
+        } else {
+            return false; // Error saat update
+        }
+    }
 
     public function delete_item($id) {
+        // Sebaiknya cek status header di controller sebelum panggil ini
         return $this->db->where('id', $id)->delete($this->table_details);
     }
+    
+    // Fungsi baru untuk mengambil info detail item (untuk log)
+    public function get_detail_item_by_id($id) {
+        return $this->db->where('id', $id)->get($this->table_details)->row();
+    }
+
 
     // === HELPERS ===
     public function search_components($term) {
         $term = $this->db->escape_like_str($term);
         // Hanya cari Material & Semifinished
         $materials = $this->db->select("id, kode_material as code, nama_material as name, 'material' as type")
-                              ->group_start()->like('kode_material', $term)->or_like('nama_material', $term)->group_end()
-                              ->where('status', 'active')->limit(10)->get('materials')->result();
+                                ->group_start()->like('kode_material', $term)->or_like('nama_material', $term)->group_end()
+                                ->where('status', 'active')->limit(10)->get('materials')->result();
         $semifinished = $this->db->select("id, kode_barang as code, nama_barang as name, 'semifinished' as type")
-                                 ->group_start()->like('kode_barang', $term)->or_like('nama_barang', $term)->group_end()
-                                 ->where('status', 'active')->limit(10)->get('semifinished_goods')->result();
+                                   ->group_start()->like('kode_barang', $term)->or_like('nama_barang', $term)->group_end()
+                                   ->where('status', 'active')->limit(10)->get('semifinished_goods')->result();
         return array_merge($materials, $semifinished);
     }
-    public function update_status($id, $new_status) {
-        return $this->db->where('id', $id)->update($this->table_header, ['status' => $new_status]);
-    }
-}
+
+} // End Class

@@ -1,7 +1,9 @@
 <?php
 defined('BASEPATH') OR exit('No direct script access allowed');
 
-class Master_material extends CI_Controller {
+class Master_material extends MY_Controller {
+
+    protected $module_name = 'Master Material';
 
     public function __construct() {
         parent::__construct();
@@ -50,7 +52,11 @@ class Master_material extends CI_Controller {
         ];
 
         if ($this->Material_model->insert($data)) {
+            // --- LOGGING (CREATE) ---
+            $deskripsi = "Membuat material baru: {$data['nama_material']} (Kode: {$data['kode_material']})";
+            $this->_log('CREATE', $deskripsi);
             $this->session->set_flashdata('success', 'Material berhasil ditambahkan!');
+            // --- END LOG ---
         } else {
             $this->session->set_flashdata('error', 'Gagal menambahkan material!');
         }
@@ -63,6 +69,10 @@ class Master_material extends CI_Controller {
             show_error('Anda tidak memiliki izin untuk mengedit data.', 403);
         }
 
+        // Ambil data lama untuk log
+        $old_data = $this->Material_model->get_by_id($id);
+        if (!$old_data) show_404();
+
         $data = [
             'nama_material' => $this->input->post('nama_material'),
             'kategori'      => $this->input->post('kategori'),
@@ -72,7 +82,11 @@ class Master_material extends CI_Controller {
         ];
 
         if ($this->Material_model->update($id, $data)) {
+            // --- LOGGING (UPDATE) ---
+            $deskripsi = "Memperbarui material: {$old_data->nama_material} (ID: $id) menjadi {$data['nama_material']}";
+            $this->_log('UPDATE', $deskripsi);
             $this->session->set_flashdata('success', 'Data material berhasil diperbarui!');
+            // --- END LOG ---
         } else {
             $this->session->set_flashdata('error', 'Gagal memperbarui data!');
         }
@@ -85,7 +99,13 @@ class Master_material extends CI_Controller {
             show_error('Anda tidak memiliki izin untuk menghapus data.', 403);
         }
 
+        // Ambil data untuk log sebelum dinonaktifkan
+        $material_data = $this->Material_model->get_by_id($id);
+
         if ($this->Material_model->delete($id)) {
+            // --- LOGGING (DELETE/SOFT DELETE) ---
+            $deskripsi = "Menonaktifkan material: " . ($material_data->nama_material ?? "ID: $id");
+            $this->_log('UPDATE', $deskripsi);
             // ✅ DIUBAH: Pesan disesuaikan dengan soft delete
             $this->session->set_flashdata('success', 'Data material berhasil dinonaktifkan!');
         } else {

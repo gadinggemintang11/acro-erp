@@ -1,162 +1,245 @@
 <div class="container-fluid">
-    <div class="d-flex justify-content-between align-items-center mb-4">
-        <h3 class="text-gray-800 mb-0"><i class="fas fa-shopping-cart text-primary mr-2"></i><?= htmlspecialchars($title); ?></h3>
+
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h1 class="h3 mb-0 text-gray-800"><?= htmlspecialchars($title); ?></h1>
         <?php if (check_access('purchase_order', 'add')): ?>
-            <button class="btn btn-primary shadow-sm" data-toggle="modal" data-target="#addHeaderModal">
-                <i class="fas fa-plus-circle mr-1"></i> Buat PO Baru
-            </button>
+        <button class="d-none d-sm-inline-block btn btn-sm btn-primary shadow-sm" data-toggle="modal" data-target="#addHeaderModal">
+            <i class="fas fa-plus fa-sm text-white-50 mr-1"></i> Buat PO Baru
+        </button>
         <?php endif; ?>
     </div>
 
-    <div class="card border-0 shadow-sm rounded">
+    <?php if ($this->session->flashdata('success')): ?>
+    <div class="alert alert-success alert-dismissible fade show" role="alert"><?= $this->session->flashdata('success'); ?><button type="button" class="close" data-dismiss="alert">&times;</button></div>
+    <?php endif; ?>
+    <?php if ($this->session->flashdata('error')): ?>
+    <div class="alert alert-danger alert-dismissible fade show" role="alert"><?= $this->session->flashdata('error'); ?><button type="button" class="close" data-dismiss="alert">&times;</button></div>
+    <?php endif; ?>
+     <?php if ($this->session->flashdata('warning')): ?>
+    <div class="alert alert-warning alert-dismissible fade show" role="alert"><?= $this->session->flashdata('warning'); ?><button type="button" class="close" data-dismiss="alert">&times;</button></div>
+    <?php endif; ?>
+
+
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Daftar Purchase Order</h6>
+        </div>
         <div class="card-body">
             <div class="table-responsive">
-                <table class="table table-striped table-hover align-middle">
-                    <thead class="thead-light text-center">
-                        <tr>
-                            <th>#</th>
-                            <th>No. PO</th>
+                <table class="table table-bordered table-striped table-hover" id="dataTable" width="100%" cellspacing="0">
+                    <thead>
+                        <tr class="text-center">
+                            <th>Nomor PO</th>
+                            <th>Tanggal PO</th>
                             <th>Supplier</th>
-                            <th>Tanggal</th>
                             <th>Status</th>
-                            <th width="200">Aksi</th>
+                            <th>Aksi</th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php if(!empty($pos)): $no=1; foreach($pos as $po): ?>
-                        <tr class="text-center">
-                            <td><?= $no++; ?></td>
-                            <td class="font-weight-bold text-primary"><?= htmlspecialchars($po->po_number); ?></td>
-                            <td class="text-left"><?= htmlspecialchars($po->nama_supplier); ?></td>
-                            <td><?= date('d M Y', strtotime($po->po_date)); ?></td>
-                            <td><span class="badge badge-info"><?= $po->status; ?></span></td>
-                            <td>
-                                <a href="<?= base_url('purchase_order/detail/'.$po->id); ?>" class="btn btn-sm btn-info btn-load">
+                        <?php if(!empty($pos)): foreach ($pos as $po): ?>
+                        <tr>
+                            <td class="text-center font-weight-bold"><?= htmlspecialchars($po->po_number) ?></td>
+                            <td class="text-center"><?= date('d M Y', strtotime($po->po_date)) ?></td>
+                            <td><?= htmlspecialchars($po->nama_supplier) ?></td>
+                            <td class="text-center">
+                                <?php
+                                    $status_colors = [ 'Draft' => 'warning', 'Submitted' => 'info', 'Confirmed' => 'primary', 'Completed' => 'success', 'Cancelled' => 'danger', 'Rejected' => 'secondary' ];
+                                    $color = $status_colors[$po->status] ?? 'dark';
+                                ?>
+                                <span class="badge badge-<?= $color; ?>"><?= htmlspecialchars($po->status); ?></span>
+                            </td>
+                            <td class="text-center">
+                                <a href="<?= base_url('purchase_order/detail/' . $po->id) ?>" class="btn btn-info btn-sm btn-load" title="Lihat Detail">
                                     <i class="fas fa-eye"></i> Detail
                                 </a>
                                 <?php if ($po->status == 'Draft' && check_access('purchase_order', 'delete')): ?>
-                                <a href="<?= base_url('purchase_order/delete_header/'.$po->id); ?>" class="btn btn-sm btn-danger btn-delete ml-1" data-message="Yakin ingin menghapus PO ini? Semua item detail akan ikut terhapus jika ada!">
+                                <a href="<?= base_url('purchase_order/delete_header/' . $po->id) ?>" class="btn btn-danger btn-sm btn-delete ml-1" title="Hapus PO (Draft)" data-message="Yakin hapus PO Draft ini? Hanya bisa jika item kosong.">
                                     <i class="fas fa-trash"></i> Hapus
                                 </a>
                                 <?php endif; ?>
                             </td>
                         </tr>
                         <?php endforeach; else: ?>
-                            <tr><td colspan="6" class="text-center text-muted py-3">Belum ada data Purchase Order</td></tr>
+                            <tr><td colspan="5" class="text-center">Belum ada data Purchase Order.</td></tr>
                         <?php endif; ?>
                     </tbody>
                 </table>
             </div>
         </div>
     </div>
-</div>
 
+</div>
+<?php if (check_access('purchase_order', 'add')): ?>
 <div class="modal fade" id="addHeaderModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <form method="post" action="<?= base_url('purchase_order/add_header'); ?>">
             <div class="modal-content border-0 shadow">
-                <div class="modal-header bg-gradient-primary text-white">
-                    <h5 class="modal-title"><i class="fas fa-plus-circle mr-2"></i>Buat Header PO Baru</h5>
+                <div class="modal-header bg-primary text-white">
+                    <h5 class="modal-title"><i class="fas fa-plus-circle mr-2"></i>Buat Header Purchase Order</h5>
                     <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
                 </div>
                 <div class="modal-body">
                     <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label>Supplier</label>
-                                <select name="supplier_id" class="form-control" required>
-                                    <option value="">-- Pilih Supplier --</option>
-                                    <?php foreach($suppliers as $s): ?>
-                                        <option value="<?= $s->id; ?>"><?= htmlspecialchars($s->nama_supplier); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
+                        <div class="col-md-6 form-group">
+                            <label>Supplier <span class="text-danger">*</span></label>
+                            <select name="supplier_id" class="form-control select2-modal" required style="width: 100%;">
+                                <option value="">-- Pilih Supplier --</option>
+                                <?php foreach($suppliers as $sup): ?>
+                                    <option value="<?= $sup->id; ?>"><?= htmlspecialchars($sup->nama_supplier); ?></option>
+                                <?php endforeach; ?>
+                            </select>
                         </div>
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label>Tanggal PO</label>
-                                <input type="date" name="po_date" class="form-control" value="<?= date('Y-m-d'); ?>" required>
-                            </div>
+                        <div class="col-md-6 form-group">
+                            <label>Tanggal PO <span class="text-danger">*</span></label>
+                            <input type="date" name="po_date" class="form-control" value="<?= date('Y-m-d'); ?>" required>
                         </div>
                     </div>
                     <div class="row">
-                        <div class="col-md-6">
-                             <div class="form-group">
-                                <label>Mode Pengiriman</label>
-                                <select name="shipping_mode_code" class="form-control">
-                                    <option value="">-- Pilih Mode --</option>
-                                     <?php foreach($shipping_modes as $mode): ?>
-                                        <option value="<?= $mode->code; ?>"><?= htmlspecialchars($mode->description); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
+                         <div class="col-md-6 form-group">
+                            <label>Mode Pengiriman</label>
+                            <select name="shipping_mode_code" class="form-control select2-modal" style="width: 100%;">
+                                <option value="">-- Pilih Mode --</option>
+                                <?php foreach($shipping_modes as $mode): ?> <option value="<?= $mode->code; ?>"><?= htmlspecialchars($mode->description); ?></option> <?php endforeach; ?>
+                            </select>
                         </div>
-                         <div class="col-md-6">
-                             <div class="form-group">
-                                <label>Mode Pembayaran</label>
-                                <select name="payment_mode_code" class="form-control">
-                                     <option value="">-- Pilih Mode --</option>
-                                     <?php foreach($payment_modes as $mode): ?>
-                                        <option value="<?= $mode->code; ?>"><?= htmlspecialchars($mode->description); ?></option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
+                         <div class="col-md-6 form-group">
+                            <label>Mode Pembayaran</label>
+                            <select name="payment_mode_code" class="form-control select2-modal" style="width: 100%;">
+                                <option value="">-- Pilih Mode --</option>
+                                <?php foreach($payment_modes as $mode): ?> <option value="<?= $mode->code; ?>"><?= htmlspecialchars($mode->description); ?></option> <?php endforeach; ?>
+                            </select>
                         </div>
                     </div>
                      <div class="row">
-                        <div class="col-md-6">
-                            <div class="form-group">
-                                <label>Currency</label>
-                                <select name="currency_code" id="currency_code" class="form-control">
-                                    <?php foreach($currencies as $curr): ?>
-                                        <option value="<?= $curr->code; ?>" <?= $curr->code == 'IDR' ? 'selected' : ''; ?>>
-                                            <?= htmlspecialchars($curr->description); ?> (<?= $curr->code; ?>)
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
-                            </div>
+                         <div class="col-md-6 form-group">
+                            <label>Mata Uang <span class="text-danger">*</span></label>
+                            <select name="currency_code" id="add_currency_code" class="form-control select2-modal" required style="width: 100%;">
+                                <?php foreach($currencies as $curr): ?> <option value="<?= $curr->code; ?>" <?= ($curr->code == 'IDR') ? 'selected' : ''; ?>><?= htmlspecialchars($curr->description); ?></option> <?php endforeach; ?>
+                            </select>
                         </div>
-                         <div class="col-md-6" id="exchange_rate_div" style="display:none;">
-                             <div class="form-group">
-                                <label>Kurs terhadap IDR</label>
-                                <input type="text" name="exchange_rate" id="exchange_rate" class="form-control text-right" value="1.0000" placeholder="Contoh: 15000.50">
-                            </div>
+                        <div class="col-md-6 form-group" id="add_exchange_rate_div" style="display: none;">
+                            <label>Kurs Tukar (Rate) <span class="text-danger">*</span></label>
+                            <input type="text" name="exchange_rate" class="form-control autonumeric-4dec text-right" value="1.0000">
                         </div>
+                    </div>
+                     <div class="form-group form-check">
+                        <input type="checkbox" class="form-check-input" id="add_has_ppn" name="has_ppn" value="1">
+                        <label class="form-check-label" for="add_has_ppn">Termasuk PPN 11%</label>
                     </div>
                     <div class="form-group">
-                        <label>Catatan</label>
+                        <label>Catatan / Remarks</label>
                         <textarea name="remarks" class="form-control" rows="2"></textarea>
-                    </div>
-                    <div class="custom-control custom-checkbox">
-                        <input type="checkbox" class="custom-control-input" id="has_ppn" name="has_ppn" value="1">
-                        <label class="custom-control-label" for="has_ppn">Termasuk PPN 11%</label>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary btn-load"><i class="fas fa-arrow-right mr-1"></i> Simpan & Lanjut ke Detail</button>
+                    <button type="submit" class="btn btn-primary btn-load"><i class="fas fa-arrow-right mr-1"></i> Simpan & Lanjut</button>
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
                 </div>
             </div>
         </form>
     </div>
 </div>
+<?php endif; ?>
 
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/autonumeric/4.6.0/autoNumeric.min.js"></script>
+
 <script>
 $(document).ready(function() {
-    const anExchangeRate = new AutoNumeric('#exchange_rate', {
-        decimalCharacter : '.', digitGroupSeparator : ',', decimalPlaces: 4, minimumValue: '0'
-    });
+    // Inisialisasi DataTable (jika belum di footer global)
+    // Cek jika #dataTable ada sebelum inisialisasi
+    if ($('#dataTable').length) {
+        $('#dataTable').DataTable(); 
+    }
 
-    function toggleKurs() {
-        if ($('#currency_code').val() !== 'IDR') {
-            $('#exchange_rate_div').show();
-        } else {
-            $('#exchange_rate_div').hide();
-            anExchangeRate.set(1);
+    // Inisialisasi Select2 di dalam Modal Tambah
+    if ($('.select2-modal').length) {
+        $('.select2-modal').select2({
+            dropdownParent: $('#addHeaderModal') // Penting agar dropdown muncul di atas modal
+        });
+    }
+
+    // Inisialisasi AutoNumeric untuk kurs di modal tambah
+    let anAddExchangeRate; 
+    const $exchangeRateInput = $('#add_exchange_rate_div input.autonumeric-4dec'); // Cache input
+
+    if ($exchangeRateInput.length && typeof AutoNumeric === 'function') {
+       anAddExchangeRate = new AutoNumeric($exchangeRateInput[0], { decimalPlaces: 4, modifyValueOnWheel: false });
+    } else if ($exchangeRateInput.length) {
+        console.error("AutoNumeric library is not loaded, but input exists.");
+    }
+
+    // Tampilkan/Sembunyikan input kurs berdasarkan mata uang
+    function toggleAddKurs() {
+        const $rateDiv = $('#add_exchange_rate_div'); // Cache div
+        
+        if ($('#add_currency_code').val() !== 'IDR') { 
+            $rateDiv.slideDown(); 
+            // ✅ PERBAIKAN: Tambahkan 'required'
+            $exchangeRateInput.prop('required', true); 
+        } else { 
+            $rateDiv.slideUp(); 
+            // ✅ PERBAIKAN: Hapus 'required'
+            $exchangeRateInput.prop('required', false); 
+            
+            // Set nilai ke 1 jika ada instance AutoNumeric
+            if (anAddExchangeRate) {
+                anAddExchangeRate.set(1); 
+            } else {
+                $exchangeRateInput.val('1.0000'); // Fallback
+            }
         }
     }
-    toggleKurs();
-    $('#currency_code').on('change', toggleKurs);
+    
+    // Panggil saat load dan saat currency berubah
+    toggleAddKurs(); 
+    $('#add_currency_code').on('change', toggleAddKurs);
+
+    // Konfirmasi Hapus (jika belum ada di script global footer)
+    // Gunakan event delegation agar lebih aman
+    $(document).on('click', '.btn-delete', function(e) {
+        e.preventDefault(); 
+        var url = $(this).attr('href');
+        var message = $(this).data('message') || 'Yakin ingin menghapus data ini?';
+        
+        // Gunakan SweetAlert jika ada, jika tidak, gunakan confirm()
+        if (typeof Swal !== 'undefined') {
+             Swal.fire({
+              title: message, text: 'Data yang dihapus tidak dapat dikembalikan!', icon: 'warning',
+              showCancelButton: true, confirmButtonText: 'Ya, hapus!', cancelButtonText: 'Batal',
+              confirmButtonColor: '#e74a3b', cancelButtonColor: '#858796', reverseButtons: true
+            }).then((result) => {
+              if (result.isConfirmed) {
+                if(typeof showLoader === 'function') showLoader('Menghapus...'); // Panggil loader jika ada
+                window.location.href = url; 
+              }
+            });
+        } else {
+            // Fallback confirm biasa
+            if (confirm(message)) {
+                if(typeof showLoader === 'function') showLoader('Menghapus...');
+                window.location.href = url; 
+            }
+        }
+    });
+
+    // Tambahkan validasi Bootstrap ke modal (opsional tapi bagus)
+    $('#addHeaderModal form').on('submit', function(event) {
+        if (this.checkValidity() === false) {
+            event.preventDefault();
+            event.stopPropagation();
+        }
+        $(this).addClass('was-validated');
+    });
+
+
 });
 </script>
+
+<style>
+/* Pastikan Select2 di modal tampil benar */
+.select2-container--default .select2-selection--single { height: calc(1.5em + .75rem + 2px); padding: .375rem .75rem; border: 1px solid #d1d3e2; }
+.select2-dropdown { z-index: 1051 !important; } 
+</style>

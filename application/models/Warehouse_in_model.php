@@ -7,6 +7,17 @@ class Warehouse_in_model extends CI_Model {
     private $table_details = 'grn_details';
 
     // === HEADER ===
+    public function add_header($data)
+    {
+        $this_db = $this->db;
+        $this_db->insert('grn_header', $data);
+        
+        if ($this_db->affected_rows() > 0) {
+            return $this_db->insert_id();
+        } else {
+            return false;
+        }
+    }
     public function get_all() {
         $this->db->select('h.id, h.grn_number, h.grn_date, h.status, s.nama_supplier, h.base_on');
         $this->db->from($this->table_header . ' h');
@@ -16,11 +27,12 @@ class Warehouse_in_model extends CI_Model {
     }
 
     public function get_header_by_id($id) {
+        $this->db->reset_query();
         $this->db->select('
             h.*, s.nama_supplier,
             creator.fullname as creator_name,
             confirmer.fullname as confirmer_name,
-            cc_bc.description as bc_type_desc  /* Ambil deskripsi BC Type */
+            cc_bc.description as bc_type_desc
         ');
         $this->db->from($this->table_header . ' h');
         $this->db->join('suppliers s', 'h.supplier_id = s.id', 'left');
@@ -28,23 +40,38 @@ class Warehouse_in_model extends CI_Model {
         $this->db->join('users confirmer', 'h.confirmed_by = confirmer.id', 'left');
         $this->db->join('common_code cc_bc', 'h.bc_type_code = cc_bc.code AND cc_bc.group_code = "BC_TYPE"', 'left');
         $this->db->where('h.id', $id);
-        return $this->db->get()->row();
+        $query = $this->db->get();
+        return $query ? $query->row() : null;
     }
 
     public function insert_header($data) {
-        $this->db->insert($this->table_header, $data);
-        return $this->db->insert_id();
+        if (empty($data['status'])) { $data['status'] = 'Draft'; }
+        $this->db->reset_query();
+        $insert_success = $this->db->insert($this->table_header, $data);
+        return $insert_success ? $this->db->insert_id() : false;
     }
 
     public function update_header($id, $data) {
-        return $this->db->where('id', $id)->update($this->table_header, $data);
+        unset($data['status'], $data['confirmed_by'], $data['confirmed_at']);
+        $this->db->reset_query();
+        return $this->db->where('id', $id)->where('status', 'Draft')->update($this->table_header, $data);
     }
 
     public function delete_header($id) {
-        return $this->db->where('id', $id)->delete($this->table_header);
+        $this->db->reset_query();
+        $details_count = $this->db->where('grn_header_id', $id)->count_all_results($this->table_details);
+        if ($details_count > 0) {
+            log_message('warning', 'GRN Delete Header Gagal: Masih ada item detail. ID: '.$id);
+            return false;
+        }
+        
+        $this->db->reset_query();
+        $delete_success = $this->db->where('id', $id)->where('status', 'Draft')->delete($this->table_header);
+        return ($delete_success && $this->db->affected_rows() > 0);
     }
 
     public function update_status($id, $new_status, $user_id = null) {
+        $this->db->reset_query();
         $data = ['status' => $new_status];
         if ($new_status == 'Completed' && $user_id) {
             $data['confirmed_by'] = $user_id;
@@ -53,20 +80,24 @@ class Warehouse_in_model extends CI_Model {
             $data['confirmed_by'] = NULL;
             $data['confirmed_at'] = NULL;
         }
-        return $this->db->where('id', $id)->update($this->table_header, $data);
+        
+        $update_result = $this->db->where('id', $id)->update($this->table_header, $data);
+        return ($update_result && $this->db->affected_rows() > 0);
     }
 
     public function generate_grn_number() {
+        $this->db->reset_query();
         $prefix = 'GRN/' . date('Ym') . '/';
+        $this->db->select_max('SUBSTRING(grn_number, 10, 4)', 'max_num');
         $this->db->like('grn_number', $prefix, 'after');
-        $this->db->order_by('id', 'DESC');
-        $last = $this->db->get($this->table_header, 1)->row();
-        $new_num = $last ? (int) substr($last->grn_number, -4) + 1 : 1;
+        $last = $this->db->get($this->table_header)->row();
+        $new_num = $last && $last->max_num ? (int)$last->max_num + 1 : 1;
         return $prefix . str_pad($new_num, 4, '0', STR_PAD_LEFT);
     }
 
     // === DETAILS ===
     public function get_details_by_id($grn_id) {
+        $this->db->reset_query();
         $select_clause = "
             d.id, d.grn_header_id, d.receive_qty, d.unit_value, d.total_value, d.source_doc_type, d.source_doc_header_id, d.item_id, d.item_type,
             CASE WHEN d.source_doc_type = 'PO' THEN poh.po_number WHEN d.source_doc_type = 'MIR' THEN mirh.mir_number END as source_doc_number,
@@ -82,65 +113,139 @@ class Warehouse_in_model extends CI_Model {
         $this->db->join('po_header poh', 'd.source_doc_header_id = poh.id AND d.source_doc_type = "PO"', 'left');
         $this->db->join('mir_header mirh', 'd.source_doc_header_id = mirh.id AND d.source_doc_type = "MIR"', 'left');
         $this->db->where('d.grn_header_id', $grn_id);
-        return $this->db->get()->result();
+        $query = $this->db->get();
+        return $query ? $query->result() : [];
     }
 
     public function insert_item($data) {
+        $this->db->reset_query();
         return $this->db->insert($this->table_details, $data);
     }
 
     public function delete_item($id) {
+        $this->db->reset_query();
         return $this->db->where('id', $id)->delete($this->table_details);
     }
 
     // === STOCK LEDGER INTEGRATION ===
     public function add_stock_to_ledger_and_batch($grn_id) {
+        $this->db->reset_query();
         $details = $this->get_details_by_id($grn_id);
         if (empty($details)) return true;
 
+        // =======================================================
+        // PERBAIKAN 1: Aktifkan baris ini
+        // =======================================================
         $this->load->model('Stock_ledger_model');
+
         $this->db->trans_start();
         $grn_header = $this->get_header_by_id($grn_id);
+        if (!$grn_header) {
+            log_message('error', "GRN Header $grn_id tidak ditemukan saat add_stock_to_ledger");
+            $this->db->trans_rollback();
+            return false;
+        }
 
         foreach ($details as $item) {
-            // 1. Catat di Stock on Hand (untuk Ketersediaan Batch)
-            $batch_data = [
-                'grn_detail_id' => $item->id,
-                'grn_header_id' => $item->grn_header_id,
-                'item_id'       => $item->item_id,
-                'item_type'     => $item->item_type,
-                'initial_qty'   => $item->receive_qty,
-                'available_qty' => $item->receive_qty, // Awalnya sisa = diterima
-                'unit_value'    => $item->unit_value
-            ];
-            $this->db->insert('stock_on_hand', $batch_data);
+            if (!isset($item->receive_qty) || (float)$item->receive_qty <= 0) continue;
 
-            // 2. Catat di Stock Ledger (untuk Histori)
+            $stock_on_hand_id = null; // Default null
+
+            // =======================================================
+            // PERBAIKAN LOGIKA: 
+            // Hanya 'material' dan 'semifinished' yang masuk SOH (Batch)
+            // 'machine' dan 'inventory' tidak perlu SOH, tapi tetap masuk ledger
+            // =======================================================
+            if ($item->item_type == 'material' || $item->item_type == 'semifinished') 
+            {
+                // 1. Catat di Stock on Hand (Batch)
+                $batch_data = [
+                    'grn_detail_id' => $item->id,
+                    'grn_header_id' => $item->grn_header_id,
+                    'item_id'       => $item->item_id,
+                    'item_type'     => $item->item_type,
+                    'initial_qty'   => (float)$item->receive_qty,
+                    'available_qty' => (float)$item->receive_qty,
+                    'unit_value'    => (float)($item->unit_value ?? 0)
+                ];
+                $this->db->reset_query();
+                $insert_soh_success = $this->db->insert('stock_on_hand', $batch_data);
+                if (!$insert_soh_success) {
+                    log_message('error', "Gagal insert SOH untuk GRN $grn_id");
+                    $this->db->trans_rollback();
+                    return false;
+                }
+                $stock_on_hand_id = $this->db->insert_id(); // KUNCI TRACEABILITY (Hanya utk material/sf)
+            }
+            
+            // 2. Catat di Stock Ledger (Berlaku untuk SEMUA item_type)
             $last_balance = $this->Stock_ledger_model->get_last_balance($item->item_id, $item->item_type);
+            $new_balance = $last_balance + (float)$item->receive_qty;
+            
             $ledger_data = [
-                'item_id'         => $item->item_id, 'item_type'       => $item->item_type,
-                'transaction_date'=> $grn_header->grn_date . ' ' . date('H:i:s'),
-                'transaction_type'=> 'in', 'transaction_id'  => $grn_id,
-                'source_doc_type' => $item->source_doc_type, 'source_doc_id'   => $item->source_doc_header_id,
-                'qty_in'          => $item->receive_qty, 'qty_out'         => 0,
-                'unit_value'      => $item->unit_value,
-                'balance'         => $last_balance + $item->receive_qty
+                'item_id'           => $item->item_id,
+                'item_type'         => $item->item_type,
+                'transaction_date'  => ($grn_header->grn_date ?? date('Y-m-d')) . ' ' . date('H:i:s'),
+                'transaction_type'  => 'in',
+                'transaction_id'    => $grn_id,
+                'source_doc_type'   => $item->source_doc_type,
+                'source_doc_id'     => $item->source_doc_header_id,
+                'qty_in'            => (float)$item->receive_qty,
+                'qty_out'           => 0,
+                'unit_value'        => (float)($item->unit_value ?? 0),
+                'balance'           => $new_balance,
+                'stock_on_hand_id'  => $stock_on_hand_id // Akan NULL jika 'machine' atau 'inventory'
             ];
-            $this->Stock_ledger_model->insert($ledger_data);
+
+            if (!$this->Stock_ledger_model->insert($ledger_data)) {
+                 log_message('error', "Gagal insert Stock Ledger untuk GRN $grn_id");
+                 $this->db->trans_rollback();
+                 return false;
+            }
         }
+        
         $this->db->trans_complete();
-        return $this->db->trans_status();
+        if ($this->db->trans_status() === FALSE) {
+             log_message('error', "Gagal transaksi DB untuk GRN $grn_id");
+             return false;
+        }
+        return true;
     }
 
     public function remove_stock_from_ledger_and_batch($grn_id) {
-        $this->load->model('Stock_ledger_model');
-        $this_db->trans_start();
-
-        // 1. Hapus dari Stock on Hand
-        $this->db->where('grn_header_id', $grn_id)->delete('stock_on_hand');
         
-        // 2. Hapus dari Stock Ledger
-        $this->Stock_ledger_model->delete_by_transaction('in', $grn_id);
+        // =======================================================
+        // PERBAIKAN 2: Aktifkan baris ini
+        // =======================================================
+        $this->load->model('Stock_ledger_model');
+
+        $this->db->trans_start();
+
+        // 1. Ambil batch SOH yang dibuat oleh GRN ini
+        $this->db->reset_query();
+        $this->db->select('id as stock_on_hand_id, item_id, item_type, initial_qty, available_qty');
+        $this->db->where('grn_header_id', $grn_id);
+        $batches_to_delete = $this->db->get('stock_on_hand')->result();
+
+        if (!empty($batches_to_delete)) {
+            foreach ($batches_to_delete as $batch) {
+                // Validasi: Pastikan stok di batch belum terpakai
+                if (abs((float)$batch->available_qty - (float)$batch->initial_qty) > 0.0001) {
+                    log_message('error', 'GRN: Gagal unconfirm! Batch SOH ID ' . $batch->stock_on_hand_id . ' sudah terpakai (Initial: '.$batch->initial_qty.', Available: '.$batch->available_qty.').');
+                    $this->db->trans_rollback();
+                    return false;
+                }
+                // 2. Hapus dari Stock on Hand
+                $this->db->where('id', $batch->stock_on_hand_id)->delete('stock_on_hand');
+            }
+        }
+        
+        // 3. Hapus dari Stock Ledger (berdasarkan transaction_id = grn_id DAN tipe 'in')
+        $delete_ledger_success = $this->Stock_ledger_model->delete_by_transaction('in', $grn_id);
+        if (!$delete_ledger_success) {
+             $this->db->trans_rollback();
+             return false;
+        }
         
         $this->db->trans_complete();
         return $this->db->trans_status();
@@ -148,33 +253,39 @@ class Warehouse_in_model extends CI_Model {
 
     // === HELPERS for AJAX ===
     public function search_source_docs($type, $term) {
+        $this->db->reset_query();
+        log_message('debug', 'AJAX search_source_docs dipanggil. Tipe: ' . $type . ' | Term: ' . $term);
         $term = $this->db->escape_like_str($term);
         if ($type == 'PO') {
             $this->db->select('id, po_number as number, supplier_id');
             $this->db->like('po_number', $term);
-            // ✅ PASTIKAN STATUS PO BENAR! (Submitted atau Partially Received)
-            $this->db->where_in('status', ['Submitted', 'Partially Received']);
-            return $this->db->limit(10)->get('po_header')->result();
+            $this->db->where_in('status', ['Confirmed', 'Partially Received']);
+            $query = $this->db->limit(10)->get('po_header');
+            log_message('debug', 'SQL untuk cari PO: ' . $this->db->last_query());
+            return $query ? $query->result() : [];
         } elseif ($type == 'MIR') {
             $this->db->select('id, mir_number as number, supplier_id');
             $this->db->like('mir_number', $term);
-            // ✅ PASTIKAN STATUS MIR BENAR! (Approved atau Partially Received)
             $this->db->where_in('status', ['Approved', 'Partially Received']);
-            return $this->db->limit(10)->get('mir_header')->result();
+            $query = $this->db->limit(10)->get('mir_header');
+             log_message('debug', 'SQL untuk cari MIR: ' . $this->db->last_query());
+            return $query ? $query->result() : [];
         }
         return [];
     }
 
     public function get_available_items($source_type, $source_header_id, $warehouse_type) {
+        $this->db->reset_query();
         $received_subquery = $this->db->select('source_doc_detail_id, SUM(receive_qty) as total_received')
-                                      ->from($this->table_details)
-                                      ->where('source_doc_header_id', $source_header_id)
-                                      ->where('source_doc_type', $source_type)
-                                      ->group_by('source_doc_detail_id')
-                                      ->get_compiled_select();
+                                        ->from($this->table_details)
+                                        ->where('source_doc_header_id', $source_header_id)
+                                        ->where('source_doc_type', $source_type)
+                                        ->group_by('source_doc_detail_id')
+                                        ->get_compiled_select();
+        $this->db->reset_query();
 
         if ($source_type == 'PO') {
-             $select_clause = "
+            $select_clause = "
                 pd.id as source_detail_id, pd.item_id, pd.item_type, pd.qty as source_qty, pd.local_price as source_unit_price,
                 GREATEST(0, pd.qty - IFNULL(received.total_received, 0)) as remaining_qty,
                 CASE WHEN pd.item_type = 'material' THEN m.kode_material WHEN pd.item_type = 'machine' THEN mc.kode_mesin WHEN pd.item_type = 'inventory' THEN i.kode_barang END as item_code,
@@ -189,10 +300,11 @@ class Warehouse_in_model extends CI_Model {
             $this->db->where('pd.po_header_id', $source_header_id);
             $this->db->where('pd.item_type', $warehouse_type);
             $this->db->having('remaining_qty >', 0.001);
-            return $this->db->get()->result();
+            $query = $this->db->get();
+            return $query ? $query->result() : [];
 
         } elseif ($source_type == 'MIR') {
-             $select_clause = "
+            $select_clause = "
                 md.id as source_detail_id, md.item_id, md.item_type, md.qty as source_qty, 0 as source_unit_price,
                 GREATEST(0, md.qty - IFNULL(received.total_received, 0)) as remaining_qty,
                 CASE WHEN md.item_type = 'material' THEN m.kode_material WHEN md.item_type = 'machine' THEN mc.kode_mesin WHEN md.item_type = 'inventory' THEN i.kode_barang WHEN md.item_type = 'semifinished' THEN sf.kode_barang END as item_code,
@@ -208,7 +320,8 @@ class Warehouse_in_model extends CI_Model {
             $this->db->where('md.mir_header_id', $source_header_id);
             $this->db->where('md.item_type', $warehouse_type);
             $this->db->having('remaining_qty >', 0.001);
-            return $this->db->get()->result();
+            $query = $this->db->get();
+            return $query ? $query->result() : [];
         }
         return [];
     }

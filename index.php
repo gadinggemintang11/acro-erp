@@ -47,13 +47,14 @@
  *
  * This can be set to anything, but default usage is:
  *
- *     development
- *     testing
- *     production
+ * development
+ * testing
+ * production
  *
  * NOTE: If you change these, also change the error_reporting() code below
  */
 	date_default_timezone_set('Asia/Jakarta');
+	// Pastikan ini 'development' untuk debugging
 	define('ENVIRONMENT', isset($_SERVER['CI_ENV']) ? $_SERVER['CI_ENV'] : 'development');
 
 /*
@@ -67,8 +68,12 @@
 switch (ENVIRONMENT)
 {
 	case 'development':
-		error_reporting(E_ALL & ~E_DEPRECATED); // <-- UBAH MENJADI SEPERTI INI
+		// --- PERUBAHAN DI SINI ---
+		// Tampilkan SEMUA error kecuali Deprecated (yang sering muncul di CI3 PHP 7+)
+		error_reporting(E_ALL & ~E_DEPRECATED);
+		// Pastikan error ditampilkan di browser
 		ini_set('display_errors', 1);
+		// --- AKHIR PERUBAHAN ---
 	break;
 
 	case 'testing':
@@ -152,11 +157,11 @@ switch (ENVIRONMENT)
  *
  * Un-comment the $routing array below to use this feature
  */
-	// The directory name, relative to the "controllers" directory.  Leave blank
+	// The directory name, relative to the "controllers" directory.	Leave blank
 	// if your controller is not in a sub-directory within the "controllers" one
 	// $routing['directory'] = '';
 
-	// The controller class file name.  Example:  mycontroller
+	// The controller class file name.	Example:	mycontroller
 	// $routing['controller'] = '';
 
 	// The controller function you wish to be called.
@@ -165,7 +170,7 @@ switch (ENVIRONMENT)
 
 /*
  * -------------------------------------------------------------------
- *  CUSTOM CONFIG VALUES
+ *	CUSTOM CONFIG VALUES
  * -------------------------------------------------------------------
  *
  * The $assign_to_config array below will be passed dynamically to the
@@ -182,12 +187,12 @@ switch (ENVIRONMENT)
 
 
 // --------------------------------------------------------------------
-// END OF USER CONFIGURABLE SETTINGS.  DO NOT EDIT BELOW THIS LINE
+// END OF USER CONFIGURABLE SETTINGS.	DO NOT EDIT BELOW THIS LINE
 // --------------------------------------------------------------------
 
 /*
  * ---------------------------------------------------------------
- *  Resolve the system path for increased reliability
+ *	Resolve the system path for increased reliability
  * ---------------------------------------------------------------
  */
 
@@ -221,7 +226,7 @@ switch (ENVIRONMENT)
 
 /*
  * -------------------------------------------------------------------
- *  Now that we know the path, set the main path constants
+ *	Now that we know the path, set the main path constants
  * -------------------------------------------------------------------
  */
 	// The name of THIS file

@@ -1,0 +1,113 @@
+/* ====================================================
+   REVISI TOTAL - KODE FINAL SIDEBAR
+   ==================================================== */
+
+/* 1. LOGIKA TUKAR LOGO (FIX)
+   ------------------------------------------------- */
+.sidebar-brand-full {
+  max-height: 80px;
+  max-width: 100%;
+  transition: all 0.3s ease;
+}
+.sidebar-brand-mini {
+  max-height: 35px;
+  display: none;
+  transition: all 0.3s ease;
+}
+/* INI KODE YANG HILANG: Menyembunyikan logo penuh saat tertutup */
+.sidebar.toggled .sidebar-brand-full {
+  display: none;
+}
+/* INI KODE YANG HILANG: Menampilkan logo mini saat tertutup */
+.sidebar.toggled .sidebar-brand-mini {
+  display: block;
+}
+
+
+/* 2. LEBAR SIDEBAR & ANIMASI
+   ------------------------------------------------- */
+.sidebar,
+#content-wrapper {
+  transition: all 0.5s cubic-bezier(0.35, 0, 0.25, 1);
+}
+
+/* Atur lebar baru untuk sidebar tertutup */
+.sidebar.toggled {
+  width: 170px !important; 
+}
+/* Sesuaikan margin konten utama agar pas */
+body.sidebar-toggled #content-wrapper {
+  margin-left: 130px !important;
+}
+
+
+/* 3. LAYOUT MENU SAAT TERTUTUP (TOGGLED)
+   ------------------------------------------------- */
+
+/* Atur layout menu item (ikon di atas teks) */
+.sidebar.toggled .nav-item .nav-link {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  /* text-align: center; <-- Tidak perlu, sudah di-handle span */
+  padding: 0.75rem 0; /* <--- HAPUS PADDING KIRI/KANAN */
+  height: auto;
+  width: 100%; /* Pastikan link mengisi <li> */
+}
+
+/* Perbesar Ikon */
+.sidebar.toggled .nav-item .nav-link i {
+  font-size: 1.25rem;
+  margin-bottom: 0.25rem;
+}
+
+/* Tampilkan Teks Menu di Bawah Ikon */
+.sidebar.toggled .nav-item .nav-link span {
+  display: block !important;
+  font-size: 0.7rem;
+  line-height: 1.2;
+  white-space: normal;
+  text-align: center;
+  width: 100%; /* <--- TAMBAHKAN INI AGAR LEBARNYA PENUH */
+}
+
+/* Sembunyikan panah dropdown (>) */
+.sidebar.toggled .nav-item .nav-link::after {
+  display: none;
+}
+
+
+/* 4. GARIS PEMISAH / DIVIDER (FIX)
+   ------------------------------------------------- */
+
+/* Atur Teks Heading (Core Ops, Configuration) */
+.sidebar.toggled .sidebar-heading {
+  display: block !important;
+  font-size: 0.65rem;
+  text-align: center;
+  padding: 0 0.25rem;
+  white-space: normal;
+  line-height: 1.2;
+  margin-top: 0.5rem;
+  
+  /* Garis di BAWAH heading */
+  padding-bottom: 0.5rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+  margin-bottom: 0.5rem;
+}
+
+/* Sembunyikan SEMUA <hr> bawaan */
+.sidebar.toggled .sidebar-divider {
+  display: none !important;
+}
+
+/* FIX: Tambahkan garis di ATAS Logout (menggunakan class dari Langkah 1) */
+.sidebar.toggled .nav-item-logout {
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+  margin-top: 0.5rem;
+}
+/* Penyesuaian padding khusus untuk link logout */
+.sidebar.toggled .nav-item-logout .nav-link {
+  padding-top: 1rem;
+}

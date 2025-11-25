@@ -7,7 +7,7 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 
-class Material_request extends CI_Controller {
+class Material_request extends MY_Controller {
 
     public function __construct() {
         parent::__construct();

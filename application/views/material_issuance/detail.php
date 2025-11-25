@@ -9,13 +9,13 @@
         </h3>
         <div>
             <?php if ($header->status == 'Submitted' && check_access('material_issuance', 'edit')): ?>
-                 <button type="submit" form="issuanceForm" class="btn btn-primary btn-sm mr-1" id="btnConfirmIssuance">
+                <button type="submit" form="issuanceForm" class="btn btn-primary btn-sm mr-1" id="btnConfirmIssuanceHead">
                     <i class="fas fa-check-circle fa-sm"></i> Confirm Issuance
-                 </button>
+                </button>
             <?php elseif ($header->status == 'Issued' && check_access('material_issuance', 'edit')): ?>
-                 <a href="<?= base_url('material_issuance/reverse_issuance/'.$header->id); ?>" class="btn btn-danger btn-sm mr-1" onclick="return confirm('Yakin ingin membatalkan pengeluaran ini? Stok akan dikembalikan.');">
+                <a href="<?= base_url('material_issuance/reverse_issuance/'.$header->id); ?>" class="btn btn-danger btn-sm mr-1" onclick="return confirm('Yakin ingin membatalkan pengeluaran ini? Stok akan dikembalikan.');">
                     <i class="fas fa-undo fa-sm"></i> Batal Keluarkan (Un-issue)
-                 </a>
+                </a>
             <?php endif; ?>
             <a href="<?= base_url('material_issuance'); ?>" class="btn btn-secondary btn-sm btn-load">
                 <i class="fas fa-arrow-left fa-sm mr-2"></i>Kembali
@@ -23,18 +23,36 @@
         </div>
     </div>
 
+    <?php if ($this->session->flashdata('success')): ?>
+    <div class="alert alert-success alert-dismissible fade show" role="alert">
+        <?= $this->session->flashdata('success'); ?>
+        <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+    </div>
+    <?php endif; ?>
+    <?php if ($this->session->flashdata('error')): ?>
+    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+        <?= $this->session->flashdata('error'); ?>
+        <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+    </div>
+    <?php endif; ?>
+
     <div class="card shadow mb-4">
         <div class="card-body">
              <div class="row">
                 <div class="col-md-4"><strong>No. MR:</strong> <?= htmlspecialchars($header->mr_number); ?></div>
                 <div class="col-md-4"><strong>Tanggal:</strong> <?= date('d M Y', strtotime($header->request_date)); ?></div>
-                <div class="col-md-4"><strong>Status:</strong> <span class="badge badge-<?= $header->status == 'Issued' ? 'success' : ($header->status == 'Received' ? 'primary' : 'warning'); ?>"><?= $header->status; ?></span></div>
-             </div>
+                <div class="col-md-4"><strong>Status:</strong> 
+                    <?php $color = 'warning';
+                    if ($header->status == 'Issued') $color = 'success';
+                    if ($header->status == 'Received') $color = 'primary'; ?>
+                    <span class="badge badge-<?= $color; ?>"><?= $header->status; ?></span>
+                </div>
+            </div>
              <div class="row mt-2">
-                 <div class="col-md-4"><strong>Dibuat Oleh:</strong> <?= htmlspecialchars($header->requester_name ?? '-'); ?></div>
-                 <div class="col-md-4"><strong>Disiapkan Oleh:</strong> <?= htmlspecialchars($header->issuer_name ?? '-'); ?></div>
-                 <div class="col-md-4"><strong>Diterima Oleh:</strong> <?= htmlspecialchars($header->receiver_name ?? '-'); ?></div>
-             </div>
+                <div class="col-md-4"><strong>Dibuat Oleh:</strong> <?= htmlspecialchars($header->requester_name ?? '-'); ?></div>
+                <div class="col-md-4"><strong>Disiapkan Oleh:</strong> <?= htmlspecialchars($header->issuer_name ?? '-'); ?></div>
+                <div class="col-md-4"><strong>Diterima Oleh:</strong> <?= htmlspecialchars($header->receiver_name ?? '-'); ?></div>
+            </div>
         </div>
     </div>
 
@@ -44,7 +62,7 @@
                 <h6 class="m-0 font-weight-bold text-primary">Item Pengeluaran</h6>
             </div>
             <div class="card-body">
-                 <div class="table-responsive">
+                <div class="table-responsive">
                     <table class="table table-bordered table-sm" id="itemIssuanceTable">
                         <thead class="thead-light text-center">
                             <tr>
@@ -66,19 +84,18 @@
                                 <td class="text-center"><?= htmlspecialchars($d->item_unit); ?></td>
                                 <td class="text-right qty-requested"><?= number_format($d->requested_qty, 4); ?></td>
                                 
-                                <td class="text-right stock-on-hand-cell" data-itemid="<?= $d->item_id; ?>" data-itemtype="<?= $d->item_type; ?>">
-                                    <i class="fas fa-spinner fa-spin"></i>
+                                <td class="text-right stock-on-hand-cell">
+                                    <?= number_format($d->total_available_stock, 4); ?>
                                 </td>
-                                
                                 <td>
                                     <?php if($header->status == 'Submitted'): ?>
                                     <input type="number" step="any" min="0"
                                            name="items[<?= $d->detail_id; ?>][qty]" 
                                            class="form-control form-control-sm text-right qty-issued" 
-                                           value="<?= number_format($d->requested_qty, 4, '.', ''); ?>" 
-                                           data-max="0"
-                                           data-requested="<?= $d->requested_qty; ?>">
-                                    <?php else: ?>
+                                           value="<?= number_format($d->requested_qty, 4, '.', ''); // Default = Qty Diminta ?>" 
+                                           data-maxstock="<?= $d->total_available_stock; // Ambil stok dari data ?>"
+                                           data-requested="<?= $d->requested_qty; ?>"
+                                           required> <?php else: ?>
                                         <p class="form-control-static text-right mb-0"><?= number_format($d->issued_qty ?? 0, 4); ?></p>
                                     <?php endif; ?>
                                 </td>
@@ -90,95 +107,110 @@
                     </table>
                 </div>
             </div>
-             <?php if ($header->status == 'Submitted'): ?>
+            <?php if ($header->status == 'Submitted'): ?>
             <div class="card-footer text-right">
-                 <button type="submit" form="issuanceForm" class="btn btn-primary btn-load" id="btnConfirmIssuance">
+                <button type="submit" form="issuanceForm" class="btn btn-primary btn-load" id="btnConfirmIssuanceFoot">
                     <i class="fas fa-check-circle mr-1"></i> Konfirmasi Pengeluaran
-                 </button>
+                </button>
             </div>
             <?php endif; ?>
         </div>
     </form>
 </div>
-
-<?php $this->load->view('templates/footer'); ?>
+<?php $this->load->view('templates/footer'); // Panggil footer utama ?>
 
 <script>
 $(document).ready(function() {
     
-    // 1. Fungsi untuk mengambil stok via AJAX
-    function fetchStock(cell) {
-        const item_id = cell.data('itemid');
-        const item_type = cell.data('itemtype');
-        const inputField = cell.closest('tr').find('.qty-issued');
-        const requestedQty = parseFloat(inputField.data('requested') || 0);
-
-        $.ajax({
-            url: '<?= base_url("material_issuance/ajax_get_stock"); ?>',
-            type: 'GET',
-            dataType: 'json',
-            data: { item_id: item_id, item_type: item_type },
-            success: function(response) {
-                if(response.success) {
-                    const stock = parseFloat(response.stock);
-                    cell.html(stock.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 4}));
-                    inputField.attr('data-max', stock); 
-                    if (requestedQty > stock) { inputField.val(stock); }
-                    validateQty(inputField); 
-                } else { cell.html('<span class="text-danger">Error</span>'); }
-            },
-            error: function() { cell.html('<span class="text-danger">Error</span>'); }
-        });
-    }
-
-    // 2. Fungsi untuk validasi Qty Input
+    // 1. Fungsi untuk validasi Qty Input (Lebih Sederhana)
     function validateQty(input) {
         const currentVal = parseFloat(input.val() || 0);
-        const maxStock = parseFloat(input.attr('data-max') || 0);
-        if (currentVal > maxStock) { input.removeClass('is-valid').addClass('is-invalid'); }
-        else if (currentVal < 0) { input.val(0); input.removeClass('is-valid').addClass('is-valid'); }
-        else { input.removeClass('is-invalid').addClass('is-valid'); }
+        const maxStock = parseFloat(input.attr('data-maxstock') || 0); // Baca dari 'data-maxstock'
         
-        let allValid = true;
-        $('.qty-issued').each(function() {
-            if ($(this).hasClass('is-invalid')) { allValid = false; }
-        });
-        $('#btnConfirmIssuance').prop('disabled', !allValid);
+        let isValid = true;
+        
+        if (currentVal < 0) { 
+            input.val(0); // Jangan input minus
+            isValid = true; // Anggap valid
+        } else if (currentVal > maxStock) {
+            input.removeClass('is-valid').addClass('is-invalid'); // Tandai merah jika > stok
+            isValid = false;
+        } else {
+            input.removeClass('is-invalid').addClass('is-valid'); // Tandai hijau
+            isValid = true;
+        }
+        return isValid;
     }
 
-    // 3. Panggil AJAX hanya jika status Submitted
+    // 2. Validasi semua input saat halaman dimuat (jika status Submitted)
     if ('<?= $header->status; ?>' === 'Submitted') {
-        $('#itemIssuanceTable .stock-on-hand-cell').each(function() {
-            fetchStock($(this));
+        let allValidOnLoad = true;
+        $('.qty-issued').each(function() {
+            if (!validateQty($(this))) {
+                allValidOnLoad = false;
+            }
         });
+        // Nonaktifkan tombol simpan jika ada yg tidak valid saat load
+        $('#btnConfirmIssuanceHead, #btnConfirmIssuanceFoot').prop('disabled', !allValidOnLoad);
+        if(!allValidOnLoad){
+             alert('PERHATIAN: Beberapa item memiliki stok tersedia yang lebih kecil dari qty diminta. Qty dikeluarkan telah disesuaikan.');
+        }
 
+        // 3. Tambahkan event listener 'input'
         $('#itemIssuanceTable').on('input', '.qty-issued', function() {
-            validateQty($(this));
+            let allValid = true;
+            $('.qty-issued').each(function() {
+                 // Panggil validateQty untuk setiap input saat ada perubahan
+                 if (!validateQty($(this))) {
+                     allValid = false;
+                 }
+            });
+            // Aktifkan/nonaktifkan tombol simpan berdasarkan validitas semua input
+            $('#btnConfirmIssuanceHead, #btnConfirmIssuanceFoot').prop('disabled', !allValid);
         });
         
+        // 4. Konfirmasi sebelum submit form
         $('#issuanceForm').on('submit', function(e) {
             let confirmationText = "Yakin ingin mengkonfirmasi pengeluaran ini? Stok akan dipotong.";
             let hasInvalid = false;
+            
             $('.qty-issued').each(function() {
-                 validateQty($(this)); 
-                 if ($(this).hasClass('is-invalid')) { hasInvalid = true; }
+                 if ($(this).hasClass('is-invalid')) { // Cek kelas invalid
+                     hasInvalid = true;
+                 }
+                 // Cek jika issue < request (Peringatan)
                  if (parseFloat($(this).val() || 0) < parseFloat($(this).data('requested') || 0)) {
-                    confirmationText = "PERHATIAN: Ada Qty Dikeluarkan lebih kecil dari Qty Diminta. Yakin lanjut?";
+                     confirmationText = "PERHATIAN: Ada Qty Dikeluarkan lebih kecil dari Qty Diminta. Yakin lanjut?";
                  }
             });
+            
             if(hasInvalid) {
-                alert('Terdapat item dengan Qty Dikeluarkan melebihi Stok Tersedia. Harap perbaiki.');
-                e.preventDefault(); return false;
+                 alert('Terdapat item dengan Qty Dikeluarkan melebihi Stok Tersedia. Harap perbaiki.');
+                 e.preventDefault(); // Hentikan submit
+                 return false;
             }
+            
             if (!confirm(confirmationText)) {
-                e.preventDefault(); return false;
+                 e.preventDefault(); // Hentikan submit jika user klik 'Cancel'
+                 return false;
             }
+            
+            // Jika lolos, tambahkan spinner ke tombol
+            $('#btnConfirmIssuanceHead, #btnConfirmIssuanceFoot').prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Memproses...');
         });
     }
 });
 </script>
+
 <style>
-.qty-issued.is-invalid { border-color: #e74a3b; background-color: #fdd; }
-.qty-issued.is-valid { border-color: #1cc88a; }
+/* Style validasi input */
+.qty-issued.is-invalid { 
+    border-color: #e74a3b; 
+    background-image: none; /* Hilangkan ikon ceklis/silang bootstrap */
+}
+.qty-issued.is-valid { 
+    border-color: #1cc88a; 
+    background-image: none; /* Hilangkan ikon ceklis/silang bootstrap */
+}
 .btn-xs { padding: .125rem .25rem; font-size: .75rem; line-height: 1.5; border-radius: .2rem; }
 </style>

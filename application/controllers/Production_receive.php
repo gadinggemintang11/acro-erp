@@ -1,7 +1,7 @@
 <?php
 defined('BASEPATH') OR exit('No direct script access allowed');
 
-class Production_receive extends CI_Controller {
+class Production_receive extends MY_Controller {
 
     public function __construct() {
         parent::__construct();

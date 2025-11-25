@@ -1,25 +1,20 @@
-<!-- Topbar -->
 <nav class="navbar navbar-expand navbar-light bg-white topbar mb-4 static-top shadow-sm">
 
-  <!-- Sidebar Toggle (Mobile View) -->
   <button id="sidebarToggleTop" class="btn btn-link d-md-none rounded-circle mr-3">
     <i class="fa fa-bars"></i>
   </button>
 
-  <!-- Title -->
-  <h6 class="text-primary font-weight-bold mb-0">Neokaber System</h6>
-
-  <!-- Topbar Navbar -->
+  <a class="btn-load" href="<?= base_url('dashboard'); ?>">
+    <img src="<?= base_url('assets/img/logo_full_biru.png'); ?>" alt="Neokaber Logo" style="height: 85px;">
+  </a>
   <ul class="navbar-nav ml-auto">
 
-    <!-- Dashboard Shortcut -->
     <li class="nav-item mx-1">
       <a class="nav-link btn-load" href="<?= base_url('dashboard'); ?>" title="Dashboard">
         <i class="fas fa-home fa-lg text-primary"></i>
       </a>
     </li>
 
-    <!-- Notification -->
     <li class="nav-item dropdown no-arrow mx-1">
       <a class="nav-link dropdown-toggle" href="#" id="alertsDropdown" role="button" data-toggle="dropdown">
         <i class="fas fa-bell fa-lg text-warning"></i>
@@ -39,7 +34,6 @@
 
     <div class="topbar-divider d-none d-sm-block"></div>
 
-    <!-- User Info -->
     <li class="nav-item dropdown no-arrow">
       <a class="nav-link dropdown-toggle" href="#" id="userDropdown" role="button" data-toggle="dropdown">
         <span class="mr-2 d-none d-lg-inline text-gray-600 small">
@@ -60,4 +54,3 @@
 
   </ul>
 </nav>
-<!-- End of Topbar -->

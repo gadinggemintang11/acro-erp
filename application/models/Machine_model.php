@@ -6,7 +6,22 @@ class Machine_model extends CI_Model {
     private $table = 'machines';
 
     public function get_all() {
-        return $this->db->order_by('id', 'DESC')->get($this->table)->result();
+        $this->db->select('
+            m.*, 
+            cc_cat.description as kategori_desc,
+            cc_sat.description as satuan_desc 
+        ');
+        $this->db->from('machines m');
+        $this->db->join('common_code cc_cat', 'm.kategori = cc_cat.code AND cc_cat.group_code = "MACHINE_CATEGORY"', 'left');
+        
+        // ▼ TAMBAHKAN JOIN INI ▼
+        $this->db->join('common_code cc_sat', 'm.satuan = cc_sat.code AND cc_sat.group_code = "SATUAN"', 'left');
+
+        // Tambahkan ini jika Anda hanya ingin menampilkan yang 'Active'
+        // $this->db->where('m.status', 'Active'); 
+
+        $this->db->order_by('m.kode_mesin', 'ASC');
+        return $this->db->get()->result();
     }
 
     // ✅ FUNGSI BARU: Mengambil daftar kategori dinamis

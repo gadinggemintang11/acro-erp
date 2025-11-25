@@ -1,7 +1,7 @@
 <?php
 defined('BASEPATH') OR exit('No direct script access allowed');
 
-class Auth extends CI_Controller {
+class Auth extends MY_Controller {
 
     public function __construct() {
         parent::__construct();
@@ -20,6 +20,16 @@ class Auth extends CI_Controller {
         }
 
         $this->load->view('auth/login');
+    }
+
+    /**
+     * Backwards-compatible route: /auth/login
+     * Some parts of the app or client JS may redirect to auth/login —
+     * provide this method to avoid 404 and behave like index().
+     */
+    public function login()
+    {
+        $this->index();
     }
 
     // ==============================

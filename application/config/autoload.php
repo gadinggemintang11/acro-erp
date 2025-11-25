@@ -91,7 +91,7 @@ $autoload['drivers'] = array();
 |	$autoload['helper'] = array('url', 'file');
 */
 // application/config/autoload.php
-$autoload['helper'] = array('url', 'auth');
+$autoload['helper'] = array('url', 'file', 'form', 'auth', 'security', 'log'); // Tambahkan 'log'
 
 
 
