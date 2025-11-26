@@ -59,9 +59,11 @@ class ApPayment_model extends CI_Model {
         $this->db->where('currency', 'IDR');
         $this->db->where('account_type', 'Aset');
         // Asumsi akun Kas/Bank punya kode 1-11xx
-        $this->db->like('account_code', '1-11', 'after'); 
+        $this->db->like('account_code', '1.102', 'after'); 
         $this->db->order_by('account_code', 'ASC');
-        return $this->db->get('chart_of_accounts')->result();
+        $result = $this->db->get('chart_of_accounts')->result();
+        // print_r($result); exit; // This will dump the variable and stop execution
+        return $result;
     }
 
     // Ambil faktur yg belum lunas
