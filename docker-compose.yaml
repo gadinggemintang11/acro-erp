@@ -1,0 +1,14 @@
+version: '3.1'
+
+services:
+  neokaber2:
+    container_name: neokaber2
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - 4006:80
+    volumes:
+      - ./:/var/www/html/
+      - ./apache/conf/default.conf:/etc/apache2/sites-enabled/000-default.conf
+      - ./apache/logs:/var/log/apache2

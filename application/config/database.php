@@ -75,10 +75,11 @@ $query_builder = TRUE;
 
 $db['default'] = array(
     'dsn'   => '',
-    'hostname' => 'localhost',
+    'hostname' => 'host.docker.internal',
     'username' => 'root',
-    'password' => '',
-    'database' => 'neokabersis_db',
+    'password' => 'dhevan007',
+    'database' => 'neokabersis',
+    'port'     => 3305,
     'dbdriver' => 'mysqli',
     'dbprefix' => '',
     'pconnect' => FALSE,
