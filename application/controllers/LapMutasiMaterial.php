@@ -98,7 +98,8 @@ class LapMutasiMaterial extends MY_Controller {
             $doc_num = ''; $doc_ref = ''; $bc_type = ''; $bc_num = ''; $bc_date_formatted = ''; $notes = '';
             switch($t->transaction_type) {
                 case 'in': $doc_num = $t->grn_number; $doc_ref = $t->po_number; $bc_type = $t->bc_type_code; $bc_num = $t->bc_number; $bc_date_formatted = $t->bc_date ? date('Y-m-d', strtotime($t->bc_date)) : ''; break;
-                case 'production_out': $doc_num = $t->mr_number; break;
+                case 'production_out':
+                case 'OUT_ISSUE': $doc_num = $t->issuance_number ?: $t->mr_number; $doc_ref = $t->mr_number; break;
                 case 'IN_RETURN_WIP': $doc_num = $t->prod_return_no; break;
                 case 'adjustment': $doc_num = $t->adjustment_doc; $notes = $t->adjustment_notes; break;
             }
@@ -190,7 +191,7 @@ class LapMutasiMaterial extends MY_Controller {
         $this->db->select("
             sl.transaction_date, sl.transaction_type, sl.qty_in, sl.qty_out, sl.balance,
             gh.grn_number, gh.bc_type_code, gh.bc_number, gh.bc_date, ph.po_number,
-            mrh.mr_number,
+            mrh.mr_number, mrh.issuance_number,
             prh.prod_return_no,
             ah.doc_no as adjustment_doc, ah.notes as adjustment_notes, ah.doc_date as adjustment_date
         ");
@@ -200,7 +201,7 @@ class LapMutasiMaterial extends MY_Controller {
         $this->db->join('grn_header gh', 'sl.transaction_id = gh.id AND sl.transaction_type = \'in\'', 'left');
         $this->db->join('po_header ph', 'sl.source_doc_id = ph.id AND sl.source_doc_type = \'PO\'', 'left');
         
-        $this->db->join('mr_header mrh', 'sl.transaction_id = mrh.id AND sl.transaction_type = \'production_out\'', 'left');
+        $this->db->join('mr_header mrh', 'sl.transaction_id = mrh.id AND sl.transaction_type IN (\'production_out\', \'OUT_ISSUE\')', 'left');
         
         $this->db->join('prod_return_detail prd', 'sl.transaction_id = prd.id', 'left');
         $this->db->join('prod_return_header prh', 'prd.prod_return_id = prh.id AND sl.transaction_type = \'IN_RETURN_WIP\'', 'left');

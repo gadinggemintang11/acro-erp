@@ -111,8 +111,11 @@ class Mr_model extends CI_Model {
 
         switch ($new_status) {
             case 'Submitted':
-                // requester_id harus integer atau NULL (jangan menyimpan string)
-                $data['requester_id'] = $user_id;
+                // Jika requester_id belum ada, set sekarang. Jika sudah ada (dari Draft), jangan overwrite
+                $current = $this->db->select('requester_id')->get_where($this->table_header, ['id' => $id])->row();
+                if (!$current || empty($current->requester_id)) {
+                    $data['requester_id'] = $user_id;
+                }
                 $data['requested_at'] = $now;
                 break;
             case 'Draft': // Unconfirm

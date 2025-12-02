@@ -18,7 +18,10 @@ class MY_Controller extends CI_Controller {
         parent::__construct();
         
         // Load helper log secara otomatis untuk semua controller
-        $this->load->helper('log_helper'); 
+        $this->load->helper('log_helper');
+        
+        // Setup multi-language
+        $this->_setup_language();
     }
 
     /**
@@ -33,6 +36,48 @@ class MY_Controller extends CI_Controller {
         // Kita tidak perlu memanggil helper `add_log()` secara manual lagi.
         // Kita panggil fungsi global `add_log()` dari helper.
         add_log($action, $this->module_name, $description);
+    }
+
+    /**
+     * Setup bahasa berdasarkan session atau cookie
+     */
+    private function _setup_language() {
+        // Cek apakah ada request untuk ganti bahasa
+        if ($this->input->get('lang')) {
+            $lang = $this->input->get('lang');
+            $this->session->set_userdata('site_lang', $lang);
+            
+            // Set cookie untuk 30 hari
+            setcookie('site_lang', $lang, time() + (86400 * 30), '/');
+        }
+        
+        // Ambil bahasa dari session atau cookie atau default
+        $lang = $this->session->userdata('site_lang');
+        if (!$lang) {
+            $lang = isset($_COOKIE['site_lang']) ? $_COOKIE['site_lang'] : 'indonesian';
+        }
+        
+        // Validasi bahasa yang tersedia
+        $available_langs = ['indonesian', 'english', 'chinese'];
+        if (!in_array($lang, $available_langs)) {
+            $lang = 'indonesian';
+        }
+        
+        // Set bahasa CodeIgniter
+        $this->config->set_item('language', $lang);
+        $this->lang->load('app', $lang);
+    }
+
+    /**
+     * Helper function untuk translate text
+     * 
+     * @param string $key Language key
+     * @param string $default Default text jika key tidak ditemukan
+     * @return string Translated text
+     */
+    protected function lang($key, $default = '') {
+        $text = $this->lang->line($key);
+        return $text ? $text : ($default ? $default : $key);
     }
 
 }

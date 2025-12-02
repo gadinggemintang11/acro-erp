@@ -5,7 +5,7 @@
 <!-- Footer -->
 <footer class="sticky-footer bg-white shadow-sm">
   <div class="container my-auto text-center text-muted small py-2">
-    © <?= date('Y'); ?> Neokaber System | Made By Gading Gemintang
+    © <?= date('Y'); ?> ERP MINGBAO | Made By PT MINGBAO LIANCHUANG INTERNATIONAL
   </div>
 </footer>
 

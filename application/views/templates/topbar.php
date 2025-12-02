@@ -16,6 +16,33 @@
     </li>
 
     <li class="nav-item dropdown no-arrow mx-1">
+      <a class="nav-link dropdown-toggle" href="#" id="languageDropdown" role="button" data-toggle="dropdown">
+        <i class="fas fa-globe fa-lg text-success"></i>
+        <span class="d-none d-sm-inline ml-1 text-gray-700 small">
+          <?php 
+            $this->load->helper('language_helper');
+            $current_lang = get_current_language();
+            $languages = get_available_languages();
+            echo isset($languages[$current_lang]) ? $languages[$current_lang]['flag'] : '🌐';
+          ?>
+        </span>
+      </a>
+      <div class="dropdown-menu dropdown-menu-right shadow animated--grow-in" aria-labelledby="languageDropdown">
+        <h6 class="dropdown-header">Pilih Bahasa / Language</h6>
+        <?php foreach (get_available_languages() as $lang): ?>
+          <a class="dropdown-item <?= get_current_language() == $lang['code'] ? 'active' : '' ?>" 
+             href="<?= current_url() . '?lang=' . $lang['code']; ?>">
+            <span style="font-size: 1.2rem;"><?= $lang['flag']; ?></span>
+            <span class="ml-2"><?= $lang['name']; ?></span>
+            <?php if (get_current_language() == $lang['code']): ?>
+              <i class="fas fa-check text-success float-right mt-1"></i>
+            <?php endif; ?>
+          </a>
+        <?php endforeach; ?>
+      </div>
+    </li>
+
+    <li class="nav-item dropdown no-arrow mx-1">
       <a class="nav-link dropdown-toggle" href="#" id="alertsDropdown" role="button" data-toggle="dropdown">
         <i class="fas fa-bell fa-lg text-warning"></i>
         <span class="badge badge-danger badge-counter">2</span>

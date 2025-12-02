@@ -62,10 +62,9 @@
 
                     <!-- Tabs -->
                     <ul class="nav nav-tabs nav-fill mb-4">
-                        <li class="nav-item"><a class="nav-link" href="<?= base_url('production_process/cutting/'.$header->id); ?>">1. Cutting</a></li>
-                        <li class="nav-item"><a class="nav-link" href="<?= base_url('production_process/sewing/'.$header->id); ?>">2. Sewing</a></li>
-                        <li class="nav-item"><a class="nav-link active font-weight-bold" href="#">3. Assembling</a></li>
-                        <li class="nav-item"><a class="nav-link" href="<?= base_url('production_process/finishing/'.$header->id); ?>">4. Finishing</a></li>
+                        <li class="nav-item"><a class="nav-link" href="<?= base_url('production_process/preparation/'.$header->id); ?>">1. Preparation</a></li>
+                        <li class="nav-item"><a class="nav-link active font-weight-bold" href="#">2. Assembling</a></li>
+                        <li class="nav-item"><a class="nav-link" href="<?= base_url('production_process/finishing/'.$header->id); ?>">3. Finishing</a></li>
                     </ul>
 
                     <!-- Flash messages -->
@@ -109,15 +108,15 @@
                             <!-- Input dari previous stage (Sewing) -->
                             <?php if ($header->status == 'Draft' && check_access('production_process', 'edit')): ?>
                             <div class="card shadow mb-4">
-                                <div class="card-header bg-info text-white py-3"><h6 class="m-0 font-weight-bold">Input dari <?= htmlspecialchars($previous_stage_name ?? 'Sewing'); ?> (Hasil Semi-Finished)</h6></div>
+                                <div class="card-header bg-info text-white py-3"><h6 class="m-0 font-weight-bold">Input dari <?= htmlspecialchars($previous_stage_name ?? 'Preparation'); ?> (Hasil Semi-Finished)</h6></div>
                                 <div class="card-body">
-                                    <form id="formInputPrev" method="post" action="<?= base_url('production_process/save_assembling_sewing_input/'.$header->id); ?>">
+                                    <form id="formInputPrev" method="post" action="<?= base_url('production_process/save_assembling_preparation_input/'.$header->id); ?>">
                                         <input type="hidden" name="item_id" id="prev_item_id">
                                         <input type="hidden" name="item_type" id="prev_item_type">
                                         <div class="form-group">
-                                            <label for="prev_output_selector">Pilih Hasil <?= htmlspecialchars($previous_stage_name ?? 'Sewing'); ?> (Hanya yang Lolos QC)</label>
+                                            <label for="prev_output_selector">Pilih Hasil <?= htmlspecialchars($previous_stage_name ?? 'Preparation'); ?> (Hanya yang Lolos QC)</label>
                                             <select name="source_output_id" id="prev_output_selector" class="form-control select2-wip" required>
-                                                <option value="">-- Pilih Item Hasil <?= htmlspecialchars($previous_stage_name ?? 'Sewing'); ?> --</option>
+                                                <option value="">-- Pilih Item Hasil <?= htmlspecialchars($previous_stage_name ?? 'Preparation'); ?> --</option>
                                                 <?php if(!empty($available_previous_outputs)): ?>
                                                     <?php foreach($available_previous_outputs as $out): ?>
                                                         <?php if ($out->remaining_qty > 0.00001): ?>
@@ -130,10 +129,10 @@
                                                         <?php endif; ?>
                                                     <?php endforeach; ?>
                                                 <?php else: ?>
-                                                     <option value="" disabled>-- Tidak ada hasil <?= htmlspecialchars($previous_stage_name ?? 'Sewing'); ?> yang tersedia/lolos QC --</option>
+                                                     <option value="" disabled>-- Tidak ada hasil <?= htmlspecialchars($previous_stage_name ?? 'Preparation'); ?> yang tersedia/lolos QC --</option>
                                                 <?php endif; ?>
                                             </select>
-                                            <div class="invalid-feedback">Harap pilih hasil <?= htmlspecialchars($previous_stage_name ?? 'Sewing'); ?>.</div>
+                                            <div class="invalid-feedback">Harap pilih hasil <?= htmlspecialchars($previous_stage_name ?? 'Preparation'); ?>.</div>
                                         </div>
 
                                         <div class="row">
@@ -149,7 +148,7 @@
                                             </div>
                                         </div>
 
-                                        <button type="submit" class="btn btn-info btn-sm"><i class="fas fa-plus mr-1"></i> Tambah Input <?= htmlspecialchars($previous_stage_name ?? 'Sewing'); ?></button>
+                                        <button type="submit" class="btn btn-info btn-sm"><i class="fas fa-plus mr-1"></i> Tambah Input <?= htmlspecialchars($previous_stage_name ?? 'Preparation'); ?></button>
                                     </form>
                                 </div>
                             </div>
@@ -222,7 +221,7 @@
                                                     <td class="text-left"><?= htmlspecialchars($in->notes); ?></td>
                                                     <td>
                                                         <?php if($in->stock_on_hand_id): echo 'Gudang (Batch)'; ?>
-                                                        <?php elseif($in->source_output_id): echo 'Output ' . htmlspecialchars($previous_stage_name ?? 'Sewing'); ?>
+                                                        <?php elseif($in->source_output_id): echo 'Output ' . htmlspecialchars($previous_stage_name ?? 'Preparation'); ?>
                                                         <?php else: echo '-'; endif; ?>
                                                     </td>
                                                     <td>

@@ -146,7 +146,7 @@ class Mir_model extends CI_Model {
     public function get_details_by_id($mir_id) {
         $this->db->reset_query(); // Reset
         $select_clause = "
-            d.id, d.mir_header_id, d.qty, d.remarks, d.item_id, d.item_type, d.sales_contract_id,
+            d.id, d.mir_header_id, d.qty, d.allowance, d.total_qty, d.remarks, d.item_id, d.item_type, d.sales_contract_id,
             CASE
                 WHEN d.item_type = 'material' THEN m.kode_material
                 WHEN d.item_type = 'machine' THEN mc.kode_mesin
@@ -190,6 +190,64 @@ class Mir_model extends CI_Model {
     public function delete_item($id) {
         $this->db->reset_query();
         return $this->db->where('id', $id)->delete($this->table_details);
+    }
+
+    // ✅ BARU: Cek apakah item sudah ada di MIR
+    public function check_existing_item($mir_id, $item_id, $item_type) {
+        $this->db->reset_query();
+        $this->db->where('mir_header_id', $mir_id);
+        $this->db->where('item_id', $item_id);
+        $this->db->where('item_type', $item_type);
+        return $this->db->get($this->table_details)->row();
+    }
+
+    // ✅ BARU: Update qty item yang sudah ada
+    public function update_item_qty($detail_id, $new_qty) {
+        $this->db->reset_query();
+        $this->db->where('id', $detail_id);
+        return $this->db->update($this->table_details, ['qty' => $new_qty]);
+    }
+
+    // ✅ BARU: Update item detail (flexible untuk multiple fields)
+    public function update_item($detail_id, $data) {
+        $this->db->reset_query();
+        $this->db->where('id', $detail_id);
+        return $this->db->update($this->table_details, $data);
+    }
+
+    // ✅ BARU: Get all available items untuk ditambahkan
+    public function get_available_items_for_mir() {
+        $items = [];
+        
+        // Materials
+        $this->db->reset_query();
+        $materials = $this->db->select("id, kode_material as code, nama_material as name, 'material' as type, satuan as unit")
+                              ->where('status', 'active')
+                              ->order_by('nama_material', 'ASC')
+                              ->get('materials')->result();
+        
+        // Semifinished
+        $this->db->reset_query();
+        $semifinished = $this->db->select("id, kode_barang as code, nama_barang as name, 'semifinished' as type, satuan as unit")
+                                 ->where('status', 'active')
+                                 ->order_by('nama_barang', 'ASC')
+                                 ->get('semifinished_goods')->result();
+        
+        // Machines
+        $this->db->reset_query();
+        $machines = $this->db->select("id, kode_mesin as code, nama_mesin as name, 'machine' as type, 'Unit' as unit")
+                             ->where('status', 'Active')
+                             ->order_by('nama_mesin', 'ASC')
+                             ->get('machines')->result();
+        
+        // Inventories
+        $this->db->reset_query();
+        $inventories = $this->db->select("id, kode_barang as code, nama_barang as name, 'inventory' as type, 'Unit' as unit")
+                                ->where('status', 'Active')
+                                ->order_by('nama_barang', 'ASC')
+                                ->get('inventories')->result();
+        
+        return array_merge($materials, $semifinished, $machines, $inventories);
     }
 
     // === HELPERS ===

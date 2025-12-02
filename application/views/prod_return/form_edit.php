@@ -45,7 +45,7 @@ if ($header['status'] != 'Draft') {
                     <div class="d-sm-flex align-items-center justify-content-between mb-4">
                         <h3 class="h4 mb-0 text-gray-800"><i class="fas fa-edit text-warning mr-2"></i><?= htmlspecialchars($title); ?></h3>
                         <a href="<?= base_url('ProdReturn/view/' . $header['id']); ?>" class="btn btn-secondary btn-sm">
-                            <i class="fas fa-arrow-left mr-1"></i> Kembali ke Detail
+                            <i class="fas fa-arrow-left mr-1"></i> <?= lang_line('back_to_detail', 'Kembali ke Detail'); ?>
                         </a>
                     </div>
 
@@ -56,47 +56,47 @@ if ($header['status'] != 'Draft') {
                     <div class="card shadow mb-4">
                         <form action="<?= base_url('ProdReturn/update/' . $header['id']); ?>" method="post" id="form-return-edit">
                             <div class="card-header py-3 bg-gradient-warning text-white">
-                                <h6 class="m-0 font-weight-bold">Edit Header Retur</h6>
+                                <h6 class="m-0 font-weight-bold"><?= lang_line('prodreturn_edit_header', 'Edit Header Retur'); ?></h6>
                             </div>
                             <div class="card-body">
                                 <div class="row">
                                     <div class="col-md-4 form-group">
-                                        <label>No. Retur</label>
+                                        <label><?= lang_line('prodreturn_return_no', 'No. Retur'); ?></label>
                                         <input type="text" name="prod_return_no_display" class="form-control form-control-sm bg-light" value="<?= htmlspecialchars($header['prod_return_no']); ?>" readonly>
                                         <?php // No Retur tidak perlu disubmit lagi saat update ?>
                                     </div>
                                     <div class="col-md-4 form-group">
-                                        <label for="return_date">Tanggal Retur</label>
+                                        <label for="return_date"><?= lang_line('prodreturn_return_date', 'Tanggal Retur'); ?></label>
                                         <input type="date" name="return_date" id="return_date" class="form-control form-control-sm" value="<?= htmlspecialchars($header['return_date']); ?>" required>
-                                        <div class="invalid-feedback">Tanggal wajib diisi.</div>
+                                        <div class="invalid-feedback"><?= lang_line('required_field', 'Wajib diisi'); ?></div>
                                     </div>
                                     <div class="col-md-4 form-group">
-                                        <label>Work Order (WO)</label>
-                                        <input type="text" class="form-control form-control-sm bg-light" value="<?= htmlspecialchars($header['wo_number']); ?>" readonly title="Work Order tidak dapat diubah saat edit.">
+                                        <label><?= lang_line('prodreturn_work_order', 'Work Order (WO)'); ?></label>
+                                        <input type="text" class="form-control form-control-sm bg-light" value="<?= htmlspecialchars($header['wo_number']); ?>" readonly title="<?= lang_line('wo_cannot_change', 'Work Order tidak dapat diubah'); ?>">
                                         <input type="hidden" name="work_order_id" value="<?= $header['work_order_id']; ?>"> <?php // WO ID tetap disubmit jika diperlukan controller ?>
                                     </div>
                                 </div>
                                 <div class="form-group">
-                                    <label for="notes">Catatan</label>
+                                    <label for="notes"><?= lang_line('prodreturn_notes', 'Catatan'); ?></label>
                                     <textarea name="notes" id="notes" class="form-control form-control-sm" rows="2"><?= htmlspecialchars($header['notes']); ?></textarea>
                                 </div>
                             </div>
 
                             <div class="card-header py-3 mt-3 bg-gradient-warning text-white">
-                                <h6 class="m-0 font-weight-bold">Edit Detail Material</h6>
+                                <h6 class="m-0 font-weight-bold"><?= lang_line('prodreturn_edit_details', 'Edit Detail Material'); ?></h6>
                             </div>
                             <div class="card-body">
                                 <div class="alert alert-info small p-2">
-                                    <strong>Perhatian:</strong> Mengupdate draft ini akan **mengganti semua item detail** dengan daftar di bawah ini. Pastikan semua item yang ingin diretur tercantum dengan Qty yang benar. WO tidak dapat diubah.
+                                    <strong><?= lang_line('attention', 'Perhatian'); ?>:</strong> <?= lang_line('edit_warning', 'Mengupdate draft ini akan mengganti semua item detail dengan daftar di bawah. Pastikan semua item tercantum dengan Qty yang benar.'); ?>
                                 </div>
                                 <div class="table-responsive">
                                     <table class="table table-bordered table-sm" id="material_table">
                                         <thead class="thead-light">
                                             <tr class="text-center">
-                                                <th>Material</th>
-                                                <th>Satuan</th>
-                                                <th width="150">Qty Retur</th>
-                                                <th>Alasan</th>
+                                                <th><?= lang_line('prodreturn_material_name', 'Material'); ?></th>
+                                                <th><?= lang_line('prodreturn_unit', 'Satuan'); ?></th>
+                                                <th width="150"><?= lang_line('prodreturn_qty_return', 'Qty Retur'); ?></th>
+                                                <th><?= lang_line('prodreturn_reason', 'Alasan'); ?></th>
                                                 </tr>
                                         </thead>
                                         <tbody>
@@ -113,30 +113,30 @@ if ($header['status'] != 'Draft') {
                                                     <input type="number" name="qty_return[<?= $index ?>]" class="form-control form-control-sm text-right qty-return-input"
                                                            value="<?= number_format((float)$item['qty_return'], 4, '.', ''); // Format tanpa pemisah ribuan ?>"
                                                            step="0.0001" min="0.0001" required>
-                                                     <div class="invalid-feedback">Qty > 0.</div>
+                                                     <div class="invalid-feedback"><?= lang_line('qty_required', 'Qty > 0'); ?></div>
                                                      <?php /* Jika ingin validasi max, perlu data sisa WIP di sini
                                                      <small class="text-muted">Maks: <?= $wip_balance[$item['material_id']] ?? '?' ?></small>
                                                      */ ?>
                                                 </td>
                                                 <td>
                                                     <input type="text" name="reason[<?= $index ?>]" class="form-control form-control-sm"
-                                                           value="<?= htmlspecialchars($item['reason']); ?>" placeholder="Opsional">
+                                                           value="<?= htmlspecialchars($item['reason']); ?>" placeholder="<?= lang_line('optional', 'Opsional'); ?>">
                                                 </td>
                                                  </tr>
                                             <?php endforeach; else: ?>
-                                            <tr><td colspan="5" class="text-center text-danger py-3">Gagal memuat detail item atau tidak ada item.</td></tr> <?php // Colspan disesuaikan ?>
+                                            <tr><td colspan="5" class="text-center text-danger py-3"><?= lang_line('no_items_or_failed', 'Gagal memuat detail item atau tidak ada item'); ?></td></tr> <?php // Colspan disesuaikan ?>
                                             <?php endif; ?>
                                         </tbody>
                                     </table>
                                 </div>
-                                <small class="text-danger" id="detail-error-msg" style="display: none;">Minimal harus ada 1 item dengan Qty Retur lebih dari 0.</small>
+                                <small class="text-danger" id="detail-error-msg" style="display: none;"><?= lang_line('prodreturn_min_item_required', 'Minimal 1 item dengan Qty > 0'); ?></small>
                             </div>
 
                             <div class="card-footer text-right">
                                 <button type="submit" class="btn btn-warning">
-                                    <i class="fas fa-save mr-1"></i> Update Draft
+                                    <i class="fas fa-save mr-1"></i> <?= lang_line('update_draft', 'Update Draft'); ?>
                                 </button>
-                                <a href="<?= base_url('ProdReturn/view/' . $header['id']); ?>" class="btn btn-secondary"> Batal </a>
+                                <a href="<?= base_url('ProdReturn/view/' . $header['id']); ?>" class="btn btn-secondary"> <?= lang_line('prodreturn_cancel', 'Batal'); ?> </a>
                             </div>
                         </form>
                     </div> </div></div><?php //$this->load->view('templates/footer_content'); ?>

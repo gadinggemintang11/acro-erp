@@ -86,6 +86,9 @@ class LapPemasukanBB_model extends CI_Model {
         $this->db->where('grn.bc_number IS NOT NULL');
         $this->db->where('grn.bc_type_code !=', '');
         $this->db->where('grn.bc_number !=', '');
+        
+        // Filter: Hanya tampilkan GRN yang sudah diverifikasi EXIM
+        $this->db->where('grn.exim_verified', 1);
 
         if (!empty($filters['bc_type'])) {
             $this->db->where('grn.bc_type_code', $filters['bc_type']);
@@ -142,6 +145,9 @@ class LapPemasukanBB_model extends CI_Model {
         if ($start_date) { $this->db->where('sl.transaction_date >=', $start_date . ' 00:00:00'); }
         if ($end_date) { $this->db->where('sl.transaction_date <=', $end_date . ' 23:59:59'); }
         if ($bc_type) { $this->db->where('grn.bc_type_code', $bc_type); }
+        
+        // Filter: Hanya hitung GRN yang sudah diverifikasi EXIM
+        $this->db->where('grn.exim_verified', 1);
         if ($search) {
             $this->db->group_start();
             $this->db->like('m.kode_material', $search);

@@ -10,26 +10,26 @@
         <div>
         <?php if (isset($header) && $header): // Hanya tampilkan jika header ada ?>
             <?php if ($header->status == 'Draft' && check_access('purchase_order', 'edit')): ?>
-                <a href="<?= base_url('purchase_order/submit_po/'.$header->id); ?>" class="btn btn-info btn-sm mr-1 btn-submit" data-message="Yakin ingin submit PO ini? Setelah disubmit, header tidak bisa diedit." data-icon="info" data-confirm-text="Ya, Submit"> <i class="fas fa-paper-plane fa-sm"></i> Submit PO </a>
+                <a href="<?= base_url('purchase_order/submit_po/'.$header->id); ?>" class="btn btn-info btn-sm mr-1 btn-submit" data-message="<?= lang_line('po_confirm_submit', 'Yakin ingin submit PO ini? Setelah disubmit, header tidak bisa diedit.'); ?>" data-icon="info" data-confirm-text="Ya, Submit"> <i class="fas fa-paper-plane fa-sm"></i> <?= lang_line('po_submit', 'Submit PO'); ?> </a>
             <?php endif; ?>
             <?php if ($header->status == 'Submitted' && check_access('purchase_order', 'edit')): ?>
-                 <a href="<?= base_url('purchase_order/confirm_po/'.$header->id); ?>" class="btn btn-primary btn-sm mr-1 btn-confirm" data-message="Yakin ingin konfirmasi (approve) PO ini?" data-icon="question" data-confirm-text="Ya, Konfirmasi"> <i class="fas fa-check-circle fa-sm"></i> Confirm PO </a>
-                 <a href="<?= base_url('purchase_order/reject_po/'.$header->id); ?>" class="btn btn-warning btn-sm mr-1 btn-confirm" data-message="Yakin ingin mengembalikan PO ini ke Draft?" data-icon="warning" data-confirm-text="Ya, Kembalikan"> <i class="fas fa-undo fa-sm"></i> Reject </a>
+                 <a href="<?= base_url('purchase_order/confirm_po/'.$header->id); ?>" class="btn btn-primary btn-sm mr-1 btn-confirm" data-message="<?= lang_line('po_confirm_approve', 'Yakin ingin konfirmasi (approve) PO ini?'); ?>" data-icon="question" data-confirm-text="Ya, Konfirmasi"> <i class="fas fa-check-circle fa-sm"></i> <?= lang_line('po_confirm', 'Confirm PO'); ?> </a>
+                 <a href="<?= base_url('purchase_order/reject_po/'.$header->id); ?>" class="btn btn-warning btn-sm mr-1 btn-confirm" data-message="<?= lang_line('po_confirm_reject', 'Yakin ingin mengembalikan PO ini ke Draft?'); ?>" data-icon="warning" data-confirm-text="Ya, Kembalikan"> <i class="fas fa-undo fa-sm"></i> <?= lang_line('po_reject', 'Reject'); ?> </a>
             <?php endif; ?>
              <?php if ($header->status == 'Confirmed' && check_access('purchase_order', 'edit')): ?>
-                 <a href="<?= base_url('purchase_order/unconfirm_po/'.$header->id); ?>" class="btn btn-danger btn-sm mr-1 btn-confirm" data-message="Yakin ingin membatalkan konfirmasi PO ini?" data-text="Pastikan belum ada penerimaan barang." data-icon="warning" data-confirm-text="Ya, Batalkan Konfirmasi"> <i class="fas fa-times-circle fa-sm"></i> Unconfirm </a>
+                 <a href="<?= base_url('purchase_order/unconfirm_po/'.$header->id); ?>" class="btn btn-danger btn-sm mr-1 btn-confirm" data-message="<?= lang_line('po_confirm_unconfirm', 'Yakin ingin membatalkan konfirmasi PO ini?'); ?>" data-text="<?= lang_line('po_confirm_unconfirm_text', 'Pastikan belum ada penerimaan barang.'); ?>" data-icon="warning" data-confirm-text="Ya, Batalkan Konfirmasi"> <i class="fas fa-times-circle fa-sm"></i> <?= lang_line('po_unconfirm', 'Unconfirm'); ?> </a>
             <?php endif; ?>
              <?php if (in_array($header->status, ['Draft', 'Submitted', 'Confirmed']) && check_access('purchase_order', 'delete')): ?>
-                 <a href="<?= base_url('purchase_order/cancel_po/'.$header->id); ?>" class="btn btn-danger btn-sm mr-1 btn-confirm" data-message="Yakin ingin membatalkan (cancel) PO ini?" data-text="Aksi ini tidak bisa diurungkan." data-icon="error" data-confirm-text="Ya, Batalkan PO"> <i class="fas fa-ban fa-sm"></i> Cancel PO </a>
+                 <a href="<?= base_url('purchase_order/cancel_po/'.$header->id); ?>" class="btn btn-danger btn-sm mr-1 btn-confirm" data-message="<?= lang_line('po_confirm_cancel', 'Yakin ingin membatalkan (cancel) PO ini?'); ?>" data-text="<?= lang_line('po_confirm_cancel_text', 'Aksi ini tidak bisa diurungkan.'); ?>" data-icon="error" data-confirm-text="Ya, Batalkan PO"> <i class="fas fa-ban fa-sm"></i> <?= lang_line('po_cancel_po', 'Cancel PO'); ?> </a>
             <?php endif; ?>
             <?php if ($header->status == 'Draft' && check_access('purchase_order', 'edit')): ?>
-                 <button type="button" class="btn btn-warning btn-sm mr-1" data-toggle="modal" data-target="#editHeaderModalDetail"> <i class="fas fa-edit fa-sm"></i> Edit Header </button>
+                 <button type="button" class="btn btn-warning btn-sm mr-1" data-toggle="modal" data-target="#editHeaderModalDetail"> <i class="fas fa-edit fa-sm"></i> <?= lang_line('po_edit', 'Edit Header'); ?> </button>
              <?php endif; ?>
              
-            <a href="<?= base_url('purchase_order/export_excel/'.$header->id); ?>" target="_blank" class="btn btn-success btn-sm mr-1 no-loader"> <i class="fas fa-file-excel fa-sm"></i> Excel </a>
-            <a href="<?= base_url('purchase_order/export_pdf/'.$header->id); ?>" target="_blank" class="btn btn-danger btn-sm mr-1 no-loader"> <i class="fas fa-file-pdf fa-sm"></i> PDF </a>
+            <a href="<?= base_url('purchase_order/export_excel/'.$header->id); ?>" target="_blank" class="btn btn-success btn-sm mr-1 no-loader"> <i class="fas fa-file-excel fa-sm"></i> <?= lang_line('po_export_excel', 'Excel'); ?> </a>
+            <a href="<?= base_url('purchase_order/export_pdf/'.$header->id); ?>" target="_blank" class="btn btn-danger btn-sm mr-1 no-loader"> <i class="fas fa-file-pdf fa-sm"></i> <?= lang_line('po_export_pdf', 'PDF'); ?> </a>
         <?php endif; // End check header exists ?>
-            <a href="<?= base_url('purchase_order'); ?>" class="btn btn-secondary btn-sm btn-load"> <i class="fas fa-arrow-left fa-sm mr-2"></i>Kembali ke Daftar </a>
+            <a href="<?= base_url('purchase_order'); ?>" class="btn btn-secondary btn-sm btn-load"> <i class="fas fa-arrow-left fa-sm mr-2"></i><?= lang_line('po_back_to_list', 'Kembali ke Daftar'); ?> </a>
         </div>
     </div>
 
@@ -39,45 +39,45 @@
 
     <?php if (isset($header) && $header): ?>
      <div class="card shadow mb-4">
-        <div class="card-header py-3"> <h6 class="m-0 font-weight-bold text-primary">Informasi Purchase Order</h6> </div>
+        <div class="card-header py-3"> <h6 class="m-0 font-weight-bold text-primary"><?= lang_line('po_header_info', 'Informasi Purchase Order'); ?></h6> </div>
         <div class="card-body">
              <div class="row">
                 <div class="col-md-6">
                     <table class="table table-sm table-borderless mb-0">
-                         <tr><td style="width:35%;"><strong>Nomor PO</strong></td><td style="width:2%">:</td><td><?= htmlspecialchars($header->po_number); ?></td></tr>
-                         <tr><td><strong>Supplier</strong></td><td>:</td><td><?= htmlspecialchars($header->nama_supplier); ?></td></tr>
-                         <tr><td><strong>Alamat Supplier</strong></td><td>:</td><td><?= htmlspecialchars($header->alamat ?? '-'); ?></td></tr>
-                         <tr><td><strong>Telepon Supplier</strong></td><td>:</td><td><?= htmlspecialchars($header->telepon ?? '-'); ?></td></tr>
-                         <tr><td><strong>Dibuat Oleh</strong></td><td>:</td><td><?= htmlspecialchars($header->creator_name ?? '-'); ?></td></tr>
-                         <tr><td><strong>Dikonfirmasi Oleh</strong></td><td>:</td><td><?= htmlspecialchars($header->confirmer_name ?? '-'); ?> <?= $header->confirmed_at ? '('.date('d M Y H:i', strtotime($header->confirmed_at)).')' : ''; ?></td></tr>
+                         <tr><td style="width:35%;"><strong><?= lang_line('po_number', 'Nomor PO'); ?></strong></td><td style="width:2%">:</td><td><?= htmlspecialchars($header->po_number); ?></td></tr>
+                         <tr><td><strong><?= lang_line('po_supplier', 'Supplier'); ?></strong></td><td>:</td><td><?= htmlspecialchars($header->nama_supplier); ?></td></tr>
+                         <tr><td><strong><?= lang_line('po_supplier_address', 'Alamat Supplier'); ?></strong></td><td>:</td><td><?= htmlspecialchars($header->alamat ?? '-'); ?></td></tr>
+                         <tr><td><strong><?= lang_line('po_supplier_phone', 'Telepon Supplier'); ?></strong></td><td>:</td><td><?= htmlspecialchars($header->telepon ?? '-'); ?></td></tr>
+                         <tr><td><strong><?= lang_line('po_created_by', 'Dibuat Oleh'); ?></strong></td><td>:</td><td><?= htmlspecialchars($header->creator_name ?? '-'); ?></td></tr>
+                         <tr><td><strong><?= lang_line('po_approved_by', 'Dikonfirmasi Oleh'); ?></strong></td><td>:</td><td><?= htmlspecialchars($header->confirmer_name ?? '-'); ?> <?= $header->confirmed_at ? '('.date('d M Y H:i', strtotime($header->confirmed_at)).')' : ''; ?></td></tr>
                     </table>
                 </div>
                 <div class="col-md-6">
                      <table class="table table-sm table-borderless mb-0">
-                         <tr><td style="width:35%;"><strong>Tanggal PO</strong></td><td style="width:2%">:</td><td><?= date('d M Y', strtotime($header->po_date)); ?></td></tr>
-                         <tr><td><strong>Status</strong></td><td>:</td><td><?php $color = $status_colors[$header->status] ?? 'secondary'; ?><span class="badge badge-<?= $color; ?>"><?= htmlspecialchars($header->status); ?></span></td></tr>
-                         <tr><td><strong>Mode Pengiriman</strong></td><td>:</td><td><?= htmlspecialchars($header->shipping_mode_desc ?? '-'); ?></td></tr>
-                         <tr><td><strong>Mode Pembayaran</strong></td><td>:</td><td><?= htmlspecialchars($header->payment_mode_desc ?? '-'); ?></td></tr>
-                         <tr><td><strong>Mata Uang</strong></td><td>:</td><td><?= htmlspecialchars($header->currency_desc ?? '-'); ?> <?= $header->currency_code != 'IDR' ? '(Kurs: '.number_format((float)$header->exchange_rate, 4).')' : ''; ?></td></tr>
-                         <tr><td><strong>PPN 11%</strong></td><td>:</td><td><?= $header->has_ppn ? '<span class="badge badge-success">Ya</span>' : '<span class="badge badge-secondary">Tidak</span>'; ?></td></tr>
+                         <tr><td style="width:35%;"><strong><?= lang_line('po_date', 'Tanggal PO'); ?></strong></td><td style="width:2%">:</td><td><?= date('d M Y', strtotime($header->po_date)); ?></td></tr>
+                         <tr><td><strong><?= lang_line('po_status', 'Status'); ?></strong></td><td>:</td><td><?php $color = $status_colors[$header->status] ?? 'secondary'; ?><span class="badge badge-<?= $color; ?>"><?= htmlspecialchars($header->status); ?></span></td></tr>
+                         <tr><td><strong><?= lang_line('po_shipping_mode', 'Mode Pengiriman'); ?></strong></td><td>:</td><td><?= htmlspecialchars($header->shipping_mode_desc ?? '-'); ?></td></tr>
+                         <tr><td><strong><?= lang_line('po_payment_mode', 'Mode Pembayaran'); ?></strong></td><td>:</td><td><?= htmlspecialchars($header->payment_mode_desc ?? '-'); ?></td></tr>
+                         <tr><td><strong><?= lang_line('po_currency', 'Mata Uang'); ?></strong></td><td>:</td><td><?= htmlspecialchars($header->currency_desc ?? '-'); ?> <?= $header->currency_code != 'IDR' ? '(<?= lang_line('po_exchange_rate', 'Kurs'); ?>: '.number_format((float)$header->exchange_rate, 4).')' : ''; ?></td></tr>
+                         <tr><td><strong><?= lang_line('po_has_ppn', 'PPN 11%'); ?></strong></td><td>:</td><td><?= $header->has_ppn ? '<span class="badge badge-success">'.lang_line('po_yes', 'Ya').'</span>' : '<span class="badge badge-secondary">'.lang_line('po_no', 'Tidak').'</span>'; ?></td></tr>
                     </table>
                 </div>
             </div>
-             <?php if(!empty($header->remarks)): ?> <hr class="mt-2 mb-2"><p class="mb-0 small"><strong>Catatan / Remarks:</strong><br> <?= nl2br(htmlspecialchars($header->remarks)); ?></p><?php endif; ?>
+             <?php if(!empty($header->remarks)): ?> <hr class="mt-2 mb-2"><p class="mb-0 small"><strong><?= lang_line('po_remarks', 'Catatan / Remarks'); ?>:</strong><br> <?= nl2br(htmlspecialchars($header->remarks)); ?></p><?php endif; ?>
         </div>
     </div>
     <?php else: ?>
-        <div class="alert alert-danger">Gagal memuat data header PO. Silakan kembali ke daftar.</div>
+        <div class="alert alert-danger"><?= lang_line('po_error_load_header', 'Gagal memuat data header PO. Silakan kembali ke daftar.'); ?></div>
     <?php endif; // End check header exists ?>
 
 
     <?php if (isset($header) && $header): // Hanya tampilkan jika header ada ?>
     <div class="card shadow mb-4">
         <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-            <h6 class="m-0 font-weight-bold text-primary">Detail Item Purchase Order</h6>
+            <h6 class="m-0 font-weight-bold text-primary"><?= lang_line('po_items', 'Detail Item Purchase Order'); ?></h6>
             <?php if ($header->status == 'Draft' && check_access('purchase_order', 'edit')): ?>
             <button class="btn btn-success btn-sm" type="button" id="add-item-row-btn">
-                <i class="fas fa-plus fa-sm"></i> Tambah Baris Item
+                <i class="fas fa-plus fa-sm"></i> <?= lang_line('po_add_item', 'Tambah Baris Item'); ?>
             </button>
             <?php endif; ?>
         </div>
@@ -86,16 +86,16 @@
                 <table class="table table-bordered table-sm mb-0 table-hover">
                     <thead class="thead-light text-center">
                         <tr>
-                            <th style="width: 3%;">No</th> 
-                            <th style="width: 15%;">Kode Item</th> 
-                            <th>Nama Item</th> 
-                            <th style="width: 8%;">Satuan</th>
-                            <th>Deskripsi Tambahan</th> 
-                            <th style="width: 12%;">Sales Contract</th>
-                            <th style="width: 8%;">Qty</th> 
-                            <th style="width: 12%;">Harga Satuan (<?= $header->currency_code; ?>)</th> 
-                            <th style="width: 12%;">Total (<?= $header->currency_code; ?>)</th>
-                            <th style="width: 5%;">Aksi</th>
+                            <th style="width: 3%;"><?= lang_line('po_no', 'No'); ?></th> 
+                            <th style="width: 15%;"><?= lang_line('po_item_code', 'Kode Item'); ?></th> 
+                            <th><?= lang_line('po_item_name', 'Nama Item'); ?></th> 
+                            <th style="width: 8%;"><?= lang_line('po_unit', 'Satuan'); ?></th>
+                            <th><?= lang_line('po_description', 'Deskripsi Tambahan'); ?></th> 
+                            <th style="width: 12%;"><?= lang_line('po_sales_contract', 'Sales Contract'); ?></th>
+                            <th style="width: 8%;"><?= lang_line('po_qty', 'Qty'); ?></th> 
+                            <th style="width: 12%;"><?= lang_line('po_base_price', 'Harga Satuan'); ?> (<?= $header->currency_code; ?>)</th> 
+                            <th style="width: 12%;"><?= lang_line('po_total', 'Total'); ?> (<?= $header->currency_code; ?>)</th>
+                            <th style="width: 5%;"><?= lang_line('po_action', 'Aksi'); ?></th>
                         </tr>
                     </thead>
                     <tbody id="po-item-details-body">
@@ -117,14 +117,14 @@
                             <td class="text-right"><?= number_format($row_total_base, 2, '.', ','); ?></td>
                             <td class="text-center">
                                 <?php if ($header->status == 'Draft' && check_access('purchase_order', 'edit')): ?>
-                                <a href="<?= base_url('purchase_order/delete_item/'.$d->po_header_id.'/'.$d->id); ?>" class="btn btn-danger btn-xs btn-delete" title="Hapus Item" data-message="Yakin hapus item <?= htmlspecialchars($d->item_name ?? 'ini'); ?>?"> <i class="fas fa-trash"></i> </a>
+                                <a href="<?= base_url('purchase_order/delete_item/'.$d->po_header_id.'/'.$d->id); ?>" class="btn btn-danger btn-xs btn-delete" title="<?= lang_line('po_delete', 'Hapus Item'); ?>" data-message="<?= lang_line('po_confirm_delete_item', 'Yakin hapus item'); ?> <?= htmlspecialchars($d->item_name ?? 'ini'); ?>?"> <i class="fas fa-trash"></i> </a>
                                 <?php else: echo '-'; endif; ?>
                             </td>
                         </tr>
                         <?php endforeach; ?>
                         
                         <?php else: ?>
-                            <tr id="no-item-row"><td colspan="10" class="text-center text-muted py-5">Belum ada item detail. Silakan tambahkan item.</td></tr>
+                            <tr id="no-item-row"><td colspan="10" class="text-center text-muted py-5"><?= lang_line('po_no_items', 'Belum ada item detail. Silakan tambahkan item.'); ?></td></tr>
                         <?php endif; ?>
                     </tbody>
                     
@@ -134,12 +134,12 @@
                             $grand_total_final_base = $grand_total_base + $ppn_base;
                             $grand_total_final_local = $grand_total_local * ($header->has_ppn ? 1.11 : 1); 
                          ?>
-                        <tr class="bg-light font-weight-bold"> <td colspan="8" class="text-right">Subtotal (<?= $header->currency_code; ?>)</td> <td class="text-right" id="subtotal-base"><?= number_format($grand_total_base, 2, '.', ','); ?></td> <td></td> </tr>
+                        <tr class="bg-light font-weight-bold"> <td colspan="8" class="text-right"><?= lang_line('po_subtotal', 'Subtotal'); ?> (<?= $header->currency_code; ?>)</td> <td class="text-right" id="subtotal-base"><?= number_format($grand_total_base, 2, '.', ','); ?></td> <td></td> </tr>
                          <?php if($header->has_ppn): // Tampilkan PPN jika has_ppn = 1 ?> 
-                            <tr class="bg-light"> <td colspan="8" class="text-right">PPN 11% (<?= $header->currency_code; ?>)</td> <td class="text-right" id="ppn-base"><?= number_format($ppn_base, 2, '.', ','); ?></td> <td></td> </tr> 
+                            <tr class="bg-light"> <td colspan="8" class="text-right"><?= lang_line('po_ppn', 'PPN 11%'); ?> (<?= $header->currency_code; ?>)</td> <td class="text-right" id="ppn-base"><?= number_format($ppn_base, 2, '.', ','); ?></td> <td></td> </tr> 
                          <?php endif; ?>
-                          <tr class="bg-primary text-white font-weight-bold"> <td colspan="8" class="text-right">Grand Total (<?= $header->currency_code; ?>)</td> <td class="text-right" id="grandtotal-base"><?= number_format($grand_total_final_base, 2, '.', ','); ?></td> <td></td> </tr>
-                         <?php if($header->currency_code != 'IDR'): ?> <tr class="bg-info text-white font-weight-bold"> <td colspan="8" class="text-right">Estimasi Grand Total (IDR)</td> <td class="text-right" id="grandtotal-local"><?= number_format($grand_total_final_local, 2, '.', ','); ?></td> <td></td> </tr> <?php endif; ?>
+                          <tr class="bg-primary text-white font-weight-bold"> <td colspan="8" class="text-right"><?= lang_line('po_grand_total', 'Grand Total'); ?> (<?= $header->currency_code; ?>)</td> <td class="text-right" id="grandtotal-base"><?= number_format($grand_total_final_base, 2, '.', ','); ?></td> <td></td> </tr>
+                         <?php if($header->currency_code != 'IDR'): ?> <tr class="bg-info text-white font-weight-bold"> <td colspan="8" class="text-right"><?= lang_line('po_estimated_grand_total_idr', 'Estimasi Grand Total (IDR)'); ?></td> <td class="text-right" id="grandtotal-local"><?= number_format($grand_total_final_local, 2, '.', ','); ?></td> <td></td> </tr> <?php endif; ?>
                     </tfoot>
                 </table>
             </div>
@@ -152,10 +152,10 @@
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <form method="post" action="<?= base_url('purchase_order/update_header/'.$header->id); ?>" class="needs-validation" novalidate> 
              <div class="modal-content border-0 shadow">
-                 <div class="modal-header bg-warning text-dark"> <h5 class="modal-title"><i class="fas fa-edit mr-2"></i>Edit Header PO</h5> <button type="button" class="close text-dark" data-dismiss="modal">&times;</button> </div>
+                 <div class="modal-header bg-warning text-dark"> <h5 class="modal-title"><i class="fas fa-edit mr-2"></i><?= lang_line('po_edit', 'Edit Header PO'); ?></h5> <button type="button" class="close text-dark" data-dismiss="modal">&times;</button> </div>
                  <div class="modal-body">
                       </div>
-                 <div class="modal-footer"> <button type="submit" class="btn btn-warning btn-load"><i class="fas fa-save mr-1"></i> Simpan Perubahan</button> <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button> </div>
+                 <div class="modal-footer"> <button type="submit" class="btn btn-warning btn-load"><i class="fas fa-save mr-1"></i> <?= lang_line('po_save', 'Simpan Perubahan'); ?></button> <button type="button" class="btn btn-secondary" data-dismiss="modal"><?= lang_line('po_cancel', 'Batal'); ?></button> </div>
              </div>
         </form>
     </div>
@@ -167,16 +167,16 @@
     <tr class="new-item-row">
         <td class="text-center align-middle">*</td>
         <td><input type="text" class="form-control form-control-sm item-code-display" readonly style="background-color: #e9ecef;"></td> 
-        <td><select name="item_id" class="form-control form-control-sm select2-inline-item" required style="width: 100%;"><option value="">-- Cari Nama Item --</option></select></td>
+        <td><select name="item_id" class="form-control form-control-sm select2-inline-item" required style="width: 100%;"><option value=""><?= lang_line('po_search_item', '-- Cari Nama Item --'); ?></option></select></td>
         <td><input type="text" class="form-control form-control-sm item-unit-display text-center" readonly style="background-color: #e9ecef;"></td> 
-        <td><input type="text" name="description" class="form-control form-control-sm" placeholder="Opsional..."></td>
-        <td><select name="sales_contract_id" class="form-control form-control-sm select2-inline-sc" style="width: 100%;"><option value="">-- Opsional --</option><?php foreach(($open_contracts ?? []) as $sc): ?><option value="<?= $sc->id; ?>"><?= htmlspecialchars($sc->sc_number); ?></option><?php endforeach; ?></select></td>
+        <td><input type="text" name="description" class="form-control form-control-sm" placeholder="<?= lang_line('po_optional', 'Opsional...'); ?>"></td>
+        <td><select name="sales_contract_id" class="form-control form-control-sm select2-inline-sc" style="width: 100%;"><option value=""><?= lang_line('po_optional', '-- Opsional --'); ?></option><?php foreach(($open_contracts ?? []) as $sc): ?><option value="<?= $sc->id; ?>"><?= htmlspecialchars($sc->sc_number); ?></option><?php endforeach; ?></select></td>
         <td><input type="number" step="0.0001" name="qty" class="form-control form-control-sm text-right inline-qty" required min="0.0001" placeholder="0.0000"></td> 
         <td><input type="text" name="base_price" class="form-control form-control-sm autonumeric-2dec-inline text-right inline-price" required value="0.00"></td>
         <td class="text-right align-middle inline-total">0.00</td>
         <td class="text-center align-middle">
-            <button type="button" class="btn btn-success btn-xs save-inline-item" title="Simpan Item Ini"> <i class="fas fa-check"></i> </button>
-            <button type="button" class="btn btn-danger btn-xs cancel-inline-item" title="Batal"> <i class="fas fa-times"></i> </button>
+            <button type="button" class="btn btn-success btn-xs save-inline-item" title="<?= lang_line('po_save_item', 'Simpan Item Ini'); ?>"> <i class="fas fa-check"></i> </button>
+            <button type="button" class="btn btn-danger btn-xs cancel-inline-item" title="<?= lang_line('po_cancel', 'Batal'); ?>"> <i class="fas fa-times"></i> </button>
         </td>
     </tr>
 </template>
@@ -261,7 +261,7 @@ $(function() {
                  try {
                     if ($itemSelectElement.data('select2')) { $itemSelectElement.select2('destroy'); }
                     $itemSelectElement.select2({ 
-                        placeholder: '-- Cari Nama Item --', minimumInputLength: 2, theme: 'bootstrap4', 
+                        placeholder: '<?= lang_line('po_search_item', '-- Cari Nama Item --'); ?>', minimumInputLength: 2, theme: 'bootstrap4', 
                         ajax: {
                             url: '<?= base_url("purchase_order/search_items"); ?>', dataType: 'json', delay: 400, 
                             data: function (params) { 
@@ -320,7 +320,7 @@ $(function() {
             $noItemRow = $('#no-item-row'); 
             if ($noItemRow.length) { console.log("[PO Detail] Removing 'no item' row."); $noItemRow.remove(); }
             if ($itemTableBody.find('.new-item-row').length > 0) {
-                 alert('Selesaikan atau batalkan penambahan item sebelumnya.'); console.warn("[PO Detail] Add row blocked."); return;
+                 alert('<?= lang_line('po_alert_finish_previous', 'Selesaikan atau batalkan penambahan item sebelumnya.'); ?>'); console.warn("[PO Detail] Add row blocked."); return;
             }
              if (!templateNode || !templateNode.content) { console.error("[PO Detail] Template node invalid!"); return; } 
              
@@ -370,9 +370,9 @@ $(function() {
              else { basePriceNumeric = parseFloat(($priceInput.val() || '0').replace(/,/g, '')); } 
              
              // Validasi
-             if (!itemIdValue) { alert('Harap pilih Item.'); if ($itemSelect.data('select2')) $itemSelect.select2('open'); return; }
-             if (isNaN(qtyValue) || qtyValue <= 0) { alert('Harap isi Qty (> 0).'); $qtyInput.focus(); return; }
-             if (isNaN(basePriceNumeric) || basePriceNumeric < 0) { alert('Harga Satuan tidak boleh negatif.'); $priceInput.focus(); return; }
+             if (!itemIdValue) { alert('<?= lang_line('po_alert_select_item', 'Harap pilih Item.'); ?>'); if ($itemSelect.data('select2')) $itemSelect.select2('open'); return; }
+             if (isNaN(qtyValue) || qtyValue <= 0) { alert('<?= lang_line('po_alert_fill_qty', 'Harap isi Qty (> 0).'); ?>'); $qtyInput.focus(); return; }
+             if (isNaN(basePriceNumeric) || basePriceNumeric < 0) { alert('<?= lang_line('po_alert_price_negative', 'Harga Satuan tidak boleh negatif.'); ?>'); $priceInput.focus(); return; }
              console.log("[PO Detail] Validation passed.");
 
              // Data
@@ -394,17 +394,17 @@ $(function() {
                  success: function(response){ 
                      console.log("[PO Detail] AJAX Save Success:", response);
                      if (response && response.status === 'success') { 
-                         Swal.fire({ icon: 'success', title: 'Berhasil!', text: response.message || 'Item berhasil disimpan.', timer: 1500, showConfirmButton: false })
+                         Swal.fire({ icon: 'success', title: '<?= lang_line('po_success', 'Berhasil!'); ?>', text: response.message || '<?= lang_line('po_item_saved', 'Item berhasil disimpan.'); ?>', timer: 1500, showConfirmButton: false })
                              .then(() => window.location.reload());
                      } else { 
-                          Swal.fire({ icon: 'error', title: 'Gagal!', text: response.message || 'Gagal menyimpan data.' });
+                          Swal.fire({ icon: 'error', title: '<?= lang_line('po_failed', 'Gagal!'); ?>', text: response.message || '<?= lang_line('po_save_failed', 'Gagal menyimpan data.'); ?>' });
                           button.prop('disabled', false).html('<i class="fas fa-check"></i>'); 
                           $row.find('.cancel-inline-item').prop('disabled', false); // Gunakan $row
                      }
                  }, 
                  error: function(xhr, status, error){ 
                       console.error("[PO Detail] AJAX Save Error:", status, error, xhr.responseText); 
-                      Swal.fire({ icon: 'error', title: 'Error!', text: 'Gagal menghubungi server. Periksa koneksi Anda.' });
+                      Swal.fire({ icon: 'error', title: '<?= lang_line('po_error', 'Error!'); ?>', text: '<?= lang_line('po_connection_error', 'Gagal menghubungi server. Periksa koneksi Anda.'); ?>' });
                       button.prop('disabled', false).html('<i class="fas fa-check"></i>'); 
                       $row.find('.cancel-inline-item').prop('disabled', false); // Gunakan $row
                  } 

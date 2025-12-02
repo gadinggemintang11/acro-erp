@@ -3,10 +3,10 @@
     <!-- HEADER -->
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h3 class="h5 text-gray-800 mb-0">
-            <i class="fas fa-plus-circle text-primary me-2"></i><?= $title; ?>
+            <i class="fas fa-plus-circle text-primary me-2"></i><?= lang_line('subkon_order_create_title', 'Buat Kontrak Subkon Baru'); ?>
         </h3>
         <a href="<?= base_url('subkon_order'); ?>" class="btn btn-secondary btn-sm">
-            <i class="fas fa-arrow-left"></i> Kembali
+            <i class="fas fa-arrow-left"></i> <?= lang_line('subkon_order_back', 'Kembali'); ?>
         </a>
     </div>
 
@@ -16,25 +16,25 @@
         <!-- HEADER KONTRAK -->
         <div class="card shadow-sm border-0 mb-4">
             <div class="card-header bg-light py-2">
-                <h6 class="m-0 fw-bold text-dark"><i class="fas fa-file-contract"></i> Header Kontrak</h6>
+                <h6 class="m-0 fw-bold text-dark"><i class="fas fa-file-contract"></i> <?= lang_line('subkon_order_header', 'Header Kontrak'); ?></h6>
             </div>
             <div class="card-body">
                 <div class="row g-3">
                     <div class="col-md-4">
-                        <label class="form-label">Supplier <span class="text-danger">*</span></label>
+                        <label class="form-label"><?= lang_line('subkon_order_supplier_label', 'Supplier'); ?> <span class="text-danger">*</span></label>
                         <select name="supplier_id" id="supplier_id" class="form-control form-control-sm select2" required></select>
                     </div>
                     <div class="col-md-3">
-                        <label class="form-label">Tanggal Order</label>
+                        <label class="form-label"><?= lang_line('subkon_order_order_date', 'Tanggal Order'); ?></label>
                         <input type="date" name="order_date" value="<?= date('Y-m-d'); ?>" class="form-control form-control-sm" required>
                     </div>
                     <div class="col-md-2">
-                        <label class="form-label">Pajak (%)</label>
+                        <label class="form-label"><?= lang_line('subkon_order_tax_percent', 'Pajak (%)'); ?></label>
                         <input type="number" step="0.01" name="pajak_persen" id="pajak_persen" class="form-control form-control-sm text-end" value="11">
                     </div>
                     <div class="col-md-3">
-                        <label class="form-label">Catatan</label>
-                        <input type="text" name="notes" class="form-control form-control-sm" placeholder="Catatan kontrak...">
+                        <label class="form-label"><?= lang_line('subkon_order_notes', 'Catatan'); ?></label>
+                        <input type="text" name="notes" class="form-control form-control-sm" placeholder="<?= lang_line('subkon_order_notes_placeholder', 'Catatan kontrak...'); ?>">
                     </div>
                 </div>
             </div>
@@ -43,9 +43,9 @@
         <!-- ITEM HASIL -->
         <div class="card shadow-sm border-0 mb-4">
             <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
-                <h6 class="m-0 fw-bold text-dark"><i class="fas fa-cubes"></i> Item Hasil (Output)</h6>
+                <h6 class="m-0 fw-bold text-dark"><i class="fas fa-cubes"></i> <?= lang_line('subkon_order_output_items', 'Item Hasil (Output)'); ?></h6>
                 <button type="button" id="addOutputRow" class="btn btn-primary btn-sm">
-                    <i class="fas fa-plus"></i> Tambah Item
+                    <i class="fas fa-plus"></i> <?= lang_line('subkon_order_add_item', 'Tambah Item'); ?>
                 </button>
             </div>
 
@@ -54,29 +54,29 @@
                     <table class="table table-sm table-bordered align-middle" id="tableOutput">
                         <thead class="text-center text-white" style="background-color:#5C5F72;">
                             <tr>
-                                <th>No</th>
-                                <th>Item Hasil</th>
-                                <th>Qty</th>
-                                <th>Jasa per pcs (Rp)</th>
-                                <th>Total Jasa</th>
-                                <th>BOM Material</th>
-                                <th>Aksi</th>
+                                <th><?= lang_line('subkon_order_item_no', 'No'); ?></th>
+                                <th><?= lang_line('subkon_order_result_item', 'Item Hasil'); ?></th>
+                                <th><?= lang_line('subkon_order_qty', 'Qty'); ?></th>
+                                <th><?= lang_line('subkon_order_service_per_pcs', 'Jasa per pcs (Rp)'); ?></th>
+                                <th><?= lang_line('subkon_order_total_service_item', 'Total Jasa'); ?></th>
+                                <th><?= lang_line('subkon_order_bom_material', 'BOM Material'); ?></th>
+                                <th><?= lang_line('subkon_order_actions', 'Aksi'); ?></th>
                             </tr>
                         </thead>
                         <tbody></tbody>
                         <tfoot class="bg-light">
                             <tr>
-                                <th colspan="4" class="text-end">Subtotal</th>
+                                <th colspan="4" class="text-end"><?= lang_line('subkon_order_subtotal', 'Subtotal'); ?></th>
                                 <th class="text-end" id="subtotalCell">0.00</th>
                                 <th colspan="2"></th>
                             </tr>
                             <tr>
-                                <th colspan="4" class="text-end">Pajak (<span id="pajakLabel">11</span>%)</th>
+                                <th colspan="4" class="text-end"><?= lang_line('subkon_order_tax', 'Pajak'); ?> (<span id="pajakLabel">11</span>%)</th>
                                 <th class="text-end text-danger" id="pajakCell">0.00</th>
                                 <th colspan="2"></th>
                             </tr>
                             <tr class="table-primary">
-                                <th colspan="4" class="text-end fw-bold">Grand Total</th>
+                                <th colspan="4" class="text-end fw-bold"><?= lang_line('subkon_order_grand_total', 'Grand Total'); ?></th>
                                 <th class="text-end fw-bold text-primary" id="grandCell">0.00</th>
                                 <th colspan="2"></th>
                             </tr>
@@ -88,7 +88,7 @@
 
         <div class="text-end">
             <button type="submit" class="btn btn-success shadow-sm px-4">
-                <i class="fas fa-save"></i> Simpan Kontrak
+                <i class="fas fa-save"></i> <?= lang_line('subkon_order_save', 'Simpan Kontrak'); ?>
             </button>
         </div>
     </form>
@@ -202,7 +202,7 @@ $(function(){
                 dataType:'json', delay:300,
                 data:params=>({q:params.term}),
                 processResults:data=>data
-            },width:'100%',placeholder:'Pilih Item Hasil'
+            },width:'100%',placeholder:'<?= lang_line('subkon_order_select_result_item', 'Pilih Item Hasil'); ?>'
         });
         ctx.find('.bom-item').select2({
             ajax:{
@@ -210,7 +210,7 @@ $(function(){
                 dataType:'json', delay:300,
                 data:params=>({q:params.term}),
                 processResults:data=>data
-            },width:'100%',placeholder:'Pilih Material BOM'
+            },width:'100%',placeholder:'<?= lang_line('subkon_order_select_bom_material', 'Pilih Material BOM'); ?>'
         });
         $('#supplier_id').select2({
             ajax:{
@@ -218,7 +218,7 @@ $(function(){
                 dataType:'json', delay:300,
                 data:params=>({q:params.term}),
                 processResults:data=>data
-            },width:'100%',placeholder:'Cari Supplier'
+            },width:'100%',placeholder:'<?= lang_line('subkon_order_select_supplier', 'Cari Supplier'); ?>'
         });
     }
 

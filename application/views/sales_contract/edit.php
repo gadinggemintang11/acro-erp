@@ -5,7 +5,7 @@
     <div class="d-sm-flex align-items-center justify-content-between mb-4">
         <h1 class="h3 mb-0 text-gray-800"><?= $title; ?> - <?= html_escape($contract->sc_number); ?></h1>
         <a href="<?= base_url('sales_contract'); ?>" class="btn btn-secondary btn-sm shadow-sm">
-             <i class="fas fa-arrow-left fa-sm"></i> Kembali ke Daftar
+             <i class="fas fa-arrow-left fa-sm"></i> <?= lang_line('sc_back_to_list', 'Kembali ke Daftar'); ?>
         </a>
     </div>
 
@@ -21,7 +21,7 @@
 
     <div class="card shadow mb-4">
         <div class="card-header py-3">
-            <h6 class="m-0 font-weight-bold text-primary">Form Edit Sales Contract</h6>
+            <h6 class="m-0 font-weight-bold text-primary"><?= lang_line('sc_form_edit_title', 'Form Edit Sales Contract'); ?></h6>
         </div>
         <div class="card-body">
             <!-- Ganti action form ke method update -->
@@ -31,14 +31,14 @@
             <div class="row">
                 <div class="col-md-6">
                     <div class="form-group">
-                        <label for="sc_number">Nomor SC</label>
+                        <label for="sc_number"><?= lang_line('sc_number', 'Nomor SC'); ?></label>
                         <input type="text" class="form-control" id="sc_number" value="<?= html_escape($contract->sc_number); ?>" readonly>
                     </div>
 
                     <div class="form-group">
-                        <label for="customer_id">Pelanggan <span class="text-danger">*</span></label>
+                        <label for="customer_id"><?= lang_line('sc_customer', 'Pelanggan'); ?> <span class="text-danger">*</span></label>
                         <select class="form-control" id="customer_id" name="customer_id" required>
-                            <option value="">-- Pilih Pelanggan --</option>
+                            <option value=""><?= lang_line('sc_customer_select', '-- Pilih Pelanggan --'); ?></option>
                             <?php foreach ($customers as $customer): ?>
                                 <option value="<?= $customer->id; ?>" <?= ($contract->customer_id == $customer->id) ? 'selected' : ''; ?>>
                                     <?= html_escape($customer->nama_customer); ?> (<?= html_escape($customer->kode_customer); ?>)
@@ -48,9 +48,9 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="fg_id">Style (Finished Good) <span class="text-danger">*</span></label>
+                        <label for="fg_id"><?= lang_line('sc_style', 'Style'); ?> (Finished Good) <span class="text-danger">*</span></label>
                         <select class="form-control" id="fg_id" name="fg_id" required>
-                            <option value="">-- Pilih Style --</option>
+                            <option value=""><?= lang_line('sc_style_select', '-- Pilih Style --'); ?></option>
                             <?php foreach ($styles as $style): ?>
                                 <option value="<?= $style->id; ?>" <?= ($contract->fg_id == $style->id) ? 'selected' : ''; ?>>
                                     <?= html_escape($style->nama_barang); ?> (<?= html_escape($style->kode_barang); ?>)
@@ -60,12 +60,12 @@
                     </div>
 
                      <div class="form-group">
-                        <label for="contract_date">Tanggal Kontrak <span class="text-danger">*</span></label>
+                        <label for="contract_date"><?= lang_line('sc_contract_date', 'Tanggal Kontrak'); ?> <span class="text-danger">*</span></label>
                         <input type="date" class="form-control" id="contract_date" name="contract_date" value="<?= html_escape($contract->contract_date); ?>" required>
                     </div>
 
                      <div class="form-group">
-                        <label for="lchd_date">LCHD (Last Cargo Handover Date) <span class="text-danger">*</span></label>
+                        <label for="lchd_date"><?= lang_line('sc_lchd_date_full', 'LCHD (Last Cargo Handover Date)'); ?> <span class="text-danger">*</span></label>
                         <input type="date" class="form-control" id="lchd_date" name="lchd_date" value="<?= html_escape($contract->lchd_date); ?>" required>
                     </div>
 
@@ -73,14 +73,14 @@
 
                 <div class="col-md-6">
                     <div class="form-group">
-                        <label for="po_qty">PO Quantity <span class="text-danger">*</span></label>
+                        <label for="po_qty"><?= lang_line('sc_po_quantity', 'PO Quantity'); ?> <span class="text-danger">*</span></label>
                         <input type="number" class="form-control" id="po_qty" name="po_qty" value="<?= html_escape($contract->po_qty); ?>" required min="1">
                     </div>
 
                     <div class="form-group">
-                        <label for="currency_code">Mata Uang <span class="text-danger">*</span></label>
+                        <label for="currency_code"><?= lang_line('sc_currency', 'Mata Uang'); ?> <span class="text-danger">*</span></label>
                         <select class="form-control" id="currency_code" name="currency_code" required>
-                            <option value="">-- Pilih Mata Uang --</option>
+                            <option value=""><?= lang_line('sc_currency_select', '-- Pilih Mata Uang --'); ?></option>
                             <?php foreach ($currencies as $currency): ?>
                                 <option value="<?= $currency->code; ?>" <?= ($contract->currency_code == $currency->code) ? 'selected' : ''; ?>>
                                     <?= html_escape($currency->code); ?> - <?= html_escape($currency->description); ?> <!-- PASTIKAN INI ->description -->
@@ -88,29 +88,29 @@
                             <?php endforeach; ?>
                         </select>
                         <?php if (empty($currencies)): ?>
-                            <small class="text-danger">Data mata uang (CURRENCY) tidak ditemukan di Common Code.</small>
+                            <small class="text-danger"><?= lang_line('sc_currency_not_found', 'Data mata uang (CURRENCY) tidak ditemukan di Common Code.'); ?></small>
                         <?php endif; ?>
                     </div>
 
                     <div class="form-group">
-                        <label for="unit_price">Harga Satuan <span class="text-danger">*</span></label>
+                        <label for="unit_price"><?= lang_line('sc_unit_price', 'Harga Satuan'); ?> <span class="text-danger">*</span></label>
                         <!-- Gunakan type="text" untuk format, validasi di backend -->
                         <input type="text" class="form-control text-right" id="unit_price" name="unit_price" value="<?= number_format($contract->unit_price, 2, '.', ','); ?>" required>
                     </div>
 
                      <div class="form-group">
-                        <label for="total_price">Total Harga</label>
+                        <label for="total_price"><?= lang_line('sc_total_price_label', 'Total Harga'); ?></label>
                         <input type="text" class="form-control text-right" id="total_price" value="<?= number_format($contract->total_price, 2, '.', ','); ?>" readonly>
-                         <small class="form-text text-muted">Akan terhitung otomatis.</small>
+                         <small class="form-text text-muted"><?= lang_line('sc_auto_calculated', 'Akan terhitung otomatis.'); ?></small>
                     </div>
 
                     <div class="form-group">
-                        <label for="destination">Tujuan</label>
+                        <label for="destination"><?= lang_line('sc_destination_label', 'Tujuan'); ?></label>
                         <input type="text" class="form-control" id="destination" name="destination" value="<?= html_escape($contract->destination); ?>">
                     </div>
                     
                     <div class="form-group">
-                        <label for="status">Status <span class="text-danger">*</span></label>
+                        <label for="status"><?= lang_line('sc_status', 'Status'); ?> <span class="text-danger">*</span></label>
                         <select class="form-control" id="status" name="status" required>
                             <?php foreach ($status_list as $status): ?>
                                 <option value="<?= $status; ?>" <?= ($contract->status == $status) ? 'selected' : ''; ?>>
@@ -127,10 +127,10 @@
 
             <div class="text-right">
                 <button type="submit" class="btn btn-primary shadow-sm">
-                    <i class="fas fa-save fa-sm"></i> Simpan Perubahan
+                    <i class="fas fa-save fa-sm"></i> <?= lang_line('sc_save_changes', 'Simpan Perubahan'); ?>
                 </button>
                 <a href="<?= base_url('sales_contract'); ?>" class="btn btn-secondary shadow-sm">
-                    Batal
+                    <?= lang_line('sc_cancel', 'Batal'); ?>
                 </a>
             </div>
 

@@ -93,7 +93,7 @@
                                                 <span class="badge badge-<?= $badge_class; ?>"><?= htmlspecialchars($proc->status); ?></span>
                                             </td>
                                             <td>
-                                                <a href="<?= base_url('production_process/cutting/'.$proc->id); ?>" class="btn btn-sm btn-info">
+                                                <a href="<?= base_url('production_process/preparation/'.$proc->id); ?>" class="btn btn-sm btn-info">
                                                     <i class="fas fa-cogs"></i> Proses
                                                 </a>
                                                 <?php if ($proc->status == 'Draft' && check_access('production_process', 'delete')): ?>
@@ -159,7 +159,7 @@
                     </div>
                     <div class="modal-footer">
                         <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-arrow-right mr-1"></i> Simpan & Lanjut ke Proses Cutting
+                            <i class="fas fa-arrow-right mr-1"></i> Simpan & Lanjut ke Proses Preparation
                         </button>
                         <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
                     </div>

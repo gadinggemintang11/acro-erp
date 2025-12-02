@@ -21,6 +21,20 @@ class Reports extends CI_Controller {
     }
 
     /**
+     * Halaman Index - Menu Reports
+     */
+    public function index()
+    {
+        $data['title'] = 'Reports';
+        
+        $this->load->view('templates/header', $data);
+        $this->load->view('templates/sidebar', $data);
+        $this->load->view('templates/topbar', $data);
+        $this->load->view('reports/index', $data);
+        $this->load->view('templates/footer');
+    }
+
+    /**
      * Halaman Laporan Laba Rugi
      */
     public function profit_loss()

@@ -62,8 +62,10 @@
                                 $bc_date_formatted = $t->bc_date ? date('d-m-Y', strtotime($t->bc_date)) : '';
                                 break;
                             case 'production_out':
+                            case 'OUT_ISSUE':
                                 $badge = 'danger';
-                                $doc_num = $t->mr_number;
+                                $doc_num = $t->issuance_number ?: $t->mr_number;
+                                $doc_ref = $t->mr_number;
                                 break;
                             case 'IN_RETURN_WIP':
                                 $badge = 'info';

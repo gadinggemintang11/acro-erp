@@ -30,7 +30,7 @@
                     <div class="d-sm-flex align-items-center justify-content-between mb-4">
                         <h3 class="h4 mb-0 text-gray-800"><i class="fas fa-undo-alt text-warning mr-2"></i><?= htmlspecialchars($title); ?></h3>
                         <a href="<?= base_url('ProdReturn'); ?>" class="btn btn-secondary btn-sm">
-                            <i class="fas fa-arrow-left mr-1"></i> Kembali ke List
+                            <i class="fas fa-arrow-left mr-1"></i> <?= lang_line('prodreturn_back_to_list', 'Kembali ke List'); ?>
                         </a>
                     </div>
 
@@ -41,22 +41,22 @@
                     <div class="card shadow mb-4">
                         <form action="<?= base_url('ProdReturn/store'); ?>" method="post" id="form-return">
                             <div class="card-header py-3 bg-gradient-warning text-white">
-                                <h6 class="m-0 font-weight-bold">Header Retur</h6>
+                                <h6 class="m-0 font-weight-bold"><?= lang_line('prodreturn_header_info', 'Header Retur'); ?></h6>
                             </div>
                             <div class="card-body">
                                 <div class="row">
                                     <div class="col-md-4 form-group">
-                                        <label for="prod_return_no">No. Retur</label>
+                                        <label for="prod_return_no"><?= lang_line('prodreturn_return_no', 'No. Retur'); ?></label>
                                         <input type="text" name="prod_return_no" id="prod_return_no" class="form-control form-control-sm" value="<?= htmlspecialchars($return_no); ?>" readonly required>
                                     </div>
                                     <div class="col-md-4 form-group">
-                                        <label for="return_date">Tanggal Retur</label>
+                                        <label for="return_date"><?= lang_line('prodreturn_return_date', 'Tanggal Retur'); ?></label>
                                         <input type="date" name="return_date" id="return_date" class="form-control form-control-sm" value="<?= date('Y-m-d'); ?>" required>
-                                        <div class="invalid-feedback">Tanggal wajib diisi.</div>
+                                        <div class="invalid-feedback"><?= lang_line('required_field', 'Wajib diisi'); ?></div>
                                     </div>
                                     <div class="col-md-4 form-group">
-                                        <label for="work_order_id">Work Order (WO)</label>
-                                        <select name="work_order_id" id="work_order_id" class="form-control form-control-sm select2-wo" required data-placeholder="-- Pilih Work Order --">
+                                        <label for="work_order_id"><?= lang_line('prodreturn_work_order', 'Work Order (WO)'); ?></label>
+                                        <select name="work_order_id" id="work_order_id" class="form-control form-control-sm select2-wo" required data-placeholder="<?= lang_line('prodreturn_select_wo', '-- Pilih Work Order --'); ?>">
                                             <option value=""></option>
                                             <?php if (!empty($work_orders)): ?>
                                                 <?php foreach($work_orders as $wo): ?>
@@ -64,47 +64,47 @@
                                                 <?php endforeach; ?>
                                             <?php endif; ?>
                                         </select>
-                                        <div class="invalid-feedback">Work Order wajib dipilih.</div>
+                                        <div class="invalid-feedback"><?= lang_line('required_field', 'Wajib dipilih'); ?></div>
                                     </div>
                                 </div>
                                 <div class="form-group">
-                                    <label for="notes">Catatan</label>
-                                    <textarea name="notes" id="notes" class="form-control form-control-sm" rows="2" placeholder="Catatan atau keterangan opsional..."></textarea>
+                                    <label for="notes"><?= lang_line('prodreturn_notes', 'Catatan'); ?></label>
+                                    <textarea name="notes" id="notes" class="form-control form-control-sm" rows="2" placeholder="<?= lang_line('optional_notes', 'Catatan opsional...'); ?>"></textarea>
                                 </div>
                             </div>
 
                             <div class="card-header py-3 mt-3 bg-gradient-warning text-white">
-                                <h6 class="m-0 font-weight-bold">Detail Material (Sisa WIP)</h6>
+                                <h6 class="m-0 font-weight-bold"><?= lang_line('prodreturn_material_list', 'Detail Material (Sisa WIP)'); ?></h6>
                             </div>
                             <div class="card-body">
                                 <div class="table-responsive">
                                     <table class="table table-bordered table-sm" id="material_table">
                                         <thead class="thead-light">
                                             <tr class="text-center">
-                                                <th>Material</th>
-                                                <th>Satuan</th>
-                                                <th width="150">Sisa di WIP</th>
-                                                <th width="150">Qty Retur</th>
-                                                <th>Alasan</th>
+                                                <th><?= lang_line('prodreturn_material_name', 'Material'); ?></th>
+                                                <th><?= lang_line('prodreturn_unit', 'Satuan'); ?></th>
+                                                <th width="150"><?= lang_line('prodreturn_wip_balance', 'Sisa di WIP'); ?></th>
+                                                <th width="150"><?= lang_line('prodreturn_qty_return', 'Qty Retur'); ?></th>
+                                                <th><?= lang_line('prodreturn_reason', 'Alasan'); ?></th>
                                             </tr>
                                         </thead>
                                         <tbody id="material_list_body">
                                             <tr id="placeholder-row">
                                                 <td colspan="5" class="text-center text-muted">
-                                                    Pilih Work Order untuk memuat sisa material.
+                                                    <?= lang_line('prodreturn_select_wo_first', 'Pilih Work Order untuk memuat sisa material'); ?>
                                                 </td>
                                             </tr>
                                         </tbody>
                                     </table>
                                 </div>
-                                <small class="text-danger" id="detail-error-msg" style="display: none;">Minimal harus ada 1 item dengan Qty Retur lebih dari 0.</small>
+                                <small class="text-danger" id="detail-error-msg" style="display: none;"><?= lang_line('prodreturn_min_item_required', 'Minimal 1 item dengan Qty > 0'); ?></small>
                             </div>
 
                             <div class="card-footer text-right">
                                 <button type="submit" class="btn btn-warning">
-                                    <i class="fas fa-save mr-1"></i> Simpan Draft
+                                    <i class="fas fa-save mr-1"></i> <?= lang_line('prodreturn_save_draft', 'Simpan Draft'); ?>
                                 </button>
-                                <a href="<?= base_url('ProdReturn'); ?>" class="btn btn-secondary"> Batal </a>
+                                <a href="<?= base_url('ProdReturn'); ?>" class="btn btn-secondary"> <?= lang_line('prodreturn_cancel', 'Batal'); ?> </a>
                             </div>
                         </form>
                     </div> </div></div><?php //$this->load->view('templates/footer_content'); ?>

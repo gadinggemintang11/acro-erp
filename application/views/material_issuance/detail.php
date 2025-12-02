@@ -1,7 +1,7 @@
 <div class="container-fluid">
     <div class="d-sm-flex align-items-center justify-content-between mb-4">
         <h3 class="h4 mb-0 text-gray-800">
-            <i class="fas fa-dolly-flatbed text-primary mr-2"></i><?= htmlspecialchars($title); ?>
+            <i class="fas fa-dolly-flatbed text-primary mr-2"></i><?= lang_line('material_issuance_process', 'Proses Pengeluaran Material'); ?>
             <span class="badge badge-primary ml-2"><?= htmlspecialchars($header->mr_number); ?></span>
             <?php if($header->status == 'Issued' || $header->status == 'Received'): ?>
                 <span class="badge badge-success ml-2"><?= htmlspecialchars($header->issuance_number); ?></span>
@@ -10,15 +10,20 @@
         <div>
             <?php if ($header->status == 'Submitted' && check_access('material_issuance', 'edit')): ?>
                 <button type="submit" form="issuanceForm" class="btn btn-primary btn-sm mr-1" id="btnConfirmIssuanceHead">
-                    <i class="fas fa-check-circle fa-sm"></i> Confirm Issuance
+                    <i class="fas fa-check-circle fa-sm"></i> <?= lang_line('material_issuance_confirm', 'Confirm Issuance'); ?>
                 </button>
             <?php elseif ($header->status == 'Issued' && check_access('material_issuance', 'edit')): ?>
-                <a href="<?= base_url('material_issuance/reverse_issuance/'.$header->id); ?>" class="btn btn-danger btn-sm mr-1" onclick="return confirm('Yakin ingin membatalkan pengeluaran ini? Stok akan dikembalikan.');">
-                    <i class="fas fa-undo fa-sm"></i> Batal Keluarkan (Un-issue)
+                <a href="<?= base_url('material_issuance/reverse_issuance/'.$header->id); ?>" class="btn btn-danger btn-sm mr-1" onclick="return confirm('<?= lang_line('material_issuance_reverse_confirm', 'Yakin ingin membatalkan pengeluaran ini? Stok akan dikembalikan.'); ?>')">
+                    <i class="fas fa-undo fa-sm"></i> <?= lang_line('material_issuance_reverse', 'Batal Keluarkan (Un-issue)'); ?>
+                </a>
+            <?php endif; ?>
+            <?php if (($header->status == 'Issued' || $header->status == 'Received') && check_access('material_issuance', 'view')): ?>
+                <a href="<?= base_url('material_issuance/export_pdf/'.$header->id); ?>" class="btn btn-info btn-sm mr-1" target="_blank">
+                    <i class="fas fa-file-pdf fa-sm"></i> <?= lang_line('material_issuance_export_pdf', 'Export PDF'); ?>
                 </a>
             <?php endif; ?>
             <a href="<?= base_url('material_issuance'); ?>" class="btn btn-secondary btn-sm btn-load">
-                <i class="fas fa-arrow-left fa-sm mr-2"></i>Kembali
+                <i class="fas fa-arrow-left fa-sm mr-2"></i><?= lang_line('material_issuance_back', 'Kembali'); ?>
             </a>
         </div>
     </div>
@@ -39,9 +44,9 @@
     <div class="card shadow mb-4">
         <div class="card-body">
              <div class="row">
-                <div class="col-md-4"><strong>No. MR:</strong> <?= htmlspecialchars($header->mr_number); ?></div>
-                <div class="col-md-4"><strong>Tanggal:</strong> <?= date('d M Y', strtotime($header->request_date)); ?></div>
-                <div class="col-md-4"><strong>Status:</strong> 
+                <div class="col-md-4"><strong><?= lang_line('material_issuance_mr_number', 'No. MR'); ?>:</strong> <?= htmlspecialchars($header->mr_number); ?></div>
+                <div class="col-md-4"><strong><?= lang_line('material_issuance_request_date', 'Tanggal'); ?>:</strong> <?= date('d M Y', strtotime($header->request_date)); ?></div>
+                <div class="col-md-4"><strong><?= lang_line('material_issuance_status', 'Status'); ?>:</strong> 
                     <?php $color = 'warning';
                     if ($header->status == 'Issued') $color = 'success';
                     if ($header->status == 'Received') $color = 'primary'; ?>
@@ -49,9 +54,9 @@
                 </div>
             </div>
              <div class="row mt-2">
-                <div class="col-md-4"><strong>Dibuat Oleh:</strong> <?= htmlspecialchars($header->requester_name ?? '-'); ?></div>
-                <div class="col-md-4"><strong>Disiapkan Oleh:</strong> <?= htmlspecialchars($header->issuer_name ?? '-'); ?></div>
-                <div class="col-md-4"><strong>Diterima Oleh:</strong> <?= htmlspecialchars($header->receiver_name ?? '-'); ?></div>
+                <div class="col-md-4"><strong><?= lang_line('material_issuance_requester', 'Dibuat Oleh'); ?>:</strong> <?= htmlspecialchars($header->requester_name ?? '-'); ?></div>
+                <div class="col-md-4"><strong><?= lang_line('material_issuance_issued_by', 'Disiapkan Oleh'); ?>:</strong> <?= htmlspecialchars($header->issuer_name ?? '-'); ?></div>
+                <div class="col-md-4"><strong><?= lang_line('material_issuance_received_by', 'Diterima Oleh'); ?>:</strong> <?= htmlspecialchars($header->receiver_name ?? '-'); ?></div>
             </div>
         </div>
     </div>
@@ -59,20 +64,20 @@
     <form id="issuanceForm" method="post" action="<?= base_url('material_issuance/process_issuance/'.$header->id); ?>">
         <div class="card shadow mb-4">
             <div class="card-header py-3">
-                <h6 class="m-0 font-weight-bold text-primary">Item Pengeluaran</h6>
+                <h6 class="m-0 font-weight-bold text-primary"><?= lang_line('material_issuance_items_issuance', 'Item Pengeluaran'); ?></h6>
             </div>
             <div class="card-body">
                 <div class="table-responsive">
                     <table class="table table-bordered table-sm" id="itemIssuanceTable">
                         <thead class="thead-light text-center">
                             <tr>
-                                <th>WO</th>
-                                <th>Kode Item</th>
-                                <th>Nama Item</th>
-                                <th>Satuan</th>
-                                <th style="width:15%">Qty Diminta</th>
-                                <th style="width:15%">Stok Tersedia</th>
-                                <th style="width:15%">Qty Dikeluarkan</th>
+                                <th><?= lang_line('material_issuance_wo', 'WO'); ?></th>
+                                <th><?= lang_line('material_issuance_item_code', 'Kode Item'); ?></th>
+                                <th><?= lang_line('material_issuance_item_name', 'Nama Item'); ?></th>
+                                <th><?= lang_line('material_issuance_unit', 'Satuan'); ?></th>
+                                <th style="width:15%"><?= lang_line('material_issuance_qty_request', 'Qty Diminta'); ?></th>
+                                <th style="width:15%"><?= lang_line('material_issuance_available_stock', 'Stok Tersedia'); ?></th>
+                                <th style="width:15%"><?= lang_line('material_issuance_qty_issue', 'Qty Dikeluarkan'); ?></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -101,7 +106,7 @@
                                 </td>
                             </tr>
                             <?php endforeach; else: ?>
-                            <tr><td colspan="7" class="text-center text-muted py-5">Item MR tidak ditemukan.</td></tr>
+                            <tr><td colspan="7" class="text-center text-muted py-5"><?= lang_line('material_issuance_no_items', 'Item MR tidak ditemukan'); ?></td></tr>
                             <?php endif; ?>
                         </tbody>
                     </table>
@@ -110,7 +115,7 @@
             <?php if ($header->status == 'Submitted'): ?>
             <div class="card-footer text-right">
                 <button type="submit" form="issuanceForm" class="btn btn-primary btn-load" id="btnConfirmIssuanceFoot">
-                    <i class="fas fa-check-circle mr-1"></i> Konfirmasi Pengeluaran
+                    <i class="fas fa-check-circle mr-1"></i> <?= lang_line('material_issuance_confirm_issuance', 'Konfirmasi Pengeluaran'); ?>
                 </button>
             </div>
             <?php endif; ?>
@@ -153,7 +158,7 @@ $(document).ready(function() {
         // Nonaktifkan tombol simpan jika ada yg tidak valid saat load
         $('#btnConfirmIssuanceHead, #btnConfirmIssuanceFoot').prop('disabled', !allValidOnLoad);
         if(!allValidOnLoad){
-             alert('PERHATIAN: Beberapa item memiliki stok tersedia yang lebih kecil dari qty diminta. Qty dikeluarkan telah disesuaikan.');
+             alert('<?= lang_line('material_issuance_stock_warning', 'PERHATIAN: Beberapa item memiliki stok tersedia yang lebih kecil dari qty diminta. Qty dikeluarkan telah disesuaikan.'); ?>');
         }
 
         // 3. Tambahkan event listener 'input'
@@ -171,7 +176,7 @@ $(document).ready(function() {
         
         // 4. Konfirmasi sebelum submit form
         $('#issuanceForm').on('submit', function(e) {
-            let confirmationText = "Yakin ingin mengkonfirmasi pengeluaran ini? Stok akan dipotong.";
+            let confirmationText = "<?= lang_line('material_issuance_confirm_submit', 'Yakin ingin mengkonfirmasi pengeluaran ini? Stok akan dipotong.'); ?>";
             let hasInvalid = false;
             
             $('.qty-issued').each(function() {
@@ -180,12 +185,12 @@ $(document).ready(function() {
                  }
                  // Cek jika issue < request (Peringatan)
                  if (parseFloat($(this).val() || 0) < parseFloat($(this).data('requested') || 0)) {
-                     confirmationText = "PERHATIAN: Ada Qty Dikeluarkan lebih kecil dari Qty Diminta. Yakin lanjut?";
+                     confirmationText = "<?= lang_line('material_issuance_qty_less_warning', 'PERHATIAN: Ada Qty Dikeluarkan lebih kecil dari Qty Diminta. Yakin lanjut?'); ?>";
                  }
             });
             
             if(hasInvalid) {
-                 alert('Terdapat item dengan Qty Dikeluarkan melebihi Stok Tersedia. Harap perbaiki.');
+                 alert('<?= lang_line('material_issuance_qty_exceed_error', 'Terdapat item dengan Qty Dikeluarkan melebihi Stok Tersedia. Harap perbaiki.'); ?>');
                  e.preventDefault(); // Hentikan submit
                  return false;
             }
@@ -196,7 +201,7 @@ $(document).ready(function() {
             }
             
             // Jika lolos, tambahkan spinner ke tombol
-            $('#btnConfirmIssuanceHead, #btnConfirmIssuanceFoot').prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Memproses...');
+            $('#btnConfirmIssuanceHead, #btnConfirmIssuanceFoot').prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> <?= lang_line('material_issuance_processing', 'Memproses...'); ?>');
         });
     }
 });

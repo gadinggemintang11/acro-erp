@@ -430,6 +430,50 @@ class Production_model extends CI_Model {
             log_message('error', 'Production_model->save_production_output Gagal melakukan transaksi DB.');
             return false;
         }
+        
+        // Cek apakah WO sudah selesai dan update statusnya
+        $this->check_and_update_wo_status($data['production_header_id']);
+        
+        return true;
+    }
+    
+    /**
+     * Cek apakah WO sudah selesai berdasarkan qty output finishing
+     * Update status WO menjadi 'Finished' jika qty sudah terpenuhi
+     */
+    private function check_and_update_wo_status($production_header_id) {
+        // Ambil info production header dan WO
+        $this->db->select('ph.wo_header_id, wo.planned_qty');
+        $this->db->from('production_header ph');
+        $this->db->join('wo_header wo', 'ph.wo_header_id = wo.id', 'left');
+        $this->db->where('ph.id', $production_header_id);
+        $prod_info = $this->db->get()->row();
+        
+        if (!$prod_info || !$prod_info->wo_header_id) {
+            return false;
+        }
+        
+        $wo_id = $prod_info->wo_header_id;
+        $qty_plan = (float)$prod_info->planned_qty;
+        
+        // Hitung total qty finished goods dari stage finishing untuk WO ini
+        $this->db->select('COALESCE(SUM(po.qty_produced), 0) as total_fg_produced');
+        $this->db->from('production_outputs po');
+        $this->db->join('production_header ph', 'po.production_header_id = ph.id');
+        $this->db->where('ph.wo_header_id', $wo_id);
+        $this->db->where('po.stage_name', 'finishing');
+        $this->db->where('po.item_type', 'finished_goods');
+        $result = $this->db->get()->row();
+        
+        $total_produced = (float)($result->total_fg_produced ?? 0);
+        
+        // Jika qty sudah terpenuhi, update status WO menjadi Finished
+        if ($total_produced >= $qty_plan) {
+            $this->load->model('Wo_model');
+            $this->Wo_model->update_status($wo_id, 'Finished');
+            log_message('info', "WO ID {$wo_id} status updated to Finished. Produced: {$total_produced}, Plan: {$qty_plan}");
+        }
+        
         return true;
     }
     public function get_production_inputs_for_trace($prod_id, $stage) {
@@ -774,7 +818,7 @@ class Production_model extends CI_Model {
 
 
 
-    public function get_available_previous_stage_outputs($prod_id, $current_stage = 'sewing', $previous_stage = 'cutting') {
+    public function get_available_previous_stage_outputs($prod_id, $current_stage = 'assembling', $previous_stage = 'preparation') {
         // 1. Ambil semua output semi-finished dari stage sebelumnya
         $this->db->select("
             po.id as output_id, 
@@ -808,7 +852,7 @@ class Production_model extends CI_Model {
 
         return $outputs;
     }
-    public function get_additional_materials_with_remaining($wo_id, $prod_id, $stage = 'sewing') {
+    public function get_additional_materials_with_remaining($wo_id, $prod_id, $stage = 'assembling') {
         // 1. Ambil SEMUA batch material yg diterima dari MR utk WO ini
         $batches = $this->get_wip_material_for_wo($wo_id); // Fungsi ini mengambil dari mr_details
 

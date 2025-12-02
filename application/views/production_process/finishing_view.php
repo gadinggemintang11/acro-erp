@@ -57,10 +57,9 @@
 
     <!-- TAB NAVIGATION -->
     <ul class="nav nav-tabs nav-fill mb-4">
-        <li class="nav-item"><a class="nav-link" href="<?= base_url('production_process/cutting/'.$header->id); ?>">1. Cutting</a></li>
-        <li class="nav-item"><a class="nav-link" href="<?= base_url('production_process/sewing/'.$header->id); ?>">2. Sewing</a></li>
-        <li class="nav-item"><a class="nav-link" href="<?= base_url('production_process/assembling/'.$header->id); ?>">3. Assembling</a></li>
-        <li class="nav-item"><a class="nav-link active font-weight-bold" href="#">4. Finishing</a></li>
+        <li class="nav-item"><a class="nav-link" href="<?= base_url('production_process/preparation/'.$header->id); ?>">1. Preparation</a></li>
+        <li class="nav-item"><a class="nav-link" href="<?= base_url('production_process/assembling/'.$header->id); ?>">2. Assembling</a></li>
+        <li class="nav-item"><a class="nav-link active font-weight-bold" href="#">3. Finishing</a></li>
     </ul>
 
     <!-- FLASH MESSAGES -->
@@ -217,6 +216,7 @@
     <?php endif; ?>
 
     <!-- OUTPUT SCRAP -->
+    <?php if ($header->status == 'Draft' && check_access('production_process', 'edit')): ?>
     <div class="card shadow mb-4">
         <div class="card-header bg-warning text-dark py-3"><h6 class="m-0 font-weight-bold">Output Scrap</h6></div>
         <div class="card-body">
@@ -227,6 +227,7 @@
             </form>
         </div>
     </div>
+    <?php endif; ?>
 
     <!-- DAFTAR OUTPUT -->
     <div class="card shadow mb-4">
