@@ -955,6 +955,7 @@ $lang['stock_ledger_month'] = '月份';
 $lang['stock_ledger_year'] = '年份';
 $lang['stock_ledger_warehouse'] = '仓库';
 $lang['stock_ledger_all_warehouse'] = '-- 所有仓库 --';
+$lang['stock_ledger_search'] = '搜索项目代码/名称...';
 $lang['stock_ledger_apply'] = '应用';
 $lang['stock_ledger_reset'] = '重置';
 $lang['stock_ledger_summary_title'] = '库存汇总期间';
