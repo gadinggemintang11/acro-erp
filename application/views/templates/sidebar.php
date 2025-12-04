@@ -53,7 +53,7 @@ $canViewSystem = check_access('commoncode', 'view') || check_access('roleaccess'
 /* Modern Sidebar Styling */
 :root {
     --sidebar-bg: #2b46e2ff;
-    --sidebar-hover: #949494ff;
+    --sidebar-hover: rgba(79, 70, 229, 0.3);
     --sidebar-active: #4F46E5;
     --sidebar-text: #a8b3cf;
     --sidebar-text-active: #ffffff;
@@ -61,7 +61,7 @@ $canViewSystem = check_access('commoncode', 'view') || check_access('roleaccess'
 }
 
 #accordionSidebar {
-    background: linear-gradient(180deg, var(--sidebar-bg) 0%, #151825 100%) !important;
+    background: linear-gradient(180deg, var(--sidebar-bg) 0%, #0430f3ff 100%) !important;
     width: 260px;
     box-shadow: 2px 0 10px rgba(0,0,0,0.1);
     position: fixed;
@@ -78,11 +78,12 @@ $canViewSystem = check_access('commoncode', 'view') || check_access('roleaccess'
     height: 70px;
     background: rgba(255, 255, 255, 0.02);
     border-bottom: 1px solid var(--sidebar-border);
+    -webkit-transition: all 0.3s ease;
     transition: all 0.3s ease;
 }
 
 .sidebar-brand:hover {
-    background: rgba(255,255,255,0.05);
+    background: rgba(255,255,255,0.05) !important;
 }
 
 .sidebar-brand-full {
@@ -122,6 +123,7 @@ $canViewSystem = check_access('commoncode', 'view') || check_access('roleaccess'
     align-items: center;
     padding: 0.85rem 1.25rem;
     color: var(--sidebar-text);
+    -webkit-transition: all 0.2s ease;
     transition: all 0.2s ease;
     border-radius: 0;
     border-left: 3px solid transparent;
@@ -133,24 +135,27 @@ $canViewSystem = check_access('commoncode', 'view') || check_access('roleaccess'
     width: 24px;
     margin-right: 0.75rem;
     font-size: 0.95rem;
+    -webkit-transition: all 0.2s ease;
     transition: all 0.2s ease;
 }
 
 .nav-link span {
+    -webkit-transition: all 0.2s ease;
     transition: all 0.2s ease;
 }
 
 /* Hover State */
 .nav-link:hover {
-    color: var(--sidebar-text-active);
-    background: var(--sidebar-hover);
-    border-left-color: var(--sidebar-active);
-    padding-left: 1.5rem;
+    color: var(--sidebar-text-active) !important;
+    background: var(--sidebar-hover) !important;
+    border-left-color: var(--sidebar-active) !important;
+    padding-left: 1.5rem !important;
 }
 
 .nav-link:hover i {
+    -webkit-transform: translateX(3px);
     transform: translateX(3px);
-    color: var(--sidebar-active);
+    color: var(--sidebar-active) !important;
 }
 
 /* Active State */
@@ -189,6 +194,7 @@ $canViewSystem = check_access('commoncode', 'view') || check_access('roleaccess'
     padding: 0.65rem 1.25rem;
     color: var(--sidebar-text);
     font-size: 0.8125rem;
+    -webkit-transition: all 0.2s ease;
     transition: all 0.2s ease;
     border-radius: 6px;
     margin: 0.125rem 0.5rem;
@@ -196,10 +202,10 @@ $canViewSystem = check_access('commoncode', 'view') || check_access('roleaccess'
 }
 
 .collapse-item:hover {
-    color: var(--sidebar-text-active);
-    background: rgba(79, 70, 229, 0.15);
-    padding-left: 1.5rem;
-    text-decoration: none;
+    color: var(--sidebar-text-active) !important;
+    background: rgba(79, 70, 229, 0.15) !important;
+    padding-left: 1.5rem !important;
+    text-decoration: none !important;
 }
 
 .collapse-item.active {
@@ -213,6 +219,7 @@ $canViewSystem = check_access('commoncode', 'view') || check_access('roleaccess'
     position: absolute;
     left: 8px;
     top: 50%;
+    -webkit-transform: translateY(-50%);
     transform: translateY(-50%);
     width: 4px;
     height: 4px;

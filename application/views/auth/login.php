@@ -91,9 +91,9 @@ body::after {
 }
 
 .logo-container {
-  width: 80px;
-  height: 80px;
-  background: linear-gradient(135deg, #667eea, #764ba2);
+  width: 120px;
+  height: 120px;
+  background: white;
   border-radius: 20px;
   margin: 0 auto 20px;
   display: flex;
@@ -101,6 +101,7 @@ body::after {
   justify-content: center;
   box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
   animation: pulse 2s ease-in-out infinite;
+  padding: 12px;
 }
 
 @keyframes pulse {
@@ -108,9 +109,10 @@ body::after {
   50% { transform: scale(1.05); }
 }
 
-.logo-container i {
-  font-size: 40px;
-  color: white;
+.logo-container img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
 }
 
 .login-header h1 {
@@ -307,10 +309,10 @@ body::after {
     <div class="login-card">
       <div class="login-header">
         <div class="logo-container">
-          <i class="fas fa-industry"></i>
+          <img src="<?= base_url('assets/img/logo_mini.png'); ?>" alt="Logo">
         </div>
-        <h1>ERP SYSTEM</h1>
-        <p>PT MINGBAO INDONESIA</p>
+        <h1>ERP</h1>
+        <p>PT MINGBAO LIANCHUANG INTERNATIONAL</p>
       </div>
 
       <form method="post" action="<?= base_url('auth/login_action'); ?>" id="loginForm">

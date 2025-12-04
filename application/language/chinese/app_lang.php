@@ -446,7 +446,7 @@ $lang['po_report_total_received'] = '接收总数量';
 $lang['po_report_total_outstanding'] = '剩余总数量';
 $lang['po_report_grn_items'] = '物品数量';
 
-// Material Return (ProdReturn) Translations
+
 $lang['prodreturn_title'] = '生产退料';
 $lang['prodreturn_create'] = '创建退料单';
 $lang['prodreturn_edit'] = '编辑退料单';
