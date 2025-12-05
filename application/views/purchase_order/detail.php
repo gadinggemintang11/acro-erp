@@ -53,13 +53,65 @@
                     </table>
                 </div>
                 <div class="col-md-6">
-                     <table class="table table-sm table-borderless mb-0">
-                         <tr><td style="width:35%;"><strong><?= lang_line('po_date', 'Tanggal PO'); ?></strong></td><td style="width:2%">:</td><td><?= date('d M Y', strtotime($header->po_date)); ?></td></tr>
-                         <tr><td><strong><?= lang_line('po_status', 'Status'); ?></strong></td><td>:</td><td><?php $color = $status_colors[$header->status] ?? 'secondary'; ?><span class="badge badge-<?= $color; ?>"><?= htmlspecialchars($header->status); ?></span></td></tr>
-                         <tr><td><strong><?= lang_line('po_shipping_mode', 'Mode Pengiriman'); ?></strong></td><td>:</td><td><?= htmlspecialchars($header->shipping_mode_desc ?? '-'); ?></td></tr>
-                         <tr><td><strong><?= lang_line('po_payment_mode', 'Mode Pembayaran'); ?></strong></td><td>:</td><td><?= htmlspecialchars($header->payment_mode_desc ?? '-'); ?></td></tr>
-                         <tr><td><strong><?= lang_line('po_currency', 'Mata Uang'); ?></strong></td><td>:</td><td><?= htmlspecialchars($header->currency_desc ?? '-'); ?> <?= $header->currency_code != 'IDR' ? '(<?= lang_line("po_exchange_rate", "Kurs"); ?>: '.number_format((float)$header->exchange_rate, 4).')' : ''; ?></td></tr>
-                         <tr><td><strong><?= lang_line('po_has_ppn', 'PPN 11%'); ?></strong></td><td>:</td><td><?= $header->has_ppn ? '<span class="badge badge-success">'.lang_line('po_yes', 'Ya').'</span>' : '<span class="badge badge-secondary">'.lang_line('po_no', 'Tidak').'</span>'; ?></td></tr>
+                    <table class="table table-sm table-borderless mb-0">
+                        <tr>
+                            <td style="width:35%;">
+                                <strong><?= lang_line('po_date', 'Tanggal PO'); ?></strong>
+                            </td>
+                            <td style="width:2%">:</td>
+                            <td><?= date('d M Y', strtotime($header->po_date)); ?></td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <strong><?= lang_line('po_status', 'Status'); ?></strong>
+                            </td>
+                            <td>:</td>
+                            <td>
+                                <?php $color = $status_colors[$header->status] ?? 'secondary'; ?>
+                                <span class="badge badge-<?= $color; ?>">
+                                    <?= htmlspecialchars($header->status); ?>
+                                </span>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <strong><?= lang_line('po_shipping_mode', 'Mode Pengiriman'); ?></strong>
+                            </td>
+                            <td>:</td>
+                            <td><?= htmlspecialchars($header->shipping_mode_desc ?? '-'); ?></td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <strong><?= lang_line('po_payment_mode', 'Mode Pembayaran'); ?></strong>
+                            </td>
+                            <td>:</td>
+                            <td><?= htmlspecialchars($header->payment_mode_desc ?? '-'); ?></td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <strong><?= lang_line('po_currency', 'Mata Uang'); ?></strong>
+                            </td>
+                            <td>:</td>
+                            <td>
+                                <?= htmlspecialchars($header->currency_desc ?? '-'); ?>
+                                <?php if ($header->currency_code != 'IDR'): ?>
+                                    (<?= lang_line('po_exchange_rate', 'Kurs'); ?>: <?= number_format((float)$header->exchange_rate, 4); ?>)
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                        <tr>
+                            <td>
+                                <strong><?= lang_line('po_has_ppn', 'PPN 11%'); ?></strong>
+                            </td>
+                            <td>:</td>
+                            <td>
+                                <?php if ($header->has_ppn): ?>
+                                    <span class="badge badge-success"><?= lang_line('po_yes', 'Ya'); ?></span>
+                                <?php else: ?>
+                                    <span class="badge badge-secondary"><?= lang_line('po_no', 'Tidak'); ?></span>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
                     </table>
                 </div>
             </div>
