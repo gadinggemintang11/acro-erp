@@ -1,6 +1,10 @@
 <?php
 defined('BASEPATH') OR exit('No direct script access allowed');
 
+require FCPATH . 'vendor/autoload.php';
+use Dompdf\Dompdf;
+use Dompdf\Options;
+
 class Production_receive extends MY_Controller {
 
     public function __construct() {
@@ -95,5 +99,37 @@ class Production_receive extends MY_Controller {
              $this->session->set_flashdata('error', 'Gagal membatalkan penerimaan.');
         }
         redirect('production_receive/detail/' . $mr_id);
+    }
+    
+    // Export PDF Production Receive
+    public function export_pdf($id) {
+        if (!check_access('production_receive', 'view')) {
+            show_error('Anda tidak memiliki izin.', 403);
+            return;
+        }
+
+        $header = $this->Mr_model->get_header_by_id($id);
+        if (!$header || !in_array($header->status, ['Issued', 'Received'])) {
+            $this->session->set_flashdata('error', 'Data penerimaan tidak ditemukan atau belum dikeluarkan.');
+            redirect('production_receive');
+            return;
+        }
+
+        $details = $this->Mr_model->get_details_by_id($id);
+
+        $data = [
+            'header' => $header,
+            'details' => $details
+        ];
+
+        $options = new Options();
+        $options->set('isHtml5ParserEnabled', true);
+        $dompdf = new Dompdf($options);
+        $html = $this->load->view('production_receive/pdf_template', $data, true);
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+        $filename = 'Production_Receive_' . str_replace('/', '-', $header->mr_number) . '.pdf';
+        $dompdf->stream($filename, ["Attachment" => 0]);
     }
 }

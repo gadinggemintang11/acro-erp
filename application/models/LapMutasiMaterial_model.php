@@ -63,7 +63,7 @@ class LapMutasiMaterial_model extends CI_Model {
                     item_type,
                     SUM(CASE WHEN transaction_type IN ('in') THEN qty_in ELSE 0 END) as pemasukan,
                     SUM(CASE WHEN transaction_type IN ('IN_RETURN_WIP') THEN qty_in ELSE 0 END) as retur,
-                    SUM(CASE WHEN transaction_type IN ('production_out') THEN qty_out ELSE 0 END) as pengeluaran,
+                    SUM(CASE WHEN transaction_type IN ('production_out', 'OUT_ISSUE') THEN qty_out ELSE 0 END) as pengeluaran,
                     SUM(CASE WHEN transaction_type = 'adjustment' THEN (qty_in - qty_out) ELSE 0 END) as penyesuaian
                 FROM stock_ledger
                 WHERE transaction_date >= ?
@@ -152,7 +152,7 @@ class LapMutasiMaterial_model extends CI_Model {
         $this->db->select("
             sl.transaction_date, sl.transaction_type, sl.qty_in, sl.qty_out, sl.balance,
             gh.grn_number, gh.bc_type_code, gh.bc_number, gh.bc_date, ph.po_number,
-            mrh.mr_number,
+            mrh.mr_number, mrh.issuance_number,
             prh.prod_return_no,
             ah.doc_no as adjustment_doc, ah.notes as adjustment_notes, ah.doc_date as adjustment_date
         ");
@@ -162,7 +162,8 @@ class LapMutasiMaterial_model extends CI_Model {
         $this->db->join('grn_header gh', 'sl.transaction_id = gh.id AND sl.transaction_type = \'in\'', 'left');
         $this->db->join('po_header ph', 'sl.source_doc_id = ph.id AND sl.source_doc_type = \'PO\'', 'left');
         
-        $this->db->join('mr_header mrh', 'sl.transaction_id = mrh.id AND sl.transaction_type = \'production_out\'', 'left');
+        // Join untuk OUT_ISSUE dan production_out
+        $this->db->join('mr_header mrh', 'sl.transaction_id = mrh.id AND sl.transaction_type IN (\'production_out\', \'OUT_ISSUE\')', 'left');
         
         $this->db->join('prod_return_detail prd', 'sl.transaction_id = prd.id', 'left');
         $this->db->join('prod_return_header prh', 'prd.prod_return_id = prh.id AND sl.transaction_type = \'IN_RETURN_WIP\'', 'left');

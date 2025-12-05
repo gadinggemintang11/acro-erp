@@ -18,9 +18,10 @@
         .footer { position: fixed; bottom: 0px; left: 0px; right: 0px; height: 30px; font-size: 8px; text-align: center; border-top: 0.5px solid #ccc; padding-top: 5px;}
         .footer .page:after { content: counter(page); }
         .signature-table { margin-top: 30px; width: 100%; border-collapse: collapse; page-break-inside: avoid; }
-        .signature-table td { border: 1px solid #999; text-align: center; vertical-align: top; padding: 5px; height: 70px; }
-        .signature-table td.label { font-size: 9px; font-weight: bold; background-color: #f2f2f2;}
-        .signature-table td.name { font-size: 9px; padding-top: 50px; }
+        .signature-table td { border: 1px solid #333; text-align: center; vertical-align: bottom; padding: 8px; height: 80px; }
+        .signature-table .sig-label { font-size: 9px; font-weight: bold; background-color: #f2f2f2; vertical-align: middle; padding: 8px;}
+        .signature-table .sig-space { height: 60px; vertical-align: bottom; }
+        .signature-table .sig-name { font-size: 9px; font-weight: bold; }
     </style>
 </head>
 <body>
@@ -73,22 +74,22 @@
 
      <table class="signature-table">
         <tr>
-            <td class="label" style="width: 33%;">Dibuat Oleh (PPIC)</td>
-            <td class="label" style="width: 34%;">Disiapkan Oleh (Gudang)</td>
-            <td class="label" style="width: 33%;">Diterima Oleh (Produksi)</td>
+            <td class="sig-label" style="width: 33%;">Dibuat Oleh (PPIC)</td>
+            <td class="sig-label" style="width: 34%;">Disiapkan Oleh (Gudang)</td>
+            <td class="sig-label" style="width: 33%;">Diterima Oleh (Produksi)</td>
         </tr>
-         <tr>
-            <td class="name">
-                <?= htmlspecialchars($header->requester_name ?? '(.......................)'); ?><br>
-                <small><?= $header->requested_at ? date('d/m/Y H:i', strtotime($header->requested_at)) : ''; ?></small>
+        <tr>
+            <td class="sig-space">
+                <div class="sig-name"><?= htmlspecialchars($header->requester_name ?? '_________________'); ?></div>
+                <small style="font-size: 8px;"><?= $header->requested_at ? date('d/m/Y H:i', strtotime($header->requested_at)) : ''; ?></small>
             </td>
-            <td class="name">
-                <?= htmlspecialchars($header->issuer_name ?? '(.......................)'); ?><br>
-                <small><?= $header->issued_at ? date('d/m/Y H:i', strtotime($header->issued_at)) : ''; ?></small>
+            <td class="sig-space">
+                <div class="sig-name"><?= htmlspecialchars($header->issuer_name ?? '_________________'); ?></div>
+                <small style="font-size: 8px;"><?= $header->issued_at ? date('d/m/Y H:i', strtotime($header->issued_at)) : ''; ?></small>
             </td>
-            <td class="name">
-                <?= htmlspecialchars($header->receiver_name ?? '(.......................)'); ?><br>
-                <small><?= $header->received_at ? date('d/m/Y H:i', strtotime($header->received_at)) : ''; ?></small>
+            <td class="sig-space">
+                <div class="sig-name"><?= htmlspecialchars($header->receiver_name ?? '_________________'); ?></div>
+                <small style="font-size: 8px;"><?= $header->received_at ? date('d/m/Y H:i', strtotime($header->received_at)) : ''; ?></small>
             </td>
         </tr>
      </table>

@@ -3,8 +3,8 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
-  <meta name="description" content="Neokaber - IT Inventory Kawasan Berikat">
-  <meta name="author" content="Neokaber System">
+  <meta name="description" content="IT Inventory Kawasan Berikat">
+  <meta name="author" content="ERP MINGBAO">
   <title><?= isset($title) ? $title . ' | Neokaber' : 'Neokaber System'; ?></title>
 
   <!-- Google Fonts -->

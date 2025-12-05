@@ -150,7 +150,7 @@ class Production_process extends MY_Controller {
             $this->_log('CREATE', $deskripsi);
             // --- END LOG ---
             log_message('info', 'Production Header created successfully. ID: ' . $new_prod_id . ' Number: ' . $prod_number);
-            redirect('production_process/cutting/' . $new_prod_id);
+            redirect('production_process/preparation/' . $new_prod_id);
         } else {
             log_message('error', 'Gagal membuat Production Header. DB Error: ' . print_r($this->db->error(), true) . ' Data: ' . json_encode($data));
             $this->session->set_flashdata('error', 'Gagal membuat Proses Produksi! Terjadi kesalahan database.');
@@ -158,9 +158,6 @@ class Production_process extends MY_Controller {
         }
     }
 
-    // ======================================================
-    // HALAMAN STAGES (CUTTING, SEWING, ASSEMBLING, FINISHING)
-    // ======================================================
     private function _show_stage_view($id, $current_stage, $previous_stage = null) {
         if (!check_access('production_process', 'view')) { show_error('Tidak ada izin.', 403); return; }
         if (empty($id) || !is_numeric($id)) { show_404(); return; }
@@ -175,10 +172,10 @@ class Production_process extends MY_Controller {
         ];
 
         // Data spesifik per stage
-        if ($current_stage == 'cutting') {
+        if ($current_stage == 'preparation') {
             $data['available_batches'] = $this->Production_model->get_wip_materials_with_remaining($header->wo_header_id);
-            $data['cutting_inputs'] = $this->Production_model->get_production_inputs($id, 'cutting');
-            $data['cutting_outputs'] = $this->Production_model->get_production_outputs($id, 'cutting');
+            $data['preparation_inputs'] = $this->Production_model->get_production_inputs($id, 'preparation');
+            $data['preparation_outputs'] = $this->Production_model->get_production_outputs($id, 'preparation');
         } else {
             $data['available_previous_outputs'] = $this->Production_model->get_available_previous_stage_outputs($id, $current_stage, $previous_stage);
             $data['available_batches'] = $this->Production_model->get_wip_materials_with_remaining($header->wo_header_id); // Material tambahan
@@ -196,9 +193,8 @@ class Production_process extends MY_Controller {
         $this->_load_views('production_process/' . $current_stage . '_view', $data);
     }
 
-    public function cutting($id) { $this->_show_stage_view($id, 'cutting'); }
-    public function sewing($id) { $this->_show_stage_view($id, 'sewing', 'cutting'); }
-    public function assembling($id) { $this->_show_stage_view($id, 'assembling', 'sewing'); }
+    public function preparation($id) { $this->_show_stage_view($id, 'preparation'); }
+    public function assembling($id) { $this->_show_stage_view($id, 'assembling', 'preparation'); }
     public function finishing($id)
     {
         // ================= VALIDASI AKSES =================
@@ -509,17 +505,12 @@ class Production_process extends MY_Controller {
     // FUNGSI KHUSUS PER STAGE (Panggil fungsi generic)
     // ======================================================
 
-    // --- Cutting ---
-    public function save_cutting_material_usage($prod_id) { $this->_save_stage_additional_input($prod_id, 'cutting'); }
-    public function save_cutting_output($prod_id) { $this->_save_stage_output($prod_id, 'cutting', ['semifinished', 'scrap']); }
-
-    // --- Sewing ---
-    public function save_sewing_cutting_input($prod_id) { $this->_save_stage_input_from_output($prod_id, 'sewing', 'cutting'); }
-    public function save_sewing_additional_input($prod_id) { $this->_save_stage_additional_input($prod_id, 'sewing'); }
-    public function save_sewing_output($prod_id) { $this->_save_stage_output($prod_id, 'sewing', ['semifinished', 'scrap']); }
+    // --- Preparation (formerly Cutting) ---
+    public function save_preparation_material_usage($prod_id) { $this->_save_stage_additional_input($prod_id, 'preparation'); }
+    public function save_preparation_output($prod_id) { $this->_save_stage_output($prod_id, 'preparation', ['semifinished', 'scrap']); }
 
     // --- Assembling ---
-    public function save_assembling_sewing_input($prod_id) { $this->_save_stage_input_from_output($prod_id, 'assembling', 'sewing'); }
+    public function save_assembling_preparation_input($prod_id) { $this->_save_stage_input_from_output($prod_id, 'assembling', 'preparation'); }
     public function save_assembling_additional_input($prod_id) { $this->_save_stage_additional_input($prod_id, 'assembling'); }
     public function save_assembling_output($prod_id) { $this->_save_stage_output($prod_id, 'assembling', ['semifinished', 'scrap']); }
 
@@ -777,15 +768,10 @@ class Production_process extends MY_Controller {
     // ======================================================
     // FUNGSI KHUSUS PER STAGE QC/DELETE (Panggil generic)
     // ======================================================
-    public function confirm_qc_cutting($prod_id, $output_id) { $this->_confirm_qc($prod_id, $output_id, 'cutting'); }
-    public function unconfirm_qc_cutting($prod_id, $output_id) { $this->_unconfirm_qc($prod_id, $output_id, 'cutting'); }
+    public function confirm_qc_preparation($prod_id, $output_id) { $this->_confirm_qc($prod_id, $output_id, 'preparation'); }
+    public function unconfirm_qc_preparation($prod_id, $output_id) { $this->_unconfirm_qc($prod_id, $output_id, 'preparation'); }
     public function delete_material_usage($prod_id, $input_id) { $this->_delete_input($prod_id, $input_id, $this->_get_stage_from_referer()); } // Cek referer
-    public function delete_cutting_output($prod_id, $output_id) { $this->_delete_output($prod_id, $output_id, 'cutting'); }
-
-    public function confirm_qc_sewing($prod_id, $output_id) { $this->_confirm_qc($prod_id, $output_id, 'sewing'); }
-    public function unconfirm_qc_sewing($prod_id, $output_id) { $this->_unconfirm_qc($prod_id, $output_id, 'sewing'); }
-    public function delete_sewing_input($prod_id, $input_id) { $this->_delete_input($prod_id, $input_id, 'sewing'); }
-    public function delete_sewing_output($prod_id, $output_id) { $this->_delete_output($prod_id, $output_id, 'sewing'); }
+    public function delete_preparation_output($prod_id, $output_id) { $this->_delete_output($prod_id, $output_id, 'preparation'); }
 
     public function confirm_qc_assembling($prod_id, $output_id) { $this->_confirm_qc($prod_id, $output_id, 'assembling'); }
     public function unconfirm_qc_assembling($prod_id, $output_id) { $this->_unconfirm_qc($prod_id, $output_id, 'assembling'); }
@@ -798,9 +784,8 @@ class Production_process extends MY_Controller {
     public function delete_finishing_output($prod_id, $output_id) { $this->_delete_output($prod_id, $output_id, 'finishing'); }
 
     // Helper untuk menentukan stage saat delete material usage
-    private function _get_stage_from_referer($default = 'cutting') {
+    private function _get_stage_from_referer($default = 'preparation') {
         $referer = $this->agent->is_referral() ? $this->agent->referrer() : '';
-        if(strpos($referer, '/sewing/') !== false) return 'sewing';
         if(strpos($referer, '/assembling/') !== false) return 'assembling';
         if(strpos($referer, '/finishing/') !== false) return 'finishing';
         return $default;
@@ -945,28 +930,16 @@ class Production_process extends MY_Controller {
         }
     }
 
-    public function export_cutting_pdf($id) {
+    public function export_preparation_pdf($id) {
         if (!check_access('production_process', 'view')) { show_error('Tidak ada izin.', 403); }
         $header = $this->Production_model->get_header_by_id($id);
         if (!$header) show_404();
         $data = [
-            'header'          => $header,
-            'cutting_inputs'  => $this->Production_model->get_production_inputs_for_trace($id, 'cutting'), // Pakai trace agar ada info GRN
-            'cutting_outputs' => $this->Production_model->get_production_outputs($id, 'cutting'),
+            'header'              => $header,
+            'preparation_inputs'  => $this->Production_model->get_production_inputs_for_trace($id, 'preparation'), // Pakai trace agar ada info GRN
+            'preparation_outputs' => $this->Production_model->get_production_outputs($id, 'preparation'),
         ];
-        $this->_generate_pdf('production_process/cutting_pdf_template', $data, "ProdCutting_".str_replace('/', '-', $header->production_number));
-    }
-
-    public function export_sewing_pdf($id) {
-        if (!check_access('production_process', 'view')) { show_error('Tidak ada izin.', 403); }
-        $header = $this->Production_model->get_header_by_id($id);
-        if (!$header) show_404();
-        $data = [
-            'header'         => $header,
-            'sewing_inputs'  => $this->Production_model->get_production_inputs_for_trace($id, 'sewing'), // Pakai trace
-            'sewing_outputs' => $this->Production_model->get_production_outputs($id, 'sewing'),
-        ];
-        $this->_generate_pdf('production_process/sewing_pdf_template', $data, "ProdSewing_".str_replace('/', '-', $header->production_number));
+        $this->_generate_pdf('production_process/preparation_pdf_template', $data, "ProdPreparation_".str_replace('/', '-', $header->production_number));
     }
 
      public function export_assembling_pdf($id) {

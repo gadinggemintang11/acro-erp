@@ -210,4 +210,43 @@ class Bom_model extends CI_Model {
         return array_merge($materials, $semifinished);
     }
 
+    // ✅ BARU: Get BOM by FG ID (untuk MIR auto-load)
+    public function get_bom_by_fg($fg_id) {
+        // Get BOM header for this FG
+        $this->db->select('id');
+        $this->db->where('fg_id', $fg_id);
+        // Status Active atau Confirm dianggap sebagai BOM yang sudah approved
+        $this->db->where_in('status', ['Active', 'Confirm']);
+        $header = $this->db->get($this->table_header)->row();
+
+        if (!$header) {
+            return []; // Return empty jika tidak ada BOM atau belum approved
+        }
+
+        // Get BOM details
+        $select_clause = "
+            d.id, d.quantity_required as qty, 
+            d.component_item_id as material_id, 
+            d.component_item_type as item_type,
+            CASE
+                WHEN d.component_item_type = 'material' THEN m.kode_material
+                WHEN d.component_item_type = 'semifinished' THEN sf.kode_barang
+                ELSE 'N/A'
+            END as code,
+            CASE
+                WHEN d.component_item_type = 'material' THEN m.nama_material
+                WHEN d.component_item_type = 'semifinished' THEN sf.nama_barang
+                ELSE 'Unknown'
+            END as name
+        ";
+
+        $this->db->select($select_clause, FALSE);
+        $this->db->from($this->table_details . ' d');
+        $this->db->join($this->table_materials . ' m', 'd.component_item_id = m.id AND d.component_item_type = "material"', 'left');
+        $this->db->join($this->table_semifinished . ' sf', 'd.component_item_id = sf.id AND d.component_item_type = "semifinished"', 'left');
+        $this->db->where('d.bom_header_id', $header->id);
+        
+        return $this->db->get()->result();
+    }
+
 } // End Class

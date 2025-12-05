@@ -59,13 +59,7 @@ class Material_issuance_model extends CI_Model {
                 WHEN d.component_item_type = 'material' THEN m.satuan
                 WHEN d.component_item_type = 'semifinished' THEN sf.satuan
                 ELSE 'PCS'
-            END as item_unit,
-            
-            /* (BARU) Ambil total stok tersedia dari stock_on_hand */
-            (SELECT SUM(soh.available_qty) 
-             FROM stock_on_hand soh 
-             WHERE soh.item_id = d.component_item_id 
-             AND soh.item_type = d.component_item_type) as total_available_stock
+            END as item_unit
         ";
         $this->db->select($select_clause, FALSE);
         $this->db->from('mr_details d');
@@ -76,7 +70,32 @@ class Material_issuance_model extends CI_Model {
         $this->db->order_by('wo.wo_number', 'ASC');
         $this->db->order_by('item_name', 'ASC');
         $query = $this->db->get();
-        return $query ? $query->result() : [];
+        
+        $results = $query ? $query->result() : [];
+        
+        // Hitung stok untuk setiap item dari stock_ledger secara terpisah
+        foreach ($results as $row) {
+            $row->total_available_stock = $this->get_stock_from_ledger($row->item_id, $row->item_type);
+        }
+        
+        return $results;
+    }
+    
+    /**
+     * Hitung stok tersedia dari stock_ledger
+     */
+    private function get_stock_from_ledger($item_id, $item_type) {
+        $this->db->select('COALESCE(SUM(qty_in), 0) - COALESCE(SUM(qty_out), 0) as balance');
+        $this->db->from('stock_ledger');
+        $this->db->where('item_id', $item_id);
+        $this->db->where('item_type', $item_type);
+        $query = $this->db->get();
+        
+        if ($query && $query->num_rows() > 0) {
+            return (float) $query->row()->balance;
+        }
+        
+        return 0.0;
     }
 
     /**
@@ -99,7 +118,7 @@ class Material_issuance_model extends CI_Model {
     }
 
     /**
-     * Proses inti: Konfirmasi pengeluaran (REVISI BESAR: Terapkan FIFO)
+     * Proses inti: Konfirmasi pengeluaran (HYBRID: Stock_ledger + FIFO via stock_on_hand untuk traceability)
      */
     public function process_issuance($mr_id, $items, $user_id) {
         $this->db->trans_start();
@@ -109,127 +128,118 @@ class Material_issuance_model extends CI_Model {
              $this->db->trans_rollback();
              return ['success' => false, 'message' => 'MR Header tidak ditemukan.'];
         }
-        $issuance_number = $this->generate_issuance_number(); // Buat nomor MI
+        $issuance_number = $this->generate_issuance_number();
 
         foreach ($items as $detail_id => $data) {
-            $issued_qty_total = (float) $data['qty']; // Total qty yg ingin dikeluarkan
-            if ($issued_qty_total <= 0) continue; // Lewati jika qty 0
+            $issued_qty_total = (float) $data['qty'];
+            if ($issued_qty_total <= 0) continue;
 
             $detail = $this->db->get_where('mr_details', ['id' => $detail_id])->row();
-            if (!$detail) continue; // Lewati jika detail MR tidak ada
+            if (!$detail) continue;
 
             $item_id = $detail->component_item_id;
             $item_type = $detail->component_item_type;
             
-            // --- Logika FIFO Dimulai ---
-            // 1. Ambil semua batch stok yang tersedia untuk item ini, urutkan dari yg Paling Lama (FIFO)
+            // Cek stok tersedia
+            $current_stock = $this->get_stock_from_ledger($item_id, $item_type);
+            
+            if ($current_stock < $issued_qty_total) {
+                $this->db->trans_rollback();
+                return ['success' => false, 'message' => "Stok tidak cukup untuk {$item_type} ID {$item_id}. Tersedia: {$current_stock}, Diminta: {$issued_qty_total}"];
+            }
+
+            // FIFO: Ambil batch dari stock_on_hand untuk traceability
             $this->db->reset_query();
             $available_batches = $this->db
-                ->select('id, available_qty, unit_value, grn_detail_id, grn_header_id') // Ambil info batch
+                ->select('id, available_qty, unit_value')
                 ->from('stock_on_hand')
                 ->where('item_id', $item_id)
                 ->where('item_type', $item_type)
                 ->where('available_qty >', 0)
-                ->order_by('id', 'ASC') // Asumsi ID lebih kecil = lebih lama (FIFO)
+                ->order_by('id', 'ASC') // FIFO: batch lama dulu
                 ->get()->result();
 
-            if (empty($available_batches)) {
-                 $this->db->trans_rollback();
-                 return ['success' => false, 'message' => 'Stok tidak ditemukan di stock_on_hand untuk item ID ' . $item_id];
-            }
+            $qty_needed = $issued_qty_total;
+            $has_batches = !empty($available_batches);
 
-            $qty_needed = $issued_qty_total; // Sisa qty yg masih dibutuhkan
+            if ($has_batches) {
+                // Ada stock_on_hand, gunakan FIFO
+                foreach ($available_batches as $batch) {
+                    if ($qty_needed <= 0) break;
 
-            foreach ($available_batches as $batch) {
-                if ($qty_needed <= 0) break; // Kebutuhan sudah terpenuhi
+                    $batch_soh_id = $batch->id;
+                    $batch_available = (float)$batch->available_qty;
+                    $batch_cost = (float)$batch->unit_value;
 
-                $batch_soh_id = $batch->id;
-                $batch_available = (float)$batch->available_qty;
-                $batch_cost = (float)$batch->unit_value; // Cost dari batch ini
+                    $qty_to_take = min($batch_available, $qty_needed);
+                    $new_batch_qty = $batch_available - $qty_to_take;
 
-                $qty_to_take_from_this_batch = 0;
+                    // Update stock_on_hand
+                    $this->db->where('id', $batch_soh_id)->update('stock_on_hand', ['available_qty' => $new_batch_qty]);
 
-                if ($batch_available >= $qty_needed) {
-                    // Batch ini cukup, ambil sisanya
-                    $qty_to_take_from_this_batch = $qty_needed;
-                    $new_batch_qty = $batch_available - $qty_needed;
-                    $qty_needed = 0; // Kebutuhan terpenuhi
-                } else {
-                    // Batch ini tidak cukup, habiskan batch ini
-                    $qty_to_take_from_this_batch = $batch_available;
-                    $new_batch_qty = 0; // Stok di batch ini habis
-                    $qty_needed = $qty_needed - $batch_available; // Kurangi kebutuhan
+                    // Insert ke stock_ledger dengan traceability
+                    $last_balance = $this->Stock_ledger_model->get_last_balance($item_id, $item_type);
+                    $new_balance = $last_balance - $qty_to_take;
+
+                    $ledger_data = [
+                        'item_id'           => $item_id,
+                        'item_type'         => $item_type,
+                        'transaction_date'  => date('Y-m-d H:i:s'),
+                        'transaction_type'  => 'OUT_ISSUE',
+                        'transaction_id'    => $mr_id,
+                        'source_doc_type'   => 'MR',
+                        'source_doc_id'     => $detail->wo_header_id,
+                        'qty_in'            => 0,
+                        'qty_out'           => $qty_to_take,
+                        'unit_value'        => $batch_cost,
+                        'balance'           => $new_balance,
+                        'stock_on_hand_id'  => $batch_soh_id // Traceability ke batch
+                    ];
+                    
+                    if (!$this->Stock_ledger_model->insert($ledger_data)) {
+                        $this->db->trans_rollback();
+                        return ['success' => false, 'message' => 'Gagal insert stock ledger.'];
+                    }
+
+                    $qty_needed -= $qty_to_take;
                 }
 
-                // 2. Update stock_on_hand (kurangi stok batch)
-                $this->db->where('id', $batch_soh_id)->update('stock_on_hand', ['available_qty' => $new_batch_qty]);
-
-                // 3. Insert ke stock_ledger
-                // Ambil saldo terakhir DARI LEDGER
-                $last_ledger_balance = $this->Stock_ledger_model->get_last_balance($item_id, $item_type);
-                $new_ledger_balance = $last_ledger_balance - $qty_to_take_from_this_batch; // Hitung saldo baru
+                if ($qty_needed > 0) {
+                    $this->db->trans_rollback();
+                    return ['success' => false, 'message' => "Stok batch tidak cukup untuk {$item_type} ID {$item_id}"];
+                }
+            } else {
+                // Tidak ada stock_on_hand, langsung insert ke ledger tanpa batch
+                $last_balance = $this->Stock_ledger_model->get_last_balance($item_id, $item_type);
+                $new_balance = $last_balance - $issued_qty_total;
 
                 $ledger_data = [
                     'item_id'           => $item_id,
                     'item_type'         => $item_type,
-                    'transaction_date'  => date('Y-m-d H:i:s'), // Tanggal saat ini
-                    'transaction_type'  => 'production_out', // Sesuai definisi Anda
-                    'transaction_id'    => $mr_id, // ID MR Header
+                    'transaction_date'  => date('Y-m-d H:i:s'),
+                    'transaction_type'  => 'OUT_ISSUE',
+                    'transaction_id'    => $mr_id,
                     'source_doc_type'   => 'MR',
-                    'source_doc_id'     => $detail->wo_header_id, // Simpan WO ID di source_doc_id
+                    'source_doc_id'     => $detail->wo_header_id,
                     'qty_in'            => 0,
-                    'qty_out'           => $qty_to_take_from_this_batch,
-                    'unit_value'        => $batch_cost, // <<<--- AMBIL COST DARI BATCH
-                    'balance'           => $new_ledger_balance, // <<<--- SALDO BARU
-                    'stock_on_hand_id'  => $batch_soh_id // <<<--- KUNCI TRACEABILITY
+                    'qty_out'           => $issued_qty_total,
+                    'unit_value'        => 0,
+                    'balance'           => $new_balance
                 ];
                 
                 if (!$this->Stock_ledger_model->insert($ledger_data)) {
                     $this->db->trans_rollback();
                     return ['success' => false, 'message' => 'Gagal insert stock ledger.'];
                 }
-                // --- Tambahkan juga entri WIP (masuk ke WIP) agar ledger WIP langsung tercatat ---
-                // Beberapa sistem menyimpan WIP sebagai transaksi terpisah dengan tipe 'wip_in'
-                // Kita masukkan entri wip_in untuk menunjukkan material masuk ke WIP
-                $wip_ledger = [
-                    'item_id'           => $item_id,
-                    'item_type'         => $item_type,
-                    'transaction_date'  => date('Y-m-d H:i:s'),
-                    'transaction_type'  => 'wip_in',
-                    'transaction_id'    => $mr_id,
-                    'source_doc_type'   => 'MR',
-                    'source_doc_id'     => $detail->wo_header_id,
-                    'qty_in'            => $qty_to_take_from_this_batch,
-                    'qty_out'           => 0,
-                    'unit_value'        => $batch_cost,
-                    // balance akan dihitung oleh Stock_ledger_model->insert jika tidak diberikan
-                    'stock_on_hand_id'  => $batch_soh_id
-                ];
-
-                if (!$this->Stock_ledger_model->insert($wip_ledger)) {
-                    // Jika gagal menulis entri WIP, rollback juga
-                    $this->db->trans_rollback();
-                    return ['success' => false, 'message' => 'Gagal insert stock ledger WIP.'];
-                }
-            } // End foreach $available_batches
-
-            // 4. Cek apakah semua kebutuhan terpenuhi
-            if ($qty_needed > 0) {
-                 // Ini berarti stok di semua batch dijumlahkan tidak cukup
-                 $this->db->trans_rollback();
-                 return ['success' => false, 'message' => 'Stok tidak cukup untuk item ID ' . $item_id . '. Kebutuhan ' . $issued_qty_total . ', tapi total tersedia hanya ' . ($issued_qty_total - $qty_needed)];
             }
-            // --- Akhir Logika FIFO ---
 
-            // 5. Update issued_qty di mr_details
-            $this->db->reset_query(); // Reset
+            // Update issued_qty di mr_details
             $this->db->where('id', $detail_id)->update('mr_details', ['issued_qty' => $issued_qty_total]);
+        }
 
-        } // End foreach $items
-
-        // 6. Update status mr_header
+        // Update status mr_header
         $header_data = [
-            'status'          => 'Issued', // Atau 'Partially Issued' jika perlu logika lebih kompleks
+            'status'          => 'Issued',
             'issuer_id'       => $user_id,
             'issued_at'       => date('Y-m-d H:i:s'),
             'issuance_number' => $issuance_number
@@ -238,68 +248,67 @@ class Material_issuance_model extends CI_Model {
 
         $this->db->trans_complete();
         if ($this->db->trans_status() === FALSE) {
-            return ['success' => false, 'message' => 'Terjadi kesalahan database (trans_status FALSE).'];
+            return ['success' => false, 'message' => 'Terjadi kesalahan database.'];
         }
         return ['success' => true];
     }
     
     /**
-     * Proses Un-Issue (Batal Pengeluaran)
-     * (REVISI BESAR: Terapkan Reversal FIFO)
+     * Proses Un-Issue (Batal Pengeluaran) - HYBRID dengan traceability
      */
     public function reverse_issuance($mr_id, $user_id) {
         $this->db->trans_start();
 
-        // 1. Ambil semua entri ledger yang terkait MR ini
-        $this->db->reset_query();
+        // Ambil semua entri ledger yang terkait MR ini
         $ledger_entries = $this->db->get_where('stock_ledger', [
-            'transaction_type' => 'production_out', // Sesuai tipe saat issue
+            'transaction_type' => 'OUT_ISSUE',
             'transaction_id' => $mr_id
         ])->result();
 
         if (empty($ledger_entries)) {
             $this->db->trans_rollback();
-            return false; // Tidak ada yang direverse
+            return false;
         }
 
         foreach ($ledger_entries as $entry) {
             $qty_to_return = (float)$entry->qty_out;
-            $stock_on_hand_id = $entry->stock_on_hand_id; // ID batch yang akan dikembalikan
-
-            // 2. Kembalikan stok ke batch stock_on_hand
+            $stock_on_hand_id = $entry->stock_on_hand_id ?? null;
+            
+            // Jika ada stock_on_hand_id, kembalikan ke batch
             if ($stock_on_hand_id) {
                 $this->db->where('id', $stock_on_hand_id);
                 $this->db->set('available_qty', "available_qty + $qty_to_return", FALSE);
                 $this->db->update('stock_on_hand');
             }
+            
+            // Ambil saldo terakhir
+            $last_balance = $this->Stock_ledger_model->get_last_balance($entry->item_id, $entry->item_type);
+            $new_balance = $last_balance + $qty_to_return;
 
-            // 3. Buat entri ledger reversal (IN_REVERSAL)
-            $last_ledger_balance = $this->Stock_ledger_model->get_last_balance($entry->item_id, $entry->item_type);
-            $new_ledger_balance = $last_ledger_balance + $qty_to_return;
-
+            // Buat entri ledger reversal
             $ledger_reversal_data = [
                 'item_id'           => $entry->item_id,
                 'item_type'         => $entry->item_type,
                 'transaction_date'  => date('Y-m-d H:i:s'),
-                'transaction_type'  => 'IN_REVERSAL_ISSUE', // Tipe baru untuk reversal
-                'transaction_id'    => $entry->ledger_id, // Referensi ke ID ledger asli
+                'transaction_type'  => 'IN_RETURN_WIP',
+                'transaction_id'    => $mr_id,
                 'source_doc_type'   => 'MR_REVERSE',
                 'source_doc_id'     => $mr_id,
                 'qty_in'            => $qty_to_return,
                 'qty_out'           => 0,
-                'unit_value'        => $entry->unit_value, // Pakai cost yang sama
-                'balance'           => $new_ledger_balance,
+                'unit_value'        => $entry->unit_value,
+                'balance'           => $new_balance,
                 'stock_on_hand_id'  => $stock_on_hand_id
             ];
             $this->Stock_ledger_model->insert($ledger_reversal_data);
         }
 
-        // 4. Update mr_details (kembalikan issued_qty ke 0)
+        // Update mr_details
         $this->db->where('mr_header_id', $mr_id)->update('mr_details', ['issued_qty' => 0]);
         
-        // 5. Update mr_header (kembalikan status)
+        // Update mr_header
         $header_data = [
-            'status'          => 'Submitted', // Kembali ke Submitted
+            'status'          => 'Submitted',
             'issuer_id'       => NULL,
             'issued_at'       => NULL,
             'issuance_number' => NULL

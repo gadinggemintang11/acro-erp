@@ -100,8 +100,18 @@ class LapPengeluaranBarang_model extends CI_Model {
 
 
             -- FILTER UTAMA (Eksternal Out)
-            WHERE sl.transaction_type IN ('fg_out', 'OUT_SCRAP_BC', 'ADJ_OUT')
-            OR (sl.transaction_type = 'production_out' AND sl.source_doc_type = 'SUBKON_OUT')
+            WHERE (
+                sl.transaction_type IN ('fg_out', 'OUT_SCRAP_BC', 'ADJ_OUT')
+                OR (sl.transaction_type = 'production_out' AND sl.source_doc_type = 'SUBKON_OUT')
+            )
+            
+            -- Filter EXIM Verification: Hanya tampilkan yang sudah diverifikasi
+            AND (
+                (sl.transaction_type = 'fg_out' AND fdh.exim_verified = 1)
+                OR (sl.transaction_type = 'OUT_SCRAP_BC' AND soh.exim_verified = 1)
+                OR (sl.transaction_type = 'production_out' AND sl.source_doc_type = 'SUBKON_OUT' AND sout.exim_verified = 1)
+                OR (sl.transaction_type = 'ADJ_OUT')
+            )
             
             " . $this->_build_tx_type_where($filters) . "
             " . $this->_build_search_where($filters) . "
@@ -151,11 +161,30 @@ class LapPengeluaranBarang_model extends CI_Model {
     
     public function count_report($filters = []) {
         $this->db->from($this->table_ledger . ' sl');
+        
+        // JOIN untuk filter EXIM verification
+        $this->db->join('fg_delivery_details fdd', 'sl.transaction_id = fdd.id AND sl.transaction_type = "fg_out"', 'left');
+        $this->db->join('fg_delivery_header fdh', 'fdd.fg_delivery_header_id = fdh.id', 'left');
+        $this->db->join('scrap_out_detail sod_scrap', 'sl.transaction_id = sod_scrap.id AND sl.transaction_type = "OUT_SCRAP_BC"', 'left');
+        $this->db->join('scrap_out_header soh', 'sod_scrap.header_id = soh.id', 'left');
+        // JOIN untuk subkon_out verification
+        $this->db->join('subkon_out_details sod_sub', 'sl.transaction_id = sod_sub.id AND sl.transaction_type = "production_out" AND sl.source_doc_type = "SUBKON_OUT"', 'left');
+        $this->db->join('subkon_out_header sout', 'sod_sub.subkon_out_id = sout.id', 'left');
+        
         $this->db->where_in('sl.transaction_type', $this->get_outgoing_tx_types());
         $this->db->group_start();
             $this->db->where_in('sl.transaction_type', ['fg_out', 'OUT_SCRAP_BC', 'ADJ_OUT']);
             $this->db->or_where('(sl.transaction_type = "production_out" AND sl.source_doc_type = "SUBKON_OUT")');
         $this->db->group_end();
+        
+        // Filter EXIM Verification
+        $this->db->group_start();
+            $this->db->where('(sl.transaction_type = "fg_out" AND fdh.exim_verified = 1)');
+            $this->db->or_where('(sl.transaction_type = "OUT_SCRAP_BC" AND soh.exim_verified = 1)');
+            $this->db->or_where('(sl.transaction_type = "production_out" AND sl.source_doc_type = "SUBKON_OUT" AND sout.exim_verified = 1)');
+            $this->db->or_where('sl.transaction_type = "ADJ_OUT"');
+        $this->db->group_end();
+        
         return $this->db->count_all_results(); 
     }
 }

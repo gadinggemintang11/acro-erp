@@ -18,9 +18,11 @@
                  </a>
             <?php endif; ?>
             
-            <a href="<?= base_url('material_request/export_pdf/'.$header->id); ?>" target="_blank" class="btn btn-danger btn-sm mr-1">
-                <i class="fas fa-file-pdf fa-sm"></i> Export PDF
-            </a>
+            <?php if (($header->status == 'Issued' || $header->status == 'Received') && check_access('production_receive', 'view')): ?>
+                <a href="<?= base_url('production_receive/export_pdf/'.$header->id); ?>" target="_blank" class="btn btn-info btn-sm mr-1">
+                    <i class="fas fa-file-pdf fa-sm"></i> Export PDF
+                </a>
+            <?php endif; ?>
             <a href="<?= base_url('production_receive'); ?>" class="btn btn-secondary btn-sm btn-load">
                 <i class="fas fa-arrow-left fa-sm mr-2"></i>Kembali
             </a>

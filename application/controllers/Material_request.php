@@ -186,7 +186,7 @@ class Material_request extends MY_Controller {
         }
         
         $user_id = $this->session->userdata('user_id') ?? null;
-        if ($this->Mr_model->update_status($id, 'Submitted', 'requester', $user_id)) {
+        if ($this->Mr_model->update_status($id, 'Submitted', $user_id)) {
             $this->session->set_flashdata('success', 'MR berhasil disubmit ke Gudang.');
         } else { $this->session->set_flashdata('error', 'Gagal submit MR.'); }
         redirect('material_request/detail/' . $id);
@@ -200,7 +200,7 @@ class Material_request extends MY_Controller {
         // Di modul selanjutnya, kita harus cek apakah status sudah 'Issued'. Jika sudah, tidak bisa di-unsubmit.
         
         $user_id = $this->session->userdata('user_id') ?? null;
-        if ($this->Mr_model->update_status($id, 'Draft', 'requester', $user_id)) { // user_id di sini opsional
+        if ($this->Mr_model->update_status($id, 'Draft', $user_id)) { // user_id di sini opsional
             $this->session->set_flashdata('success', 'Submit MR berhasil dibatalkan.');
         } else { $this->session->set_flashdata('error', 'Gagal membatalkan submit.'); }
         redirect('material_request/detail/' . $id);

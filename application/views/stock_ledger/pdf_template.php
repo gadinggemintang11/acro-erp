@@ -2,7 +2,7 @@
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Laporan Stok Barang - <?= $periode ?></title>
+    <title><?= lang_line('stock_ledger_pdf_title', 'Laporan Stok Barang'); ?> - <?= $periode ?></title>
     <style>
         @page { margin: 20px 25px; }
         body { font-family: 'Helvetica', sans-serif; font-size: 9px; color: #333; }
@@ -21,21 +21,21 @@
     </style>
 </head>
 <body>
-    <h1>Laporan Stok Barang</h1>
-    <h2>Periode: <?= htmlspecialchars($periode) ?></h2>
+    <h1><?= lang_line('stock_ledger_pdf_title', 'Laporan Stok Barang'); ?></h1>
+    <h2><?= lang_line('stock_ledger_pdf_period', 'Periode'); ?>: <?= htmlspecialchars($periode) ?></h2>
 
     <table class="item-table">
         <thead>
             <tr>
-                <th style="width:10%">Gudang</th>
-                <th style="width:12%">Kode Barang</th>
-                <th>Nama Barang</th>
-                <th style="width:8%">Satuan</th>
-                <th style="width:10%">Stok Awal</th>
-                <th style="width:10%">Masuk</th>
-                <th style="width:10%">Return</th>
-                <th style="width:10%">Keluar</th>
-                <th style="width:10%">Stok Akhir</th>
+                <th style="width:10%"><?= lang_line('stock_ledger_warehouse_col', 'Gudang'); ?></th>
+                <th style="width:12%"><?= lang_line('stock_ledger_item_code', 'Kode Barang'); ?></th>
+                <th><?= lang_line('stock_ledger_item_name', 'Nama Barang'); ?></th>
+                <th style="width:8%"><?= lang_line('stock_ledger_unit', 'Satuan'); ?></th>
+                <th style="width:10%"><?= lang_line('stock_ledger_pdf_opening', 'Stok Awal'); ?></th>
+                <th style="width:10%"><?= lang_line('stock_ledger_pdf_in', 'Masuk'); ?></th>
+                <th style="width:10%"><?= lang_line('stock_ledger_pdf_return', 'Return'); ?></th>
+                <th style="width:10%"><?= lang_line('stock_ledger_pdf_out', 'Keluar'); ?></th>
+                <th style="width:10%"><?= lang_line('stock_ledger_pdf_closing', 'Stok Akhir'); ?></th>
             </tr>
         </thead>
         <tbody>
@@ -52,13 +52,13 @@
                 <td class="text-right"><?= number_format($row->closing_stock, 2); ?></td>
             </tr>
             <?php endforeach; else: ?>
-                <tr><td colspan="9" class="text-center" style="padding: 20px;">- Tidak ada data stok ditemukan -</td></tr>
+                <tr><td colspan="9" class="text-center" style="padding: 20px;"><?= lang_line('stock_ledger_pdf_no_data', '- Tidak ada data stok ditemukan -'); ?></td></tr>
             <?php endif; ?>
         </tbody>
     </table>
 
     <div class="footer">
-        Dicetak pada: <?= date('d/m/Y H:i:s'); ?> | Hal <span class="page"></span>
+        <?= lang_line('stock_ledger_pdf_printed', 'Dicetak pada'); ?>: <?= date('d/m/Y H:i:s'); ?> | <?= lang_line('stock_ledger_pdf_page', 'Hal'); ?> <span class="page"></span>
     </div>
 </body>
 </html>

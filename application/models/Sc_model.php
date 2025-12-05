@@ -196,5 +196,59 @@ class Sc_model extends CI_Model {
         return $query->result();
     }
 
+    /**
+     * Mengambil item Finished Goods dari Sales Contract untuk Load BOM
+     * Returns: array of objects dengan fg_id, qty, kode_barang, nama_barang
+     */
+    public function get_items_by_contract($sc_id) {
+        if (empty($sc_id) || !is_numeric($sc_id)) {
+            return [];
+        }
+
+        // Cek apakah tabel detail ada
+        if (!$this->db->table_exists($this->table_sc_details)) {
+            // Ambil dari header SC (asumsi 1 FG per SC)
+            $this->db->select("
+                sc.fg_id,
+                sc.po_qty as qty,
+                fg.kode_barang,
+                fg.nama_barang,
+                'finished' as item_type
+            ");
+            $this->db->from($this->table_sc . ' sc');
+            $this->db->join($this->table_fg . ' fg', 'sc.fg_id = fg.id', 'left');
+            $this->db->where('sc.id', $sc_id);
+            $this->db->where('sc.fg_id IS NOT NULL');
+            
+            $query = $this->db->get();
+            if (!$query) {
+                log_message('error', '[Sc_model] get_items_by_contract DB Error: ' . print_r($this->db->error(), true));
+                return [];
+            }
+            return $query->result();
+            
+        } else {
+            // Ambil dari tabel detail
+            $this->db->select("
+                scd.fg_id,
+                scd.qty,
+                fg.kode_barang,
+                fg.nama_barang,
+                'finished' as item_type
+            ");
+            $this->db->from($this->table_sc_details . ' scd');
+            $this->db->join($this->table_fg . ' fg', 'scd.fg_id = fg.id', 'left');
+            $this->db->where('scd.sales_contract_id', $sc_id);
+            $this->db->where('scd.fg_id IS NOT NULL');
+            
+            $query = $this->db->get();
+            if (!$query) {
+                log_message('error', '[Sc_model] get_items_by_contract DB Error: ' . print_r($this->db->error(), true));
+                return [];
+            }
+            return $query->result();
+        }
+    }
+
     
 } // End Class

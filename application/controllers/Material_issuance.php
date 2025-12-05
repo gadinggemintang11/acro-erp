@@ -1,6 +1,10 @@
 <?php
 defined('BASEPATH') OR exit('No direct script access allowed');
 
+require FCPATH . 'vendor/autoload.php';
+use Dompdf\Dompdf;
+use Dompdf\Options;
+
 class Material_issuance extends MY_Controller {
 
     public function __construct() {
@@ -61,8 +65,7 @@ class Material_issuance extends MY_Controller {
         $this->load->view('templates/sidebar', $data);
         $this->load->view('templates/topbar', $data);
         $this->load->view('material_issuance/detail', $data);
-        // Pastikan footer di-load di view detail atau di sini
-        // $this->load->view('templates/footer'); 
+        
     }
     
     // --- FUNGSI ajax_get_stock() DIHAPUS KARENA TIDAK DIPERLUKAN LAGI ---
@@ -133,5 +136,37 @@ class Material_issuance extends MY_Controller {
             $this->session->set_flashdata('error', 'Gagal membatalkan pengeluaran (Database Error).');
         }
         redirect('material_issuance/detail/' . $mr_id);
+    }
+    
+    // Export PDF Material Issuance
+    public function export_pdf($id) {
+        if (!check_access('material_issuance', 'view')) {
+            show_error('Anda tidak memiliki izin.', 403);
+            return;
+        }
+
+        $header = $this->Mr_model->get_header_by_id($id);
+        if (!$header || !in_array($header->status, ['Issued', 'Received'])) {
+            $this->session->set_flashdata('error', 'Material Issuance tidak ditemukan atau belum dikeluarkan.');
+            redirect('material_issuance');
+            return;
+        }
+
+        $details = $this->Material_issuance_model->get_mr_details_for_issuance($id);
+
+        $data = [
+            'header' => $header,
+            'details' => $details
+        ];
+
+        $options = new Options();
+        $options->set('isHtml5ParserEnabled', true);
+        $dompdf = new Dompdf($options);
+        $html = $this->load->view('material_issuance/pdf_template', $data, true);
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+        $filename = 'Material_Issuance_' . str_replace('/', '-', $header->issuance_number) . '.pdf';
+        $dompdf->stream($filename, ["Attachment" => 0]);
     }
 }

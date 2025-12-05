@@ -74,6 +74,11 @@ class Wo_model extends CI_Model {
         } elseif ($new_status == 'Planned') {
             $data['confirmed_by'] = NULL;
             $data['confirmed_at'] = NULL;
+        } elseif ($new_status == 'Finished') {
+            $data['finished_at'] = date('Y-m-d H:i:s');
+            if ($user_id) {
+                $data['finished_by'] = $user_id;
+            }
         }
         return $this->db->where('id', $id)->update($this->table_header, $data);
     }
