@@ -75,10 +75,11 @@ $query_builder = TRUE;
 
 $db['default'] = array(
     'dsn'   => '',
-    'hostname' => 'localhost',
-    'username' => 'root',
-    'password' => '',
-    'database' => 'neokabersis_db',
+    'hostname' => getenv('DB_HOSTNAME') ?: 'localhost',
+    'username' => getenv('DB_USERNAME') ?: 'root',
+    'password' => getenv('DB_PASSWORD') ?: 'password',
+    'database' => getenv('DB_DATABASE') ?: 'neokaber_db',
+    'port'     => getenv('DB_PORT') ?: 3306,
     'dbdriver' => 'mysqli',
     'dbprefix' => '',
     'pconnect' => FALSE,
