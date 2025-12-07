@@ -223,4 +223,11 @@ class Wo_model extends CI_Model {
         }
         return $query->result();
     }
+
+    public function is_wo_material_exist($wo_header_id, $component_item_id) {
+        $this->db->where('wo_header_id', $wo_header_id);
+        $this->db->where('component_item_id', $component_item_id);
+        $query = $this->db->get($this->table_details);
+        return $query->num_rows() > 0;
+    }
 }

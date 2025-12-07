@@ -118,6 +118,12 @@ class Work_order extends MY_Controller {
             'component_item_type' => $item_data[1],
             'planned_qty'         => (float) $this->input->post('planned_qty'),
         ];
+
+        $isWoMaterialExist = $this->Wo_model->is_wo_material_exist($wo_header_id, $data['component_item_id']);
+        if ($isWoMaterialExist) {
+            $this->session->set_flashdata('error', 'Material sudah ada dalam rencana WO.');
+            redirect('work_order/detail/' . $wo_header_id);
+        }
         
         $this->Wo_model->insert_material($data);
         $this->session->set_flashdata('success', 'Material berhasil ditambahkan.');
