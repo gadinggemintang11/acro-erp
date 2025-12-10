@@ -18,6 +18,7 @@ class User extends MY_Controller {
 
         $this->load->view('templates/header', $data);
         $this->load->view('templates/sidebar', $data);
+        $this->load->view('templates/topbar', $data);
         $this->load->view('user/index', $data);
         $this->load->view('templates/footer');
     }
