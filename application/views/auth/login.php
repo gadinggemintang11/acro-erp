@@ -102,6 +102,7 @@ body::after {
   box-shadow: 0 10px 30px rgba(102, 126, 234, 0.4);
   animation: pulse 2s ease-in-out infinite;
   padding: 12px;
+  position: relative;
 }
 
 @keyframes pulse {
@@ -113,6 +114,16 @@ body::after {
   width: 100%;
   height: 100%;
   object-fit: contain;
+  display: block;
+}
+
+.logo-fallback {
+  font-size: 48px;
+  background: linear-gradient(135deg, #667eea, #764ba2);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: bold;
 }
 
 .login-header h1 {
@@ -308,10 +319,10 @@ body::after {
   <div class="login-container">
     <div class="login-card">
       <div class="login-header">
-        <div class="logo-container">
-          <img src="<?= base_url('assets/img/logo_mini.png'); ?>" alt="Logo">
+        <div class="logo-container" id="logoContainer">
+          <!-- Logo akan di-load via JavaScript untuk handling yang lebih baik -->
         </div>
-        <h1>ERP</h1>
+        <h1>ERP MINGBAO</h1>
         <p>PT MINGBAO LIANCHUANG INTERNATIONAL</p>
       </div>
 
@@ -351,6 +362,48 @@ body::after {
   </div>
 
 <script>
+// Load logo dengan error handling yang lebih baik
+document.addEventListener('DOMContentLoaded', function() {
+  const logoContainer = document.getElementById('logoContainer');
+  const baseUrl = '<?= base_url(); ?>';
+  
+  // Daftar logo yang akan dicoba
+  const logoUrls = [
+    baseUrl + 'assets/img/logo_mini.png',
+    baseUrl + 'assets/img/logo_full.png',
+    baseUrl + 'assets/img/logo_full_biru.png'
+  ];
+  
+  let currentIndex = 0;
+  
+  function tryLoadLogo() {
+    if (currentIndex >= logoUrls.length) {
+      // Semua logo gagal, gunakan icon/text sebagai fallback
+      logoContainer.innerHTML = '<div class="logo-fallback">MB</div>';
+      console.warn('Semua logo gagal dimuat, menggunakan fallback');
+      return;
+    }
+    
+    const img = new Image();
+    img.onload = function() {
+      logoContainer.innerHTML = '';
+      logoContainer.appendChild(img);
+      console.log('Logo berhasil dimuat:', logoUrls[currentIndex]);
+    };
+    
+    img.onerror = function() {
+      console.warn('Gagal memuat logo:', logoUrls[currentIndex]);
+      currentIndex++;
+      tryLoadLogo();
+    };
+    
+    img.src = logoUrls[currentIndex];
+    img.alt = 'Logo';
+  }
+  
+  tryLoadLogo();
+});
+
 // Toggle password visibility
 function togglePassword() {
   const passwordInput = document.getElementById('passwordInput');

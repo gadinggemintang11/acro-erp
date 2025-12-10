@@ -90,7 +90,7 @@
                                             </div>
                                         </div>
                                         <div class="modal-footer">
-                                            <button type="submit" class="btn btn-warning btn-load"><i class="fas fa-save mr-1"></i> Simpan Perubahan</button>
+                                            <button type="submit" class="btn btn-warning"><i class="fas fa-save mr-1"></i> Simpan Perubahan</button>
                                             <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
                                         </div>
                                     </div>
@@ -109,7 +109,6 @@
 </div>
 
 <div class="modal fade" id="addModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
         <form method="post" action="<?= base_url('master_scrap/add'); ?>">
             <div class="modal-content border-0 shadow">
                 <div class="modal-header bg-gradient-primary text-white">
@@ -132,7 +131,7 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary btn-load"><i class="fas fa-save mr-1"></i> Simpan</button>
+                    <button type="submit" class="btn btn-primary"><i class="fas fa-save mr-1"></i> Simpan</button>
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
                 </div>
             </div>
@@ -140,4 +139,5 @@
     </div>
 </div>
 
-<?php $this->load->view('templates/footer'); ?>
+<script src="<?= base_url('assets/js/master_scrap.js'); ?>"></script>
+

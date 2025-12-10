@@ -164,16 +164,17 @@
                                         <input type="hidden" name="item_type" id="add_item_type">
                                         <div class="form-group">
                                             <label for="add_batch_selector">Pilih Material (Batch Sesuai FIFO/FEFO)</label>
-                                            <select name="stock_on_hand_id" id="add_batch_selector" class="form-control select2-wip" required>
+                                            <select name="batch_id" id="add_batch_selector" class="form-control select2-wip" required>
                                                 <option value="">-- Pilih Batch Material --</option>
                                                 <?php if(!empty($available_batches)): ?>
                                                     <?php foreach($available_batches as $batch): ?>
-                                                        <option value="<?= $batch->stock_on_hand_id; ?>"
+                                                        <option value="<?= $batch->batch_id; ?>"
                                                                 data-itemid="<?= $batch->item_id; ?>"
                                                                 data-itemtype="<?= $batch->item_type; ?>"
-                                                                data-maxqty="<?= $batch->remaining_qty; ?>">
+                                                                data-maxqty="<?= $batch->remaining_qty; ?>"
+                                                                data-cost="<?= $batch->cost_from_batch ?? 0; ?>">
                                                             <?= htmlspecialchars($batch->item_name . ' (' . $batch->item_code . ')'); ?>
-                                                            | Batch: <?= htmlspecialchars($batch->grn_number ?? 'N/A'); ?>
+                                                            | Batch: <?= htmlspecialchars($batch->grn_number ?? 'WIP'); ?>
                                                             | Sisa: <?= number_format($batch->remaining_qty, 4) . ' ' . htmlspecialchars($batch->item_unit); ?>
                                                         </option>
                                                     <?php endforeach; ?>

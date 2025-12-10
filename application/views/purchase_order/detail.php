@@ -53,65 +53,13 @@
                     </table>
                 </div>
                 <div class="col-md-6">
-                    <table class="table table-sm table-borderless mb-0">
-                        <tr>
-                            <td style="width:35%;">
-                                <strong><?= lang_line('po_date', 'Tanggal PO'); ?></strong>
-                            </td>
-                            <td style="width:2%">:</td>
-                            <td><?= date('d M Y', strtotime($header->po_date)); ?></td>
-                        </tr>
-                        <tr>
-                            <td>
-                                <strong><?= lang_line('po_status', 'Status'); ?></strong>
-                            </td>
-                            <td>:</td>
-                            <td>
-                                <?php $color = $status_colors[$header->status] ?? 'secondary'; ?>
-                                <span class="badge badge-<?= $color; ?>">
-                                    <?= htmlspecialchars($header->status); ?>
-                                </span>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>
-                                <strong><?= lang_line('po_shipping_mode', 'Mode Pengiriman'); ?></strong>
-                            </td>
-                            <td>:</td>
-                            <td><?= htmlspecialchars($header->shipping_mode_desc ?? '-'); ?></td>
-                        </tr>
-                        <tr>
-                            <td>
-                                <strong><?= lang_line('po_payment_mode', 'Mode Pembayaran'); ?></strong>
-                            </td>
-                            <td>:</td>
-                            <td><?= htmlspecialchars($header->payment_mode_desc ?? '-'); ?></td>
-                        </tr>
-                        <tr>
-                            <td>
-                                <strong><?= lang_line('po_currency', 'Mata Uang'); ?></strong>
-                            </td>
-                            <td>:</td>
-                            <td>
-                                <?= htmlspecialchars($header->currency_desc ?? '-'); ?>
-                                <?php if ($header->currency_code != 'IDR'): ?>
-                                    (<?= lang_line('po_exchange_rate', 'Kurs'); ?>: <?= number_format((float)$header->exchange_rate, 4); ?>)
-                                <?php endif; ?>
-                            </td>
-                        </tr>
-                        <tr>
-                            <td>
-                                <strong><?= lang_line('po_has_ppn', 'PPN 11%'); ?></strong>
-                            </td>
-                            <td>:</td>
-                            <td>
-                                <?php if ($header->has_ppn): ?>
-                                    <span class="badge badge-success"><?= lang_line('po_yes', 'Ya'); ?></span>
-                                <?php else: ?>
-                                    <span class="badge badge-secondary"><?= lang_line('po_no', 'Tidak'); ?></span>
-                                <?php endif; ?>
-                            </td>
-                        </tr>
+                     <table class="table table-sm table-borderless mb-0">
+                         <tr><td style="width:35%;"><strong><?= lang_line('po_date', 'Tanggal PO'); ?></strong></td><td style="width:2%">:</td><td><?= date('d M Y', strtotime($header->po_date)); ?></td></tr>
+                         <tr><td><strong><?= lang_line('po_status', 'Status'); ?></strong></td><td>:</td><td><?php $color = $status_colors[$header->status] ?? 'secondary'; ?><span class="badge badge-<?= $color; ?>"><?= htmlspecialchars($header->status); ?></span></td></tr>
+                         <tr><td><strong><?= lang_line('po_shipping_mode', 'Mode Pengiriman'); ?></strong></td><td>:</td><td><?= htmlspecialchars($header->shipping_mode_desc ?? '-'); ?></td></tr>
+                         <tr><td><strong><?= lang_line('po_payment_mode', 'Mode Pembayaran'); ?></strong></td><td>:</td><td><?= htmlspecialchars($header->payment_mode_desc ?? '-'); ?></td></tr>
+                         <tr><td><strong><?= lang_line('po_currency', 'Mata Uang'); ?></strong></td><td>:</td><td><?= htmlspecialchars($header->currency_desc ?? '-'); ?> <?= $header->currency_code != 'IDR' ? '('.lang_line('po_exchange_rate', 'Kurs').': '.number_format((float)$header->exchange_rate, 4).')' : ''; ?></td></tr>
+                         <tr><td><strong><?= lang_line('po_has_ppn', 'PPN 11%'); ?></strong></td><td>:</td><td><?= $header->has_ppn ? '<span class="badge badge-success">'.lang_line('po_yes', 'Ya').'</span>' : '<span class="badge badge-secondary">'.lang_line('po_no', 'Tidak').'</span>'; ?></td></tr>
                     </table>
                 </div>
             </div>
@@ -206,7 +154,77 @@
              <div class="modal-content border-0 shadow">
                  <div class="modal-header bg-warning text-dark"> <h5 class="modal-title"><i class="fas fa-edit mr-2"></i><?= lang_line('po_edit', 'Edit Header PO'); ?></h5> <button type="button" class="close text-dark" data-dismiss="modal">&times;</button> </div>
                  <div class="modal-body">
-                      </div>
+                     <div class="row">
+                         <div class="col-md-6">
+                             <div class="form-group">
+                                 <label for="edit_po_date"><?= lang_line('po_date', 'Tanggal PO'); ?> <span class="text-danger">*</span></label>
+                                 <input type="date" class="form-control form-control-sm" id="edit_po_date" name="po_date" value="<?= date('Y-m-d', strtotime($header->po_date)); ?>" required>
+                             </div>
+                         </div>
+                         <div class="col-md-6">
+                             <div class="form-group">
+                                 <label for="edit_supplier_id"><?= lang_line('po_supplier', 'Supplier'); ?> <span class="text-danger">*</span></label>
+                                 <input type="text" class="form-control form-control-sm" value="<?= htmlspecialchars($header->nama_supplier); ?>" readonly style="background-color: #e9ecef; cursor: not-allowed;">
+                                 <input type="hidden" name="supplier_id" value="<?= $header->supplier_id; ?>">
+                                 <small class="form-text text-muted"><?= lang_line('po_supplier_note', 'Supplier sudah dipilih saat pembuatan PO'); ?></small>
+                             </div>
+                         </div>
+                     </div>
+                     <div class="row">
+                         <div class="col-md-6">
+                             <div class="form-group">
+                                 <label for="edit_shipping_mode"><?= lang_line('po_shipping_mode', 'Mode Pengiriman'); ?> <span class="text-danger">*</span></label>
+                                 <input type="text" class="form-control form-control-sm" id="edit_shipping_mode" name="shipping_mode" value="<?= htmlspecialchars($header->shipping_mode_desc ?? ''); ?>" required placeholder="<?= lang_line('po_enter_shipping', 'Contoh: TRUCK, CARGO, DHL'); ?>">
+                             </div>
+                         </div>
+                         <div class="col-md-6">
+                             <div class="form-group">
+                                 <label for="edit_payment_mode"><?= lang_line('po_payment_mode', 'Mode Pembayaran'); ?> <span class="text-danger">*</span></label>
+                                 <input type="text" class="form-control form-control-sm" id="edit_payment_mode" name="payment_mode" value="<?= htmlspecialchars($header->payment_mode_desc ?? ''); ?>" required placeholder="<?= lang_line('po_enter_payment', 'Contoh: CASH, TRANSFER, CREDIT'); ?>">
+                             </div>
+                         </div>
+                     </div>
+                     <div class="row">
+                         <div class="col-md-6">
+                             <div class="form-group">
+                                 <label for="edit_currency_code"><?= lang_line('po_currency', 'Mata Uang'); ?> <span class="text-danger">*</span></label>
+                                 <select class="form-control form-control-sm" id="edit_currency_code" name="currency_code" required>
+                                     <option value="IDR" <?= ($header->currency_code == 'IDR') ? 'selected' : ''; ?>>Rupiah (IDR)</option>
+                                     <option value="USD" <?= ($header->currency_code == 'USD') ? 'selected' : ''; ?>>US Dollar (USD)</option>
+                                     <option value="EUR" <?= ($header->currency_code == 'EUR') ? 'selected' : ''; ?>>Euro (EUR)</option>
+                                     <option value="CNY" <?= ($header->currency_code == 'CNY') ? 'selected' : ''; ?>>Yuan (CNY)</option>
+                                     <option value="JPY" <?= ($header->currency_code == 'JPY') ? 'selected' : ''; ?>>Yen (JPY)</option>
+                                     <option value="SGD" <?= ($header->currency_code == 'SGD') ? 'selected' : ''; ?>>Singapore Dollar (SGD)</option>
+                                 </select>
+                             </div>
+                         </div>
+                         <div class="col-md-6" id="edit_exchange_rate_div" style="<?= ($header->currency_code == 'IDR') ? 'display:none;' : ''; ?>">
+                             <div class="form-group">
+                                 <label for="edit_exchange_rate"><?= lang_line('po_exchange_rate', 'Kurs'); ?> <span class="text-danger">*</span></label>
+                                 <input type="text" class="form-control form-control-sm autonumeric-4dec-edit" id="edit_exchange_rate" name="exchange_rate" value="<?= number_format((float)$header->exchange_rate, 4, '.', ''); ?>" <?= ($header->currency_code != 'IDR') ? 'required' : ''; ?>>
+                                 <small class="form-text text-muted"><?= lang_line('po_exchange_rate_help', 'Contoh: 1 USD = 15000.0000 IDR'); ?></small>
+                             </div>
+                         </div>
+                     </div>
+                     <div class="row">
+                         <div class="col-md-12">
+                             <div class="form-group">
+                                 <div class="custom-control custom-checkbox">
+                                     <input type="checkbox" class="custom-control-input" id="edit_has_ppn" name="has_ppn" value="1" <?= $header->has_ppn ? 'checked' : ''; ?>>
+                                     <label class="custom-control-label" for="edit_has_ppn"><?= lang_line('po_include_ppn', 'Termasuk PPN 11%'); ?></label>
+                                 </div>
+                             </div>
+                         </div>
+                     </div>
+                     <div class="row">
+                         <div class="col-md-12">
+                             <div class="form-group">
+                                 <label for="edit_remarks"><?= lang_line('po_remarks', 'Catatan / Remarks'); ?></label>
+                                 <textarea class="form-control form-control-sm" id="edit_remarks" name="remarks" rows="3" placeholder="<?= lang_line('po_optional', 'Opsional...'); ?>"><?= htmlspecialchars($header->remarks ?? ''); ?></textarea>
+                             </div>
+                         </div>
+                     </div>
+                 </div>
                  <div class="modal-footer"> <button type="submit" class="btn btn-warning btn-load"><i class="fas fa-save mr-1"></i> <?= lang_line('po_save', 'Simpan Perubahan'); ?></button> <button type="button" class="btn btn-secondary" data-dismiss="modal"><?= lang_line('po_cancel', 'Batal'); ?></button> </div>
              </div>
         </form>

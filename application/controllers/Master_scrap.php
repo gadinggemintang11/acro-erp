@@ -32,28 +32,79 @@ class Master_scrap extends MY_Controller {
     }
 
     public function add() {
-        if (!check_access('master_scrap', 'add')) { show_error('Tidak ada izin.', 403); }
+        if (!check_access('master_scrap', 'add')) {
+            if ($this->input->is_ajax_request()) {
+                echo json_encode(['success' => false, 'message' => 'Tidak ada izin']);
+                return;
+            }
+            show_error('Tidak ada izin.', 403);
+        }
+        
         $data = [
             'scrap_code' => $this->Scrap_model->generate_scrap_code(),
-            'scrap_name' => $this->input->post('scrap_name'), // ✅ FIX
-            'unit'       => $this->input->post('unit'), // ✅ FIX
+            'scrap_name' => $this->input->post('scrap_name'),
+            'unit'       => $this->input->post('unit'),
             'status'     => 'active'
         ];
-        if ($this->Scrap_model->insert($data)) { $this->session->set_flashdata('success', 'Data scrap ditambahkan.'); } // ✅ FIX
-        else { $this->session->set_flashdata('error', 'Gagal menambah data.'); } // ✅ FIX
-        redirect('master_scrap');
+        
+        $result = $this->Scrap_model->insert($data);
+        
+        if ($this->input->is_ajax_request()) {
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => $result,
+                'message' => $result ? 'Data scrap berhasil ditambahkan' : 'Gagal menambah data scrap'
+            ]);
+        } else {
+            if ($result) {
+                $this->session->set_flashdata('success', 'Data scrap ditambahkan.');
+            } else {
+                $this->session->set_flashdata('error', 'Gagal menambah data.');
+            }
+            redirect('master_scrap');
+        }
     }
 
     public function update($id) {
-        if (!check_access('master_scrap', 'edit')) { show_error('Tidak ada izin.', 403); }
+        if (!check_access('master_scrap', 'edit')) {
+            if ($this->input->is_ajax_request()) {
+                echo json_encode(['success' => false, 'message' => 'Tidak ada izin']);
+                return;
+            }
+            show_error('Tidak ada izin.', 403);
+        }
+        
+        // Debug: Log POST data
+        log_message('debug', 'Update ID: ' . $id);
+        log_message('debug', 'POST Data: ' . json_encode($this->input->post()));
+        
         $data = [
-            'scrap_name' => $this->input->post('scrap_name'), // ✅ FIX
-            'unit'       => $this->input->post('unit'), // ✅ FIX
-            'status'     => $this->input->post('status') // ✅ FIX
+            'scrap_name' => $this->input->post('scrap_name'),
+            'unit'       => $this->input->post('unit'),
+            'status'     => $this->input->post('status')
         ];
-        if ($this->Scrap_model->update($id, $data)) { $this->session->set_flashdata('success', 'Data scrap diperbarui.'); } // ✅ FIX
-        else { $this->session->set_flashdata('error', 'Gagal memperbarui data.'); } // ✅ FIX
-        redirect('master_scrap');
+        
+        // Debug: Log data yang akan diupdate
+        log_message('debug', 'Data to update: ' . json_encode($data));
+        
+        $result = $this->Scrap_model->update($id, $data);
+        
+        if ($this->input->is_ajax_request()) {
+            header('Content-Type: application/json');
+            echo json_encode([
+                'success' => $result,
+                'message' => $result ? 'Data scrap berhasil diperbarui' : 'Gagal memperbarui data scrap'
+            ]);
+        } else {
+            if ($result) {
+                $this->session->set_flashdata('success', 'Data scrap berhasil diperbarui.');
+                log_message('debug', 'Update success');
+            } else {
+                $this->session->set_flashdata('error', 'Gagal memperbarui data scrap.');
+                log_message('error', 'Update failed for ID: ' . $id);
+            }
+            redirect('master_scrap');
+        }
     }
 
     public function delete($id) {

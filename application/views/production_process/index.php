@@ -1,128 +1,90 @@
-<?php defined('BASEPATH') OR exit('No direct script access allowed'); ?>
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <title><?= htmlspecialchars($title ?? 'Proses Produksi'); ?></title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap4-theme@1.0.0/dist/select2-bootstrap4.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
-    <style>
-        /* CSS Tambahan */
-        .select2-container { width: 100% !important; z-index: 1051; } /* Pastikan lebar 100% & di atas modal */
-        .select2-dropdown { z-index: 1051; } /* Pastikan dropdown di atas modal */
-        .select2-container--bootstrap4 .select2-selection--single { height: calc(1.5em + .75rem + 2px) !important; padding: .375rem .75rem !important; }
-        .btn-xs { padding: .125rem .25rem; font-size: .75rem; line-height: 1.5; border-radius: .2rem; }
-        .is-invalid + .select2-container--bootstrap4 .select2-selection--single { border-color: #e74a3b; } /* Style error Select2 */
-        .table th, .table td { vertical-align: middle; }
-    </style>
-</head>
-<body id="page-top">
+<div class="container-fluid">
+    <div class="d-sm-flex align-items-center justify-content-between mb-4">
+        <h3 class="h4 mb-0 text-gray-800"><i class="fas fa-tasks text-primary mr-2"></i><?= htmlspecialchars($title); ?></h3>
+        <?php if (check_access('production_process', 'add')): ?>
+            <button class="btn btn-primary shadow-sm" data-toggle="modal" data-target="#createProcessModal">
+                <i class="fas fa-plus-circle mr-1"></i> Buat Proses Baru
+            </button>
+        <?php endif; ?>
+    </div>
 
-    <div id="wrapper">
+    <div class="card shadow mb-4">
+        <div class="card-body py-2">
+            <form method="get" action="<?= base_url('production_process/index'); ?>" class="form-inline">
+                <div class="form-group mr-3 mb-2 flex-grow-1">
+                    <label for="search" class="sr-only">Cari</label>
+                    <input type="text" name="search" id="search" class="form-control form-control-sm w-100" placeholder="Cari No Produksi / No WO / No SC..." value="<?= htmlspecialchars($filters['search'] ?? ''); ?>">
+                </div>
+                <div class="form-group mb-2">
+                    <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-search mr-1"></i> Cari</button>
+                    <a href="<?= base_url('production_process'); ?>" class="btn btn-secondary btn-sm ml-1"><i class="fas fa-redo mr-1"></i> Reset</a>
+                </div>
+            </form>
+        </div>
+    </div>
 
-        <?php //$this->load->view('templates/sidebar'); // Load sidebar Anda ?>
-        <div id="content-wrapper" class="d-flex flex-column">
+    <?php if ($this->session->flashdata('success')): ?><div class="alert alert-success alert-dismissible fade show" role="alert"><?= $this->session->flashdata('success'); ?><button type="button" class="close" data-dismiss="alert">&times;</button></div><?php endif; ?>
+    <?php if ($this->session->flashdata('error')): ?><div class="alert alert-danger alert-dismissible fade show" role="alert"><?= $this->session->flashdata('error'); ?><button type="button" class="close" data-dismiss="alert">&times;</button></div><?php endif; ?>
+    <?php if ($this->session->flashdata('warning')): ?><div class="alert alert-warning alert-dismissible fade show" role="alert"><?= $this->session->flashdata('warning'); ?><button type="button" class="close" data-dismiss="alert">&times;</button></div><?php endif; ?>
 
-            <div id="content">
-
-                <?php //$this->load->view('templates/topbar'); // Load topbar Anda ?>
-                <div class="container-fluid">
-                    <div class="d-sm-flex align-items-center justify-content-between mb-4">
-                        <h3 class="h4 mb-0 text-gray-800"><i class="fas fa-tasks text-primary mr-2"></i><?= htmlspecialchars($title); ?></h3>
-                        <?php if (check_access('production_process', 'add')): ?>
-                            <button class="btn btn-primary shadow-sm" data-toggle="modal" data-target="#createProcessModal">
-                                <i class="fas fa-plus-circle mr-1"></i> Buat Proses Baru
-                            </button>
+    <div class="card border-0 shadow-sm rounded">
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover align-middle">
+                    <thead class="thead-light text-center">
+                        <tr>
+                            <th>No. Produksi</th>
+                            <th>No. WO</th>
+                            <th>No. SC</th>
+                            <th>Style</th>
+                            <th>Qty Rencana</th>
+                            <th>Tgl Produksi</th>
+                            <th>Status</th>
+                            <th width="150">Aksi</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <?php if(!empty($processes)): foreach($processes as $proc): ?>
+                        <tr class="text-center">
+                            <td class="font-weight-bold text-primary"><?= htmlspecialchars($proc->production_number); ?></td>
+                            <td><?= htmlspecialchars($proc->wo_number); ?></td>
+                            <td><?= htmlspecialchars($proc->sc_number); ?></td>
+                            <td class="text-left"><?= htmlspecialchars($proc->fg_name); ?></td>
+                            <td class="text-right"><?= number_format($proc->planned_qty); ?></td>
+                            <td><?= date('d M Y', strtotime($proc->production_date)); ?></td>
+                            <td>
+                                <?php
+                                    $badge_class = 'secondary';
+                                    if ($proc->status == 'Draft') $badge_class = 'warning';
+                                    if ($proc->status == 'In Progress') $badge_class = 'primary';
+                                    if ($proc->status == 'Completed') $badge_class = 'success';
+                                ?>
+                                <span class="badge badge-<?= $badge_class; ?>"><?= htmlspecialchars($proc->status); ?></span>
+                            </td>
+                            <td>
+                                <a href="<?= base_url('production_process/preparation/'.$proc->id); ?>" class="btn btn-sm btn-info">
+                                    <i class="fas fa-cogs"></i> Proses
+                                </a>
+                                <?php if ($proc->status == 'Draft' && check_access('production_process', 'delete')): ?>
+                                <a href="<?= base_url('production_process/delete_header/'.$proc->id); ?>" class="btn btn-sm btn-danger btn-delete ml-1" data-message="Yakin ingin menghapus Proses Produksi ini beserta semua detail input/outputnya?">
+                                    <i class="fas fa-trash"></i>
+                                </a>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                        <?php endforeach; else: ?>
+                            <tr><td colspan="8" class="text-center text-muted py-3">Belum ada data Proses Produksi</td></tr>
                         <?php endif; ?>
-                    </div>
-
-                    <div class="card shadow mb-4">
-                        <div class="card-body py-2">
-                            <form method="get" action="<?= base_url('production_process/index'); ?>" class="form-inline">
-                                <div class="form-group mr-3 mb-2 flex-grow-1">
-                                    <label for="search" class="sr-only">Cari</label>
-                                    <input type="text" name="search" id="search" class="form-control form-control-sm w-100" placeholder="Cari No Produksi / No WO / No SC..." value="<?= htmlspecialchars($filters['search'] ?? ''); ?>">
-                                </div>
-                                <div class="form-group mb-2">
-                                    <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-search mr-1"></i> Cari</button>
-                                    <a href="<?= base_url('production_process'); ?>" class="btn btn-secondary btn-sm ml-1"><i class="fas fa-redo mr-1"></i> Reset</a>
-                                </div>
-                            </form>
-                        </div>
-                    </div>
-
-                    <?php if ($this->session->flashdata('success')): ?><div class="alert alert-success alert-dismissible fade show" role="alert"><?= $this->session->flashdata('success'); ?><button type="button" class="close" data-dismiss="alert">&times;</button></div><?php endif; ?>
-                    <?php if ($this->session->flashdata('error')): ?><div class="alert alert-danger alert-dismissible fade show" role="alert"><?= $this->session->flashdata('error'); ?><button type="button" class="close" data-dismiss="alert">&times;</button></div><?php endif; ?>
-                    <?php if ($this->session->flashdata('warning')): ?><div class="alert alert-warning alert-dismissible fade show" role="alert"><?= $this->session->flashdata('warning'); ?><button type="button" class="close" data-dismiss="alert">&times;</button></div><?php endif; ?>
-
-
-                    <div class="card border-0 shadow-sm rounded">
-                        <div class="card-body">
-                            <div class="table-responsive">
-                                <table class="table table-striped table-hover align-middle">
-                                    <thead class="thead-light text-center">
-                                        <tr>
-                                            <th>No. Produksi</th>
-                                            <th>No. WO</th>
-                                            <th>No. SC</th>
-                                            <th>Style</th>
-                                            <th>Qty Rencana</th>
-                                            <th>Tgl Produksi</th>
-                                            <th>Status</th>
-                                            <th width="150">Aksi</th>
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        <?php if(!empty($processes)): foreach($processes as $proc): ?>
-                                        <tr class="text-center">
-                                            <td class="font-weight-bold text-primary"><?= htmlspecialchars($proc->production_number); ?></td>
-                                            <td><?= htmlspecialchars($proc->wo_number); ?></td>
-                                            <td><?= htmlspecialchars($proc->sc_number); ?></td>
-                                            <td class="text-left"><?= htmlspecialchars($proc->fg_name); ?></td>
-                                            <td class="text-right"><?= number_format($proc->planned_qty); ?></td>
-                                            <td><?= date('d M Y', strtotime($proc->production_date)); ?></td>
-                                            <td>
-                                                <?php
-                                                    $badge_class = 'secondary';
-                                                    if ($proc->status == 'Draft') $badge_class = 'warning';
-                                                    if ($proc->status == 'In Progress') $badge_class = 'primary';
-                                                    if ($proc->status == 'Completed') $badge_class = 'success';
-                                                ?>
-                                                <span class="badge badge-<?= $badge_class; ?>"><?= htmlspecialchars($proc->status); ?></span>
-                                            </td>
-                                            <td>
-                                                <a href="<?= base_url('production_process/preparation/'.$proc->id); ?>" class="btn btn-sm btn-info">
-                                                    <i class="fas fa-cogs"></i> Proses
-                                                </a>
-                                                <?php if ($proc->status == 'Draft' && check_access('production_process', 'delete')): ?>
-                                                <a href="<?= base_url('production_process/delete_header/'.$proc->id); ?>" class="btn btn-sm btn-danger btn-delete ml-1" data-message="Yakin ingin menghapus Proses Produksi ini beserta semua detail input/outputnya?">
-                                                    <i class="fas fa-trash"></i>
-                                                </a>
-                                                <?php endif; ?>
-                                            </td>
-                                        </tr>
-                                        <?php endforeach; else: ?>
-                                            <tr><td colspan="8" class="text-center text-muted py-3">Belum ada data Proses Produksi</td></tr>
-                                        <?php endif; ?>
-                                    </tbody>
-                                </table>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-                </div>
-            <?php //$this->load->view('templates/footer_content'); // Load footer content Anda ?>
+                    </tbody>
+                </table>
             </div>
         </div>
-    <a class="scroll-to-top rounded" href="#page-top">
-        <i class="fas fa-angle-up"></i>
-    </a>
+    </div>
+</div>
+<!-- /.container-fluid -->
 
-    <?php //$this->load->view('templates/logout_modal'); // Load modal logout Anda ?>
-
-    <div class="modal fade" id="createProcessModal" tabindex="-1" aria-labelledby="createProcessModalLabel" aria-hidden="true">
+<!-- Modal Create Process -->
+<div class="modal fade" id="createProcessModal" tabindex="-1" aria-labelledby="createProcessModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-centered">
              <form id="createProcessForm" method="post" action="<?= base_url('production_process/create_header'); ?>">
                 <div class="modal-content border-0 shadow">
@@ -345,6 +307,3 @@
 
     }); // Akhir $(function() {})
     </script>
-
-</body>
-</html>

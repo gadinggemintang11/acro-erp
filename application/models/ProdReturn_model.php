@@ -154,7 +154,7 @@ class ProdReturn_model extends CI_Model {
     public function get_wip_balance_by_wo($wo_id) {
         if (empty($wo_id) || !is_numeric($wo_id)) return [];
 
-        // 1. Total Issued
+        // 1. Total Issued (Material masuk ke WIP via MR)
         $this->db->select('component_item_id as material_id, SUM(issued_qty) as total_qty, component_item_type as item_type');
         $this->db->from($this->tbl_mrd);
         $this->db->where('wo_header_id', $wo_id);
@@ -163,14 +163,23 @@ class ProdReturn_model extends CI_Model {
         $issued_sql = $this->db->get_compiled_select();
         $this->db->reset_query();
 
-        // 2. Total Consumed (HANYA DARI GUDANG/SOH)
+        // 2a. Total Consumed dari Gudang (punya stock_on_hand_id)
         $this->db->select('pi.item_id as material_id, SUM(pi.qty_used) as total_qty, pi.item_type');
         $this->db->from($this->tbl_prod_i . ' pi');
         $this->db->join($this->tbl_prod_h . ' ph', 'pi.production_header_id = ph.id', 'inner');
         $this->db->where('ph.wo_header_id', $wo_id);
         $this->db->where('pi.stock_on_hand_id IS NOT NULL');
         $this->db->group_by('pi.item_id, pi.item_type');
-        $consumed_sql = $this->db->get_compiled_select();
+        $consumed_soh_sql = $this->db->get_compiled_select();
+        $this->db->reset_query();
+
+        // 2b. Total Consumed dari WIP (wip_out di stock_ledger)
+        $this->db->select('sl.item_id as material_id, SUM(sl.qty_out) as total_qty, sl.item_type');
+        $this->db->from('stock_ledger sl');
+        $this->db->where('sl.transaction_type', 'wip_out');
+        $this->db->where('sl.source_doc_id', $wo_id);
+        $this->db->group_by('sl.item_id, sl.item_type');
+        $consumed_wip_sql = $this->db->get_compiled_select();
         $this->db->reset_query();
 
         // 3. Total Returned (Kecuali Cancelled)
@@ -193,11 +202,13 @@ class ProdReturn_model extends CI_Model {
         $returned_sql = $this->db->get_compiled_select();
         $this->db->reset_query();
 
-        // Gabungkan
+        // Gabungkan semua movement
         $union_query_sql = "
             SELECT material_id, item_type, total_qty, 'issued' as type FROM ({$issued_sql}) as issued
             UNION ALL
-            SELECT material_id, item_type, total_qty, 'consumed' as type FROM ({$consumed_sql}) as consumed
+            SELECT material_id, item_type, total_qty, 'consumed' as type FROM ({$consumed_soh_sql}) as consumed_soh
+            UNION ALL
+            SELECT material_id, item_type, total_qty, 'consumed' as type FROM ({$consumed_wip_sql}) as consumed_wip
             UNION ALL
             SELECT material_id, item_type, total_qty, 'returned' as type FROM ({$returned_sql}) as returned
         ";

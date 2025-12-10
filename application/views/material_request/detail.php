@@ -1,4 +1,9 @@
 <div class="container-fluid">
+    <!-- Hidden fields for JavaScript -->
+    <input type="hidden" id="mr_header_id" value="<?= $header->id; ?>">
+    <input type="hidden" id="is_draft" value="<?= $header->status == 'Draft' ? '1' : '0'; ?>">
+    <input type="hidden" id="base_url" value="<?= base_url(); ?>">
+    
     <div class="d-sm-flex align-items-center justify-content-between mb-4">
         <h3 class="h4 mb-0 text-gray-800">
             <i class="fas fa-clipboard-list text-primary mr-2"></i><?= htmlspecialchars($title); ?>
@@ -18,7 +23,7 @@
              <a href="<?= base_url('material_request/export_pdf/'.$header->id); ?>" target="_blank" class="btn btn-danger btn-sm mr-1">
                 <i class="fas fa-file-pdf fa-sm"></i> Export PDF
             </a>
-            <a href="<?= base_url('material_request'); ?>" class="btn btn-secondary btn-sm btn-load">
+            <a href="<?= base_url('material_request'); ?>" class="btn btn-secondary btn-sm">
                 <i class="fas fa-arrow-left fa-sm mr-2"></i>Kembali
             </a>
         </div>
@@ -43,50 +48,131 @@
     <div class="row">
         <div class="col-lg-5">
             <div class="card shadow mb-4">
-                <div class="card-header py-3"><h6 class="m-0 font-weight-bold text-secondary">Referensi Work Order</h6></div>
+                <div class="card-header py-3">
+                    <h6 class="m-0 font-weight-bold text-secondary">
+                        <i class="fas fa-clipboard-check mr-2"></i>Referensi Work Order
+                    </h6>
+                </div>
                 <div class="card-body">
-                    <?php if ($header->status == 'Draft'): // Hanya bisa tambah WO jika Draft ?>
+                    <?php if ($header->status == 'Draft'): ?>
                     <div class="form-group">
-                        <label>Pilih WO untuk melihat referensi:</label>
+                        <label>Pilih WO untuk melihat referensi BOM:</label>
                         <select id="wo_selector" class="form-control" style="width: 100%;">
                             <option value="">-- Cari No. Work Order --</option>
                         </select>
+                        <small class="form-text text-muted">Referensi akan tetap tampil setelah menambah item</small>
                     </div>
                     <?php endif; ?>
                     <div id="wo_reference_div" class="mt-3" style="font-size: 0.9em;">
-                        <p class="text-muted text-center">Pilih Work Order untuk menampilkan referensi BOM dan Rencana Material.</p>
+                        <p class="text-muted text-center"><i class="fas fa-info-circle mr-2"></i>Pilih Work Order untuk menampilkan referensi BOM dan Rencana Material.</p>
                     </div>
                 </div>
             </div>
         </div>
 
-        <div class="col-lg-7">
+        <div class="col-lg-12">
              <div class="card shadow mb-4">
-                <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-                    <h6 class="m-0 font-weight-bold text-primary">Item Permintaan Material (MR)</h6>
-                    <?php if ($header->status == 'Draft' && check_access('material_request', 'edit')): ?>
-                    <button class="btn btn-success btn-sm" data-toggle="modal" data-target="#addItemModal"> <i class="fas fa-plus fa-sm"></i> Tambah Item</button>
-                    <?php endif; ?>
+                <div class="card-header py-3">
+                    <div class="row align-items-center">
+                        <div class="col-md-6">
+                            <h6 class="m-0 font-weight-bold text-primary">
+                                <i class="fas fa-boxes mr-2"></i>Item Permintaan Material (<span id="item_count"><?= count($details); ?></span>)
+                            </h6>
+                        </div>
+                        <?php if ($header->status == 'Draft' && check_access('material_request', 'edit')): ?>
+                        <div class="col-md-6">
+                            <div class="input-group input-group-sm">
+                                <div class="input-group-prepend">
+                                    <span class="input-group-text bg-primary text-white">
+                                        <i class="fas fa-clipboard-list mr-1"></i> Work Order
+                                    </span>
+                                </div>
+                                <select id="selected_wo_main" class="form-control form-control-sm" style="width: 60%;">
+                                    <option value="">-- Pilih WO --</option>
+                                </select>
+                                <div class="input-group-append">
+                                    <button class="btn btn-sm btn-info" type="button" id="btn_apply_wo" disabled title="Terapkan WO ke baris input">
+                                        <i class="fas fa-check"></i> Terapkan
+                                    </button>
+                                </div>
+                            </div>
+                            <small class="text-muted d-block mt-1">
+                                <i class="fas fa-info-circle"></i> Pilih WO sekali, otomatis terisi di baris input baru
+                            </small>
+                        </div>
+                        <?php endif; ?>
+                    </div>
                 </div>
                 <div class="card-body p-0">
                      <div class="table-responsive">
-                        <table class="table table-sm table-bordered mb-0">
-                            <thead class="thead-light"> <tr><th>WO</th><th>Kode</th><th>Nama Item</th><th>Qty Diminta</th><th>Satuan</th><th>Aksi</th></tr> </thead>
-                            <tbody>
-                                <?php if(!empty($details)): foreach($details as $d): ?>
+                        <table class="table table-sm table-bordered table-hover mb-0" id="items_table">
+                            <thead class="thead-light"> 
                                 <tr>
-                                    <td><?= htmlspecialchars($d->wo_number); ?></td>
-                                    <td><?= htmlspecialchars($d->item_code); ?></td>
-                                    <td><?= htmlspecialchars($d->item_name); ?></td>
-                                    <td class="text-right"><?= number_format($d->requested_qty, 4); ?></td>
-                                    <td><?= htmlspecialchars($d->unit_measure ?? '-'); ?></td>
+                                    <th width="120">WO <span class="text-danger">*</span></th>
+                                    <th width="100">Kode <span class="text-danger">*</span></th>
+                                    <th>Nama Item <span class="text-danger">*</span></th>
+                                    <th width="110" class="text-center">Qty <span class="text-danger">*</span></th>
+                                    <th width="60">Unit</th>
+                                    <th width="150">Catatan</th>
+                                    <th width="70" class="text-center">Aksi</th>
+                                </tr> 
+                            </thead>
+                            <tbody id="items_tbody">
+                                <?php if(!empty($details)): foreach($details as $d): ?>
+                                <tr data-id="<?= $d->id; ?>" class="existing-item">
+                                    <td><small><?= htmlspecialchars($d->wo_number); ?></small></td>
+                                    <td><small><?= htmlspecialchars($d->item_code); ?></small></td>
+                                    <td><small><?= htmlspecialchars($d->item_name); ?></small></td>
+                                    <td class="text-right"><?= number_format($d->requested_qty, 2); ?></td>
+                                    <td><small><?= htmlspecialchars($d->unit_measure ?? '-'); ?></small></td>
+                                    <td><small><?= htmlspecialchars($d->notes ?? ''); ?></small></td>
                                     <td class="text-center">
                                          <?php if ($header->status == 'Draft' && check_access('material_request', 'edit')): ?>
-                                        <a href="<?= base_url('material_request/delete_item/'.$d->mr_header_id.'/'.$d->id); ?>" class="btn btn-danger btn-xs btn-delete"> <i class="fas fa-trash"></i> </a>
+                                        <button class="btn btn-danger btn-xs btn-delete-item" data-id="<?= $d->id; ?>" data-name="<?= htmlspecialchars($d->item_name); ?>">
+                                            <i class="fas fa-trash"></i>
+                                        </button>
                                         <?php endif; ?>
                                     </td>
                                 </tr>
-                                <?php endforeach; else: ?> <tr><td colspan="6" class="text-center text-muted py-3">Belum ada material diminta.</td></tr>
+                                <?php endforeach; endif; ?>
+                                
+                                <?php if ($header->status == 'Draft' && check_access('material_request', 'edit')): ?>
+                                <!-- Input Row - Always visible for quick add -->
+                                <tr id="input_row" class="bg-light border-primary">
+                                    <td class="p-1">
+                                        <input type="text" id="input_wo_display" class="form-control form-control-sm" readonly placeholder="Pilih WO di atas" style="background: #fff; font-size: 0.8rem;">
+                                        <input type="hidden" id="input_wo_id">
+                                    </td>
+                                    <td colspan="2" class="p-1">
+                                        <select id="input_component" class="form-control form-control-sm" style="width: 100%;">
+                                            <option value="">-- Cari & Pilih Material/Component --</option>
+                                        </select>
+                                    </td>
+                                    <td class="p-1">
+                                        <input type="number" id="input_qty" class="form-control form-control-sm text-right" placeholder="0.00" step="any" min="0.01">
+                                    </td>
+                                    <td class="text-center align-middle">
+                                        <small id="input_unit" class="text-muted font-weight-bold">-</small>
+                                    </td>
+                                    <td class="p-1">
+                                        <input type="text" id="input_notes" class="form-control form-control-sm" placeholder="Catatan...">
+                                    </td>
+                                    <td class="text-center align-middle">
+                                        <button type="button" id="btn_add_item" class="btn btn-success btn-sm" title="Tambah Item (Enter)" disabled>
+                                            <i class="fas fa-plus"></i>
+                                        </button>
+                                    </td>
+                                </tr>
+                                <?php endif; ?>
+                                
+                                <?php if (empty($details)): ?>
+                                <tr id="empty_row">
+                                    <td colspan="7" class="text-center text-muted py-3" style="font-size: 0.9rem;">
+                                        <i class="fas fa-inbox fa-2x mb-2 d-block text-secondary"></i>
+                                        <strong>Belum ada item.</strong><br>
+                                        <small>Pilih WO di atas, lalu isi baris biru untuk menambah item</small>
+                                    </td>
+                                </tr>
                                 <?php endif; ?>
                             </tbody>
                         </table>
@@ -96,48 +182,6 @@
         </div>
     </div>
 </div>
-
-<?php if ($header->status == 'Draft'): ?>
-<div class="modal fade" id="addItemModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-lg">
-        <form method="post" action="<?= base_url('material_request/add_item/'.$header->id); ?>">
-            <div class="modal-content border-0 shadow">
-                <div class="modal-header bg-success text-white">
-                    <h5 class="modal-title"><i class="fas fa-plus mr-2"></i>Tambah Item ke MR</h5>
-                    <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
-                </div>
-                <div class="modal-body">
-                    <div class="form-group">
-                        <label>Untuk Work Order (WO)</label>
-                        <select name="wo_header_id" id="wo_selector_modal" class="form-control" required style="width: 100%;">
-                            <option value="">-- Cari No. Work Order --</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Pilih Komponen (Material / Semifinished)</label>
-                        <select name="component_id" id="component_search" class="form-control" required style="width: 100%;">
-                             <option value="">-- Cari Kode / Nama Komponen --</option>
-                        </select>
-                    </div>
-                    <div class="form-group">
-                        <label>Qty Diminta</label>
-                        <input type="number" step="any" name="requested_qty" class="form-control" required placeholder="0.0000">
-                    </div>
-                    <div class="form-group">
-                        <label>Catatan Item (Opsional)</label>
-                        <input type="text" name="notes" class="form-control">
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="submit" class="btn btn-success btn-load"><i class="fas fa-save mr-1"></i> Simpan Item</button>
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
-                </div>
-            </div>
-        </form>
-    </div>
-</div>
-<?php endif; ?>
-
 
 <?php $this->load->view('templates/footer'); ?>
 <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
@@ -215,8 +259,69 @@ $(document).ready(function() {
 
 <style>
 /* Style Select2 di dalam modal */
-.select2-container--default .select2-selection--single { height: calc(1.5em + .75rem + 2px); padding: .375rem .75rem; border: 1px solid #d1d3e2; }
-.select2-dropdown { z-index: 1051; border: 1px solid #d1d3e2; }
+.select2-container--default .select2-selection--single { 
+    height: calc(1.5em + .75rem + 2px); 
+    padding: .375rem .75rem; 
+    border: 1px solid #d1d3e2; 
+}
+.select2-dropdown { 
+    z-index: 1051; 
+    border: 1px solid #d1d3e2; 
+}
 /* Style untuk tabel referensi agar lebih kecil */
-#wo_reference_div .table-sm td, #wo_reference_div .table-sm th { padding: .3rem; }
+#wo_reference_div .table-sm td, 
+#wo_reference_div .table-sm th { 
+    padding: .3rem; 
+    font-size: 0.85em;
+}
+/* Style temp items */
+#temp_items_container {
+    background-color: #f8f9fc;
+    border: 1px dashed #4e73df;
+    border-radius: 5px;
+    padding: 10px;
+    animation: slideDown 0.3s ease-out;
+}
+@keyframes slideDown {
+    from { opacity: 0; transform: translateY(-10px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.btn-xs {
+    padding: 0.125rem 0.25rem;
+    font-size: 0.75rem;
+    line-height: 1.5;
+    border-radius: 0.2rem;
+}
+.new-item {
+    background-color: #d1ecf1 !important;
+    transition: background-color 2s ease-out;
+}
+.alert-sm {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+}
+/* Input row styling */
+#input_row {
+    background-color: #f0f8ff !important;
+    border-left: 3px solid #4e73df !important;
+}
+#input_row:hover {
+    background-color: #e3f2fd !important;
+}
+#input_row input:focus,
+#input_row .select2-container--open {
+    box-shadow: 0 0 0 0.2rem rgba(78, 115, 223, 0.25);
+}
+/* Make existing items slightly different color */
+.existing-item {
+    background-color: #fff;
+}
+.existing-item:hover {
+    background-color: #f8f9fc !important;
+}
 </style>
+
+<script>
+    const BASE_URL = '<?= base_url(); ?>';
+</script>
+<script src="<?= base_url('assets/js/mr_inline_input.js'); ?>"></script>

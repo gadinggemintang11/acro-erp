@@ -5,6 +5,16 @@
   <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
   <meta name="description" content="IT Inventory Kawasan Berikat">
   <meta name="author" content="ERP MINGBAO">
+  
+  <!-- Favicon - Multiple sizes for better display -->
+  <link rel="icon" type="image/png" sizes="32x32" href="<?= base_url('assets/img/fav.png'); ?>">
+  <link rel="icon" type="image/png" sizes="16x16" href="<?= base_url('assets/img/fav.png'); ?>">
+  <link rel="shortcut icon" href="<?= base_url('assets/img/logo_mini.png'); ?>">
+  <!-- Apple Touch Icon (untuk iOS, tampil bulat sempurna) -->
+  <link rel="apple-touch-icon" href="<?= base_url('assets/img/logo_mini.png'); ?>">
+  <!-- Mask Icon untuk Safari (bisa set warna) -->
+  <link rel="mask-icon" href="<?= base_url('assets/img/logo_mini.png'); ?>" color="#457b9d">
+  
   <title><?= isset($title) ? $title . ' | Neokaber' : 'Neokaber System'; ?></title>
 
   <!-- Google Fonts -->

@@ -88,14 +88,15 @@
                         <input type="hidden" name="item_type" id="input_item_type">
                         <div class="form-group">
                             <label>Pilih Material (Batch FIFO)</label>
-                            <select name="stock_on_hand_id" id="input_batch_selector" class="form-control select2-wip" required>
+                            <select name="batch_id" id="input_batch_selector" class="form-control select2-wip" required>
                                 <option value="">-- Pilih Batch Material --</option>
                                 <?php foreach($available_batches as $batch): ?>
-                                <option value="<?= $batch->stock_on_hand_id; ?>" 
+                                <option value="<?= $batch->batch_id; ?>" 
                                         data-itemid="<?= $batch->item_id; ?>"
                                         data-itemtype="<?= $batch->item_type; ?>"
-                                        data-maxqty="<?= $batch->remaining_qty; ?>">
-                                    <?= htmlspecialchars($batch->item_name.' ('.$batch->item_code.') | Batch: '.($batch->grn_number ?? 'N/A').' | Sisa: '.number_format($batch->remaining_qty, 4).' '.$batch->item_unit); ?>
+                                        data-maxqty="<?= $batch->remaining_qty; ?>"
+                                        data-cost="<?= $batch->cost_from_batch; ?>">
+                                    <?= htmlspecialchars($batch->item_name.' ('.$batch->item_code.') | Batch: '.($batch->grn_number ?? 'WIP').' | Sisa: '.number_format($batch->remaining_qty, 4).' '.$batch->item_unit); ?>
                                 </option>
                                 <?php endforeach; ?>
                             </select>

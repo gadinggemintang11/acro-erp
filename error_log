@@ -1,0 +1,1 @@
+[07-Dec-2025 17:12:25 Asia/Jakarta] PHP Fatal error:  Cannot redeclare Scrap_In_model::get_production_scrap_details_by_ids() in /home/canmaxid/mingbaolianchuangint.com/application/models/Scrap_In_model.php on line 204
