@@ -352,6 +352,7 @@ class Mr_model extends CI_Model {
         if ($this->db->affected_rows() === 0) {
             log_message('warning', "[MR] process_reception: no header updated for mr_id={$mr_id}");
         }
+        $mr_header = $this->get_header_by_id($mr_id);
 
         // 2. Pindahkan stok ke WIP: catat ke stock_ledger sebagai 'wip_in'
         $items = $this->db->get_where('mr_details', ['mr_header_id' => $mr_id])->result();
@@ -378,7 +379,7 @@ class Mr_model extends CI_Model {
                     'transaction_type'=> 'wip_in',
                     'transaction_id'  => $mr_id,
                     'source_doc_type' => 'MR',
-                    'source_doc_id'   => $mr_header->wo_header_id, // PENTING: simpan WO ID agar bisa diquery di production process
+                    'source_doc_id'   => $item->wo_header_id, // PENTING: simpan WO ID agar bisa diquery di production process
                     'qty_in'          => (float)$item->issued_qty,
                     'qty_out'         => 0,
                     'unit_value'      => $unit_value,
