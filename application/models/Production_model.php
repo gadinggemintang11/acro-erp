@@ -233,50 +233,54 @@ class Production_model extends CI_Model {
          $this->load->model('Stock_ledger_model'); // Load model di sini
 
          $this->db->reset_query();
-         // 1. Dapatkan semua batch yg PERNAH di-issue (production_out) untuk WO ini
+         // 1. Dapatkan semua material yang sudah MASUK ke WIP (wip_in) untuk  ini
          $this->db->select("
-             sl.stock_on_hand_id,
-             SUM(sl.qty_out) as total_issued_to_wip,
-             soh.item_id, soh.item_type, soh.unit_value as cost_from_batch,
-             grn.grn_number,
-             CASE WHEN soh.item_type = 'material' THEN m.kode_material ELSE sf.kode_barang END as item_code,
-             CASE WHEN soh.item_type = 'material' THEN m.nama_material ELSE sf.nama_barang END as item_name,
-             CASE WHEN soh.item_type = 'material' THEN m.satuan ELSE sf.satuan END as item_unit
+             CONCAT(sl.item_id, '_', sl.item_type) as batch_id,
+             sl.item_id, 
+             sl.item_type,
+             SUM(sl.qty_in) as total_issued_to_wip,
+             MAX(sl.unit_value) as cost_from_batch,
+             sl.source_doc_id,
+             CASE WHEN sl.item_type = 'material' THEN m.kode_material ELSE sf.kode_barang END as item_code,
+             CASE WHEN sl.item_type = 'material' THEN m.nama_material ELSE sf.nama_barang END as item_name,
+             CASE WHEN sl.item_type = 'material' THEN m.satuan ELSE sf.satuan END as item_unit,
+             'WIP' as grn_number
          ", FALSE);
          $this->db->from('stock_ledger sl');
-         $this->db->join('stock_on_hand soh', 'sl.stock_on_hand_id = soh.id', 'inner');
-         $this->db->join('materials m', 'soh.item_id = m.id AND soh.item_type = "material"', 'left');
-         $this->db->join('semifinished_goods sf', 'soh.item_id = sf.id AND soh.item_type = "semifinished"', 'left');
-         $this->db->join('grn_header grn', 'soh.grn_header_id = grn.id', 'left');
-         $this->db->where('sl.transaction_type', 'production_out');
-         $this->db->where('sl.source_doc_id', $wo_id);
-         $this->db->where('soh.item_id IS NOT NULL'); // Ensure item_id is not null
-         $this->db->where('soh.item_id != \'\''); // Ensure item_id is not empty
-         $this->db->group_by([
-             'sl.stock_on_hand_id', 'soh.item_id', 'soh.item_type', 'soh.unit_value', 'grn.grn_number',
-             'item_code', 'item_name', 'item_unit' // Group by alias
-         ]);
+         $this->db->join('materials m', 'sl.item_id = m.id AND sl.item_type = "material"', 'left');
+         $this->db->join('semifinished_goods sf', 'sl.item_id = sf.id AND sl.item_type = "semifinished"', 'left');
+         $this->db->where('sl.transaction_type', 'wip_in'); // Material sudah di WIP
+         $this->db->where('sl.source_doc_id', $wo_id); // Filter by WO ID
+         $this->db->where('sl.item_id IS NOT NULL'); // Ensure item_id is not null
+         $this->db->where('sl.item_id != \'\''); // Ensure item_id is not empty
+         $this->db->group_by('sl.item_id, sl.item_type');
+         
          $issued_batches = $this->db->get()->result();
-
+         
          if (empty($issued_batches)) { return []; }
 
-         // 2. Hitung total pemakaian & retur untuk setiap batch
+         // 2. Hitung total pemakaian & retur untuk setiap item (bukan per batch karena tidak ada stock_on_hand_id)
          foreach ($issued_batches as $batch) {
-             $stock_on_hand_id = $batch->stock_on_hand_id;
+             $item_id = $batch->item_id;
+             $item_type = $batch->item_type;
 
-             // Total terpakai (wip_out)
+             // Total terpakai (wip_out) untuk item ini di WO ini
              $this->db->reset_query();
-             $this->db->select_sum('qty_out', 'total_used'); // Alias
-             $this->db->where('stock_on_hand_id', $stock_on_hand_id);
+             $this->db->select_sum('qty_out', 'total_used');
+             $this->db->where('item_id', $item_id);
+             $this->db->where('item_type', $item_type);
              $this->db->where('transaction_type', 'wip_out');
+             $this->db->where('source_doc_id', $wo_id); // Hanya untuk WO ini
              $usage = $this->db->get('stock_ledger')->row();
              $batch->total_used = $usage ? (float)$usage->total_used : 0;
 
-             // Total retur (IN_RETURN_WIP)
+             // Total retur (IN_RETURN_WIP) untuk item ini di WO ini
              $this->db->reset_query();
-             $this->db->select_sum('qty_in', 'total_returned'); // Alias
-             $this->db->where('stock_on_hand_id', $stock_on_hand_id);
+             $this->db->select_sum('qty_in', 'total_returned');
+             $this->db->where('item_id', $item_id);
+             $this->db->where('item_type', $item_type);
              $this->db->where('transaction_type', 'IN_RETURN_WIP');
+             $this->db->where('source_doc_id', $wo_id); // Hanya untuk WO ini
              $return_info = $this->db->get('stock_ledger')->row();
              $batch->total_returned = $return_info ? (float)$return_info->total_returned : 0;
 
@@ -288,9 +292,7 @@ class Production_model extends CI_Model {
          return array_filter($issued_batches, function($b) {
              return $b->remaining_qty > 0.00001;
          });
-    }
-
-    /**
+     }    /**
      * Simpan pemakaian material (Input)
      * Akan memanggil Stock_ledger_model HANYA jika sumbernya dari SOH
      */
@@ -300,12 +302,18 @@ class Production_model extends CI_Model {
                 log_message('error', 'Production: save_material_usage gagal, data tidak lengkap. Data: ' . json_encode($data));
                 return false;
         }
-        if (empty($data['stock_on_hand_id']) && empty($data['source_output_id'])) {
-             log_message('error', 'Production: save_material_usage gagal, tidak ada sumber (SOH ID atau Source Output ID). Data: ' . json_encode($data));
-             return false;
-        }
+        // Validasi sumber: SOH ID, Source Output ID, atau WIP material (keduanya NULL)
+        // WIP material dari gudang produksi tidak memiliki SOH ID
+        // if (empty($data['stock_on_hand_id']) && empty($data['source_output_id'])) {
+        //      log_message('error', 'Production: save_material_usage gagal, tidak ada sumber (SOH ID atau Source Output ID). Data: ' . json_encode($data));
+        //      return false;
+        // }
 
+        // Extract wo_header_id for ledger (will be removed from production_inputs data)
+        $wo_header_id = !empty($data['wo_header_id']) ? $data['wo_header_id'] : null;
         unset($data['mr_detail_id']);
+        unset($data['wo_header_id']); // Remove from production_inputs data
+        
         $this->db->trans_start();
 
         // 1. Insert production_inputs
@@ -327,7 +335,7 @@ class Production_model extends CI_Model {
             'transaction_type'  => 'wip_out', // Pemakaian WIP
             'transaction_id'    => $input_id,
             'source_doc_type'   => 'PROD',
-            'source_doc_id'     => $data['production_header_id'],
+            'source_doc_id'     => $wo_header_id ? $wo_header_id : $data['production_header_id'], // Use WO ID if available
             'qty_in'            => 0,
             'qty_out'           => (float)$data['qty_used'],
             'unit_value'        => 0.00, // Default cost
@@ -729,6 +737,12 @@ class Production_model extends CI_Model {
                 $ledger_reversal_type = 'wip_in_reversal'; // Kembali ke SOH
             } else if (!empty($input->source_output_id)) {
                 $ledger_reversal_type = 'wip_in_reversal_sfg'; // Kembali ke WIP SFG
+            } else {
+                // WIP Material (tidak punya SOH ID atau source_output_id)
+                // Hapus langsung ledger wip_out yang sudah dibuat
+                $this->db->where('transaction_type', 'wip_out')
+                         ->where('transaction_id', $input_id)
+                         ->delete('stock_ledger');
             }
 
             if ($ledger_reversal_type) {
@@ -738,7 +752,7 @@ class Production_model extends CI_Model {
                     'transaction_date'  => date('Y-m-d H:i:s'),
                     'transaction_type'  => $ledger_reversal_type,
                     'transaction_id'    => $input_id,
-                    'source_doc_type'   => 'PROD_IN_DEL',
+                    'source_doc_type'   => 'PROD_DEL',
                     'source_doc_id'     => $input->production_header_id,
                     'qty_in'            => $input->qty_used,
                     'qty_out'           => 0,
@@ -772,7 +786,7 @@ class Production_model extends CI_Model {
                      'transaction_date'  => date('Y-m-d H:i:s'),
                      'transaction_type'  => 'wip_out_reversal',
                      'transaction_id'    => $output_id,
-                     'source_doc_type'   => 'PROD_OUT_DEL',
+                     'source_doc_type'   => 'PROD_DEL',
                      'source_doc_id'     => $output->production_header_id,
                      'qty_in'            => 0,
                      'qty_out'           => $output->qty_produced

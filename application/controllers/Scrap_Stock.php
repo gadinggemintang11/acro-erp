@@ -93,7 +93,11 @@ class Scrap_Stock extends CI_Controller {
        🔹 DETAIL TRACEABILITY SCRAP
        ============================================================ */
     public function detail($scrap_id = null) {
+        // Debug
+        log_message('debug', 'Scrap_Stock::detail() called with scrap_id = ' . $scrap_id);
+        
         if (empty($scrap_id) || !is_numeric($scrap_id)) {
+            log_message('error', 'Scrap_Stock::detail() - Invalid scrap_id');
             show_404();
             return;
         }
@@ -102,6 +106,8 @@ class Scrap_Stock extends CI_Controller {
 
         // Ambil data summary berdasarkan ID (sama persis dengan perhitungan di list)
         $data['scrap'] = $this->Scrap_Stock_model->get_summary_stock_by_id($scrap_id);
+        
+        log_message('debug', 'Scrap data: ' . json_encode($data['scrap']));
 
         // Jika tidak ditemukan
         if (empty($data['scrap'])) {
@@ -111,6 +117,8 @@ class Scrap_Stock extends CI_Controller {
         // Ambil riwayat masuk & keluar
         $data['in_history']  = $this->Scrap_Stock_model->get_in_history($scrap_id);
         $data['out_history'] = $this->Scrap_Stock_model->get_out_history($scrap_id);
+        
+        log_message('debug', 'Loading view scrap_stock/detail_trace');
 
         $this->load->view('templates/header', $data);
         $this->load->view('templates/sidebar', $data);

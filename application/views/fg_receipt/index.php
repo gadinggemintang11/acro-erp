@@ -90,7 +90,7 @@
     </div>
 </div>
 
-<?php $this->load->view('templates/footer'); ?>
+
 
 <script>
 // Skrip tambahan jika diperlukan (misalnya format tanggal)

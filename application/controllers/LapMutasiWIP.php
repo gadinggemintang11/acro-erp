@@ -1,9 +1,7 @@
 <?php
 defined('BASEPATH') OR exit('No direct script access allowed');
 
-// Controller ini hampir identik dengan LapMutasiMaterial,
-// Perbedaan utamanya adalah ia memanggil model yang berbeda (LapMutasiWIP_model)
-// dan view yang berbeda (lap_mutasi_wip/index).
+
 
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
@@ -13,14 +11,12 @@ class LapMutasiWIP extends MY_Controller {
 
     public function __construct() {
         parent::__construct();
-        // Load model baru
         $this->load->model('LapMutasiWIP_model'); 
         $this->load->helper(['url']);
     }
 
     public function index() {
         $data = [
-            // Judul halaman baru
             'page_title' => 'Laporan Pertanggung Jawaban Mutasi WIP (Work In Progress)', 
             'start'      => date('Y-m-01'),
             'end'        => date('Y-m-t')
@@ -29,7 +25,6 @@ class LapMutasiWIP extends MY_Controller {
         $this->load->view('templates/header', $data);
         $this->load->view('templates/sidebar', $data);
         $this->load->view('templates/topbar', $data);
-        // Load view baru
         $this->load->view('it_inventory/lap_mutasi_wip/index', $data); 
         $this->load->view('templates/footer');
     }

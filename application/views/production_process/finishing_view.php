@@ -140,14 +140,17 @@
                 <input type="hidden" name="item_type" id="add_item_type">
                 <div class="form-group">
                     <label for="add_batch_selector">Pilih Batch Material</label>
-                    <select name="stock_on_hand_id" id="add_batch_selector" class="form-control select2-wip" required>
+                    <select name="batch_id" id="add_batch_selector" class="form-control select2-wip" required>
                         <option value="">-- Pilih Batch --</option>
                         <?php if(!empty($available_batches)): foreach($available_batches as $batch): ?>
-                        <option value="<?= htmlspecialchars($batch->stock_on_hand_id); ?>" 
+                        <option value="<?= htmlspecialchars($batch->batch_id); ?>" 
                                 data-itemid="<?= htmlspecialchars($batch->item_id); ?>"
                                 data-itemtype="<?= htmlspecialchars($batch->item_type); ?>"
-                                data-maxqty="<?= htmlspecialchars($batch->remaining_qty); ?>">
-                            <?= htmlspecialchars($batch->item_name.' - Sisa: '.number_format($batch->remaining_qty,4)); ?>
+                                data-maxqty="<?= htmlspecialchars($batch->remaining_qty); ?>"
+                                data-cost="<?= htmlspecialchars($batch->cost_from_batch ?? 0); ?>">
+                            <?= htmlspecialchars($batch->item_name.' ('.$batch->item_code.')'); ?>
+                            | Batch: <?= htmlspecialchars($batch->grn_number ?? 'WIP'); ?>
+                            | Sisa: <?= number_format($batch->remaining_qty,4).' '.$batch->item_unit; ?>
                         </option>
                         <?php endforeach; else: ?><option disabled>-- Tidak ada batch --</option><?php endif; ?>
                     </select>

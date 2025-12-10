@@ -192,6 +192,28 @@ class Mr_model extends CI_Model {
         return $query ? $query->row() : null;
     }
 
+    /**
+     * Get item by ID with complete data (for AJAX response)
+     */
+    public function get_item_by_id($detail_id) {
+        $select_clause = "
+            d.id, d.mr_header_id, d.requested_qty, d.issued_qty, d.notes,
+            d.component_item_id, d.component_item_type, d.wo_header_id,
+            wo.wo_number,
+            CASE WHEN d.component_item_type = 'material' THEN m.kode_material WHEN d.component_item_type = 'semifinished' THEN sf.kode_barang ELSE NULL END as item_code,
+            CASE WHEN d.component_item_type = 'material' THEN m.nama_material WHEN d.component_item_type = 'semifinished' THEN sf.nama_barang ELSE NULL END as item_name,
+            d.unit_measure
+        ";
+        $this->db->select($select_clause, FALSE);
+        $this->db->from($this->table_details . ' d');
+        $this->db->join('wo_header wo', 'd.wo_header_id = wo.id', 'left');
+        $this->db->join('materials m', 'd.component_item_id = m.id AND d.component_item_type = "material"', 'left');
+        $this->db->join('semifinished_goods sf', 'd.component_item_id = sf.id AND d.component_item_type = "semifinished"', 'left');
+        $this->db->where('d.id', $detail_id);
+        $query = $this->db->get();
+        return $query ? $query->row() : null;
+    }
+
     public function insert_item($data) {
         // Validasi dasar
         if (empty($data['mr_header_id']) || empty($data['wo_header_id']) || empty($data['component_item_id']) || empty($data['component_item_type']) || !isset($data['requested_qty'])) {
@@ -227,8 +249,9 @@ class Mr_model extends CI_Model {
         $res = $this->db->insert($this->table_details, $data);
         if (!$res) {
             log_message('error', 'MR_model->insert_item DB ERROR: ' . json_encode($this->db->error()) . ' | DATA: ' . json_encode($data));
+            return false;
         }
-        return $res;
+        return $this->db->insert_id();
     }
 
     public function update_item($id, $data) {
@@ -355,7 +378,7 @@ class Mr_model extends CI_Model {
                     'transaction_type'=> 'wip_in',
                     'transaction_id'  => $mr_id,
                     'source_doc_type' => 'MR',
-                    'source_doc_id'   => $mr_id,
+                    'source_doc_id'   => $mr_header->wo_header_id, // PENTING: simpan WO ID agar bisa diquery di production process
                     'qty_in'          => (float)$item->issued_qty,
                     'qty_out'         => 0,
                     'unit_value'      => $unit_value,

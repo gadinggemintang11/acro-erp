@@ -9,6 +9,10 @@ class Material_model extends CI_Model {
         return $this->db->get($this->table)->result();
     }
 
+    public function get_by_id($id) {
+        return $this->db->get_where($this->table, ['id' => $id])->row();
+    }
+
     public function get_satuan_list() {
         return $this->db->get_where('common_code', [
             'group_code' => 'SATUAN', // Pastikan nama grup ini ada di db

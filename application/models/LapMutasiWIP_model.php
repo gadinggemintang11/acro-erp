@@ -47,25 +47,37 @@ class LapMutasiWIP_model extends CI_Model {
             ),
             saldo_awal AS (
                 SELECT 
-                    item_id, 
-                    item_type, 
+                    sl.item_id, 
+                    sl.item_type, 
                     (SUM(sl.qty_in) - SUM(sl.qty_out)) as balance
                 FROM stock_ledger sl
-                WHERE transaction_date < ?
-                  AND transaction_type IN ('wip_in', 'wip_out', 'IN_RETURN_WIP')
-                GROUP BY item_id, item_type
+                LEFT JOIN production_outputs po_valid ON sl.transaction_id = po_valid.id AND sl.transaction_type = 'wip_in' AND sl.item_type = 'semifinished'
+                LEFT JOIN production_inputs pi_valid ON sl.transaction_id = pi_valid.id AND sl.transaction_type = 'wip_out'
+                WHERE sl.transaction_date < ?
+                  AND sl.transaction_type IN ('wip_in', 'wip_out', 'IN_RETURN_WIP')
+                  AND NOT (
+                      (sl.transaction_type = 'wip_in' AND sl.item_type = 'semifinished' AND po_valid.id IS NULL)
+                      OR (sl.transaction_type = 'wip_out' AND pi_valid.id IS NULL)
+                  )
+                GROUP BY sl.item_id, sl.item_type
             ),
             mutasi AS (
                 SELECT
-                    item_id, 
-                    item_type,
+                    sl.item_id, 
+                    sl.item_type,
                     SUM(sl.qty_in) as total_masuk,
                     SUM(sl.qty_out) as total_keluar
                 FROM stock_ledger sl
-                WHERE transaction_date >= ?
-                  AND transaction_date <= ?
-                  AND transaction_type IN ('wip_in', 'wip_out', 'IN_RETURN_WIP')
-                GROUP BY item_id, item_type
+                LEFT JOIN production_outputs po_valid ON sl.transaction_id = po_valid.id AND sl.transaction_type = 'wip_in' AND sl.item_type = 'semifinished'
+                LEFT JOIN production_inputs pi_valid ON sl.transaction_id = pi_valid.id AND sl.transaction_type = 'wip_out'
+                WHERE sl.transaction_date >= ?
+                  AND sl.transaction_date <= ?
+                  AND sl.transaction_type IN ('wip_in', 'wip_out', 'IN_RETURN_WIP')
+                  AND NOT (
+                      (sl.transaction_type = 'wip_in' AND sl.item_type = 'semifinished' AND po_valid.id IS NULL)
+                      OR (sl.transaction_type = 'wip_out' AND pi_valid.id IS NULL)
+                  )
+                GROUP BY sl.item_id, sl.item_type
             )
             
             SELECT 
@@ -103,8 +115,12 @@ class LapMutasiWIP_model extends CI_Model {
 
     public function get_item_detail_wip($item_id, $item_type) 
     {
-        $this->db->select("
-            sl.transaction_date, sl.transaction_type, sl.qty_in, sl.qty_out, 
+        $sql = "
+        SELECT 
+            sl.transaction_date, 
+            sl.transaction_type, 
+            sl.qty_in, 
+            sl.qty_out, 
             sl.balance,
             
             mrh.mr_number,
@@ -116,30 +132,36 @@ class LapMutasiWIP_model extends CI_Model {
             pi_out.stage_name as stage_out,
             
             prh.prod_return_no
-        ");
+        FROM stock_ledger sl
         
-        $this->db->from('stock_ledger sl');
+        LEFT JOIN mr_header mrh ON sl.source_doc_id = mrh.id 
+            AND sl.transaction_type = 'wip_in' 
+            AND sl.item_type = 'material'
         
-        $this->db->join('mr_header mrh', 'sl.source_doc_id = mrh.id AND sl.transaction_type = \'wip_in\' AND sl.item_type = \'material\'', 'left');
+        LEFT JOIN production_outputs po_in ON sl.transaction_id = po_in.id 
+            AND sl.transaction_type = 'wip_in' 
+            AND sl.item_type = 'semifinished'
+        LEFT JOIN production_header ph_in ON po_in.production_header_id = ph_in.id
         
-        $this->db->join('production_outputs po_in', 'sl.transaction_id = po_in.id AND sl.transaction_type = \'wip_in\' AND sl.item_type = \'semifinished\'', 'left');
-        $this->db->join('production_header ph_in', 'po_in.production_header_id = ph_in.id', 'left');
+        LEFT JOIN production_inputs pi_out ON sl.transaction_id = pi_out.id 
+            AND sl.transaction_type = 'wip_out'
+        LEFT JOIN production_header ph_out ON pi_out.production_header_id = ph_out.id
         
-        $this->db->join('production_inputs pi_out', 'sl.transaction_id = pi_out.id AND sl.transaction_type = \'wip_out\'', 'left');
-        $this->db->join('production_header ph_out', 'pi_out.production_header_id = ph_out.id', 'left');
+        LEFT JOIN prod_return_detail prd ON sl.transaction_id = prd.id 
+            AND sl.transaction_type = 'IN_RETURN_WIP'
+        LEFT JOIN prod_return_header prh ON prd.prod_return_id = prh.id
         
-        $this->db->join('prod_return_detail prd', 'sl.transaction_id = prd.id AND sl.transaction_type = \'IN_RETURN_WIP\'', 'left');
-        $this->db->join('prod_return_header prh', 'prd.prod_return_id = prh.id', 'left');
+        WHERE sl.item_id = ?
+          AND sl.item_type = ?
+          AND sl.transaction_type IN ('wip_in', 'wip_out', 'IN_RETURN_WIP')
+          AND NOT (
+              (sl.transaction_type = 'wip_in' AND sl.item_type = 'semifinished' AND po_in.id IS NULL)
+              OR (sl.transaction_type = 'wip_out' AND pi_out.id IS NULL)
+          )
+        ORDER BY sl.transaction_date ASC, sl.id ASC
+        ";
         
-        $this->db->where('sl.item_id', $item_id);
-        $this->db->where('sl.item_type', $item_type);
-        
-        $this->db->where_in('sl.transaction_type', ['wip_in', 'wip_out', 'IN_RETURN_WIP']);
-        
-        $this->db->order_by('sl.transaction_date', 'ASC');
-        $this->db->order_by('sl.id', 'ASC');
-        
-        return $this->db->get()->result();
+        return $this->db->query($sql, [$item_id, $item_type])->result();
     }
 
     public function trace_recursive($item_id, $item_type, $limit = 25) 
@@ -175,6 +197,7 @@ class LapMutasiWIP_model extends CI_Model {
             
             WHERE po.item_id = ?
               AND po.item_type = ?
+              AND ph.id IS NOT NULL
         )
         UNION ALL
         (
@@ -211,6 +234,7 @@ class LapMutasiWIP_model extends CI_Model {
             
             WHERE pi.item_id = ?
               AND pi.item_type = ?
+              AND ph.id IS NOT NULL
         )
         ORDER BY transaction_date ASC, production_number ASC
         LIMIT ?

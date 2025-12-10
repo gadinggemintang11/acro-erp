@@ -354,15 +354,15 @@ class Production_process extends MY_Controller {
          }
 
          // Validasi Input
-         $stock_on_hand_id = $this->input->post('stock_on_hand_id');
+         $batch_id         = $this->input->post('batch_id'); // Format: item_id_item_type
          $item_id          = $this->input->post('item_id');
          $item_type        = $this->input->post('item_type');
          // Standardisasi koma menjadi titik untuk float validation
          $qty_used_raw     = str_replace(',', '.', $this->input->post('qty_used'));
          $qty_used         = filter_var($qty_used_raw, FILTER_VALIDATE_FLOAT);
 
-         if (empty($stock_on_hand_id)) {
-             $response['message'] = 'ID Stok tidak boleh kosong.';
+         if (empty($batch_id)) {
+             $response['message'] = 'Batch ID tidak boleh kosong.';
              $this->_send_response($response, $is_ajax, $current_stage, $prod_id); return;
          }
          if (empty($item_id)) {
@@ -381,10 +381,16 @@ class Production_process extends MY_Controller {
          // Validasi Stok Batch
          $additional_batches = $this->Production_model->get_wip_materials_with_remaining($header->wo_header_id);
          $true_available_qty = -1; $selected_batch = null;
-         foreach ($additional_batches as $batch) { if ($batch->stock_on_hand_id == $stock_on_hand_id) { $true_available_qty = (float)$batch->remaining_qty; $selected_batch = $batch; break; } }
+         foreach ($additional_batches as $batch) { 
+             if ($batch->batch_id == $batch_id && $batch->item_id == $item_id && $batch->item_type == $item_type) { 
+                 $true_available_qty = (float)$batch->remaining_qty; 
+                 $selected_batch = $batch; 
+                 break; 
+             } 
+         }
 
-         if (!$selected_batch || $selected_batch->item_id != $item_id || $selected_batch->item_type != $item_type) {
-             $response['message'] = 'Data material tambahan tidak cocok/ditemukan.';
+         if (!$selected_batch) {
+             $response['message'] = 'Data material tambahan tidak ditemukan untuk batch ini.';
              $this->_send_response($response, $is_ajax, $current_stage, $prod_id); return;
          }
          if ($qty_used > $true_available_qty + 0.00001) { // Toleransi float
@@ -396,11 +402,12 @@ class Production_process extends MY_Controller {
          $data = [
              'production_header_id' => $prod_id, 'stage_name' => $current_stage,
              'item_id' => $item_id, 'item_type' => $item_type,
-             'stock_on_hand_id' => $stock_on_hand_id, // Sumber dari SOH
+             'stock_on_hand_id' => NULL, // WIP material tidak punya stock_on_hand_id
              'source_output_id' => NULL,
              'mr_detail_id' => NULL,
              'qty_used' => $qty_used,
-             'notes' => strip_tags($this->input->post('notes'))
+             'notes' => strip_tags($this->input->post('notes')),
+             'wo_header_id' => $header->wo_header_id // Pass WO ID for ledger
          ];
 
          // Panggil Model (AKAN buat ledger 'wip_out')
@@ -742,7 +749,7 @@ class Production_process extends MY_Controller {
 
     // --- Delete Actions ---
     private function _delete_input($prod_id, $input_id, $current_stage) {
-        $callback = function() use ($input_id) {
+        $callback = function() use ($input_id, $current_stage) {
             // --- LOGGING (DELETE) ---
             $input_data = $this->db->get_where('production_inputs', ['id' => $input_id])->row();
             $deskripsi = "Menghapus input ID: {$input_id} dari tahap {$current_stage} pada Produksi ID: " . ($input_data->production_header_id ?? 'N/A');

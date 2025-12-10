@@ -133,7 +133,7 @@ class Scrap_In_model extends CI_Model {
        $this->db->select('
            po.id as production_output_id,
            po.item_id as scrap_id,
-           po.qty_scrap,
+           po.qty_produced as qty_scrap,
            ms.scrap_code,
            ms.scrap_name,
            cc.description as satuan_desc,
@@ -141,12 +141,12 @@ class Scrap_In_model extends CI_Model {
            wo.wo_number
        ');
        $this->db->from('production_outputs po');
-       $this->db->join('master_scrap ms', 'po.item_id = ms.id');
-       $this->db->join('common_code cc', 'ms.unit = cc.code AND cc.group_code = "SATUAN"', 'left'); // m.unit
+       $this->db->join('master_scrap ms', 'po.item_id = ms.id', 'inner');
+       $this->db->join('common_code cc', 'ms.unit = cc.code AND cc.group_code = "SATUAN"', 'left');
        $this->db->join('production_header ph', 'po.production_header_id = ph.id', 'left');
        $this->db->join('wo_header wo', 'ph.wo_header_id = wo.id', 'left');
        $this->db->where('po.item_type', 'scrap');
-       $this->db->where('po.qty_scrap >', 0);
+       $this->db->where('po.qty_produced >', 0);
        $this->db->where_in('po.id', $ids); 
 
        $query = $this->db->get();
@@ -176,21 +176,23 @@ class Scrap_In_model extends CI_Model {
         $this->db->select('
             po.id as production_output_id, 
             po.item_id as scrap_id, 
-            po.qty_scrap, 
+            po.qty_produced as qty_scrap, 
             ms.scrap_code, 
             ms.scrap_name, 
             cc.description as satuan_desc,
             ph.production_number, 
-            wo.wo_number 
+            wo.wo_number,
+            po.stage_name
         ');
         $this->db->from('production_outputs po');
-        $this->db->join('master_scrap ms', 'po.item_id = ms.id');
-        $this->db->join('common_code cc', 'ms.unit = cc.code AND cc.group_code = "SATUAN"', 'left'); // m.unit
+        $this->db->join('master_scrap ms', 'po.item_id = ms.id', 'inner'); // Join to master_scrap
+        $this->db->join('common_code cc', 'ms.unit = cc.code AND cc.group_code = "SATUAN"', 'left');
         $this->db->join('production_header ph', 'po.production_header_id = ph.id', 'left'); 
         $this->db->join('wo_header wo', 'ph.wo_header_id = wo.id', 'left'); 
         
+        // Filter: item_type = 'scrap' dan qty_produced > 0 (scrap disimpan sebagai output terpisah)
         $this->db->where('po.item_type', 'scrap');
-        $this->db->where('po.qty_scrap >', 0);
+        $this->db->where('po.qty_produced >', 0);
         $this->db->where("NOT EXISTS (SELECT 1 FROM scrap_in_detail_sources sds WHERE sds.production_output_id = po.id)", NULL, FALSE);
         $this->db->order_by('po.id', 'ASC'); 
         
@@ -308,7 +310,7 @@ class Scrap_In_model extends CI_Model {
                 'transaction_type'   => 'IN_SCRAP_WH',
                 'transaction_id'     => $id,
                 'source_doc_type'    => 'SCRAP_IN',
-                'source_doc_id'      => $header->doc_no,
+                'source_doc_id'      => $id,
                 'qty_in'             => $qty,
                 'qty_out'            => 0,
                 'balance'            => $last_balance + $qty,

@@ -142,6 +142,55 @@ class Material_request extends MY_Controller {
     }
 
     // === Item Actions (PPIC) ===
+    // AJAX: Add single item (inline)
+    public function add_item_ajax($mr_id) {
+        header('Content-Type: application/json');
+        
+        if (!check_access('material_request', 'edit')) {
+            echo json_encode(['success' => false, 'message' => 'Tidak ada izin']);
+            return;
+        }
+        
+        $header = $this->Mr_model->get_header_by_id($mr_id);
+        if (!$header || $header->status != 'Draft') {
+            echo json_encode(['success' => false, 'message' => 'MR tidak valid atau sudah disubmit']);
+            return;
+        }
+        
+        $component_id = $this->input->post('component_id');
+        $component_type = $this->input->post('component_type');
+        
+        if (!$component_id || !$component_type) {
+            echo json_encode(['success' => false, 'message' => 'Data component tidak valid']);
+            return;
+        }
+        
+        $data = [
+            'mr_header_id'        => $mr_id,
+            'wo_header_id'        => $this->input->post('wo_header_id'),
+            'component_item_id'   => $component_id,
+            'component_item_type' => $component_type,
+            'requested_qty'       => (float) $this->input->post('requested_qty'),
+            'notes'               => $this->input->post('notes')
+        ];
+        
+        $inserted_id = $this->Mr_model->insert_item($data);
+        
+        if ($inserted_id) {
+            $full_item = $this->Mr_model->get_item_by_id($inserted_id);
+            echo json_encode([
+                'success' => true,
+                'item' => $full_item,
+                'message' => 'Item berhasil ditambahkan'
+            ]);
+        } else {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Gagal menambahkan item (mungkin item sudah ada)'
+            ]);
+        }
+    }
+    
     public function add_item($mr_id) {
         if (!check_access('material_request', 'edit')) { show_error('Tidak ada izin.', 403); }
         $header = $this->Mr_model->get_header_by_id($mr_id);
@@ -179,6 +228,106 @@ class Material_request extends MY_Controller {
             $this->session->set_flashdata('error', 'Gagal menambahkan item dari WO (mungkin semua item sudah ada).');
         }
         redirect('material_request/detail/' . $mr_id);
+    }
+    
+    // AJAX: Batch add items
+    public function add_items_batch($mr_id) {
+        header('Content-Type: application/json');
+        
+        if (!check_access('material_request', 'edit')) {
+            echo json_encode(['success' => false, 'message' => 'Tidak ada izin']);
+            return;
+        }
+        
+        $header = $this->Mr_model->get_header_by_id($mr_id);
+        if (!$header || $header->status != 'Draft') {
+            echo json_encode(['success' => false, 'message' => 'MR tidak valid atau sudah disubmit']);
+            return;
+        }
+        
+        $input = json_decode(file_get_contents('php://input'), true);
+        $items = $input['items'] ?? [];
+        
+        if (empty($items)) {
+            echo json_encode(['success' => false, 'message' => 'Tidak ada item yang dikirim']);
+            return;
+        }
+        
+        $inserted_items = [];
+        $success_count = 0;
+        
+        foreach ($items as $item) {
+            $item_data = explode('|', $item['component_id']);
+            if (count($item_data) < 2) continue;
+            
+            $data = [
+                'mr_header_id'        => $mr_id,
+                'wo_header_id'        => $item['wo_id'],
+                'component_item_id'   => $item_data[0],
+                'component_item_type' => $item_data[1],
+                'requested_qty'       => (float) $item['qty'],
+                'notes'               => $item['notes'] ?? ''
+            ];
+            
+            $inserted_id = $this->Mr_model->insert_item($data);
+            if ($inserted_id) {
+                $success_count++;
+                // Get full item data untuk return
+                $full_item = $this->Mr_model->get_item_by_id($inserted_id);
+                if ($full_item) {
+                    $inserted_items[] = $full_item;
+                }
+            }
+        }
+        
+        if ($success_count > 0) {
+            echo json_encode([
+                'success' => true,
+                'count' => $success_count,
+                'items' => $inserted_items,
+                'message' => "$success_count item berhasil ditambahkan"
+            ]);
+        } else {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Gagal menambahkan item'
+            ]);
+        }
+    }
+    
+    // AJAX: Delete item
+    public function delete_item_ajax() {
+        header('Content-Type: application/json');
+        
+        if (!check_access('material_request', 'edit')) {
+            echo json_encode(['success' => false, 'message' => 'Tidak ada izin']);
+            return;
+        }
+        
+        $item_id = $this->input->post('item_id');
+        if (!$item_id) {
+            echo json_encode(['success' => false, 'message' => 'Item ID tidak valid']);
+            return;
+        }
+        
+        // Cek apakah item masih dalam status Draft
+        $item = $this->Mr_model->get_item_by_id($item_id);
+        if (!$item) {
+            echo json_encode(['success' => false, 'message' => 'Item tidak ditemukan']);
+            return;
+        }
+        
+        $header = $this->Mr_model->get_header_by_id($item->mr_header_id);
+        if (!$header || $header->status != 'Draft') {
+            echo json_encode(['success' => false, 'message' => 'Item tidak bisa dihapus (MR sudah disubmit)']);
+            return;
+        }
+        
+        if ($this->Mr_model->delete_item($item_id)) {
+            echo json_encode(['success' => true, 'message' => 'Item berhasil dihapus']);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Gagal menghapus item']);
+        }
     }
     
     public function delete_item($mr_id, $detail_id) {
