@@ -98,7 +98,9 @@ class Wo_model extends CI_Model {
             d.id, d.wo_header_id, d.planned_qty, d.unit_measure,
             d.component_item_id as item_id, d.component_item_type as item_type,
             CASE WHEN d.component_item_type = 'material' THEN m.kode_material ELSE sf.kode_barang END as item_code,
-            CASE WHEN d.component_item_type = 'material' THEN m.nama_material ELSE sf.nama_barang END as item_name
+            CASE WHEN d.component_item_type = 'material' THEN m.nama_material ELSE sf.nama_barang END as item_name,
+            d.component_item_type,
+            d.component_item_id
         ";
         $this->db->select($select_clause, FALSE);
         $this->db->from($this->table_details . ' d');
@@ -161,7 +163,7 @@ class Wo_model extends CI_Model {
             bd.quantity_required, bd.unit_measure,
             CASE WHEN bd.component_item_type = 'material' THEN m.kode_material ELSE sf.kode_barang END as item_code,
             CASE WHEN bd.component_item_type = 'material' THEN m.nama_material ELSE sf.nama_barang END as item_name,
-            bd.component_item_type as item_type
+            bd.component_item_type as item_type, bd.component_item_id, bd.component_item_type
         ";
         $this->db->select($select_clause, FALSE);
         $this->db->from('bom_details bd');

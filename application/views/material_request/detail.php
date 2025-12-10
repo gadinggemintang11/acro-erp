@@ -64,9 +64,18 @@
              <div class="card shadow mb-4">
                 <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
                     <h6 class="m-0 font-weight-bold text-primary">Item Permintaan Material (MR)</h6>
-                    <?php if ($header->status == 'Draft' && check_access('material_request', 'edit')): ?>
-                    <button class="btn btn-success btn-sm" data-toggle="modal" data-target="#addItemModal"> <i class="fas fa-plus fa-sm"></i> Tambah Item</button>
-                    <?php endif; ?>
+                    <div class="flex">
+                        <?php if ($header->status == 'Draft' && check_access('material_request', 'edit')): ?>
+                        <button class="btn btn-success btn-sm" data-toggle="modal" data-target="#addItemModal"> <i class="fas fa-plus fa-sm"></i> Tambah Item</button>
+                        <?php endif; ?>
+                        <form method="post" action="<?= base_url('material_request/add_all_wo_items/'.$header->id); ?>">
+                            <input id="wo_id_input" name="wo_id" type="hidden" value="">
+                            <button id="addAllWoReferenceBtn" class="btn btn-warning btn-sm" style="display: none;">
+                                <i class="fas fa-plus fa-sm"></i> 
+                                Tambah Semua Item di Rencana WO
+                            </button>
+                        </form>
+                    </div>
                 </div>
                 <div class="card-body p-0">
                      <div class="table-responsive">
@@ -177,6 +186,10 @@ $(document).ready(function() {
         } else {
              $('#wo_reference_div').html('<p class="text-muted text-center">Pilih Work Order untuk menampilkan referensi.</p>');
         }
+
+        $('#addAllWoReferenceBtn').css('display', woId ? 'inline-block' : 'none');
+        $('#wo_id_input').val(woId);
+
     });
 
     // Inisialisasi Select2 untuk Modal Tambah Item (HANYA JIKA STATUS DRAFT)

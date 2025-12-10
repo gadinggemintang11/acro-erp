@@ -396,4 +396,51 @@ class Mr_model extends CI_Model {
         $this->db->trans_complete();
         return $this->db->trans_status();
     }
+
+    public function insert_all_wo_items($mr_id, $wo_id) {
+        $this->load->model('Wo_model');
+
+        $wo = $this->Wo_model->get_header_by_id($wo_id);
+
+        $bom_components = $this->Wo_model->get_bom_components_by_fg($wo->fg_id);
+        $wo_plan = $this->Wo_model->get_planned_materials($wo_id);
+        $existing_items = $this->db->get_where($this->table_details, [
+            'mr_header_id' => $mr_id,
+            'wo_header_id' => $wo_id
+        ])->result();
+
+        $items_to_insert = [];
+        foreach ($bom_components as $comp) {
+            // Cek apakah sudah ada di MR
+            $exists = array_filter($existing_items, function($e) use ($comp) {
+                return $e->component_item_id == $comp->component_item_id && $e->component_item_type == $comp->component_item_type;
+            });
+            if (!empty($exists)) continue; // skip jika sudah ada
+            // Cek apakah ada di plan
+            $planned = array_filter($wo_plan, function($p) use ($comp) {
+                return $p->component_item_id == $comp->component_item_id && $p->component_item_type == $comp->component_item_type;
+            });
+            $planned_qty = !empty($planned) ? array_values($planned)[0]->planned_qty : 0;
+            if ($planned_qty <= 0) continue; // skip jika tidak ada plan    
+            $items_to_insert[] = [
+                'mr_header_id'       => $mr_id,
+                'wo_header_id'       => $wo_id,
+                'component_item_id'  => $comp->component_item_id,
+                'component_item_type'=> $comp->component_item_type,
+                'requested_qty'      => $planned_qty,
+                'notes'              => 'Auto-added from WO #' . $wo->wo_number
+            ]; 
+        }
+
+        // Bulk insert
+        if (!empty($items_to_insert)) {
+            $res = $this->db->insert_batch($this->table_details, $items_to_insert);
+            if ($res === false) {
+                log_message('error', 'MR_model->insert_all_wo_items: gagal insert batch. ' . json_encode($this->db->error()));
+                return false;
+            }
+        }
+
+        return count($items_to_insert);
+    }
 }

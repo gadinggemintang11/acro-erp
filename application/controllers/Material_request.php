@@ -163,6 +163,23 @@ class Material_request extends MY_Controller {
         else { $this->session->set_flashdata('error', 'Gagal, item ini sudah ada untuk WO tersebut.'); }
         redirect('material_request/detail/' . $mr_id);
     }
+
+    public function add_all_wo_items($mr_id) {
+        if (!check_access('material_request', 'edit')) { show_error('Tidak ada izin.', 403); }
+        $header = $this->Mr_model->get_header_by_id($mr_id);
+        if (!$header || $header->status != 'Draft') { redirect('material_request/detail/' . $mr_id); }
+
+        $wo_id = $this->input->post('wo_id');
+        if (!$wo_id) { redirect('material_request/detail/' . $mr_id); }
+
+        $added_count = $this->Mr_model->insert_all_wo_items($mr_id, $wo_id);
+        if ($added_count > 0) {
+            $this->session->set_flashdata('success', "Berhasil menambahkan {$added_count} item dari WO.");
+        } else {
+            $this->session->set_flashdata('error', 'Gagal menambahkan item dari WO (mungkin semua item sudah ada).');
+        }
+        redirect('material_request/detail/' . $mr_id);
+    }
     
     public function delete_item($mr_id, $detail_id) {
         if (!check_access('material_request', 'edit')) { show_error('Tidak ada izin.', 403); }
