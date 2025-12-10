@@ -18,6 +18,7 @@ class User extends MY_Controller {
 
         $this->load->view('templates/header', $data);
         $this->load->view('templates/sidebar', $data);
+        $this->load->view('templates/topbar', $data);
         $this->load->view('user/index', $data);
         $this->load->view('templates/footer');
     }
@@ -43,6 +44,7 @@ class User extends MY_Controller {
         check_access('user', 'edit');
         $data = [
             'fullname' => $this->input->post('fullname'),
+            'username' => $this->input->post('username'),
             'email'    => $this->input->post('email'),
             'role_id'  => $this->input->post('role_id'),
             'status'   => $this->input->post('status')
