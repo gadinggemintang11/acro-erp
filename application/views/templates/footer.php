@@ -1,7 +1,8 @@
 
 
 <!-- Footer -->
-<footer style="position: absolute;bottom:0; left:0; right:0;" class="sticky-footer bg-white shadow-sm">
+<div style="margin-top: 100px;"></div>
+<footer style="position: absolute;bottom:0; left:0; right:0;margin-top:100px" class=" bg-white shadow-sm">
   <div class="container my-auto text-center py-2">
     <span class="text-muted small">
       <i class="far fa-copyright"></i> <?= date('Y'); ?> ERP MINGBAO | Made By 
