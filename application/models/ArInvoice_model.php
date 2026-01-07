@@ -234,10 +234,10 @@ class ArInvoice_model extends CI_Model {
             throw new Exception("Hanya status Draft yang bisa di-posting.");
         }
         
-        // Akun dari setting
-        $acc_piutang_id = $this->SettingAkun_model->get_account_id('akun_piutang_usaha', $currency);
-        $acc_penjualan_fg_id = $this->SettingAkun_model->get_account_id('akun_penjualan_fg', $currency);
-        $acc_penjualan_scrap_id = $this->SettingAkun_model->get_account_id('akun_penjualan_scrap', $currency);
+        // Akun dari setting (1 akun untuk semua currency)
+        $acc_piutang_id = $this->SettingAkun_model->get_account_id('akun_piutang_usaha', 'IDR');
+        $acc_penjualan_fg_id = $this->SettingAkun_model->get_account_id('akun_penjualan_fg', 'IDR');
+        $acc_penjualan_scrap_id = $this->SettingAkun_model->get_account_id('akun_penjualan_scrap', 'IDR');
         $acc_ppn_id = $this->SettingAkun_model->get_account_id('akun_ppn_keluaran', 'IDR');
         $acc_hpp_id = $this->SettingAkun_model->get_account_id('akun_hpp_fg', 'IDR');
         $acc_persediaan_id = $this->SettingAkun_model->get_account_id('akun_persediaan_fg', 'IDR');
@@ -246,10 +246,8 @@ class ArInvoice_model extends CI_Model {
             throw new Exception("Akun Piutang/Penjualan (FG/Scrap) belum di-setting.");
         }
 
-        $akun_piutang = $this->Coa_model->get_by_id($acc_piutang_id);
-        if ($akun_piutang->currency != $currency) {
-            throw new Exception("Mata uang faktur ({$currency}) tidak cocok dengan akun piutang ({$akun_piutang->currency}).");
-        }
+        // Tidak perlu validasi currency - 1 akun piutang untuk semua currency
+        // Currency disimpan di field transaksi, bukan di akun COA
 
         $journal_no = $this->JurnalUmum_model->get_new_journal_number();
         $journal_details = [];

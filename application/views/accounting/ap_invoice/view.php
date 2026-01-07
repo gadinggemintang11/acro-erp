@@ -56,10 +56,19 @@
                                 if ($header->invoice_type == 'NON_GRN') {
                                     echo '<span class="badge badge-warning">Jasa/Subkon</span>';
                                 } else {
-                                    $supplier_type = isset($header->supplier_type) ? $header->supplier_type : 'Lokal';
-                                    echo ($supplier_type == 'Lokal') 
-                                        ? '<span class="badge badge-primary">PO (Lokal)</span>' 
-                                        : '<span class="badge badge-info">MIR (Impor)</span>';
+                                    // Gunakan data dari GRN yang sebenarnya
+                                    $grn_type = isset($header->grn_base_on) ? $header->grn_base_on : '';
+                                    if ($grn_type == 'PO') {
+                                        echo '<span class="badge badge-primary">PO (Lokal)</span>';
+                                    } elseif ($grn_type == 'MIR') {
+                                        echo '<span class="badge badge-info">MIR (Impor)</span>';
+                                    } else {
+                                        // Fallback ke supplier type jika tidak ada data GRN
+                                        $supplier_type = isset($header->supplier_type) ? $header->supplier_type : 'Lokal';
+                                        echo ($supplier_type == 'Lokal') 
+                                            ? '<span class="badge badge-primary">PO (Lokal)</span>' 
+                                            : '<span class="badge badge-info">MIR (Impor)</span>';
+                                    }
                                 }
                             ?>
                         </div>

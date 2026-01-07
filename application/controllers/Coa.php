@@ -18,8 +18,20 @@ class Coa extends CI_Controller {
     public function index()
     {
         $data['title'] = 'Chart of Accounts (COA)';
-        $data['accounts_tree'] = $this->model->get_all_as_tree();
-        
+        $search = $this->input->get('search');
+        $data['search'] = $search ? $search : '';
+        try {
+            if ($search && method_exists($this->model, 'search_tree')) {
+                $data['accounts_tree'] = $this->model->search_tree($search);
+            } else {
+                $data['accounts_tree'] = $this->model->get_all_as_tree();
+            }
+        } catch (Exception $e) {
+            // Fallback jika error
+            $data['accounts_tree'] = $this->model->get_all_as_tree();
+            $data['search_error'] = $e->getMessage();
+        }
+
         $this->load->view('templates/header', $data);
         $this->load->view('templates/sidebar', $data);
         $this->load->view('templates/topbar', $data);

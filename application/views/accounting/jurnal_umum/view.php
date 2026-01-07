@@ -1,7 +1,21 @@
 <div class="container-fluid">
     <div class="d-sm-flex align-items-center justify-content-between mb-4">
         <h1 class="h3 mb-0 text-gray-800"><?= $title; ?></h1>
-        <a href="<?= base_url('jurnalumum'); ?>" class="btn btn-secondary btn-sm"><i class="fas fa-arrow-left"></i> Kembali ke Daftar</a>
+        <div>
+            <a href="<?= base_url('jurnalumum/export_excel/' . $header->id); ?>" 
+               class="btn btn-success btn-sm mr-2" 
+               title="Ekspor ke Excel">
+                <i class="fas fa-file-excel"></i> Excel
+            </a>
+            <a href="<?= base_url('jurnalumum/export_pdf/' . $header->id); ?>" 
+               class="btn btn-danger btn-sm mr-2" 
+               title="Ekspor ke PDF">
+                <i class="fas fa-file-pdf"></i> PDF
+            </a>
+            <a href="<?= base_url('jurnalumum'); ?>" class="btn btn-secondary btn-sm">
+                <i class="fas fa-arrow-left"></i> Kembali ke Daftar
+            </a>
+        </div>
     </div>
 
     <?php $this->load->view('templates/partials/alerts'); ?>

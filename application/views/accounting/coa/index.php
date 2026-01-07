@@ -46,6 +46,21 @@ function render_coa_tree($accounts, $level = 0) {
     <div class="card shadow mb-4">
         <div class="card-header py-3">
             <h6 class="m-0 font-weight-bold text-primary">Struktur Bagan Akun Perusahaan</h6>
+            <form method="get" action="" class="form-inline mt-2">
+                <input type="text" name="search" class="form-control mr-2" placeholder="Cari kode/nama akun..." value="<?= isset($search) ? htmlspecialchars($search) : '' ?>">
+                <button type="submit" class="btn btn-primary">Search</button>
+                <?php if (!empty($search)): ?>
+                    <a href="<?= base_url('coa') ?>" class="btn btn-secondary ml-2">Reset</a>
+                <?php endif; ?>
+            </form>
+            <?php if (!empty($search)): ?>
+                <div class="mt-2">
+                    <small>Hasil pencarian: "<strong><?= htmlspecialchars($search) ?></strong>"</small>
+                    <?php if (isset($search_error)): ?>
+                        <div class="text-danger small">Error search: <?= htmlspecialchars($search_error) ?></div>
+                    <?php endif; ?>
+                </div>
+            <?php endif; ?>
         </div>
         <div class="card-body">
             <div class="table-responsive">

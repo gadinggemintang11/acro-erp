@@ -93,12 +93,22 @@ $route['jurnalumum/post/(:num)'] = 'JurnalUmum/post/$1';
 $route['jurnalumum/delete/(:num)'] = 'JurnalUmum/delete/$1';
 $route['jurnalumum/import'] = 'JurnalUmum/import';
 $route['jurnalumum/process_import'] = 'JurnalUmum/process_import';
+$route['jurnalumum/export_excel/(:num)'] = 'JurnalUmum/export_excel/$1';
+$route['jurnalumum/export_pdf/(:num)'] = 'JurnalUmum/export_pdf/$1';
+$route['yearendclosing'] = 'YearEndClosing/index';
+$route['yearendclosing/create'] = 'YearEndClosing/create';
+$route['yearendclosing/preview'] = 'YearEndClosing/preview';
+$route['yearendclosing/process'] = 'YearEndClosing/process';
+$route['yearendclosing/view/(:num)'] = 'YearEndClosing/view/$1';
 $route['apinvoice'] = 'ApInvoice/index';
 $route['apinvoice/create'] = 'ApInvoice/create';
 $route['apinvoice/store'] = 'ApInvoice/store';
 $route['apinvoice/view/(:num)'] = 'ApInvoice/view/$1';
 $route['apinvoice/post/(:num)'] = 'ApInvoice/post/$1';
 $route['apinvoice/delete/(:num)'] = 'ApInvoice/delete/$1';
+// Rute AJAX untuk AP Invoice
+$route['apinvoice/ajax_get_pending_grn'] = 'ApInvoice/ajax_get_pending_grn';
+$route['apinvoice/ajax_get_grn_details'] = 'ApInvoice/ajax_get_grn_details';
 $route['settingakun'] = 'SettingAkun/index';
 $route['settingakun/save'] = 'SettingAkun/save';
 $route['appayment'] = 'ApPayment/index';
@@ -107,6 +117,8 @@ $route['appayment/store'] = 'ApPayment/store';
 $route['appayment/view/(:num)'] = 'ApPayment/view/$1';
 $route['appayment/post/(:num)'] = 'ApPayment/post/$1';
 $route['appayment/delete/(:num)'] = 'ApPayment/delete/$1';
+// Rute AJAX untuk AP Payment
+$route['appayment/ajax_get_unpaid_invoices'] = 'ApPayment/ajax_get_unpaid_invoices';
 $route['arinvoice'] = 'ArInvoice/index';
 $route['arinvoice/create'] = 'ArInvoice/create';
 $route['arinvoice/store'] = 'ArInvoice/store';
@@ -120,6 +132,16 @@ $route['arinvoice/export_pdf_detail/(:num)'] = 'ArInvoice/export_pdf_detail/$1';
 // Rute AJAX
 $route['arinvoice/ajax_get_pending_docs'] = 'ArInvoice/ajax_get_pending_docs';
 $route['arinvoice/ajax_get_doc_details'] = 'ArInvoice/ajax_get_doc_details';
+// Rute AR Receipt
+$route['arreceipt'] = 'ArReceipt/index';
+$route['arreceipt/create'] = 'ArReceipt/create';
+$route['arreceipt/store'] = 'ArReceipt/store';
+$route['arreceipt/view/(:num)'] = 'ArReceipt/view/$1';
+$route['arreceipt/post/(:num)'] = 'ArReceipt/post/$1';
+$route['arreceipt/delete/(:num)'] = 'ArReceipt/delete/$1';
+// Rute AJAX untuk AR Receipt
+$route['arreceipt/ajax_get_payment_accounts'] = 'ArReceipt/ajax_get_payment_accounts';
+$route['arreceipt/ajax_get_unpaid_invoices'] = 'ArReceipt/ajax_get_unpaid_invoices';
 
 // Scrap Stock routes
 $route['scrap_stock'] = 'Scrap_Stock/index';

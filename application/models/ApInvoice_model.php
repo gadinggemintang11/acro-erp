@@ -20,8 +20,12 @@ class ApInvoice_model extends CI_Model {
         $this->db->select('
             ap.*, 
             s.nama_supplier,
-            s.jenis as supplier_type
-        ');
+            s.jenis as supplier_type,
+            (SELECT GROUP_CONCAT(DISTINCT gh.base_on) 
+             FROM grn_header gh 
+             WHERE JSON_SEARCH(ap.grn_ids, "one", gh.id) IS NOT NULL
+            ) as grn_base_on
+        ', FALSE);
         $this->db->from('ap_invoice_header ap');
         $this->db->join('suppliers s', 'ap.supplier_id = s.id');
         $this->db->order_by('ap.invoice_date', 'DESC');
@@ -50,10 +54,21 @@ class ApInvoice_model extends CI_Model {
     
     public function get_pending_grn($supplier_id)
     {
-        $this->db->select('gh.id, gh.grn_number, gh.grn_date, ph.po_number, mh.mir_number');
+        $this->db->select('gh.id, gh.grn_number, gh.grn_date, gh.base_on,
+                          CASE 
+                            WHEN gh.base_on = "PO" THEN ph.po_number
+                            WHEN gh.base_on = "MIR" THEN mh.mir_number
+                            ELSE NULL
+                          END as doc_number', FALSE);
         $this->db->from('grn_header gh');
-        $this->db->join('po_header ph', "gh.base_on = 'PO' AND gh.supplier_id = ph.supplier_id", 'left');
-        $this->db->join('mir_header mh', "gh.base_on = 'MIR' AND gh.supplier_id = mh.supplier_id", 'left');
+        
+        // Subquery untuk mendapatkan source_doc_header_id dari grn_details
+        $this->db->join('(SELECT grn_header_id, MIN(source_doc_header_id) as source_doc_header_id, MAX(source_doc_type) as source_doc_type 
+                         FROM grn_details 
+                         GROUP BY grn_header_id) gd', 'gh.id = gd.grn_header_id', 'left');
+        
+        $this->db->join('po_header ph', "gh.base_on = 'PO' AND gd.source_doc_header_id = ph.id", 'left');
+        $this->db->join('mir_header mh', "gh.base_on = 'MIR' AND gd.source_doc_header_id = mh.id", 'left');
         
         $this->db->where('gh.supplier_id', $supplier_id);
         $this->db->where('gh.status', 'Completed');
@@ -163,7 +178,11 @@ class ApInvoice_model extends CI_Model {
      */
     public function get_invoice_header_by_id($id)
     {
-        $this->db->select('ap.*, s.nama_supplier, s.jenis as supplier_type');
+        $this->db->select('ap.*, s.nama_supplier, s.jenis as supplier_type,
+                          (SELECT GROUP_CONCAT(DISTINCT gh.base_on) 
+                           FROM grn_header gh 
+                           WHERE JSON_SEARCH(ap.grn_ids, "one", gh.id) IS NOT NULL
+                          ) as grn_base_on', FALSE);
         $this->db->from('ap_invoice_header ap');
         $this->db->join('suppliers s', 'ap.supplier_id = s.id');
         $this->db->where('ap.id', $id);

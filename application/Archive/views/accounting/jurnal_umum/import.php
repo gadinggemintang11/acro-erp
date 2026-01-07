@@ -1,0 +1,68 @@
+<div class="container-fluid">
+    <h1 class="h3 mb-4 text-gray-800"><?= $title; ?></h1>
+    
+    <?php $this->load->view('templates/partials/alerts'); ?>
+
+    <div class="card shadow mb-4">
+        <div class="card-header py-3">
+            <h6 class="m-0 font-weight-bold text-primary">Upload File Excel/CSV</h6>
+        </div>
+        <form action="<?= base_url('jurnalumum/process_import'); ?>" method="POST" enctype="multipart/form-data">
+            <div class="card-body">
+                <p>Upload file (XLS, XLSX, atau CSV) untuk mengisi detail jurnal secara otomatis. Pastikan format file Anda benar:</p>
+                <div class="table-responsive">
+                    <table class="table table-bordered table-sm" style="width: auto;">
+                        <thead>
+                            <tr class="thead-light">
+                                <th>Kolom A</th>
+                                <th>Kolom B</th>
+                                <th>Kolom C</th>
+                                <th>Kolom D</th>
+                                <th>Kolom E</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>KODE_AKUN</td>
+                                <td>NAMA_AKUN (Opsional)</td>
+                                <td>DEBIT</td>
+                                <td>KREDIT</td>
+                                <td>DESKRIPSI</td>
+                            </tr>
+                            <tr>
+                                <td>1-1101</td>
+                                <td>Kas IDR</td>
+                                <td>100000</td>
+                                <td>0</td>
+                                <td>Setoran awal</td>
+                            </tr>
+                            <tr>
+                                <td>3-1000</td>
+                                <td>Modal</td>
+                                <td>0</td>
+                                <td>100000</td>
+                                <td>Setoran awal</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+                <hr>
+                
+                <input type="hidden" name="journal_no" value="<?= htmlspecialchars($journal_no); ?>">
+                <input type="hidden" name="journal_date" value="<?= htmlspecialchars($journal_date); ?>">
+                <input type="hidden" name="description" value="<?= htmlspecialchars($description); ?>">
+
+                <div class="form-group">
+                    <label>Pilih File (xls, xlsx, csv) *</label>
+                    <input type="file" name="file_import" class="form-control-file" required>
+                </div>
+            </div>
+            <div class="card-footer text-right">
+                <a href="<?= base_url('jurnalumum/create'); ?>" class="btn btn-secondary">Batal</a>
+                <button type="submit" class="btn btn-primary">
+                    <i class="fas fa-upload"></i> Upload dan Proses File
+                </button>
+            </div>
+        </form>
+    </div>
+</div>

@@ -1,0 +1,268 @@
+<!-- 
+=================================================================
+UPDATE NOTES UNTUK VIEW AR RECEIPT & AP PAYMENT
+=================================================================
+
+File ini berisi catatan untuk update view form AR Receipt dan AP Payment
+agar sesuai dengan sistem baru (akun otomatis dari setting).
+
+=================================================================
+-->
+
+<!--
+=================================================================
+FILE: application/views/accounting/ar_receipt/create.php
+=================================================================
+
+PERUBAHAN YANG DIPERLUKAN:
+
+1. HAPUS atau COMMENT field dropdown "Akun Terima (Kas/Bank)"
+   
+   CARI kode seperti ini:
+   ========================================
+   <div class="form-group">
+       <label>Akun Terima (Kas/Bank) *</label>
+       <select name="payment_account_id" id="payment_account_id" class="form-control" required>
+           <option value="">-- Pilih Currency Dulu --</option>
+       </select>
+   </div>
+   ========================================
+
+   GANTI DENGAN:
+   ========================================
+   <!-- Akun otomatis dari Setting Akun -->
+   <div class="alert alert-info">
+       <i class="fas fa-info-circle"></i>
+       <strong>Info:</strong> Akun penerimaan akan otomatis diambil dari 
+       <strong>Setting Akun → Akun Penerimaan Piutang</strong> sesuai currency yang dipilih.
+   </div>
+   ========================================
+
+2. HAPUS JavaScript function loadPaymentAccounts()
+
+   CARI kode seperti ini:
+   ========================================
+   function loadPaymentAccounts() {
+       const currency = $('#currency').val();
+       $.getJSON('<?= site_url('arreceipt/ajax_get_payment_accounts'); ?>', {currency}, function(res) {
+           // ... populate dropdown ...
+       });
+   }
+   ========================================
+
+   HAPUS atau COMMENT seluruh function tersebut.
+
+3. HAPUS event listener untuk currency change yang memanggil loadPaymentAccounts()
+
+   CARI kode seperti ini:
+   ========================================
+   $('#currency').change(function() {
+       loadPaymentAccounts();
+       // ... kode lain ...
+   });
+   ========================================
+
+   GANTI DENGAN:
+   ========================================
+   $('#currency').change(function() {
+       // Hanya load invoices, payment account otomatis dari setting
+       loadUnpaidInvoices();
+   });
+   ========================================
+
+=================================================================
+-->
+
+<!--
+=================================================================
+FILE: application/views/accounting/ap_payment/create.php
+=================================================================
+
+PERUBAHAN YANG DIPERLUKAN:
+
+1. HAPUS atau COMMENT field dropdown "Akun Bayar (Kas/Bank)"
+   
+   CARI kode seperti ini:
+   ========================================
+   <div class="form-group">
+       <label>Akun Bayar (Kas/Bank) *</label>
+       <select name="payment_account_id" id="payment_account_id" class="form-control" required>
+           <option value="">-- Pilih Akun --</option>
+           <?php foreach ($payment_accounts as $acc): ?>
+               <option value="<?= $acc->id ?>">
+                   <?= $acc->account_code ?> - <?= $acc->account_name ?>
+               </option>
+           <?php endforeach; ?>
+       </select>
+   </div>
+   ========================================
+
+   GANTI DENGAN:
+   ========================================
+   <!-- Akun otomatis dari Setting Akun -->
+   <div class="alert alert-info">
+       <i class="fas fa-info-circle"></i>
+       <strong>Info:</strong> Akun pembayaran akan otomatis diambil dari 
+       <strong>Setting Akun → Akun Pembayaran Utang (IDR)</strong>.
+   </div>
+   ========================================
+
+2. UPDATE CONTROLLER create() method
+
+   File: application/controllers/ArReceipt.php & ApPayment.php
+   
+   CARI:
+   ========================================
+   $data['payment_accounts'] = $this->model->get_payment_accounts();
+   // atau
+   $data['payment_accounts'] = $this->model->get_payment_accounts_by_currency();
+   ========================================
+
+   HAPUS atau COMMENT line tersebut karena tidak diperlukan lagi.
+
+=================================================================
+-->
+
+<!--
+=================================================================
+VALIDASI FORM JAVASCRIPT
+=================================================================
+
+Jika ada validasi JavaScript untuk payment_account_id, HAPUS:
+
+HAPUS INI:
+========================================
+if (!$('#payment_account_id').val()) {
+    alert('Pilih akun terima/bayar terlebih dahulu!');
+    return false;
+}
+========================================
+
+Tidak perlu lagi karena akun otomatis dari setting dan sudah divalidasi di backend.
+
+=================================================================
+-->
+
+<!--
+=================================================================
+ALTERNATIVE: JIKA TIDAK INGIN EDIT VIEW
+=================================================================
+
+Anda bisa TETAP TAMPILKAN dropdown tapi:
+
+1. Isi dropdown dengan akun dari setting (read-only/disabled)
+2. Set value otomatis ke akun dari setting
+3. Tambahkan label "Akun dari Setting (tidak bisa diubah)"
+
+Contoh:
+========================================
+<div class="form-group">
+    <label>Akun Terima (Kas/Bank)</label>
+    <input type="text" class="form-control" 
+           value="<?= $payment_account_from_setting ?>" 
+           readonly>
+    <small class="form-text text-muted">
+        Akun ini diambil otomatis dari Setting Akun
+    </small>
+</div>
+========================================
+
+Tapi cara ini TIDAK RECOMMENDED karena:
+- User bingung kenapa tidak bisa pilih
+- Menambah complexity tanpa manfaat
+
+RECOMMENDED: HAPUS dropdown, tampilkan info saja.
+
+=================================================================
+-->
+
+<!--
+=================================================================
+TESTING CHECKLIST
+=================================================================
+
+Setelah update view, test:
+
+☐ AR Receipt:
+  ☐ Form tidak ada dropdown akun kas/bank
+  ☐ Info "Akun dari setting" muncul
+  ☐ Submit form berhasil
+  ☐ Draft tersimpan dengan akun dari setting
+  ☐ Post jurnal berhasil dengan akun yang benar
+
+☐ AP Payment:
+  ☐ Form tidak ada dropdown akun kas/bank
+  ☐ Info "Akun dari setting" muncul
+  ☐ Submit form berhasil
+  ☐ Draft tersimpan dengan akun dari setting
+  ☐ Post jurnal berhasil dengan akun yang benar
+
+☐ Error Handling:
+  ☐ Error muncul jika setting akun kosong
+  ☐ Error message jelas dan informatif
+  ☐ Redirect ke halaman setting jika perlu
+
+=================================================================
+-->
+
+<!--
+=================================================================
+NOTES UNTUK DEVELOPER
+=================================================================
+
+1. Perubahan ini TIDAK BREAKING CHANGE untuk data existing
+2. Transaksi lama tetap bisa dilihat
+3. Transaksi baru akan pakai sistem setting otomatis
+4. Jika ada masalah, bisa rollback dengan restore backup
+
+5. Jangan lupa clear browser cache setelah update view:
+   - Chrome: Ctrl + Shift + Del
+   - Firefox: Ctrl + Shift + Del
+   - Edge: Ctrl + Shift + Del
+
+6. Jika pakai CDN/caching, perlu purge cache juga
+
+=================================================================
+-->
+
+<!--
+=================================================================
+DEPLOYMENT CHECKLIST
+=================================================================
+
+☐ BACKUP:
+  ☐ Backup database
+  ☐ Backup file PHP/View yang akan diubah
+
+☐ SQL UPDATE:
+  ☐ Jalankan update_setting_accounting_complete.sql
+  ☐ Verify data masuk ke tabel setting_accounting
+
+☐ SETTING AKUN:
+  ☐ Login sebagai admin
+  ☐ Isi semua setting akun yang baru
+  ☐ Verify setting tersimpan
+
+☐ CODE UPDATE:
+  ☐ Update model sudah done (ArReceipt_model, ApPayment_model)
+  ☐ Update view (optional, tapi recommended)
+  ☐ Test di development environment
+
+☐ TESTING:
+  ☐ Test AR Receipt
+  ☐ Test AP Payment
+  ☐ Test error scenarios
+  ☐ Verify jurnal correct
+
+☐ DOKUMENTASI:
+  ☐ Baca ACCOUNTING_SETUP_GUIDE.md
+  ☐ Brief ke user tentang perubahan
+  ☐ Update SOP jika ada
+
+☐ GO LIVE:
+  ☐ Deploy ke production
+  ☐ Monitor error logs
+  ☐ Standby untuk support
+
+=================================================================
+-->

@@ -45,7 +45,7 @@
 
     /* Sidebar gradient */
     .navbar-nav.bg-gradient-primary {
-      background: linear-gradient(180deg, #316ec4ff 0%rgba(53, 94, 119, 1)9d 100%);
+      background: linear-gradient(180deg, #1e539dff 0%rgba(53, 94, 119, 1)9d 100%);
     }
 
     /* Button styling */
@@ -153,23 +153,25 @@ $(document).ready(function() {
     hideLoader();
   });
 
-  // Loader saat klik link atau tombol navigasi
-  $(document).on('click', 'a.btn-load, a.nav-link, a.page-link', function(e){
+  // Loader saat klik link navigasi (BUKAN dropdown toggle)
+  $(document).on('click', 'a.btn-load, a.page-link, a.collapse-item', function(e){
     const href = $(this).attr('href');
-    if (href && href !== '#' && !href.startsWith('javascript:') && !$(this).attr('target')) {
+    // Hanya tampilkan loader jika benar-benar navigasi ke halaman lain
+    if (href && href !== '#' && !href.startsWith('javascript:') && !$(this).attr('target') && !$(this).attr('data-toggle')) {
       showLoader();
     }
   });
+
+  // JANGAN trigger loader untuk menu dropdown sidebar
+  // Menu dengan data-toggle="collapse" adalah toggle dropdown, bukan navigasi
 
   // Jika ada form submit manual, tampilkan loader juga
   $(document).on('submit', 'form', function(e) {
     showLoader();
   });
 
-  // Jika terjadi AJAX request global
-  $(document).ajaxStart(function() {
-    showLoader();
-  }).ajaxStop(function() {
+  // Sembunyikan loader jika AJAX selesai (opsional, untuk AJAX requests)
+  $(document).ajaxStop(function() {
     hideLoader();
   });
 });

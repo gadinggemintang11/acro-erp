@@ -12,18 +12,41 @@ class Work_order extends MY_Controller {
     public function __construct() {
         parent::__construct();
         check_login();
-        $this->load->model('Wo_model'); // Tidak perlu load Sc_model jika semua helper ada di Wo_model
-        $this->load->library('form_validation');
+        $this->load->model('Wo_model');
+        $this->load->library(['form_validation', 'pagination']);
     }
 
     public function index() {
         if (!check_access('work_order', 'view')) { show_error('Tidak ada izin.', 403); }
         
         $filters = ['search' => $this->input->get('search')];
+        
+        // Pagination setup
+        $per_page = 25;
+        $offset = ($this->uri->segment(3)) ? (int)$this->uri->segment(3) : 0;
+        $total_rows = $this->Wo_model->count_all($filters);
+        
+        $config = [
+            'base_url' => base_url('work_order/index'),
+            'total_rows' => $total_rows,
+            'per_page' => $per_page,
+            'uri_segment' => 3,
+            'attributes' => ['class' => 'page-link btn-load'],
+            'full_tag_open' => '<ul class="pagination justify-content-end">',
+            'full_tag_close' => '</ul>',
+            'cur_tag_open' => '<li class="page-item active"><span class="page-link">',
+            'cur_tag_close' => '</span></li>',
+            'num_tag_open' => '<li class="page-item">',
+            'num_tag_close' => '</li>',
+        ];
+        $this->pagination->initialize($config);
+        
         $data = [
-            'title'   => 'Work Order (Production Plan)',
-            'wos'     => $this->Wo_model->get_all($filters),
-            'filters' => $filters
+            'title'      => 'Work Order (Production Plan)',
+            'wos'        => $this->Wo_model->get_all($filters, $per_page, $offset),
+            'filters'    => $filters,
+            'pagination' => $this->pagination->create_links(),
+            'total_rows' => $total_rows
         ];
 
         $this->load->view('templates/header', $data);
@@ -110,20 +133,13 @@ class Work_order extends MY_Controller {
         if (count($item_data) < 2) { 
             $this->session->set_flashdata('error', 'Komponen yang dipilih tidak valid.');
             redirect('work_order/detail/' . $wo_header_id);
-        }
-
+        }    
         $data = [
             'wo_header_id'        => $wo_header_id,
             'component_item_id'   => $item_data[0],
             'component_item_type' => $item_data[1],
             'planned_qty'         => (float) $this->input->post('planned_qty'),
         ];
-
-        $isWoMaterialExist = $this->Wo_model->is_wo_material_exist($wo_header_id, $data['component_item_id']);
-        if ($isWoMaterialExist) {
-            $this->session->set_flashdata('error', 'Material sudah ada dalam rencana WO.');
-            redirect('work_order/detail/' . $wo_header_id);
-        }
         
         $this->Wo_model->insert_material($data);
         $this->session->set_flashdata('success', 'Material berhasil ditambahkan.');
@@ -220,7 +236,7 @@ class Work_order extends MY_Controller {
     }
     public function ajax_search_open_wo_for_return() {
         $term = $this->input->get('q');
-        $work_orders = $$this->Wo_model->search_open_work_orders($term); // Panggil fungsi model baru
+        $work_orders = $this->Wo_model->search_open_work_orders($term); // Panggil fungsi model baru
         
         $results = [];
         foreach ($work_orders as $wo) {

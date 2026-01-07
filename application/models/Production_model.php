@@ -723,44 +723,23 @@ class Production_model extends CI_Model {
     }
 
     /**
-     * FUNGSI BARU: Hapus 1 baris input dan kembalikan stok
+     * FUNGSI BARU: Hapus 1 baris input dan HAPUS langsung stock_ledger terkait
      */
     public function delete_input_by_id($input_id) {
-        $this->load->model('Stock_ledger_model');
         $this->db->trans_start();
         $input = $this->db->get_where($this->table_inputs, ['id' => $input_id])->row();
 
         if ($input) {
-            // ============ PERBAIKAN LOGIKA DELETE ============
-            $ledger_reversal_type = '';
-            if (!empty($input->stock_on_hand_id)) {
-                $ledger_reversal_type = 'wip_in_reversal'; // Kembali ke SOH
-            } else if (!empty($input->source_output_id)) {
-                $ledger_reversal_type = 'wip_in_reversal_sfg'; // Kembali ke WIP SFG
-            } else {
-                // WIP Material (tidak punya SOH ID atau source_output_id)
-                // Hapus langsung ledger wip_out yang sudah dibuat
-                $this->db->where('transaction_type', 'wip_out')
-                         ->where('transaction_id', $input_id)
-                         ->delete('stock_ledger');
-            }
-
-            if ($ledger_reversal_type) {
-                $ledger_reversal = [
-                    'item_id'           => $input->item_id,
-                    'item_type'         => $input->item_type,
-                    'transaction_date'  => date('Y-m-d H:i:s'),
-                    'transaction_type'  => $ledger_reversal_type,
-                    'transaction_id'    => $input_id,
-                    'source_doc_type'   => 'PROD_DEL',
-                    'source_doc_id'     => $input->production_header_id,
-                    'qty_in'            => $input->qty_used,
-                    'qty_out'           => 0,
-                    'stock_on_hand_id'  => $input->stock_on_hand_id
-                ];
-                $this->Stock_ledger_model->insert($ledger_reversal);
-            }
+            // ============ HAPUS LANGSUNG STOCK LEDGER ============
+            // Hapus ledger wip_out yang dibuat saat input disimpan
+            // wip_out dibuat dengan transaction_id = input_id
+            $this->db->where('transaction_type', 'wip_out')
+                     ->where('transaction_id', $input_id)
+                     ->delete('stock_ledger');
+            
+            log_message('info', 'Deleted wip_out ledger for input_id: ' . $input_id);
             // ============ AKHIR PERBAIKAN ============
+            
             $this->db->where('id', $input_id)->delete($this->table_inputs);
         }
         $this->db->trans_complete();
@@ -770,29 +749,26 @@ class Production_model extends CI_Model {
 
 
     /**
-     * Hapus 1 baris output + Reversal Stok (Memanggil Stock_ledger_model)
+     * Hapus 1 baris output + HAPUS langsung stock_ledger terkait
      */
     public function delete_output_by_id($output_id) {
-         $this->load->model('Stock_ledger_model'); // Load model di sini
          $this->db->trans_start();
          $output = $this->db->get_where($this->table_outputs, ['id' => $output_id])->row();
 
          if ($output) {
-             // Reversal HANYA jika semifinished
-             if ($output->item_type == 'semifinished' && $output->qty_produced > 0) {
-                 $ledger_reversal = [
-                     'item_id'           => $output->item_id,
-                     'item_type'         => $output->item_type,
-                     'transaction_date'  => date('Y-m-d H:i:s'),
-                     'transaction_type'  => 'wip_out_reversal',
-                     'transaction_id'    => $output_id,
-                     'source_doc_type'   => 'PROD_DEL',
-                     'source_doc_id'     => $output->production_header_id,
-                     'qty_in'            => 0,
-                     'qty_out'           => $output->qty_produced
-                 ];
-                 $this->Stock_ledger_model->insert($ledger_reversal);
+             // ============ HAPUS LANGSUNG STOCK LEDGER ============
+             // Hapus ledger wip_in yang dibuat saat output disimpan (untuk semifinished)
+             // wip_in dibuat dengan transaction_id = output_id
+             if ($output->item_type == 'semifinished') {
+                 $this->db->where('transaction_type', 'wip_in')
+                          ->where('transaction_id', $output_id)
+                          ->where('item_type', 'semifinished')
+                          ->delete('stock_ledger');
+                 
+                 log_message('info', 'Deleted wip_in ledger for output_id: ' . $output_id);
              }
+             // ============ AKHIR PERBAIKAN ============
+             
              $this->db->where('id', $output_id)->delete($this->table_outputs);
          }
          $this->db->trans_complete();

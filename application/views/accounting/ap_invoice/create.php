@@ -211,8 +211,9 @@ $(function() {
             grnSelect.html('');
             if (res.success && res.data.length) {
                 res.data.forEach(g => {
-                    const doc = g.po_number || g.mir_number || 'N/A';
-                    grnSelect.append(`<option value="${g.id}">${g.grn_number} (Ref: ${doc}) - ${g.grn_date}</option>`);
+                    const docType = g.base_on || 'N/A';
+                    const docNumber = g.doc_number || 'N/A';
+                    grnSelect.append(`<option value="${g.id}">${g.grn_number} (${docType}: ${docNumber}) - ${g.grn_date}</option>`);
                 });
             } else grnSelect.html('<option>Tidak ada GRN yang bisa ditagih</option>');
         });

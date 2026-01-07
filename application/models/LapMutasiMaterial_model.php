@@ -47,13 +47,16 @@ class LapMutasiMaterial_model extends CI_Model {
                 $sql_items
             ),
             saldo_awal AS (
-                SELECT sl.item_id, sl.item_type, sl.balance
+                SELECT sl.item_id, sl.item_type, sl.balance,
+                       1 as has_history  -- Penanda: item ini pernah ada transaksi FISIK sebelumnya
                 FROM stock_ledger sl
                 JOIN (
                     SELECT item_id, item_type, MAX(id) as max_id
                     FROM stock_ledger
                     WHERE transaction_date < ?
                       AND item_type IN ('material', 'semifinished')
+                      -- Hanya hitung transaksi fisik, bukan WIP internal
+                      AND transaction_type NOT IN ('wip_in', 'wip_out', 'wip_out_reversal', 'production_out')
                     GROUP BY item_id, item_type
                 ) sa_max ON sl.id = sa_max.max_id
             ),
@@ -61,15 +64,20 @@ class LapMutasiMaterial_model extends CI_Model {
                 SELECT
                     item_id, 
                     item_type,
+                    -- Pemasukan: GRN dari supplier
                     SUM(CASE WHEN transaction_type IN ('in') THEN qty_in ELSE 0 END) as pemasukan,
+                    -- Retur: Material dikembalikan dari produksi
                     SUM(CASE WHEN transaction_type IN ('IN_RETURN_WIP') THEN qty_in ELSE 0 END) as retur,
-                    SUM(CASE WHEN transaction_type IN ('production_out', 'OUT_ISSUE') THEN qty_out ELSE 0 END) as pengeluaran,
+                    -- Pengeluaran: Hanya OUT_ISSUE (issuance ke produksi), bukan production_out (pemakaian aktual WIP)
+                    SUM(CASE WHEN transaction_type IN ('OUT_ISSUE') THEN qty_out ELSE 0 END) as pengeluaran,
+                    -- Penyesuaian: Adjustment stok
                     SUM(CASE WHEN transaction_type = 'adjustment' THEN (qty_in - qty_out) ELSE 0 END) as penyesuaian
                 FROM stock_ledger
                 WHERE transaction_date >= ?
                   AND transaction_date <= ?
                   AND item_type IN ('material', 'semifinished')
-                  AND transaction_type NOT IN ('wip_in', 'wip_out')
+                  -- Exclude WIP tracking transactions (hanya untuk internal WIP tracking)
+                  AND transaction_type NOT IN ('wip_in', 'wip_out', 'wip_out_reversal', 'production_out')
                 GROUP BY item_id, item_type
             ),
             opname AS (
@@ -112,7 +120,8 @@ class LapMutasiMaterial_model extends CI_Model {
                         ( (COALESCE(sa.balance, 0) + COALESCE(m.pemasukan, 0) + COALESCE(m.retur, 0) - COALESCE(m.pengeluaran, 0) + COALESCE(m.penyesuaian, 0)) - op.qty_fisik )
                     ELSE
                         NULL
-                END AS jumlah_selisih
+                END AS jumlah_selisih,
+                COALESCE(sa.has_history, 0) AS has_history  -- Indikator pernah ada transaksi
                 
             FROM common_items i
             LEFT JOIN saldo_awal sa ON i.id = sa.item_id AND i.item_type = sa.item_type
@@ -123,7 +132,9 @@ class LapMutasiMaterial_model extends CI_Model {
             $sql_search
 
             HAVING 
-                saldo_awal != 0 OR
+                -- Item muncul jika pernah ada transaksi sebelumnya (walaupun saldo = 0)
+                has_history = 1 OR
+                -- Atau jika ada mutasi di periode ini
                 pemasukan != 0 OR
                 retur != 0 OR
                 pengeluaran != 0 OR
@@ -174,7 +185,8 @@ class LapMutasiMaterial_model extends CI_Model {
         $this->db->where('sl.item_id', $item_id);
         $this->db->where('sl.item_type', $item_type);
         
-        $this->db->where_not_in('sl.transaction_type', ['wip_in', 'wip_out']);
+        // Exclude transaksi WIP internal yang tidak mempengaruhi stok fisik gudang
+        $this->db->where_not_in('sl.transaction_type', ['wip_in', 'wip_out', 'wip_out_reversal', 'production_out']);
         
         $this->db->order_by('sl.transaction_date', 'ASC');
         $this->db->order_by('sl.id', 'ASC');

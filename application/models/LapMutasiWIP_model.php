@@ -49,34 +49,35 @@ class LapMutasiWIP_model extends CI_Model {
                 SELECT 
                     sl.item_id, 
                     sl.item_type, 
-                    (SUM(sl.qty_in) - SUM(sl.qty_out)) as balance
+                    -- Saldo WIP = Total Masuk - Total Keluar
+                    -- NOTE: Bug fix - wip_in bisa simpan qty di qty_in ATAU qty_out, ambil yang > 0
+                    (SUM(CASE 
+                        WHEN sl.transaction_type IN ('wip_in', 'IN_RETURN_WIP') THEN GREATEST(COALESCE(sl.qty_in, 0), COALESCE(sl.qty_out, 0))
+                        ELSE 0 
+                     END) - 
+                     SUM(CASE WHEN sl.transaction_type = 'wip_out' THEN sl.qty_out ELSE 0 END)) as balance,
+                    1 as has_history
                 FROM stock_ledger sl
-                LEFT JOIN production_outputs po_valid ON sl.transaction_id = po_valid.id AND sl.transaction_type = 'wip_in' AND sl.item_type = 'semifinished'
-                LEFT JOIN production_inputs pi_valid ON sl.transaction_id = pi_valid.id AND sl.transaction_type = 'wip_out'
                 WHERE sl.transaction_date < ?
                   AND sl.transaction_type IN ('wip_in', 'wip_out', 'IN_RETURN_WIP')
-                  AND NOT (
-                      (sl.transaction_type = 'wip_in' AND sl.item_type = 'semifinished' AND po_valid.id IS NULL)
-                      OR (sl.transaction_type = 'wip_out' AND pi_valid.id IS NULL)
-                  )
                 GROUP BY sl.item_id, sl.item_type
             ),
             mutasi AS (
                 SELECT
                     sl.item_id, 
                     sl.item_type,
-                    SUM(sl.qty_in) as total_masuk,
-                    SUM(sl.qty_out) as total_keluar
+                    -- MASUK WIP: wip_in + IN_RETURN_WIP
+                    -- NOTE: Bug fix - wip_in bisa simpan qty di qty_in ATAU qty_out, ambil yang > 0
+                    SUM(CASE 
+                        WHEN sl.transaction_type IN ('wip_in', 'IN_RETURN_WIP') THEN GREATEST(COALESCE(sl.qty_in, 0), COALESCE(sl.qty_out, 0))
+                        ELSE 0 
+                    END) as total_masuk,
+                    -- KELUAR WIP: wip_out
+                    SUM(CASE WHEN sl.transaction_type = 'wip_out' THEN sl.qty_out ELSE 0 END) as total_keluar
                 FROM stock_ledger sl
-                LEFT JOIN production_outputs po_valid ON sl.transaction_id = po_valid.id AND sl.transaction_type = 'wip_in' AND sl.item_type = 'semifinished'
-                LEFT JOIN production_inputs pi_valid ON sl.transaction_id = pi_valid.id AND sl.transaction_type = 'wip_out'
                 WHERE sl.transaction_date >= ?
                   AND sl.transaction_date <= ?
                   AND sl.transaction_type IN ('wip_in', 'wip_out', 'IN_RETURN_WIP')
-                  AND NOT (
-                      (sl.transaction_type = 'wip_in' AND sl.item_type = 'semifinished' AND po_valid.id IS NULL)
-                      OR (sl.transaction_type = 'wip_out' AND pi_valid.id IS NULL)
-                  )
                 GROUP BY sl.item_id, sl.item_type
             )
             
@@ -89,7 +90,8 @@ class LapMutasiWIP_model extends CI_Model {
                 COALESCE(sa.balance, 0) AS saldo_awal,
                 COALESCE(m.total_masuk, 0) AS total_masuk,
                 COALESCE(m.total_keluar, 0) AS total_keluar,
-                (COALESCE(sa.balance, 0) + COALESCE(m.total_masuk, 0) - COALESCE(m.total_keluar, 0)) AS saldo_akhir
+                (COALESCE(sa.balance, 0) + COALESCE(m.total_masuk, 0) - COALESCE(m.total_keluar, 0)) AS saldo_akhir,
+                COALESCE(sa.has_history, 0) AS has_history
                 
             FROM common_items i
             LEFT JOIN saldo_awal sa ON i.id = sa.item_id AND i.item_type = sa.item_type
@@ -99,7 +101,9 @@ class LapMutasiWIP_model extends CI_Model {
             $sql_search
 
             HAVING 
-                saldo_awal != 0 OR
+                -- Item muncul jika pernah ada transaksi WIP valid sebelumnya
+                has_history = 1 OR
+                -- Atau ada mutasi valid di periode ini
                 total_masuk != 0 OR
                 total_keluar != 0
                 
@@ -122,45 +126,26 @@ class LapMutasiWIP_model extends CI_Model {
             sl.qty_in, 
             sl.qty_out, 
             sl.balance,
-            
             mrh.mr_number,
-            
             ph_in.production_number as prod_num_in, 
             po_in.stage_name as stage_in,
-            
             ph_out.production_number as prod_num_out, 
             pi_out.stage_name as stage_out,
-            
             prh.prod_return_no
         FROM stock_ledger sl
-        
-        LEFT JOIN mr_header mrh ON sl.source_doc_id = mrh.id 
-            AND sl.transaction_type = 'wip_in' 
-            AND sl.item_type = 'material'
-        
-        LEFT JOIN production_outputs po_in ON sl.transaction_id = po_in.id 
-            AND sl.transaction_type = 'wip_in' 
-            AND sl.item_type = 'semifinished'
+        -- wip_in material: transaction_id = mr_header.id (bukan source_doc_id)
+        LEFT JOIN mr_header mrh ON sl.transaction_id = mrh.id AND sl.transaction_type = 'wip_in' AND sl.item_type = 'material'
+        LEFT JOIN production_outputs po_in ON sl.transaction_id = po_in.id AND sl.transaction_type = 'wip_in' AND sl.item_type = 'semifinished'
         LEFT JOIN production_header ph_in ON po_in.production_header_id = ph_in.id
-        
-        LEFT JOIN production_inputs pi_out ON sl.transaction_id = pi_out.id 
-            AND sl.transaction_type = 'wip_out'
+        LEFT JOIN production_inputs pi_out ON sl.transaction_id = pi_out.id AND sl.transaction_type = 'wip_out'
         LEFT JOIN production_header ph_out ON pi_out.production_header_id = ph_out.id
-        
-        LEFT JOIN prod_return_detail prd ON sl.transaction_id = prd.id 
-            AND sl.transaction_type = 'IN_RETURN_WIP'
+        LEFT JOIN prod_return_detail prd ON sl.transaction_id = prd.id AND sl.transaction_type = 'IN_RETURN_WIP'
         LEFT JOIN prod_return_header prh ON prd.prod_return_id = prh.id
-        
         WHERE sl.item_id = ?
           AND sl.item_type = ?
           AND sl.transaction_type IN ('wip_in', 'wip_out', 'IN_RETURN_WIP')
-          AND NOT (
-              (sl.transaction_type = 'wip_in' AND sl.item_type = 'semifinished' AND po_in.id IS NULL)
-              OR (sl.transaction_type = 'wip_out' AND pi_out.id IS NULL)
-          )
         ORDER BY sl.transaction_date ASC, sl.id ASC
         ";
-        
         return $this->db->query($sql, [$item_id, $item_type])->result();
     }
 

@@ -51,19 +51,29 @@ class ApPayment_model extends CI_Model {
         return "APP/" . date('Ym') . "/" . $kode_max;
     }
 
-    // Ambil akun Kas & Bank (Asumsi IDR)
+    /**
+     * Ambil daftar akun kas/bank untuk pembayaran (untuk IDR saat ini).
+     * User akan memilih dari dropdown ini.
+     * Bisa dikembangkan untuk multi-currency.
+     * 
+     * @return array List of accounts
+     */
     public function get_payment_accounts()
     {
+        $this->db->select('id, account_code, account_name, currency, normal_balance');
         $this->db->where('is_header', 0);
         $this->db->where('status', 'active');
-        $this->db->where('currency', 'IDR');
+        $this->db->where('currency', 'IDR'); // Bisa ditambah parameter jika perlu multi-currency
         $this->db->where('account_type', 'Aset');
-        // Asumsi akun Kas/Bank punya kode 1-11xx
-        $this->db->like('account_code', '1.102', 'after'); 
+        
+        // Filter akun kas/bank yang dimulai dengan 1.101 (Kas) atau 1.102 (Bank)
+        $this->db->group_start();
+        $this->db->like('account_code', '1.101', 'after');
+        $this->db->or_like('account_code', '1.102', 'after');
+        $this->db->group_end();
+        
         $this->db->order_by('account_code', 'ASC');
-        $result = $this->db->get('chart_of_accounts')->result();
-        // print_r($result); exit; // This will dump the variable and stop execution
-        return $result;
+        return $this->db->get('chart_of_accounts')->result();
     }
 
     // Ambil faktur yg belum lunas
@@ -81,6 +91,31 @@ class ApPayment_model extends CI_Model {
     public function insert_payment($post)
     {
         $this->db->trans_start();
+        
+        // Validasi akun kas/bank yang dipilih user
+        $payment_account_id = isset($post['payment_account_id']) ? $post['payment_account_id'] : null;
+        
+        if (!$payment_account_id) {
+            $this->db->trans_complete();
+            throw new Exception("Silakan pilih akun kas/bank untuk membayar.");
+        }
+        
+        // Validasi akun valid, aktif, dan sesuai tipe
+        $this->db->where('id', $payment_account_id);
+        $this->db->where('status', 'active');
+        $this->db->where('is_header', 0);
+        $account = $this->db->get('chart_of_accounts')->row();
+        
+        if (!$account) {
+            $this->db->trans_complete();
+            throw new Exception("Akun kas/bank yang dipilih tidak valid atau tidak aktif.");
+        }
+        
+        // Validasi akun adalah kas/bank (kode 1.101 atau 1.102)
+        if (!preg_match('/^1\.10[12]/', $account->account_code)) {
+            $this->db->trans_complete();
+            throw new Exception("Akun yang dipilih bukan akun Kas/Bank. Pilih akun dengan kode 1.101.x atau 1.102.x");
+        }
 
         $details = $post['details'];
         $total_amount = 0;
@@ -89,9 +124,18 @@ class ApPayment_model extends CI_Model {
         foreach ($details as $inv_id => $data) {
             $amount_paid = (float) $data['amount_paid'];
             if ($amount_paid > 0) {
+                // Validasi tidak overpayment
+                $invoice = $this->db->where('id', $inv_id)->get('ap_invoice_header')->row();
+                if ($invoice) {
+                    $sisa_utang = $invoice->total_invoice - $invoice->total_paid;
+                    if ($amount_paid > $sisa_utang + 0.01) {
+                        $this->db->trans_complete();
+                        throw new Exception("Pembayaran untuk invoice {$invoice->invoice_no} melebihi sisa utang (Max: {$sisa_utang}).");
+                    }
+                }
+                
                 $total_amount += $amount_paid;
                 $detail_batch[] = [
-                    // 'payment_header_id' diisi nanti
                     'ap_invoice_header_id' => $inv_id,
                     'amount_paid' => $amount_paid
                 ];
@@ -99,16 +143,22 @@ class ApPayment_model extends CI_Model {
         }
         
         if (empty($detail_batch)) {
+            $this->db->trans_complete();
             throw new Exception("Tidak ada jumlah pembayaran yang diinput.");
+        }
+        
+        if ($total_amount <= 0) {
+            $this->db->trans_complete();
+            throw new Exception("Total pembayaran harus lebih dari 0.");
         }
 
         $header_data = [
             'payment_no' => $post['payment_no'],
             'payment_date' => $post['payment_date'],
             'supplier_id' => $post['supplier_id'],
-            'payment_account_id' => $post['payment_account_id'],
+            'payment_account_id' => $payment_account_id, // Dari setting
             'total_amount' => $total_amount,
-            'notes' => $post['notes'],
+            'notes' => isset($post['notes']) ? $post['notes'] : null,
             'status' => 'Draft',
             'created_by' => $this->session->userdata('user_id'),
             'created_at' => date('Y-m-d H:i:s')

@@ -13,7 +13,7 @@
                     <form id="filterForm">
                         <div class="form-group">
                             <label for="date">Per Tanggal</label>
-                            <input type-="date" class="form-control" id="date" name="date" value="<?= date('Y-m-d') ?>">
+                            <input type="date" class="form-control" id="date" name="date" value="<?= date('Y-m-d') ?>">
                         </div>
                         <button type="button" id="viewButton" class="btn btn-primary">Tampilkan</button>
                         <button type="button" id="pdfButton" class="btn btn-danger">Export PDF</button>
@@ -50,6 +50,8 @@ $(document).ready(function(){
             data: {date: date},
             dataType: 'json',
             success: function(data) {
+                console.log('Neraca Data:', data); // DEBUG: Lihat data di browser console
+                
                 let html = '<table class="table table-bordered">';
                 html += '<thead><tr><th>Akun</th><th>Nama Akun</th><th>Saldo</th></tr></thead>';
                 html += '<tbody>';
@@ -82,8 +84,14 @@ $(document).ready(function(){
                 let totalEquity = 0;
                 $.each(data.equity, function(i, item){
                     html += '<tr>';
-                    html += '<td><a href="<?= base_url('neraca/detail/') ?>'+item.id+'/'+date+'">'+item.account+'</a></td>';
-                    html += '<td>'+item.name+'</td>';
+                    // Cek jika virtual account (Laba/Rugi), jangan buat link
+                    if (item.id === 'retained_earnings' || item.id === 'current_year_income') {
+                        html += '<td>'+item.account+'</td>';
+                        html += '<td class="font-italic">'+item.name+'</td>';
+                    } else {
+                        html += '<td><a href="<?= base_url('neraca/detail/') ?>'+item.id+'/'+date+'">'+item.account+'</a></td>';
+                        html += '<td>'+item.name+'</td>';
+                    }
                     html += '<td class="text-right">'+new Intl.NumberFormat().format(item.balance)+'</td>';
                     html += '</tr>';
                     totalEquity += parseFloat(item.balance);
@@ -91,6 +99,16 @@ $(document).ready(function(){
                 html += '<tr><td colspan="2" class="text-right font-weight-bold">Total Ekuitas</td><td class="text-right font-weight-bold">'+new Intl.NumberFormat().format(totalEquity)+'</td></tr>';
 
                 html += '<tr><td colspan="2" class="text-right font-weight-bold">Total Kewajiban dan Ekuitas</td><td class="text-right font-weight-bold">'+new Intl.NumberFormat().format(totalLiabilities + totalEquity)+'</td></tr>';
+
+                // Status Balance Check
+                let diff = Math.abs(totalAssets - (totalLiabilities + totalEquity));
+                let status = '';
+                if (diff < 0.01) {
+                    status = '<tr class="bg-success text-white"><td colspan="2" class="text-center font-weight-bold">STATUS</td><td class="text-center font-weight-bold">BALANCE ✓</td></tr>';
+                } else {
+                    status = '<tr class="bg-danger text-white"><td colspan="2" class="text-center font-weight-bold">STATUS</td><td class="text-center font-weight-bold">NOT BALANCE (Selisih: '+new Intl.NumberFormat().format(diff)+')</td></tr>';
+                }
+                html += status;
 
                 html += '</tbody></table>';
                 $('#neracaTableContainer').html(html);

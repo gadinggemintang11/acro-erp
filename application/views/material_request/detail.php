@@ -221,10 +221,6 @@ $(document).ready(function() {
         } else {
              $('#wo_reference_div').html('<p class="text-muted text-center">Pilih Work Order untuk menampilkan referensi.</p>');
         }
-
-        $('#addAllWoReferenceBtn').css('display', woId ? 'inline-block' : 'none');
-        $('#wo_id_input').val(woId);
-
     });
 
     // Inisialisasi Select2 untuk Modal Tambah Item (HANYA JIKA STATUS DRAFT)

@@ -61,6 +61,41 @@ class Coa_model extends CI_Model {
     {
         return $this->db->update($this->table, $data, ['id' => $id]);
     }
+    public function search_tree($search)
+    {
+        $this->db->order_by('account_code', 'ASC');
+        $this->db->group_start();
+        $this->db->like('account_code', $search);
+        $this->db->or_like('account_name', $search);
+        $this->db->group_end();
+        $accounts = $this->db->get($this->table)->result_array();
+        // Ambil semua parent dari hasil search agar tree tetap utuh
+        if (!empty($accounts)) {
+            $ids = array_column($accounts, 'id');
+            $parent_ids = array_column($accounts, 'parent_id');
+            $all_ids = array_unique(array_merge($ids, $parent_ids));
+            // Ambil semua parent hingga root
+            $checked_ids = $all_ids;
+            do {
+                $this->db->where_in('id', $checked_ids);
+                $parents = $this->db->get($this->table)->result_array();
+                $new_parent_ids = [];
+                foreach ($parents as $p) {
+                    if ($p['parent_id'] && !in_array($p['parent_id'], $all_ids)) {
+                        $all_ids[] = $p['parent_id'];
+                        $new_parent_ids[] = $p['parent_id'];
+                    }
+                }
+                $checked_ids = $new_parent_ids;
+            } while (!empty($checked_ids));
+            $this->db->order_by('account_code', 'ASC');
+            $this->db->where_in('id', $all_ids);
+            $all_accounts = $this->db->get($this->table)->result_array();
+            return $this->build_tree($all_accounts);
+        } else {
+            return [];
+        }
+    }
 
     // Cek sebelum hapus
     public function is_deletable($id)

@@ -10,28 +10,25 @@ use Dompdf\Options;
 
 class LapPemasukanBB extends MY_Controller {
 
-    private $report_code = 'pemasukan_bb'; // Kode unik laporan ini
-    private $report_title = 'Laporan Pertanggung Jawaban Pemasukan Barang'; // Judul Laporan
+    private $report_code = 'pemasukan_bb'; 
+    private $report_title = 'Laporan Pertanggung Jawaban Pemasukan Barang'; 
 
     public function __construct() {
         parent::__construct();
-        check_login(); // Pastikan helper login sudah di-load
-        // Load model spesifik laporan ini dan model umum
+        check_login(); 
         $this->load->model(['LapPemasukanBB_model', 'Commoncode_model']);
         $this->load->library(['pagination', 'session']);
         $this->load->helper('url');
-        // $this->load->library('form_validation'); // Uncomment jika perlu validasi form lebih detail
+        
     }
 
-    /**
-     * Halaman utama: Form pemilihan filter laporan
-     */
+   
     public function index() {
         if (!check_access('lap_pemasukan_bb', 'view')) { // Sesuaikan permission key
             show_error('Anda tidak memiliki izin.', 403); return;
         }
 
-        // Ambil nilai filter dari GET request (jika ada)
+        
         $start_date = $this->input->get('start_date') ?: date('Y-m-01'); // Default awal bulan ini
         $end_date = $this->input->get('end_date') ?: date('Y-m-d'); // Default hari ini
         $bc_type = $this->input->get('bc_type');
@@ -42,17 +39,15 @@ class LapPemasukanBB extends MY_Controller {
             'end_date' => $end_date,
             'bc_type' => $bc_type,
             'search' => $search
-            // Tambahkan filter lain jika perlu
+            
         ];
 
-        // --- Pagination Config ---
         $config['base_url'] = base_url('LapPemasukanBB/index'); // Targetkan method index
         $config['total_rows'] = $this->LapPemasukanBB_model->count_report($filters);
-        $config['per_page'] = 25; // Item per halaman
+        $config['per_page'] = 25; 
         $config['reuse_query_string'] = TRUE;
         $config['use_page_numbers'] = TRUE;
-        $config['num_links'] = 2;
-        // ... (Styling pagination Bootstrap 4 seperti sebelumnya) ...
+        $config['num_links'] = 
         $config['full_tag_open'] = '<nav aria-label="Page navigation"><ul class="pagination pagination-sm justify-content-center flex-wrap">'; /* ... */ $config['full_tag_close'] = '</ul></nav>';
         $config['first_link'] = '&laquo;'; $config['first_tag_open'] = '<li class="page-item">'; $config['first_tag_close'] = '</li>';
         $config['last_link'] = '&raquo;'; $config['last_tag_open'] = '<li class="page-item">'; $config['last_tag_close'] = '</li>';
@@ -123,7 +118,7 @@ class LapPemasukanBB extends MY_Controller {
      * (Sama seperti sebelumnya, pastikan join di model get_trace_detail lengkap)
      */
     private function _build_traceability_table($trace_data) {
-        // Logika untuk membuat tabel HTML dari $trace_data
+        
         $html = '<div class="table-responsive"><table class="table table-sm table-bordered" style="font-size: 0.8rem;">';
         $html .= '<thead class="thead-light"><tr><th>Tanggal</th><th>Tipe</th><th>Dok. Sumber</th><th>No. Ref</th><th>Partner</th><th>Qty Masuk</th><th>Qty Keluar</th><th>Saldo</th><th>BC Info</th><th>No. WO</th></tr></thead>';
         $html .= '<tbody>';
@@ -131,13 +126,13 @@ class LapPemasukanBB extends MY_Controller {
             $html .= '<tr><td colspan="10" class="text-center">Tidak ada riwayat untuk item ini.</td></tr>';
         } else {
             foreach ($trace_data as $row) {
-                // Tentukan No. Ref
-                $main_ref = $row['grn_number'] ?? '-'; // Default GRN Number
+                
+                $main_ref = $row['grn_number'] ?? '-'; 
 
-                // Tentukan Dok. Sumber
+               
                 $doc_source_text = '';
                 if ($row['source_doc_type'] == 'PO') {
-                    // PERBAIKAN KRITIS: Gunakan po_number yang baru diambil
+                    
                     $doc_source_text = "PO: " . htmlspecialchars($row['po_number'] ?? $row['source_doc_id']); 
                 } elseif ($row['source_doc_type'] == 'MIR') {
                     $doc_source_text = "MIR: " . htmlspecialchars($row['mir_number'] ?? $row['source_doc_id']);
@@ -210,14 +205,14 @@ class LapPemasukanBB extends MY_Controller {
     public function export_excel() {
          if (!check_access('lap_pemasukan_bb', 'view')) { show_error('Tidak ada izin.', 403); return;}
 
-        // Ambil filter dari GET
+        
         $start_date = $this->input->get('start_date') ?: date('Y-m-01');
         $end_date = $this->input->get('end_date') ?: date('Y-m-d');
         $bc_type = $this->input->get('bc_type');
         $search = $this->input->get('search');
         $filters = ['start_date' => $start_date, 'end_date' => $end_date, 'bc_type' => $bc_type, 'search' => $search];
 
-        // Ambil SEMUA data (limit = 0)
+        
         $report_data = $this->LapPemasukanBB_model->get_report($filters, 0, 0);
         $bc_types_map = array_column($this->Commoncode_model->get_by_group('BC_TYPE'), 'description', 'code');
 

@@ -1,35 +1,6 @@
 <?php
 defined('BASEPATH') OR exit('No direct script access allowed');
 
-if (!function_exists('load_env')) {
-    function load_env($file_path = null) {
-        static $loaded = false;
-        
-        if ($loaded) return;
-        
-        $env_file = $file_path ?: FCPATH . '.env';
-        
-        if (file_exists($env_file)) {
-            $lines = file($env_file, FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
-            foreach ($lines as $line) {
-                if (strpos($line, '=') !== false && substr($line, 0, 1) !== '#') {
-                    list($key, $value) = explode('=', $line, 2);
-                    $key = trim($key);
-                    $value = trim($value, '"\'');
-                    putenv($key . '=' . $value);
-                    $_ENV[$key] = $value;
-                }
-            }
-        }
-        
-        $loaded = true;
-    }
-}
-
-// Auto-load environment variables
-load_env();
-
-
 /*
 |--------------------------------------------------------------------------
 | Base Site URL
@@ -52,7 +23,7 @@ load_env();
 | a PHP script and you can easily do that on your own.
 |
 */
-$config['base_url'] = getenv('BASE_URL') ?: 'https://mingbaolianchuangint.com/';
+$config['base_url'] = getenv('APP_BASE_URL') ?: 'http://localhost/erp_mingbao/';
 
 /*
 |--------------------------------------------------------------------------
@@ -64,7 +35,7 @@ $config['base_url'] = getenv('BASE_URL') ?: 'https://mingbaolianchuangint.com/';
 | variable so that it is blank.
 |
 */
-$config['index_page'] = '';
+$config['index_page'] = getenv('APP_INDEX_PAGE') ?: '';
 
 /*
 |--------------------------------------------------------------------------
@@ -416,7 +387,7 @@ $config['sess_driver'] = 'files';
 $config['sess_cookie_name'] = 'ci_session';
 $config['sess_samesite'] = 'Lax';
 $config['sess_expiration'] = 7200;
-$config['sess_save_path'] = sys_get_temp_dir();
+$config['sess_save_path'] = NULL;
 $config['sess_match_ip'] = FALSE;
 $config['sess_time_to_update'] = 3600;
 $config['sess_regenerate_destroy'] = FALSE;

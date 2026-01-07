@@ -14,7 +14,7 @@ class LapMutasiWIP extends MY_Controller {
         $this->load->model('LapMutasiWIP_model'); 
         $this->load->helper(['url']);
     }
-
+    
     public function index() {
         $data = [
             'page_title' => 'Laporan Pertanggung Jawaban Mutasi WIP (Work In Progress)', 
@@ -40,8 +40,7 @@ class LapMutasiWIP extends MY_Controller {
         echo json_encode(['success' => true, 'data' => $rows]);
     }
 
-    // Fungsi detail() ini akan sama persis
-    // Ia memuat data dasar item (get_item_basic)
+    
     public function detail($item_type = null, $item_id = null) {
         if (empty($item_type) || empty($item_id)) {
             show_error('Parameter tidak lengkap.', 400);
@@ -56,15 +55,14 @@ class LapMutasiWIP extends MY_Controller {
         $data['item_type'] = $item_type;
         $data['item']      = $this->LapMutasiMaterial_model->get_item_basic($item_type, $item_id);
         
-        // Memanggil fungsi get_item_detail_wip dari model BARU
+        
         $data['trace']     = $this->LapMutasiWIP_model->get_item_detail_wip($item_id, $item_type);
 
-        // Kita akan buat view modal baru juga agar tidak bingung
+        
         $this->load->view('it_inventory/lap_mutasi_wip/detail_modal', $data);
     }
-
-    // Fungsi trace_recursive() ini akan sama persis
-    // Ia memanggil fungsi trace_recursive yang sudah sempurna
+    
+   
     public function trace_recursive($item_type = null, $item_id = null) {
         if (empty($item_type) || empty($item_id)) {
             show_error('Parameter tidak lengkap.', 400);
@@ -72,22 +70,17 @@ class LapMutasiWIP extends MY_Controller {
         }
         $item_id = (int) $item_id;
 
-        // Kita bisa pinjam fungsi dari model LAMA
+        
         $this->load->model('LapMutasiMaterial_model');
         $data['item_type'] = $item_type;
         $data['item'] = $this->LapMutasiMaterial_model->get_item_basic($item_type, $item_id);
         
-        // Memanggil fungsi trace_recursive dari model BARU
-        // (Isinya akan kita copy-paste dari model lama)
+        
         $data['trace'] = $this->LapMutasiWIP_model->trace_recursive($item_id, $item_type, 25);
 
         // Menggunakan ulang view modal trace recursive yang sudah kita buat
         $this->load->view('it_inventory/lap_mutasi_material/trace_recursive_modal', $data);
     }
-
-    // ======================================================
-    // EXPORT FUNCTIONS FOR MODALS
-    // ======================================================
 
     public function export_detail_excel($item_type = null, $item_id = null) {
         if (empty($item_type) || empty($item_id)) { show_error('Parameter tidak lengkap.', 400); }
@@ -101,17 +94,17 @@ class LapMutasiWIP extends MY_Controller {
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Kartu Stok WIP');
 
-        // Header
+     
         $sheet->setCellValue('A1', 'Kartu Stok WIP: ' . ($item_info->name ?? 'N/A'));
         $sheet->setCellValue('A2', 'Kode: ' . ($item_info->code ?? 'N/A'));
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
 
-        // Table Headers
+        
         $headers = ['Tgl. Transaksi', 'Tipe', 'Dokumen Sumber (Traceability)', 'Masuk', 'Keluar', 'Saldo'];
         $sheet->fromArray($headers, NULL, 'A4');
         $sheet->getStyle('A4:F4')->getFont()->setBold(true);
 
-        // Data
+        
         $rowNum = 5;
         foreach ($trace_data as $t) {
             $doc_info = '';
@@ -202,7 +195,7 @@ class LapMutasiWIP extends MY_Controller {
         $data['title'] = 'Jejak Produksi (WIP)';
         $data['item_type'] = $item_type;
 
-        // Menggunakan view template yang baru dibuat untuk WIP
+        
         $html = $this->load->view('it_inventory/lap_mutasi_wip/pdf_trace_template', $data, true);
         
         try {
@@ -215,6 +208,5 @@ class LapMutasiWIP extends MY_Controller {
         }
     }
 
-    // Fungsi Ekspor (Excel/PDF) bisa kita tambahkan nanti
-    // setelah data intinya tampil.
+   
 }

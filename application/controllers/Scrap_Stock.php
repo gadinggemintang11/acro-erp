@@ -7,10 +7,11 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 
-class Scrap_Stock extends CI_Controller {
+class Scrap_Stock extends MY_Controller {
 
     public function __construct() {
         parent::__construct();
+        check_login();
         $this->load->model('Scrap_Stock_model');
         $this->load->library(['pagination', 'session']);
         $this->load->helper(['url', 'form']);
@@ -20,6 +21,7 @@ class Scrap_Stock extends CI_Controller {
        🔹 LAPORAN RINCI STOK SCRAP (PER BATCH)
        ============================================================ */
     public function index() {
+        check_access('scrap_stock', 'view');
         $data['title'] = 'Laporan Rinci Stok Scrap (per Batch)';
 
         $filters = ['search' => trim($this->input->get('search', TRUE))];
@@ -59,6 +61,7 @@ class Scrap_Stock extends CI_Controller {
        🔹 RINGKASAN STOK SCRAP
        ============================================================ */
     public function summary() {
+        check_access('scrap_stock', 'view');
         $data['title'] = 'Ringkasan Stok Scrap';
 
         $filters = ['search' => trim($this->input->get('search', TRUE))];
@@ -93,6 +96,7 @@ class Scrap_Stock extends CI_Controller {
        🔹 DETAIL TRACEABILITY SCRAP
        ============================================================ */
     public function detail($scrap_id = null) {
+        check_access('scrap_stock', 'view');
         // Debug
         log_message('debug', 'Scrap_Stock::detail() called with scrap_id = ' . $scrap_id);
         

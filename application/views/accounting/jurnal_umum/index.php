@@ -12,6 +12,14 @@
     <div class="card shadow mb-4">
         <div class="card-header py-3">
             <h6 class="m-0 font-weight-bold text-primary">Daftar Jurnal</h6>
+            <form method="get" action="" class="form-inline mt-2">
+                <input type="text" name="search" class="form-control mr-2" placeholder="Cari no jurnal/tanggal/keterangan..." value="<?= isset($search) ? htmlspecialchars($search) : '' ?>" style="min-width: 300px;">
+                <button type="submit" class="btn btn-primary"><i class="fas fa-search"></i> Search</button>
+                <?php if (!empty($search)): ?>
+                    <a href="<?= base_url('jurnalumum') ?>" class="btn btn-secondary ml-2"><i class="fas fa-redo"></i> Reset</a>
+                    <small class="ml-3 text-muted">Hasil pencarian: "<strong><?= htmlspecialchars($search) ?></strong>"</small>
+                <?php endif; ?>
+            </form>
         </div>
         <div class="card-body">
             <div class="table-responsive">

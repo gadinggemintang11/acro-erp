@@ -27,7 +27,6 @@
     <?php if ($this->session->flashdata('error')): ?><div class="alert alert-danger alert-dismissible fade show" role="alert"><?= $this->session->flashdata('error'); ?><button type="button" class="close" data-dismiss="alert">&times;</button></div><?php endif; ?>
     <?php if ($this->session->flashdata('warning')): ?><div class="alert alert-warning alert-dismissible fade show" role="alert"><?= $this->session->flashdata('warning'); ?><button type="button" class="close" data-dismiss="alert">&times;</button></div><?php endif; ?>
 
-
     <div class="card border-0 shadow-sm rounded">
         <div class="card-body">
             <div class="table-responsive">
@@ -45,39 +44,36 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <?php if (!empty($processes)): foreach ($processes as $proc): ?>
-                                <tr class="text-center">
-                                    <td class="font-weight-bold text-primary"><?= htmlspecialchars($proc->production_number); ?></td>
-                                    <td><?= htmlspecialchars($proc->wo_number); ?></td>
-                                    <td><?= htmlspecialchars($proc->sc_number); ?></td>
-                                    <td class="text-left"><?= htmlspecialchars($proc->fg_name); ?></td>
-                                    <td class="text-right"><?= number_format($proc->planned_qty); ?></td>
-                                    <td><?= date('d M Y', strtotime($proc->production_date)); ?></td>
-                                    <td>
-                                        <?php
-                                        $badge_class = 'secondary';
-                                        if ($proc->status == 'Draft') $badge_class = 'warning';
-                                        if ($proc->status == 'In Progress') $badge_class = 'primary';
-                                        if ($proc->status == 'Completed') $badge_class = 'success';
-                                        ?>
-                                        <span class="badge badge-<?= $badge_class; ?>"><?= htmlspecialchars($proc->status); ?></span>
-                                    </td>
-                                    <td>
-                                        <a href="<?= base_url('production_process/preparation/' . $proc->id); ?>" class="btn btn-sm btn-info">
-                                            <i class="fas fa-cogs"></i> Proses
-                                        </a>
-                                        <?php if ($proc->status == 'Draft' && check_access('production_process', 'delete')): ?>
-                                            <a href="<?= base_url('production_process/delete_header/' . $proc->id); ?>" class="btn btn-sm btn-danger btn-delete ml-1" data-message="Yakin ingin menghapus Proses Produksi ini beserta semua detail input/outputnya?">
-                                                <i class="fas fa-trash"></i>
-                                            </a>
-                                        <?php endif; ?>
-                                    </td>
-                                </tr>
-                            <?php endforeach;
-                        else: ?>
-                            <tr>
-                                <td colspan="8" class="text-center text-muted py-3">Belum ada data Proses Produksi</td>
-                            </tr>
+                        <?php if(!empty($processes)): foreach($processes as $proc): ?>
+                        <tr class="text-center">
+                            <td class="font-weight-bold text-primary"><?= htmlspecialchars($proc->production_number); ?></td>
+                            <td><?= htmlspecialchars($proc->wo_number); ?></td>
+                            <td><?= htmlspecialchars($proc->sc_number); ?></td>
+                            <td class="text-left"><?= htmlspecialchars($proc->fg_name); ?></td>
+                            <td class="text-right"><?= number_format($proc->planned_qty); ?></td>
+                            <td><?= date('d M Y', strtotime($proc->production_date)); ?></td>
+                            <td>
+                                <?php
+                                    $badge_class = 'secondary';
+                                    if ($proc->status == 'Draft') $badge_class = 'warning';
+                                    if ($proc->status == 'In Progress') $badge_class = 'primary';
+                                    if ($proc->status == 'Completed') $badge_class = 'success';
+                                ?>
+                                <span class="badge badge-<?= $badge_class; ?>"><?= htmlspecialchars($proc->status); ?></span>
+                            </td>
+                            <td>
+                                <a href="<?= base_url('production_process/preparation/'.$proc->id); ?>" class="btn btn-sm btn-info">
+                                    <i class="fas fa-cogs"></i> Proses
+                                </a>
+                                <?php if ($proc->status == 'Draft' && check_access('production_process', 'delete')): ?>
+                                <a href="<?= base_url('production_process/delete_header/'.$proc->id); ?>" class="btn btn-sm btn-danger btn-delete ml-1" data-message="Yakin ingin menghapus Proses Produksi ini beserta semua detail input/outputnya?">
+                                    <i class="fas fa-trash"></i>
+                                </a>
+                                <?php endif; ?>
+                            </td>
+                        </tr>
+                        <?php endforeach; else: ?>
+                            <tr><td colspan="8" class="text-center text-muted py-3">Belum ada data Proses Produksi</td></tr>
                         <?php endif; ?>
                     </tbody>
                 </table>
@@ -85,66 +81,62 @@
         </div>
     </div>
 </div>
+<!-- /.container-fluid -->
 
-
-<a class="scroll-to-top rounded" href="#page-top">
-    <i class="fas fa-angle-up"></i>
-</a>
-
-
+<!-- Modal Create Process -->
 <div class="modal fade" id="createProcessModal" tabindex="-1" aria-labelledby="createProcessModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <form id="createProcessForm" method="post" action="<?= base_url('production_process/create_header'); ?>">
-            <div class="modal-content border-0 shadow">
-                <div class="modal-header bg-gradient-primary text-white">
-                    <h5 class="modal-title" id="createProcessModalLabel"><i class="fas fa-plus-circle mr-2"></i>Buat Proses Produksi Baru</h5>
-                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">&times;</button>
-                </div>
-                <div class="modal-body">
-                    <div class="form-group">
-                        <label for="wo_selector">Pilih Work Order (Status: In Progress)</label>
-                        <select name="wo_header_id" id="wo_selector" class="form-control" required style="width: 100%;">
-                            <option value="">-- Cari No. Work Order --</option>
-                        </select>
-                        <div class="invalid-feedback">Work Order wajib dipilih.</div>
+        <div class="modal-dialog modal-lg modal-dialog-centered">
+             <form id="createProcessForm" method="post" action="<?= base_url('production_process/create_header'); ?>">
+                <div class="modal-content border-0 shadow">
+                    <div class="modal-header bg-gradient-primary text-white">
+                        <h5 class="modal-title" id="createProcessModalLabel"><i class="fas fa-plus-circle mr-2"></i>Buat Proses Produksi Baru</h5>
+                        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">&times;</button>
                     </div>
-                    <div id="wo_details_info" style="display: none;" class="alert alert-secondary p-2 mb-3">
-                        <small>
-                            Sales Contract: <strong id="info_sc_number">-</strong><br>
-                            Style: <strong id="info_fg_name">-</strong><br>
-                            Qty Rencana: <strong id="info_planned_qty">-</strong>
-                        </small>
-                    </div>
-                    <div class="row">
-                        <div class="col-md-6 form-group">
-                            <label for="production_date">Tanggal Mulai Produksi</label>
-                            <input type="date" name="production_date" id="production_date" class="form-control" value="<?= date('Y-m-d'); ?>" required>
-                            <div class="invalid-feedback">Tanggal wajib diisi.</div>
+                    <div class="modal-body">
+                        <div class="form-group">
+                            <label for="wo_selector">Pilih Work Order (Status: In Progress)</label>
+                            <select name="wo_header_id" id="wo_selector" class="form-control" required style="width: 100%;">
+                                <option value="">-- Cari No. Work Order --</option>
+                            </select>
+                            <div class="invalid-feedback">Work Order wajib dipilih.</div>
+                        </div>
+                        <div id="wo_details_info" style="display: none;" class="alert alert-secondary p-2 mb-3">
+                            <small>
+                                Sales Contract: <strong id="info_sc_number">-</strong><br>
+                                Style: <strong id="info_fg_name">-</strong><br>
+                                Qty Rencana: <strong id="info_planned_qty">-</strong>
+                            </small>
+                        </div>
+                         <div class="row">
+                             <div class="col-md-6 form-group">
+                                 <label for="production_date">Tanggal Mulai Produksi</label>
+                                 <input type="date" name="production_date" id="production_date" class="form-control" value="<?= date('Y-m-d'); ?>" required>
+                                 <div class="invalid-feedback">Tanggal wajib diisi.</div>
+                             </div>
+                         </div>
+                        <div class="form-group">
+                            <label for="remarks">Catatan</label>
+                            <textarea name="remarks" id="remarks" class="form-control" rows="2"></textarea>
                         </div>
                     </div>
-                    <div class="form-group">
-                        <label for="remarks">Catatan</label>
-                        <textarea name="remarks" id="remarks" class="form-control" rows="2"></textarea>
+                    <div class="modal-footer">
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-arrow-right mr-1"></i> Simpan & Lanjut ke Proses Preparation
+                        </button>
+                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
                     </div>
                 </div>
-                <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-arrow-right mr-1"></i> Simpan & Lanjut ke Proses Preparation
-                    </button>
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
-                </div>
-            </div>
-        </form>
+            </form>
+        </div>
     </div>
-</div>
 
 
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-<script>
+    <script>
     $(function() { // Shorthand for $(document).ready()
 
         // --- Inisialisasi Select2 untuk WO Selector ---
@@ -156,21 +148,17 @@
                 url: '<?= base_url("production_process/search_open_wos"); ?>',
                 dataType: 'json',
                 delay: 250,
-                data: function(params) {
+                data: function (params) {
                     console.log("Searching WO with term:", params.term); // Log pencarian
-                    return {
-                        q: params.term
-                    };
+                    return { q: params.term };
                 },
-                processResults: function(data, params) {
+                processResults: function (data, params) {
                     console.log("Received data for search_open_wos:", data); // Log data diterima
                     // Menambahkan logging jika data tidak sesuai format
                     if (!data || !$.isArray(data.results)) { // Pastikan results adalah array
                         console.error("Format data dari search_open_wos tidak sesuai. 'results' property missing or not an array. Data:", data);
                         Swal.fire('Error Memuat Data', 'Format respons server untuk pencarian WO salah.', 'error');
-                        return {
-                            results: []
-                        }; // Kembalikan array kosong
+                        return { results: [] }; // Kembalikan array kosong
                     }
                     // Tambahkan paging jika perlu (contoh sederhana)
                     params.page = params.page || 1;
@@ -183,23 +171,23 @@
                 },
                 cache: true,
                 error: function(jqXHR, textStatus, errorThrown) {
-                    console.error("AJAX Error for search_open_wos:", textStatus, errorThrown, jqXHR.responseText);
-                    // Menampilkan pesan error yang lebih detail dari server jika ada
-                    let errorMsg = 'Gagal menghubungi server untuk mencari WO. Cek koneksi atau log server.';
-                    if (jqXHR.responseText) {
+                     console.error("AJAX Error for search_open_wos:", textStatus, errorThrown, jqXHR.responseText);
+                     // Menampilkan pesan error yang lebih detail dari server jika ada
+                     let errorMsg = 'Gagal menghubungi server untuk mencari WO. Cek koneksi atau log server.';
+                     if(jqXHR.responseText) {
                         // Coba parse response text jika mungkin berisi detail error
                         try {
                             const errResponse = JSON.parse(jqXHR.responseText);
-                            if (errResponse && errResponse.message) {
+                            if(errResponse && errResponse.message) {
                                 errorMsg = errResponse.message;
                             }
-                        } catch (e) {
-                            // Jika bukan JSON, tampilkan teks response (mungkin HTML error)
-                            // errorMsg = jqXHR.responseText; // Hindari menampilkan HTML mentah di Swal
-                            console.error("Server response was not valid JSON:", jqXHR.responseText);
+                        } catch(e) {
+                             // Jika bukan JSON, tampilkan teks response (mungkin HTML error)
+                             // errorMsg = jqXHR.responseText; // Hindari menampilkan HTML mentah di Swal
+                             console.error("Server response was not valid JSON:", jqXHR.responseText);
                         }
-                    }
-                    Swal.fire('Error Pencarian WO', errorMsg, 'error');
+                     }
+                     Swal.fire('Error Pencarian WO', errorMsg, 'error');
                 }
             },
             dropdownParent: $('#createProcessModal') // Penting untuk modal
@@ -216,9 +204,7 @@
                 $.ajax({
                     url: '<?= base_url("production_process/ajax_get_wo_details"); ?>',
                     type: 'GET',
-                    data: {
-                        wo_id: woId
-                    },
+                    data: { wo_id: woId },
                     dataType: 'json',
                     success: function(response) {
                         console.log("Response from ajax_get_wo_details:", response); // Log respons server
@@ -238,7 +224,7 @@
                     }
                 });
             } else {
-                console.log("WO ID deselected or empty.");
+                 console.log("WO ID deselected or empty.");
             }
         });
 
@@ -260,16 +246,16 @@
                 $('#wo_selector').addClass('is-invalid').closest('.form-group').find('.invalid-feedback').show(); // Tampilkan pesan error
                 isValid = false;
             } else {
-                console.log("WO ID selected for submission:", woId);
+                 console.log("WO ID selected for submission:", woId);
             }
 
             // Validasi Tanggal
             if (!prodDate || prodDate === '') {
-                console.error("Validation failed: Production Date is empty.");
-                $('#production_date').addClass('is-invalid').closest('.form-group').find('.invalid-feedback').show();
-                isValid = false;
+                 console.error("Validation failed: Production Date is empty.");
+                 $('#production_date').addClass('is-invalid').closest('.form-group').find('.invalid-feedback').show();
+                 isValid = false;
             } else {
-                console.log("Production Date for submission:", prodDate);
+                 console.log("Production Date for submission:", prodDate);
             }
 
             // Jika tidak valid, hentikan submit dan beri pesan
@@ -313,18 +299,11 @@
             }).then((result) => {
                 if (result.isConfirmed) {
                     // Tampilkan loading sebelum redirect
-                    Swal.fire({
-                        title: 'Menghapus...',
-                        text: 'Mohon tunggu...',
-                        didOpen: () => {
-                            Swal.showLoading()
-                        },
-                        allowOutsideClick: false
-                    });
+                    Swal.fire({ title: 'Menghapus...', text: 'Mohon tunggu...', didOpen: () => { Swal.showLoading() }, allowOutsideClick: false });
                     window.location.href = url; // Lanjutkan ke URL hapus
                 }
             });
         });
 
     }); // Akhir $(function() {})
-</script>
+    </script>

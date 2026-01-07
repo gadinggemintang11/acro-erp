@@ -14,10 +14,14 @@ class LapMutasiMaterial extends MY_Controller {
     }
 
     public function index() {
+        // Ambil parameter dari GET request, atau gunakan default jika tidak ada
+        $start = $this->input->get('start') ?: date('Y-m-01');
+        $end = $this->input->get('end') ?: date('Y-m-t');
+        
         $data = [
             'page_title' => 'Laporan Pertanggung Jawaban Mutasi Bahan Baku dan Bahan Penolong',
-            'start'      => date('Y-m-01'),
-            'end'        => date('Y-m-t')
+            'start'      => $start,
+            'end'        => $end
         ];
 
         $this->load->view('templates/header', $data);
@@ -212,7 +216,8 @@ class LapMutasiMaterial extends MY_Controller {
         $this->db->where('sl.item_id', $item_id);
         $this->db->where('sl.item_type', $item_type);
         
-        $this->db->where_not_in('sl.transaction_type', ['wip_in', 'wip_out']);
+        // Exclude transaksi WIP internal yang tidak mempengaruhi stok fisik gudang
+        $this->db->where_not_in('sl.transaction_type', ['wip_in', 'wip_out', 'wip_out_reversal', 'production_out']);
         
         $this->db->order_by('sl.transaction_date', 'ASC');
         $this->db->order_by('sl.id', 'ASC');

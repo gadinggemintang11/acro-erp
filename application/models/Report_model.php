@@ -59,7 +59,12 @@ class Report_model extends CI_Model {
     {
         $balances = $this->_get_cumulative_balances($asOfDate, ['Aset', 'Liabilitas', 'Ekuitas']);
         $startOfYear = date('Y-01-01', strtotime($asOfDate));
+        
+        // Laba/Rugi Tahun Berjalan (1 Jan s/d tanggal laporan)
         $laba_tahun_berjalan = $this->_get_current_period_net_income($startOfYear, $asOfDate);
+        
+        // Laba/Rugi Periode Lalu (sebelum 1 Jan tahun berjalan)
+        $laba_periode_lalu = $this->_get_retained_earnings($asOfDate);
         
         $this->db->from('chart_of_accounts');
         $this->db->where_in('account_type', ['Aset', 'Liabilitas', 'Ekuitas']);
@@ -74,7 +79,8 @@ class Report_model extends CI_Model {
             'total_aset' => 0,
             'total_liabilitas' => 0,
             'total_ekuitas' => 0,
-            'laba_tahun_berjalan' => $laba_tahun_berjalan
+            'laba_tahun_berjalan' => $laba_tahun_berjalan,
+            'laba_periode_lalu' => $laba_periode_lalu
         ];
 
         foreach ($tree as $top_level_node) {
@@ -93,7 +99,8 @@ class Report_model extends CI_Model {
                 $report_data['total_ekuitas'] += $total;
             }
         }
-        $report_data['total_ekuitas'] += $laba_tahun_berjalan;
+        // Tambahkan laba/rugi periode lalu DAN tahun berjalan ke total ekuitas
+        $report_data['total_ekuitas'] += $laba_periode_lalu + $laba_tahun_berjalan;
         return $report_data;
     }
 
@@ -417,6 +424,47 @@ class Report_model extends CI_Model {
                 }
             }
         }
+        return $total_pendapatan - $total_biaya;
+    }
+
+    /**
+     * [HELPER] Laba/Rugi Periode Lalu (sebelum tahun berjalan)
+     * Menghitung total Pendapatan - Biaya dari awal waktu sampai sehari sebelum tahun laporan
+     */
+    private function _get_retained_earnings($asOfDate)
+    {
+        $startOfYear = date('Y-01-01', strtotime($asOfDate));
+        // Hitung semua pendapatan & biaya sebelum startOfYear
+        $endOfLastYear = date('Y-m-d', strtotime($startOfYear . ' -1 day'));
+        
+        // Jika tanggal laporan adalah 1 Jan atau lebih awal di tahun pertama, return 0
+        if (strtotime($endOfLastYear) < strtotime('1970-01-01')) {
+            return 0;
+        }
+        
+        // Gunakan fungsi yang sama tapi dengan range sampai akhir tahun lalu
+        $balances = $this->_get_period_balances('1970-01-01', $endOfLastYear);
+        
+        $total_pendapatan = 0;
+        $total_biaya = 0;
+        $account_ids = array_keys($balances);
+        
+        if (empty($account_ids)) return 0;
+
+        $this->db->select('id, account_type')->from('chart_of_accounts')->where_in('id', $account_ids);
+        $accounts = $this->db->get()->result_array();
+        $account_types = array_column($accounts, 'account_type', 'id');
+        
+        foreach ($balances as $account_id => $balance) {
+            if (isset($account_types[$account_id])) {
+                if ($account_types[$account_id] == 'Pendapatan') {
+                    $total_pendapatan += $balance;
+                } else if (in_array($account_types[$account_id], ['Biaya', 'HPP'])) {
+                    $total_biaya += $balance;
+                }
+            }
+        }
+        
         return $total_pendapatan - $total_biaya;
     }
 

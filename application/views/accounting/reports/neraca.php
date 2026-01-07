@@ -588,6 +588,23 @@
                             <?php render_balance_sheet_row($account, 0, $CI, $as_of_date); ?>
                         <?php endforeach; ?>
                         
+                        <?php if (!empty($report_data['laba_periode_lalu']) && $report_data['laba_periode_lalu'] != 0): ?>
+                        <tr>
+                            <td style="padding-left: 20px; font-weight: 600;">Laba/Rugi Periode Lalu</td>
+                            <td style="text-align: right;">Rp <?= number_format($report_data['laba_periode_lalu'], 0, ',', '.'); ?></td>
+                            <td style="text-align: center;">
+                                <?php
+                                    // Link ke Laporan Laba Rugi periode lalu
+                                    $startOfYear = date('Y-01-01', strtotime($as_of_date));
+                                    $endOfLastYear = date('Y-m-d', strtotime($startOfYear . ' -1 day'));
+                                    $queryString = "start_date=2020-01-01&end_date={$endOfLastYear}";
+                                    $url = site_url('reports/profit_loss?' . $queryString);
+                                    echo "<a href='{$url}' class='btn-detail-modern' title='Lihat Rincian Laba Rugi Periode Lalu'><i class='fas fa-search'></i></a>";
+                                ?>
+                            </td>
+                        </tr>
+                        <?php endif; ?>
+                        
                         <tr>
                             <td style="padding-left: 20px; font-weight: 600;">Laba Tahun Berjalan</td>
                             <td style="text-align: right;">Rp <?= number_format($report_data['laba_tahun_berjalan'], 0, ',', '.'); ?></td>

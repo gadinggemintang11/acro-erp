@@ -149,13 +149,7 @@ class ApInvoice extends CI_Controller {
         redirect('apinvoice/view/' . $id);
     }
 
-    /**
-     * ======================================
-     * FUNGSI EKSPOR DARI HALAMAN DETAIL
-     * ======================================
-     */
 
-    // Ekspor Detail Faktur ke PDF
     public function export_detail_pdf($id)
     {
         $header = $this->model->get_invoice_header_by_id($id);
@@ -165,10 +159,10 @@ class ApInvoice extends CI_Controller {
         $data['details'] = $this->model->get_invoice_details_by_header_id($id);
         $data['title'] = 'Faktur Supplier: ' . $header->invoice_no;
 
-        // Render view ke dalam HTML
+        
         $html = $this->load->view('accounting/ap_invoice/pdf_template', $data, true);
 
-        // Konfigurasi Dompdf
+        
         $options = new Options();
         $options->set('isHtml5ParserEnabled', true);
         $options->set('isRemoteEnabled', true);
@@ -178,12 +172,12 @@ class ApInvoice extends CI_Controller {
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
 
-        // Output PDF ke browser
+        
         $filename = "AP-Invoice-" . str_replace('/', '-', $header->invoice_no) . ".pdf";
         $dompdf->stream($filename, ["Attachment" => 0]);
     }
 
-    // Ekspor Detail Faktur ke Excel
+
     public function export_detail_excel($id)
     {
         $header = $this->model->get_invoice_header_by_id($id);
@@ -203,14 +197,14 @@ class ApInvoice extends CI_Controller {
         $sheet->setCellValue('D3', 'Total Tagihan:')->setCellValue('E3', $header->total_invoice);
         $sheet->getStyle('E3')->getNumberFormat()->setFormatCode('#,##0.00');
 
-        // --- Header Tabel Detail ---
+        
         $sheet->setCellValue('A7', 'Deskripsi (Item/Jasa)');
         $sheet->setCellValue('B7', 'Qty');
         $sheet->setCellValue('C7', 'Harga Satuan');
         $sheet->setCellValue('D7', 'Total');
         $sheet->getStyle('A7:D7')->getFont()->setBold(true);
 
-        // --- Isi Tabel Detail ---
+    
         $rowNum = 8;
         foreach ($details as $d) {
             $description = $d->account_id ? "({$d->account_code}) {$d->account_name}" : $d->description;
@@ -221,7 +215,7 @@ class ApInvoice extends CI_Controller {
             $rowNum++;
         }
 
-        // --- Footer Total ---
+    
         $rowNum++;
         $sheet->setCellValue('C' . $rowNum, 'Subtotal:')->setCellValue('D' . $rowNum, (float)$header->subtotal);
         $sheet->setCellValue('C' . ($rowNum + 1), 'PPN:')->setCellValue('D' . ($rowNum + 1), (float)$header->ppn_amount);

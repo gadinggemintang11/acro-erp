@@ -10509,7 +10509,7 @@ a:focus {
 
 @media (min-width: 768px) {
   .sidebar {
-    width: 16rem !important;
+    width: 14rem !important;
   }
   .sidebar .nav-item .collapse {
     position: relative;
@@ -10536,7 +10536,7 @@ a:focus {
     width: 100%;
     text-align: left;
     padding: 1rem;
-    width: 16rem;
+    width: 14rem;
   }
   .sidebar .nav-item .nav-link i {
     font-size: 0.85rem;

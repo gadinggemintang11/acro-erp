@@ -91,7 +91,7 @@ $autoload['drivers'] = array();
 |	$autoload['helper'] = array('url', 'file');
 */
 // application/config/autoload.php
-$autoload['helper'] = array('url', 'file', 'form', 'auth', 'security', 'log', 'language', 'env'); // Tambahkan 'language'
+$autoload['helper'] = array('url', 'file', 'form', 'auth', 'security', 'log', 'language'); // Tambahkan 'language'
 
 
 

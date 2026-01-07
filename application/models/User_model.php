@@ -24,8 +24,40 @@ class User_model extends CI_Model {
     }
 
     public function delete($id) {
-        // Soft delete: ubah status jadi inactive
-        return $this->db->where('id', $id)->update('users', ['status' => 'inactive']);
+        // Hard delete: hapus data dari database
+        return $this->db->where('id', $id)->delete('users');
+    }
+
+    /**
+     * Cek apakah username sudah ada (termasuk yang inactive)
+     * @param string $username
+     * @param int|null $exclude_id ID user yang dikecualikan (untuk update)
+     * @return bool
+     */
+    public function check_username_exists($username, $exclude_id = null) {
+        $this->db->where('username', $username);
+        if ($exclude_id) {
+            $this->db->where('id !=', $exclude_id);
+        }
+        $query = $this->db->get('users');
+        return $query->num_rows() > 0;
+    }
+
+    /**
+     * Cek apakah email sudah ada (termasuk yang inactive)
+     * @param string $email
+     * @param int|null $exclude_id ID user yang dikecualikan (untuk update)
+     * @return bool
+     */
+    public function check_email_exists($email, $exclude_id = null) {
+        if (empty($email)) return false;
+        
+        $this->db->where('email', $email);
+        if ($exclude_id) {
+            $this->db->where('id !=', $exclude_id);
+        }
+        $query = $this->db->get('users');
+        return $query->num_rows() > 0;
     }
 
     public function get_roles() {

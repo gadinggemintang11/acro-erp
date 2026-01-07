@@ -5,6 +5,10 @@ require 'vendor/autoload.php';
 use PhpOffice\PhpSpreadsheet\Reader\Xlsx;
 use PhpOffice\PhpSpreadsheet\Reader\Xls;
 use PhpOffice\PhpSpreadsheet\Reader\Csv;
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx as XlsxWriter;
+use Dompdf\Dompdf;
+use Dompdf\Options;
 
 class JurnalUmum extends CI_Controller {
 
@@ -23,7 +27,14 @@ class JurnalUmum extends CI_Controller {
     public function index()
     {
         $data['title'] = 'Jurnal Umum (Jurnal Entry)';
-        $data['journals'] = $this->model->get_all_headers();
+        $search = $this->input->get('search');
+        $data['search'] = $search ? $search : '';
+        
+        if ($search) {
+            $data['journals'] = $this->model->search_journals($search);
+        } else {
+            $data['journals'] = $this->model->get_all_headers();
+        }
         
         $this->load->view('templates/header', $data);
         $this->load->view('templates/sidebar', $data);
@@ -255,5 +266,134 @@ class JurnalUmum extends CI_Controller {
             'debit_local' => $total_debit_local,
             'kredit_local' => $total_kredit_local
         ];
+    }
+
+    /**
+     * ✅ Export ke Excel dengan validasi pembuat
+     */
+    public function export_excel($id)
+    {
+        $header = $this->model->get_header_by_id($id);
+        if (!$header) show_404();
+        
+        $details = $this->model->get_details_by_header_id($id);
+        $creator = $this->_get_user_by_id($header->created_by);
+        
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        
+        // Header
+        $sheet->setCellValue('A1', 'JURNAL UMUM (JURNAL ENTRY)');
+        $sheet->mergeCells('A1:F1');
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+        $sheet->getStyle('A1')->getAlignment()->setHorizontal('center');
+        
+        $sheet->setCellValue('A2', 'No. Jurnal: ' . $header->journal_no);
+        $sheet->setCellValue('A3', 'Tanggal: ' . date('d/m/Y', strtotime($header->journal_date)));
+        $sheet->setCellValue('A4', 'Keterangan: ' . $header->description);
+        $sheet->setCellValue('A5', 'Mata Uang: ' . $header->currency);
+        $sheet->setCellValue('A6', 'Kurs: ' . number_format($header->exchange_rate, 4));
+        $sheet->setCellValue('A7', 'Status: ' . $header->status);
+        
+        // Detail Header
+        $sheet->setCellValue('A9', 'No.');
+        $sheet->setCellValue('B9', 'Kode Akun');
+        $sheet->setCellValue('C9', 'Nama Akun');
+        $sheet->setCellValue('D9', 'Debit');
+        $sheet->setCellValue('E9', 'Kredit');
+        $sheet->setCellValue('F9', 'Keterangan');
+        
+        $sheet->getStyle('A9:F9')->getFont()->setBold(true);
+        $sheet->getStyle('A9:F9')->getFill()->setFillType('solid')->getStartColor()->setARGB('FFD3D3D3');
+        
+        // Detail Data
+        $row = 10;
+        $no = 1;
+        foreach ($details as $detail) {
+            $sheet->setCellValue('A' . $row, $no++);
+            $sheet->setCellValue('B' . $row, $detail->account_code ?? '-');
+            $sheet->setCellValue('C' . $row, $detail->account_name ?? '-');
+            $sheet->setCellValue('D' . $row, (float)$detail->debit);
+            $sheet->setCellValue('E' . $row, (float)$detail->kredit);
+            $sheet->setCellValue('F' . $row, $detail->description ?? '');
+            
+            $sheet->getStyle('D' . $row . ':E' . $row)->getNumberFormat()->setFormatCode('#,##0.00');
+            $row++;
+        }
+        
+        // Total
+        $sheet->setCellValue('C' . $row, 'TOTAL');
+        $sheet->setCellValue('D' . $row, (float)$header->total_debit);
+        $sheet->setCellValue('E' . $row, (float)$header->total_kredit);
+        $sheet->getStyle('C' . $row . ':E' . $row)->getFont()->setBold(true);
+        $sheet->getStyle('D' . $row . ':E' . $row)->getNumberFormat()->setFormatCode('#,##0.00');
+        
+        // Validasi Pembuat
+        $row += 2;
+        $sheet->setCellValue('A' . $row, 'Dibuat oleh:');
+        $sheet->setCellValue('A' . ($row + 1), $creator->fullname ?? 'Unknown');
+        $sheet->setCellValue('A' . ($row + 2), $creator->username ?? '');
+        $sheet->setCellValue('A' . ($row + 3), date('d/m/Y H:i:s', strtotime($header->created_at ?? now())));
+        
+        // Set column widths
+        $sheet->getColumnDimension('A')->setWidth(8);
+        $sheet->getColumnDimension('B')->setWidth(12);
+        $sheet->getColumnDimension('C')->setWidth(25);
+        $sheet->getColumnDimension('D')->setWidth(15);
+        $sheet->getColumnDimension('E')->setWidth(15);
+        $sheet->getColumnDimension('F')->setWidth(20);
+        
+        $filename = 'Jurnal_' . str_replace('/', '-', $header->journal_no) . '_' . date('YmdHis') . '.xlsx';
+        
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header("Content-Disposition: attachment; filename=\"{$filename}\"");
+        
+        $writer = new XlsxWriter($spreadsheet);
+        $writer->save('php://output');
+        exit;
+    }
+
+    /**
+     * ✅ Export ke PDF dengan validasi pembuat
+     */
+    public function export_pdf($id)
+    {
+        $header = $this->model->get_header_by_id($id);
+        if (!$header) show_404();
+        
+        $details = $this->model->get_details_by_header_id($id);
+        $creator = $this->_get_user_by_id($header->created_by);
+        
+        $data = [
+            'header' => $header,
+            'details' => $details,
+            'creator' => $creator
+        ];
+        
+        $html = $this->load->view('accounting/jurnal_umum/export_pdf', $data, true);
+        
+        $options = new Options();
+        $options->set('isHtml5ParserEnabled', true);
+        $options->set('isRemoteEnabled', true);
+        
+        $dompdf = new Dompdf($options);
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+        
+        $filename = 'Jurnal_' . str_replace('/', '-', $header->journal_no) . '_' . date('YmdHis') . '.pdf';
+        $dompdf->stream($filename, ['Attachment' => 0]);
+    }
+
+    /**
+     * Helper: Get user by ID
+     */
+    private function _get_user_by_id($user_id)
+    {
+        if (empty($user_id)) {
+            return (object) ['fullname' => 'Unknown', 'username' => ''];
+        }
+        return $this->db->select('id, fullname, username')->where('id', $user_id)->get('users')->row();
+ 
     }
 }

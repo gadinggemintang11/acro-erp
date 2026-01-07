@@ -16,35 +16,63 @@ class Scrap_Stock_model extends CI_Model {
     {
         $search = isset($filters['search']) && $filters['search'] !== '' ? trim($filters['search']) : null;
 
-        $this->db->select("
-            m.id AS scrap_id,
-            m.scrap_code,
-            m.scrap_name,
-            c.description AS satuan_desc,
-            IFNULL(SUM(DISTINCT sid.qty),0) AS total_in,
-            IFNULL(SUM(DISTINCT sod.qty),0) AS total_out,
-            (IFNULL(SUM(DISTINCT sid.qty),0) - IFNULL(SUM(DISTINCT sod.qty),0)) AS total_available
-        ");
-        $this->db->from('master_scrap m');
-        $this->db->join('scrap_in_detail sid', 'sid.scrap_id = m.id', 'left');
-        $this->db->join('scrap_in_header sih', 'sih.id = sid.header_id AND sih.status = "Confirmed"', 'left');
-        $this->db->join('scrap_out_detail sod', 'sod.scrap_id = m.id', 'left');
-        $this->db->join('scrap_out_header soh', 'soh.id = sod.header_id AND soh.status = "Confirmed"', 'left');
-        $this->db->join('common_code c', "c.code = m.unit AND c.group_code = 'SATUAN'", 'left');
+        $sql = "
+            SELECT 
+                m.id AS scrap_id,
+                m.scrap_code,
+                m.scrap_name,
+                c.description AS satuan_desc,
+                
+                IFNULL((
+                    SELECT SUM(d_in.qty)
+                    FROM scrap_in_detail d_in
+                    JOIN scrap_in_header h_in ON h_in.id = d_in.header_id
+                    WHERE d_in.scrap_id = m.id
+                    AND h_in.status = 'Confirmed'
+                ), 0) AS total_in,
+                
+                IFNULL((
+                    SELECT SUM(d_out.qty)
+                    FROM scrap_out_detail d_out
+                    JOIN scrap_out_header h_out ON h_out.id = d_out.header_id
+                    WHERE d_out.scrap_id = m.id
+                    AND h_out.status = 'Confirmed'
+                ), 0) AS total_out,
+                
+                (
+                    IFNULL((
+                        SELECT SUM(d_in.qty)
+                        FROM scrap_in_detail d_in
+                        JOIN scrap_in_header h_in ON h_in.id = d_in.header_id
+                        WHERE d_in.scrap_id = m.id
+                        AND h_in.status = 'Confirmed'
+                    ), 0)
+                    -
+                    IFNULL((
+                        SELECT SUM(d_out.qty)
+                        FROM scrap_out_detail d_out
+                        JOIN scrap_out_header h_out ON h_out.id = d_out.header_id
+                        WHERE d_out.scrap_id = m.id
+                        AND h_out.status = 'Confirmed'
+                    ), 0)
+                ) AS total_available
+                
+            FROM master_scrap m
+            LEFT JOIN common_code c ON c.code = m.unit AND c.group_code = 'SATUAN'
+        ";
 
         if ($search) {
-            $this->db->group_start();
-            $this->db->like('m.scrap_code', $search);
-            $this->db->or_like('m.scrap_name', $search);
-            $this->db->group_end();
+            $sql .= " WHERE (m.scrap_code LIKE " . $this->db->escape('%' . $search . '%') . 
+                    " OR m.scrap_name LIKE " . $this->db->escape('%' . $search . '%') . ")";
         }
 
-        $this->db->group_by('m.id, m.scrap_code, m.scrap_name, c.description');
-        $this->db->order_by('m.scrap_code', 'ASC');
+        $sql .= " ORDER BY m.scrap_code ASC";
 
-        if ($limit > 0) $this->db->limit($limit, $offset);
+        if ($limit > 0) {
+            $sql .= " LIMIT {$limit} OFFSET {$offset}";
+        }
 
-        return $this->db->get()->result();
+        return $this->db->query($sql)->result();
     }
 
     public function count_detailed_stock($filters = [])

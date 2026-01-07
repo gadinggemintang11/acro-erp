@@ -54,7 +54,7 @@ class Stock_ledger extends MY_Controller {
 
         // Tentukan tanggal awal dan akhir
         $start_date = $year . '-' . str_pad($month, 2, '0', STR_PAD_LEFT) . '-01';
-        $end_date = date('Y-m-t', strtotime($start_date)); // Tanggal terakhir di bulan itu
+        $end_date = date('Y-m-t', strtotime($start_date));
 
         $filters = [
             'start_date'     => $start_date,
@@ -67,8 +67,8 @@ class Stock_ledger extends MY_Controller {
         $config['base_url'] = base_url('stock_ledger/index');
         // Panggil model count dengan filter yang sama
         $config['total_rows'] = $this->Stock_ledger_model->count_stock_summary_report($filters);
-        $config['per_page'] = 25; // Tingkatkan sedikit? Default 20 juga OK
-        $config['reuse_query_string'] = TRUE; // Penting agar filter tetap aktif saat pindah halaman
+        $config['per_page'] = 25; 
+        $config['reuse_query_string'] = TRUE; 
         $config['use_page_numbers'] = TRUE;
         $config['num_links'] = 2;
 

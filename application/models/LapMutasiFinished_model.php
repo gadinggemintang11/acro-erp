@@ -33,18 +33,21 @@ class LapMutasiFinished_model extends CI_Model {
                         ( (COALESCE(sa.balance, 0) + COALESCE(mutasi.total_masuk, 0) - COALESCE(mutasi.total_keluar, 0) + COALESCE(mutasi.total_penyesuaian, 0)) - op.qty_fisik )
                     ELSE
                         NULL
-                END AS jumlah_selisih
+                END AS jumlah_selisih,
+                COALESCE(sa.has_history, 0) AS has_history
                 
             FROM finished_goods fg
 
             LEFT JOIN (
-                SELECT sl.item_id, sl.balance
+                SELECT sl.item_id, sl.balance, 1 as has_history
                 FROM stock_ledger sl
                 JOIN (
                     SELECT item_id, MAX(id) as max_id
                     FROM stock_ledger
                     WHERE transaction_date < ?
                       AND item_type = 'finished_goods'
+                      -- Hanya hitung transaksi fisik FG (fg_in, fg_out, adjustment)
+                      AND transaction_type IN ('fg_in', 'fg_out', 'adjustment')
                     GROUP BY item_id
                 ) sa_max ON sl.id = sa_max.max_id
             ) sa ON fg.id = sa.item_id
@@ -85,7 +88,9 @@ class LapMutasiFinished_model extends CI_Model {
             WHERE fg.status = 'active'
             
             HAVING 
-                saldo_awal != 0 OR
+                -- Item muncul jika pernah ada transaksi fisik sebelumnya
+                has_history = 1 OR
+                -- Atau jika ada mutasi di periode ini
                 pemasukan != 0 OR
                 pengeluaran != 0 OR
                 penyesuaian != 0 OR

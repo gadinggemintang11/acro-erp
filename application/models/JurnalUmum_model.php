@@ -13,6 +13,21 @@ class JurnalUmum_model extends CI_Model {
         return $this->db->get()->result();
     }
 
+    public function search_journals($search)
+    {
+        $this->db->select('jh.*, u.fullname as creator_name');
+        $this->db->from('journal_header jh');
+        $this->db->join('users u', 'jh.created_by = u.id', 'left');
+        $this->db->group_start();
+        $this->db->like('jh.journal_no', $search);
+        $this->db->or_like('jh.description', $search);
+        $this->db->or_like('jh.journal_date', $search);
+        $this->db->group_end();
+        $this->db->order_by('jh.journal_date', 'DESC');
+        $this->db->order_by('jh.id', 'DESC');
+        return $this->db->get()->result();
+    }
+
     public function get_header_by_id($id)
     {
         $this->db->select('jh.*, u.fullname as creator_name, p.fullname as poster_name');
@@ -25,14 +40,31 @@ class JurnalUmum_model extends CI_Model {
 
     public function get_new_journal_number()
     {
-        $this->db->select('RIGHT(journal_no, 5) as kode', FALSE);
-        $this->db->order_by('journal_no', 'DESC');
-        $this->db->limit(1);
-        $query = $this->db->get_where('journal_header', ['YEAR(journal_date)' => date('Y')]);
+        $year_month = date('Ym'); // Format: 202601
+        $prefix = 'JU/' . $year_month . '/';
         
-        $kode = ($query->num_rows() > 0) ? intval($query->row()->kode) + 1 : 1;
-        $kode_max = str_pad($kode, 5, "0", STR_PAD_LEFT);
-        return "JU/" . date('Ym') . "/" . $kode_max;
+        // Cari nomor jurnal terakhir dengan prefix bulan ini
+        $this->db->select('journal_no');
+        $this->db->from('journal_header');
+        $this->db->like('journal_no', $prefix, 'after');
+        $this->db->order_by('id', 'DESC');
+        $this->db->limit(1);
+        $result = $this->db->get()->row();
+        
+        if ($result) {
+            // Ekstrak nomor urut dari journal_no terakhir
+            // Contoh: JU/202601/0001 -> ambil 0001
+            $last_number = (int) substr($result->journal_no, -4);
+            $next_number = $last_number + 1;
+        } else {
+            // Jika belum ada jurnal bulan ini, mulai dari 0001
+            $next_number = 1;
+        }
+        
+        // Format dengan leading zeros (4 digit)
+        $new_number = $prefix . str_pad($next_number, 4, '0', STR_PAD_LEFT);
+        
+        return $new_number;
     }
 
     public function post_journal($header_id, $user_id)

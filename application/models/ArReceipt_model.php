@@ -52,14 +52,27 @@ class ArReceipt_model extends CI_Model {
         return "ARP/" . date('Ym') . "/" . $kode_max;
     }
 
+    /**
+     * Ambil daftar akun kas/bank untuk penerimaan berdasarkan currency.
+     * User akan memilih dari dropdown ini.
+     * 
+     * @param string $currency IDR, USD, RMB
+     * @return array List of accounts
+     */
     public function get_payment_accounts_by_currency($currency)
     {
+        $this->db->select('id, account_code, account_name, currency, normal_balance');
         $this->db->where('is_header', 0);
         $this->db->where('status', 'active');
         $this->db->where('currency', $currency);
         $this->db->where('account_type', 'Aset');
-        // bila akun kas/bank diawali dengan kode 1-11 (sesuaikan pola jika beda)
-        $this->db->like('account_code', '1-11', 'after'); 
+        
+        // Filter akun kas/bank yang dimulai dengan 1.101 (Kas) atau 1.102 (Bank)
+        $this->db->group_start();
+        $this->db->like('account_code', '1.101', 'after');
+        $this->db->or_like('account_code', '1.102', 'after');
+        $this->db->group_end();
+        
         $this->db->order_by('account_code', 'ASC');
         return $this->db->get('chart_of_accounts')->result();
     }
@@ -79,8 +92,46 @@ class ArReceipt_model extends CI_Model {
     {
         $this->db->trans_start();
 
+        // Validasi input
         $details = isset($post['details']) ? $post['details'] : [];
+        $currency = $post['currency'];
         $rate = (float) (isset($post['exchange_rate']) ? $post['exchange_rate'] : 1);
+        $payment_account_id = isset($post['payment_account_id']) ? $post['payment_account_id'] : null;
+        
+        // Validasi kurs
+        if ($currency != 'IDR' && $rate <= 0) {
+            $this->db->trans_complete();
+            throw new Exception("Kurs harus lebih besar dari 0 untuk mata uang {$currency}.");
+        }
+        
+        // Validasi akun kas/bank yang dipilih user
+        if (!$payment_account_id) {
+            $this->db->trans_complete();
+            throw new Exception("Silakan pilih akun kas/bank untuk menerima pembayaran.");
+        }
+        
+        // Validasi akun valid, aktif, dan sesuai currency
+        $this->db->where('id', $payment_account_id);
+        $this->db->where('status', 'active');
+        $this->db->where('is_header', 0);
+        $account = $this->db->get('chart_of_accounts')->row();
+        
+        if (!$account) {
+            $this->db->trans_complete();
+            throw new Exception("Akun kas/bank yang dipilih tidak valid atau tidak aktif.");
+        }
+        
+        if ($account->currency != $currency) {
+            $this->db->trans_complete();
+            throw new Exception("Currency akun ({$account->currency}) tidak sesuai dengan currency penerimaan ({$currency}). Pilih akun {$currency}.");
+        }
+        
+        // Validasi akun adalah kas/bank (kode 1.101 atau 1.102)
+        if (!preg_match('/^1\.10[12]/', $account->account_code)) {
+            $this->db->trans_complete();
+            throw new Exception("Akun yang dipilih bukan akun Kas/Bank. Pilih akun dengan kode 1.101.x atau 1.102.x");
+        }
+
         $total_amount = 0;
         $total_amount_local = 0;
         $detail_batch = [];
@@ -88,12 +139,22 @@ class ArReceipt_model extends CI_Model {
         foreach ($details as $inv_id => $data) {
             $amount_paid = (float) (isset($data['amount_paid']) ? $data['amount_paid'] : 0);
             if ($amount_paid > 0) {
+                // Validasi tidak overpayment
+                $invoice = $this->db->where('id', $inv_id)->get('ar_invoice_header')->row();
+                if ($invoice) {
+                    $sisa_piutang = $invoice->total_invoice - $invoice->total_paid;
+                    if ($amount_paid > $sisa_piutang + 0.01) { // tolerance 0.01
+                        $this->db->trans_complete();
+                        throw new Exception("Pembayaran untuk invoice {$invoice->invoice_no} melebihi sisa piutang (Max: {$sisa_piutang}).");
+                    }
+                }
+                
                 $amount_paid_local = $amount_paid * $rate;
                 $total_amount += $amount_paid;
                 $total_amount_local += $amount_paid_local;
                 
                 $detail_batch[] = [
-                    'receipt_header_id' => 0, // akan diisi setelah header disimpan
+                    'receipt_header_id' => 0,
                     'ar_invoice_header_id' => $inv_id,
                     'amount_paid' => $amount_paid,
                     'amount_paid_local' => $amount_paid_local
@@ -102,17 +163,21 @@ class ArReceipt_model extends CI_Model {
         }
         
         if (empty($detail_batch)) {
-            // batalkan transaksi dan throw; caller harus menangkapnya
             $this->db->trans_complete();
             throw new Exception("Tidak ada jumlah pembayaran yang diinput.");
+        }
+        
+        if ($total_amount <= 0) {
+            $this->db->trans_complete();
+            throw new Exception("Total pembayaran harus lebih dari 0.");
         }
 
         $header_data = [
             'receipt_no' => $post['receipt_no'],
             'receipt_date' => $post['receipt_date'],
             'customer_id' => $post['customer_id'],
-            'payment_account_id' => $post['payment_account_id'],
-            'currency' => $post['currency'],
+            'payment_account_id' => $payment_account_id, // Dari setting
+            'currency' => $currency,
             'exchange_rate' => $rate,
             'total_amount' => $total_amount,
             'total_amount_local' => $total_amount_local,
@@ -125,7 +190,6 @@ class ArReceipt_model extends CI_Model {
         $this->db->insert('ar_receipt_header', $header_data);
         $header_id = $this->db->insert_id();
 
-        // update receipt_header_id di setiap detail sebelum insert_batch
         foreach ($detail_batch as &$d) {
             $d['receipt_header_id'] = $header_id;
         }
@@ -192,9 +256,22 @@ class ArReceipt_model extends CI_Model {
         $acc_piutang_id = $SettingAkun_model->get_account_id('akun_piutang_usaha', $header->currency);
         $acc_kas_bank_id = $header->payment_account_id; 
 
-        if(!$acc_piutang_id || !$acc_kas_bank_id) {
+        if(!$acc_piutang_id) {
             $this->db->trans_complete();
-            throw new Exception("Akun Piutang atau Akun Penerimaan (Kas/Bank) belum di-setting.");
+            throw new Exception("Akun Piutang Usaha ({$header->currency}) belum di-setting di menu Setting Akun.");
+        }
+        
+        if(!$acc_kas_bank_id) {
+            $this->db->trans_complete();
+            throw new Exception("Akun Penerimaan ({$header->currency}) belum di-setting di menu Setting Akun.");
+        }
+        
+        // Validasi akun masih aktif
+        $this->db->where_in('id', [$acc_piutang_id, $acc_kas_bank_id]);
+        $this->db->where('status', 'active');
+        if ($this->db->count_all_results('chart_of_accounts') < 2) {
+            $this->db->trans_complete();
+            throw new Exception("Salah satu akun tidak aktif. Periksa Setting Akun.");
         }
         
         $journal_no = $this->JurnalUmum_model->get_new_journal_number();

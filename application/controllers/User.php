@@ -24,11 +24,30 @@ class User extends MY_Controller {
     }
 
     public function add() {
+        check_access('user', 'add');
+        
+        $username = $this->input->post('username');
+        $email = $this->input->post('email');
+        
+        // Validasi username duplicate
+        if ($this->User_model->check_username_exists($username)) {
+            $this->session->set_flashdata('error', 'Username "' . $username . '" sudah digunakan. Silakan pilih username lain.');
+            redirect('user');
+            return;
+        }
+        
+        // Validasi email duplicate (jika diisi)
+        if (!empty($email) && $this->User_model->check_email_exists($email)) {
+            $this->session->set_flashdata('error', 'Email "' . $email . '" sudah digunakan. Silakan gunakan email lain.');
+            redirect('user');
+            return;
+        }
+        
         $data = [
             'fullname' => $this->input->post('fullname'),
-            'username' => $this->input->post('username'),
+            'username' => $username,
             'password' => password_hash($this->input->post('password'), PASSWORD_DEFAULT),
-            'email'    => $this->input->post('email'),
+            'email'    => $email,
             'role_id'  => $this->input->post('role_id'),
             'status'   => 'active',
             'created_at' => date('Y-m-d H:i:s')
@@ -44,7 +63,6 @@ class User extends MY_Controller {
         check_access('user', 'edit');
         $data = [
             'fullname' => $this->input->post('fullname'),
-            'username' => $this->input->post('username'),
             'email'    => $this->input->post('email'),
             'role_id'  => $this->input->post('role_id'),
             'status'   => $this->input->post('status')
@@ -56,8 +74,16 @@ class User extends MY_Controller {
 
     public function delete($id) {
         check_access('user', 'delete');
+        
+        // Cegah hapus diri sendiri
+        if ($id == $this->session->userdata('user_id')) {
+            $this->session->set_flashdata('error', 'Anda tidak dapat menghapus akun Anda sendiri.');
+            redirect('user');
+            return;
+        }
+        
         $this->User_model->delete($id);
-        $this->session->set_flashdata('success', 'User berhasil dinonaktifkan.');
+        $this->session->set_flashdata('success', 'User berhasil dihapus.');
         redirect('user');
     }
 

@@ -217,33 +217,11 @@
 
 <script>
 // Load notifications on page load
-let notificationInterval;
-let isPageVisible = true;
-let lastLoadTime = 0;
-const MIN_LOAD_INTERVAL = 10000; // Minimum 10 seconds between loads
-
-// Handle page visibility changes
-document.addEventListener('visibilitychange', function() {
-  isPageVisible = !document.hidden;
-  
-  if (isPageVisible) {
-    // Only load if it's been at least 10 seconds since last load
-    const now = Date.now();
-    if (now - lastLoadTime >= MIN_LOAD_INTERVAL) {
-      loadNotifications();
-    }
-  }
-});
-
 $(document).ready(function() {
   loadNotifications();
   
-  // Refresh notifications every 60 seconds (increased from 30) only when page is visible
-  notificationInterval = setInterval(function() {
-    if (isPageVisible) {
-      loadNotifications();
-    }
-  }, 60000); // Changed from 30000 to 60000
+  // Refresh notifications every 30 seconds
+  setInterval(loadNotifications, 30000);
   
   // Load notifications when dropdown is opened
   $('#alertsDropdown').on('show.bs.dropdown', function() {
@@ -253,19 +231,10 @@ $(document).ready(function() {
 
 // Load notifications via AJAX
 function loadNotifications() {
-  // Prevent multiple simultaneous requests
-  if (window.notificationLoading) {
-    return;
-  }
-  
-  window.notificationLoading = true;
-  lastLoadTime = Date.now();
-  
   $.ajax({
     url: '<?= base_url("notification/get_notifications"); ?>',
     type: 'GET',
     dataType: 'json',
-    timeout: 10000, // 10 second timeout
     success: function(response) {
       if (response.status) {
         updateNotificationBadge(response.unread_count);
@@ -273,13 +242,11 @@ function loadNotifications() {
       } else {
         $('#notificationList').html('<div class="text-center text-warning py-3"><i class="fas fa-exclamation-triangle"></i><br><small>' + (response.message || 'Failed to load') + '</small></div>');
       }
-      window.notificationLoading = false;
     },
     error: function(xhr, status, error) {
       console.error('Notification Error:', error);
       $('#notificationList').html('<div class="text-center text-muted py-3"><i class="fas fa-exclamation-circle"></i><br><small>Please create notification table first</small></div>');
       $('#notificationBadge').hide();
-      window.notificationLoading = false;
     }
   });
 }

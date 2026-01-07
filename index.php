@@ -53,9 +53,38 @@
  *
  * NOTE: If you change these, also change the error_reporting() code below
  */
-	date_default_timezone_set('Asia/Jakarta');
-	// Pastikan ini 'development' untuk debugging
-	define('ENVIRONMENT', isset($_SERVER['CI_ENV']) ? $_SERVER['CI_ENV'] : 'development');
+
+/*
+ *---------------------------------------------------------------
+ * LOAD ENVIRONMENT VARIABLES (.env)
+ *---------------------------------------------------------------
+ */
+// Load .env file jika ada
+if (file_exists(__DIR__ . '/.env')) {
+	// Simple .env loader
+	$lines = file(__DIR__ . '/.env', FILE_IGNORE_NEW_LINES | FILE_SKIP_EMPTY_LINES);
+	foreach ($lines as $line) {
+		if (strpos(trim($line), '#') === 0 || strpos($line, '=') === false) {
+			continue;
+		}
+		list($name, $value) = explode('=', $line, 2);
+		$name = trim($name);
+		$value = trim($value);
+		// Remove quotes
+		$value = trim($value, '"\'');
+		if (!array_key_exists($name, $_ENV)) {
+			$_ENV[$name] = $value;
+			$_SERVER[$name] = $value;
+			putenv("{$name}={$value}");
+		}
+	}
+}
+
+// Set timezone dari .env atau default
+date_default_timezone_set(getenv('APP_TIMEZONE') ?: 'Asia/Jakarta');
+
+// Set environment dari .env atau default 'development'
+define('ENVIRONMENT', getenv('CI_ENVIRONMENT') ?: 'development');
 
 /*
  *---------------------------------------------------------------

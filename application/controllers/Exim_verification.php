@@ -9,9 +9,6 @@ class Exim_verification extends MY_Controller {
         $this->load->helper('url');
     }
 
-    /**
-     * Dashboard / Landing page untuk Exim Verification
-     */
     public function index() {
         if (!check_access('exim_verification', 'view')) {
             show_error('Akses Ditolak', 403);
@@ -91,9 +88,7 @@ class Exim_verification extends MY_Controller {
         $this->load->view('templates/footer');
     }
 
-    /**
-     * Proses verifikasi GRN (Pemasukan)
-     */
+  
     public function verify_incoming($grn_id) {
         if (!check_access('exim_verification', 'edit')) {
             $this->session->set_flashdata('error', 'Akses Ditolak');
@@ -379,9 +374,7 @@ class Exim_verification extends MY_Controller {
         }
     }
 
-    /**
-     * Update BC info for FG Delivery (AJAX)
-     */
+    
     public function update_fg_delivery_bc() {
         header('Content-Type: application/json');
 

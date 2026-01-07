@@ -31,14 +31,7 @@
   transition: all 0.5s cubic-bezier(0.35, 0, 0.25, 1);
 }
 
-/* Atur lebar baru untuk sidebar tertutup */
-.sidebar.toggled {
-  width: 170px !important; 
-}
-/* Sesuaikan margin konten utama agar pas */
-body.sidebar-toggled #content-wrapper {
-  margin-left: 130px !important;
-}
+/* NOTE: Independent scroll CSS dipindah ke sidebar.php untuk menghindari konflik */
 
 
 /* 3. LAYOUT MENU SAAT TERTUTUP (TOGGLED)

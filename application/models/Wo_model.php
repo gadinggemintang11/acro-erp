@@ -7,7 +7,7 @@ class Wo_model extends CI_Model {
     private $table_details = 'wo_details_material';
 
     // === HEADER ===
-    public function get_all($filters = []) {
+    public function get_all($filters = [], $limit = 50, $offset = 0) {
         $this->db->select('
             wo.id, wo.wo_number, wo.planned_qty, wo.planned_start_date, wo.status,
             sc.sc_number,
@@ -21,7 +21,20 @@ class Wo_model extends CI_Model {
              $this->db->group_start()->like('wo.wo_number', $term)->or_like('sc.sc_number', $term)->or_like('fg.nama_barang', $term)->group_end();
         }
         $this->db->order_by('wo.id', 'DESC');
+        if ($limit > 0) {
+            $this->db->limit($limit, $offset);
+        }
         return $this->db->get()->result();
+    }
+    public function count_all($filters = []) {
+        $this->db->from($this->table_header . ' wo');
+        $this->db->join('sales_contracts sc', 'wo.sales_contract_id = sc.id', 'left');
+        $this->db->join('finished_goods fg', 'wo.fg_id = fg.id', 'left');
+        if (!empty($filters['search'])) {
+             $term = $this->db->escape_like_str($filters['search']);
+             $this->db->group_start()->like('wo.wo_number', $term)->or_like('sc.sc_number', $term)->or_like('fg.nama_barang', $term)->group_end();
+        }
+        return $this->db->count_all_results();
     }
 
     public function get_header_by_id($id) {
@@ -98,9 +111,7 @@ class Wo_model extends CI_Model {
             d.id, d.wo_header_id, d.planned_qty, d.unit_measure,
             d.component_item_id as item_id, d.component_item_type as item_type,
             CASE WHEN d.component_item_type = 'material' THEN m.kode_material ELSE sf.kode_barang END as item_code,
-            CASE WHEN d.component_item_type = 'material' THEN m.nama_material ELSE sf.nama_barang END as item_name,
-            d.component_item_type,
-            d.component_item_id
+            CASE WHEN d.component_item_type = 'material' THEN m.nama_material ELSE sf.nama_barang END as item_name
         ";
         $this->db->select($select_clause, FALSE);
         $this->db->from($this->table_details . ' d');
@@ -163,7 +174,7 @@ class Wo_model extends CI_Model {
             bd.quantity_required, bd.unit_measure,
             CASE WHEN bd.component_item_type = 'material' THEN m.kode_material ELSE sf.kode_barang END as item_code,
             CASE WHEN bd.component_item_type = 'material' THEN m.nama_material ELSE sf.nama_barang END as item_name,
-            bd.component_item_type as item_type, bd.component_item_id, bd.component_item_type
+            bd.component_item_type as item_type
         ";
         $this->db->select($select_clause, FALSE);
         $this->db->from('bom_details bd');
@@ -217,19 +228,12 @@ class Wo_model extends CI_Model {
         $this->db->order_by('wo.id', 'DESC');
         $this->db->limit(15);
         
-        $query = $$this->db->get();
+        $query = $this->db->get();
         
         if (!$query) {
-            log_message('error', '[Wo_model Search Open WO] DB Error: ' . print_r($$this->db->error(), true) . ' - Query: ' . $$this->db->last_query());
+            log_message('error', '[Wo_model Search Open WO] DB Error: ' . print_r($this->db->error(), true) . ' - Query: ' . $this->db->last_query());
             return [];
         }
         return $query->result();
-    }
-
-    public function is_wo_material_exist($wo_header_id, $component_item_id) {
-        $this->db->where('wo_header_id', $wo_header_id);
-        $this->db->where('component_item_id', $component_item_id);
-        $query = $this->db->get($this->table_details);
-        return $query->num_rows() > 0;
     }
 }

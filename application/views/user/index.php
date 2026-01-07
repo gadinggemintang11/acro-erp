@@ -86,10 +86,6 @@
                         <input type="text" name="fullname" class="form-control" value="<?= $u->fullname; ?>" required>
                       </div>
                       <div class="form-group">
-                        <label>Username</label>
-                        <input type="text" name="username" class="form-control" value="<?= $u->username; ?>" required>
-                      </div>
-                      <div class="form-group">
                         <label>Email</label>
                         <input type="email" name="email" class="form-control" value="<?= $u->email; ?>">
                       </div>

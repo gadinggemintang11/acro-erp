@@ -1,8 +1,9 @@
-
+        </div> <!-- End of Main Content -->
+    </div> <!-- End of Content Wrapper -->
+</div> <!-- End of Page Wrapper -->
 
 <!-- Footer -->
-<div style="margin-top: 100px;"></div>
-<footer style="position: absolute;bottom:0; left:0; right:0;margin-top:100px" class=" bg-white shadow-sm">
+<footer class="sticky-footer bg-white shadow-sm">
   <div class="container my-auto text-center py-2">
     <span class="text-muted small">
       <i class="far fa-copyright"></i> <?= date('Y'); ?> ERP MINGBAO | Made By 

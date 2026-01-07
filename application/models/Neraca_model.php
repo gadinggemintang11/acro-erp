@@ -53,7 +53,116 @@ class Neraca_model extends CI_Model {
             }
         }
 
+        // ===================================================================
+        // TAMBAHKAN LABA/RUGI TAHUN BERJALAN & PERIODE LALU KE EQUITY
+        // ===================================================================
+        
+        // Ekstrak tahun dari tanggal laporan
+        $year = date('Y', strtotime($date));
+        
+        // 1. Hitung Laba/Rugi PERIODE LALU (tahun sebelum tahun laporan)
+        $retained_earnings = $this->calculate_retained_earnings($date, $year);
+        
+        if ($retained_earnings != 0) {
+            $result['equity'][] = [
+                'id' => 'retained_earnings',
+                'account' => '9998',
+                'name' => 'Laba/Rugi Periode Lalu s/d ' . ($year - 1),
+                'balance' => $retained_earnings
+            ];
+        }
+        
+        // 2. Hitung Laba/Rugi TAHUN BERJALAN (hanya tahun laporan)
+        $current_year_income = $this->calculate_current_year_income($date, $year);
+        
+        if ($current_year_income != 0) {
+            $result['equity'][] = [
+                'id' => 'current_year_income',
+                'account' => '9999',
+                'name' => 'Laba/Rugi Tahun Berjalan ' . $year,
+                'balance' => $current_year_income
+            ];
+        }
+
+        // DEBUG INFO (hapus nanti setelah fix)
+        $result['debug'] = [
+            'date' => $date,
+            'year' => $year,
+            'retained_earnings' => $retained_earnings,
+            'current_year_income' => $current_year_income,
+            'total_net_income' => $retained_earnings + $current_year_income,
+            'total_assets' => array_sum(array_column($result['assets'], 'balance')),
+            'total_liabilities' => array_sum(array_column($result['liabilities'], 'balance')),
+            'total_equity' => array_sum(array_column($result['equity'], 'balance'))
+        ];
+
         return $result;
+    }
+
+    /**
+     * Hitung Laba/Rugi Periode Lalu (sebelum tahun laporan)
+     */
+    private function calculate_retained_earnings($date, $current_year)
+    {
+        $start_of_year = $current_year . '-01-01';
+        
+        // Revenue periode lalu (sebelum 1 Jan tahun berjalan)
+        $revenue = $this->db->query("
+            SELECT COALESCE(SUM(jd.kredit_local - jd.debit_local), 0) as total
+            FROM journal_details jd
+            JOIN journal_header jh ON jd.journal_header_id = jh.id
+            JOIN chart_of_accounts coa ON jd.account_id = coa.id
+            WHERE jh.journal_date < ?
+            AND jh.status = 'Posted'
+            AND LEFT(coa.account_code, 1) = '4'
+        ", [$start_of_year])->row()->total;
+
+        // Expense periode lalu (sebelum 1 Jan tahun berjalan)
+        $expense = $this->db->query("
+            SELECT COALESCE(SUM(jd.debit_local - jd.kredit_local), 0) as total
+            FROM journal_details jd
+            JOIN journal_header jh ON jd.journal_header_id = jh.id
+            JOIN chart_of_accounts coa ON jd.account_id = coa.id
+            WHERE jh.journal_date < ?
+            AND jh.status = 'Posted'
+            AND LEFT(coa.account_code, 1) = '5'
+        ", [$start_of_year])->row()->total;
+
+        return $revenue - $expense;
+    }
+
+    /**
+     * Hitung Laba/Rugi Tahun Berjalan (hanya tahun laporan s/d tanggal)
+     */
+    private function calculate_current_year_income($date, $current_year)
+    {
+        $start_of_year = $current_year . '-01-01';
+        
+        // Revenue tahun berjalan (1 Jan s/d tanggal laporan)
+        $revenue = $this->db->query("
+            SELECT COALESCE(SUM(jd.kredit_local - jd.debit_local), 0) as total
+            FROM journal_details jd
+            JOIN journal_header jh ON jd.journal_header_id = jh.id
+            JOIN chart_of_accounts coa ON jd.account_id = coa.id
+            WHERE jh.journal_date >= ?
+            AND jh.journal_date <= ?
+            AND jh.status = 'Posted'
+            AND LEFT(coa.account_code, 1) = '4'
+        ", [$start_of_year, $date])->row()->total;
+
+        // Expense tahun berjalan (1 Jan s/d tanggal laporan)
+        $expense = $this->db->query("
+            SELECT COALESCE(SUM(jd.debit_local - jd.kredit_local), 0) as total
+            FROM journal_details jd
+            JOIN journal_header jh ON jd.journal_header_id = jh.id
+            JOIN chart_of_accounts coa ON jd.account_id = coa.id
+            WHERE jh.journal_date >= ?
+            AND jh.journal_date <= ?
+            AND jh.status = 'Posted'
+            AND LEFT(coa.account_code, 1) = '5'
+        ", [$start_of_year, $date])->row()->total;
+
+        return $revenue - $expense;
     }
 
     public function get_detail_ledger($account_id, $date)

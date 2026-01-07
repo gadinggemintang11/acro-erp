@@ -176,7 +176,17 @@ $(function() {
         }
     });
 
-    $('#btn-filter').click(() => table.ajax.reload());
+    $('#btn-filter').click(function(e) {
+        e.preventDefault();
+        // Redirect ke halaman index dengan parameter GET agar filter tersimpan
+        const params = $.param({ 
+            start: $('#start_date').val(), 
+            end: $('#end_date').val(), 
+            item_type: $('#item_type').val() 
+        });
+        window.location.href = '<?= base_url("LapMutasiMaterial"); ?>?' + params;
+    });
+    
     const getExportUrl = () => '?' + $.param({ start:$('#start_date').val(), end:$('#end_date').val(), item_type:$('#item_type').val(), search:table.search() });
     $('#btn-export-excel').click(()=> window.location.href = '<?= base_url("LapMutasiMaterial/export_excel"); ?>' + getExportUrl());
     $('#btn-export-pdf').click(()=> window.open('<?= base_url("LapMutasiMaterial/export_pdf"); ?>' + getExportUrl(), '_blank'));
