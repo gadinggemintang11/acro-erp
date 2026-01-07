@@ -91,7 +91,7 @@ class Reports extends CI_Controller {
         $data['as_of_date'] = $asOfDate;
         
         // Data untuk template
-        $data['title'] = 'Laporan Neraca PT Mingbao Lianchuang International';
+        $data['title'] = 'Laporan Neraca';
 
         if ($export) {
             $this->_export_data('accounting/reports/neraca', $data, $export);
