@@ -531,4 +531,127 @@ class Purchase_order extends MY_Controller { // Asumsi extends MY_Controller
         $writer->save('php://output'); exit;
     }
 
+    /**
+     * Export List PO dengan Filter
+     */
+    public function export_list_excel()
+    {
+        if (!check_access('purchase_order', 'view')) {
+            show_error('Izin Ditolak.', 403);
+        }
+
+        $start_date = $this->input->get('start_date');
+        $end_date = $this->input->get('end_date');
+        $status = $this->input->get('status');
+        
+        // Build query dengan filter
+        $this->db->select('po_header.*, suppliers.nama_supplier');
+        $this->db->from('po_header');
+        $this->db->join('suppliers', 'po_header.supplier_id = suppliers.id', 'left');
+        
+        if (!empty($start_date)) {
+            $this->db->where('po_header.po_date >=', $start_date);
+        }
+        if (!empty($end_date)) {
+            $this->db->where('po_header.po_date <=', $end_date);
+        }
+        if (!empty($status)) {
+            $this->db->where('po_header.status', $status);
+        }
+        
+        $this->db->order_by('po_header.po_date', 'DESC');
+        $pos = $this->db->get()->result();
+        
+        // Create Excel
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        
+        // Header
+        $sheet->setCellValue('A1', 'DAFTAR PURCHASE ORDER');
+        $sheet->mergeCells('A1:G1');
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+        $sheet->getStyle('A1')->getAlignment()->setHorizontal(\PhpOffice\PhpSpreadsheet\Style\Alignment::HORIZONTAL_CENTER);
+        
+        // Filter info
+        $filterInfo = 'Periode: ';
+        if ($start_date && $end_date) {
+            $filterInfo .= date('d/m/Y', strtotime($start_date)) . ' - ' . date('d/m/Y', strtotime($end_date));
+        } elseif ($start_date) {
+            $filterInfo .= 'Dari ' . date('d/m/Y', strtotime($start_date));
+        } elseif ($end_date) {
+            $filterInfo .= 'Sampai ' . date('d/m/Y', strtotime($end_date));
+        } else {
+            $filterInfo .= 'Semua';
+        }
+        if ($status) {
+            $filterInfo .= ' | Status: ' . $status;
+        }
+        
+        $sheet->setCellValue('A2', $filterInfo);
+        $sheet->mergeCells('A2:G2');
+        $sheet->getStyle('A2')->getFont()->setItalic(true);
+        
+        // Column Headers
+        $sheet->setCellValue('A4', 'No.');
+        $sheet->setCellValue('B4', 'Nomor PO');
+        $sheet->setCellValue('C4', 'Tanggal');
+        $sheet->setCellValue('D4', 'Supplier');
+        $sheet->setCellValue('E4', 'Currency');
+        $sheet->setCellValue('F4', 'Total Amount');
+        $sheet->setCellValue('G4', 'Status');
+        
+        $sheet->getStyle('A4:G4')->getFont()->setBold(true);
+        $sheet->getStyle('A4:G4')->getFill()
+            ->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)
+            ->getStartColor()->setARGB('FF4472C4');
+        $sheet->getStyle('A4:G4')->getFont()->getColor()->setARGB('FFFFFFFF');
+        
+        // Data
+        $row = 5;
+        $no = 1;
+        
+        foreach ($pos as $po) {
+            // Calculate total amount
+            $this->db->select('SUM(qty * base_price) as total');
+            $this->db->from('po_details');
+            $this->db->where('po_header_id', $po->id);
+            $total_query = $this->db->get()->row();
+            $total_amount = $total_query ? $total_query->total : 0;
+            
+            if ($po->has_ppn == 1) {
+                $total_amount = $total_amount * 1.11;
+            }
+            
+            $sheet->setCellValue('A' . $row, $no++);
+            $sheet->setCellValue('B' . $row, $po->po_number);
+            $sheet->setCellValue('C' . $row, date('d/m/Y', strtotime($po->po_date)));
+            $sheet->setCellValue('D' . $row, $po->nama_supplier);
+            $sheet->setCellValue('E' . $row, $po->currency_code ?? 'IDR');
+            $sheet->setCellValue('F' . $row, (float)$total_amount);
+            $sheet->setCellValue('G' . $row, $po->status);
+            
+            $sheet->getStyle('F' . $row)->getNumberFormat()->setFormatCode('#,##0');
+            
+            $row++;
+        }
+        
+        // Column widths
+        $sheet->getColumnDimension('A')->setWidth(6);
+        $sheet->getColumnDimension('B')->setWidth(18);
+        $sheet->getColumnDimension('C')->setWidth(12);
+        $sheet->getColumnDimension('D')->setWidth(30);
+        $sheet->getColumnDimension('E')->setWidth(10);
+        $sheet->getColumnDimension('F')->setWidth(18);
+        $sheet->getColumnDimension('G')->setWidth(12);
+        
+        $filename = 'Daftar_PO_' . date('YmdHis') . '.xlsx';
+        
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header("Content-Disposition: attachment; filename=\"{$filename}\"");
+        
+        $writer = new Xlsx($spreadsheet);
+        $writer->save('php://output');
+        exit;
+    }
+
 } // End Class

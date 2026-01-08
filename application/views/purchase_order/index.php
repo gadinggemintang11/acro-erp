@@ -23,25 +23,72 @@
     <div class="card shadow mb-4">
         <div class="card-header py-3">
             <h6 class="m-0 font-weight-bold text-primary"><?= lang_line('po_title', 'Daftar Purchase Order'); ?></h6>
+            <div class="row mt-3">
+                <div class="col-md-3">
+                    <label class="small font-weight-bold">Dari Tanggal</label>
+                    <input type="date" id="startDate" class="form-control form-control-sm">
+                </div>
+                <div class="col-md-3">
+                    <label class="small font-weight-bold">Sampai Tanggal</label>
+                    <input type="date" id="endDate" class="form-control form-control-sm">
+                </div>
+                <div class="col-md-2">
+                    <label class="small font-weight-bold">Status</label>
+                    <select id="filterStatus" class="form-control form-control-sm">
+                        <option value="">Semua Status</option>
+                        <option value="Draft">Draft</option>
+                        <option value="Submitted">Submitted</option>
+                        <option value="Confirmed">Confirmed</option>
+                        <option value="Completed">Completed</option>
+                        <option value="Cancelled">Cancelled</option>
+                        <option value="Rejected">Rejected</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label class="small font-weight-bold d-block">&nbsp;</label>
+                    <button type="button" id="filterBtn" class="btn btn-primary btn-sm">
+                        <i class="fas fa-filter"></i> Terapkan
+                    </button>
+                    <button type="button" id="resetBtn" class="btn btn-secondary btn-sm">
+                        <i class="fas fa-redo"></i> Reset
+                    </button>
+                    <button type="button" id="exportBtn" class="btn btn-success btn-sm">
+                        <i class="fas fa-file-excel"></i> Export
+                    </button>
+                </div>
+            </div>
         </div>
         <div class="card-body">
             <div class="table-responsive">
-                <table class="table table-bordered table-striped table-hover" id="dataTable" width="100%" cellspacing="0">
-                    <thead>
+                <table class="table table-bordered table-striped table-hover" id="poTable" width="100%" cellspacing="0">
+                    <thead class="thead-light">
                         <tr class="text-center">
-                            <th><?= lang_line('po_number', 'Nomor PO'); ?></th>
-                            <th><?= lang_line('po_date', 'Tanggal PO'); ?></th>
-                            <th><?= lang_line('po_supplier', 'Supplier'); ?></th>
-                            <th><?= lang_line('po_status', 'Status'); ?></th>
-                            <th><?= lang_line('po_actions', 'Aksi'); ?></th>
+                            <th width="15%"><?= lang_line('po_number', 'Nomor PO'); ?></th>
+                            <th width="12%"><?= lang_line('po_date', 'Tanggal PO'); ?></th>
+                            <th width="25%"><?= lang_line('po_supplier', 'Supplier'); ?></th>
+                            <th width="15%">Total Amount</th>
+                            <th width="10%"><?= lang_line('po_status', 'Status'); ?></th>
+                            <th width="23%"><?= lang_line('po_actions', 'Aksi'); ?></th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if(!empty($pos)): foreach ($pos as $po): ?>
                         <tr>
-                            <td class="text-center font-weight-bold"><?= htmlspecialchars($po->po_number) ?></td>
-                            <td class="text-center"><?= date('d M Y', strtotime($po->po_date)) ?></td>
+                            <td class="text-center">
+                                <a href="<?= base_url('purchase_order/detail/' . $po->id) ?>" class="font-weight-bold text-primary">
+                                    <?= htmlspecialchars($po->po_number) ?>
+                                </a>
+                            </td>
+                            <td class="text-center" data-order="<?= strtotime($po->po_date); ?>">
+                                <?= date('d/m/Y', strtotime($po->po_date)) ?>
+                            </td>
                             <td><?= htmlspecialchars($po->nama_supplier) ?></td>
+                            <td class="text-right">
+                                <?php 
+                                    $total = isset($po->total_amount) ? $po->total_amount : 0;
+                                    echo '<strong>' . number_format($total, 0, ',', '.') . '</strong>';
+                                ?>
+                            </td>
                             <td class="text-center">
                                 <?php
                                     $status_colors = [ 'Draft' => 'warning', 'Submitted' => 'info', 'Confirmed' => 'primary', 'Completed' => 'success', 'Cancelled' => 'danger', 'Rejected' => 'secondary' ];
@@ -51,17 +98,17 @@
                             </td>
                             <td class="text-center">
                                 <a href="<?= base_url('purchase_order/detail/' . $po->id) ?>" class="btn btn-info btn-sm btn-load" title="<?= lang_line('po_detail_title', 'Lihat Detail'); ?>">
-                                    <i class="fas fa-eye"></i> <?= lang_line('po_detail_title', 'Detail'); ?>
+                                    <i class="fas fa-eye"></i>
                                 </a>
                                 <?php if ($po->status == 'Draft' && check_access('purchase_order', 'delete')): ?>
                                 <a href="<?= base_url('purchase_order/delete_header/' . $po->id) ?>" class="btn btn-danger btn-sm btn-delete ml-1" title="<?= lang_line('po_delete', 'Hapus PO'); ?>" data-message="<?= lang_line('po_confirm_delete_header', 'Yakin hapus PO Draft ini?'); ?>">
-                                    <i class="fas fa-trash"></i> <?= lang_line('po_delete', 'Hapus'); ?>
+                                    <i class="fas fa-trash"></i>
                                 </a>
                                 <?php endif; ?>
                             </td>
                         </tr>
                         <?php endforeach; else: ?>
-                            <tr><td colspan="5" class="text-center"><?= lang_line('po_no_data', 'Belum ada data Purchase Order.'); ?></td></tr>
+                            <tr><td colspan="6" class="text-center"><?= lang_line('po_no_data', 'Belum ada data Purchase Order.'); ?></td></tr>
                         <?php endif; ?>
                     </tbody>
                 </table>
@@ -70,6 +117,7 @@
     </div>
 
 </div>
+
 <?php if (check_access('purchase_order', 'add')): ?>
 <div class="modal fade" id="addHeaderModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -234,6 +282,118 @@ $(document).ready(function() {
         $(this).addClass('was-validated');
     });
 
+    // ========================================
+    // DataTables Configuration for PO Table
+    // ========================================
+    var poTable = $('#poTable').DataTable({
+        "order": [[1, "desc"]], // Sort by Date descending (newest first)
+        "pageLength": 25,
+        "lengthMenu": [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Semua"]],
+        "language": {
+            "lengthMenu": "Tampilkan _MENU_ data per halaman",
+            "zeroRecords": "Data tidak ditemukan",
+            "info": "Menampilkan halaman _PAGE_ dari _PAGES_",
+            "infoEmpty": "Tidak ada data tersedia",
+            "infoFiltered": "(difilter dari _MAX_ total data)",
+            "search": "Cari:",
+            "paginate": {
+                "first": "Pertama",
+                "last": "Terakhir",
+                "next": "Selanjutnya",
+                "previous": "Sebelumnya"
+            }
+        },
+        "columnDefs": [
+            { "orderable": false, "targets": 5 } // Disable sorting on Aksi column
+        ],
+        "dom": '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>' +
+               '<"row"<"col-sm-12"tr>>' +
+               '<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>'
+    });
+
+    // Custom Date Range & Status Filter
+    $.fn.dataTable.ext.search.push(
+        function(settings, data, dataIndex) {
+            // Only apply to poTable
+            if (settings.nTable.id !== 'poTable') return true;
+            
+            var startDate = $('#startDate').val();
+            var endDate = $('#endDate').val();
+            var filterStatus = $('#filterStatus').val();
+            
+            // Get date from column 1 (data-order attribute)
+            var dateStr = $(poTable.row(dataIndex).node()).find('td:eq(1)').attr('data-order');
+            var rowDate = dateStr ? new Date(parseInt(dateStr) * 1000) : null;
+            
+            // Get status from column 4 (text content)
+            var rowStatus = data[4] || '';
+            
+            var dateValid = true;
+            var statusValid = true;
+            
+            // Check date range
+            if (startDate && rowDate) {
+                var start = new Date(startDate);
+                start.setHours(0, 0, 0, 0);
+                if (rowDate < start) dateValid = false;
+            }
+            
+            if (endDate && rowDate) {
+                var end = new Date(endDate);
+                end.setHours(23, 59, 59, 999);
+                if (rowDate > end) dateValid = false;
+            }
+            
+            // Check status
+            if (filterStatus && rowStatus.indexOf(filterStatus) === -1) {
+                statusValid = false;
+            }
+            
+            return dateValid && statusValid;
+        }
+    );
+
+    // Apply Filter Button
+    $('#filterBtn').on('click', function() {
+        poTable.draw();
+    });
+
+    // Reset Filter Button
+    $('#resetBtn').on('click', function() {
+        $('#startDate').val('');
+        $('#endDate').val('');
+        $('#filterStatus').val('');
+        poTable.search('').draw();
+    });
+
+    // Export to Excel with Filters
+    $('#exportBtn').on('click', function() {
+        var startDate = $('#startDate').val();
+        var endDate = $('#endDate').val();
+        var status = $('#filterStatus').val();
+        
+        var url = '<?= base_url('purchase_order/export_list_excel'); ?>?';
+        var params = [];
+        
+        if (startDate) params.push('start_date=' + startDate);
+        if (endDate) params.push('end_date=' + endDate);
+        if (status) params.push('status=' + status);
+        
+        window.location.href = url + params.join('&');
+    });
+
+    // Auto-filter on Enter key
+    $('#startDate, #endDate, #filterStatus').on('keypress', function(e) {
+        if (e.which == 13) {
+            e.preventDefault();
+            $('#filterBtn').click();
+        }
+    });
+
+    // Change event for instant filter (optional)
+    $('#filterStatus').on('change', function() {
+        $('#filterBtn').click();
+    });
 
 });
 </script>

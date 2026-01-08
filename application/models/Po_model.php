@@ -24,11 +24,25 @@ class Po_model extends CI_Model {
     // === HEADER ===
 
     public function get_all_po() {
-        $this->db->select('h.id, h.po_number, h.po_date, h.status, s.nama_supplier');
+        $this->db->select('h.id, h.po_number, h.po_date, h.status, h.has_ppn, s.nama_supplier, 
+            COALESCE(SUM(d.total_local), 0) as subtotal');
         $this->db->from($this->table_header . ' h');
         $this->db->join($this->table_supplier . ' s', 'h.supplier_id = s.id', 'left');
+        $this->db->join($this->table_details . ' d', 'h.id = d.po_header_id', 'left');
+        $this->db->group_by('h.id, h.po_number, h.po_date, h.status, h.has_ppn, s.nama_supplier');
         $this->db->order_by('h.id', 'DESC');
-        return $this->db->get()->result();
+        
+        $result = $this->db->get()->result();
+        
+        // Calculate total_amount (subtotal + PPN if applicable)
+        foreach ($result as $row) {
+            $row->total_amount = $row->subtotal;
+            if ($row->has_ppn == 1) {
+                $row->total_amount = $row->subtotal * 1.11; // Add 11% PPN
+            }
+        }
+        
+        return $result;
     }
 
     public function get_po_header_by_id($id) {
