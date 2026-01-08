@@ -10,7 +10,7 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx as XlsxWriter;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 
-class JurnalUmum extends CI_Controller {
+class JurnalUmum extends MY_Controller {
 
     public function __construct()
     {
@@ -26,7 +26,7 @@ class JurnalUmum extends CI_Controller {
 
     public function index()
     {
-        $data['title'] = 'Jurnal Umum (Jurnal Entry)';
+        $data['title'] = lang_line('jurnal_umum_title', 'Jurnal Umum (Jurnal Entry)');
         $search = $this->input->get('search');
         $data['search'] = $search ? $search : '';
         
@@ -45,7 +45,7 @@ class JurnalUmum extends CI_Controller {
 
     public function create()
     {
-        $data['title'] = 'Buat Jurnal Umum Baru';
+        $data['title'] = lang_line('jurnal_umum_create', 'Buat Jurnal Umum Baru');
         $data['journal_no'] = $this->model->get_new_journal_number();
         $data['accounts'] = $this->model->get_postable_accounts();
         $data['currencies'] = $this->model->get_currencies(); 
@@ -525,7 +525,7 @@ class JurnalUmum extends CI_Controller {
      */
     public function batch_import()
     {
-        $data['title'] = 'Batch Import Jurnal Umum';
+        $data['title'] = lang_line('jurnal_umum_batch_import', 'Batch Import Jurnal Umum');
         
         $this->load->view('templates/header', $data);
         $this->load->view('templates/sidebar', $data);

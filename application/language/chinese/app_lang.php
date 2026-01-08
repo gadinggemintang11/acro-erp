@@ -1005,3 +1005,103 @@ $lang['stock_ledger_warehouse_machine'] = '机器';
 $lang['stock_ledger_warehouse_inventory'] = '库存';
 $lang['stock_ledger_warehouse_semifinished'] = '半成品';
 $lang['stock_ledger_warehouse_finished'] = '成品';
+
+// Scrap In (废料入库)
+$lang['scrap_in_title'] = '废料入库';
+$lang['scrap_in_list'] = '废料入库列表';
+$lang['scrap_in_create'] = '收集新废料';
+$lang['scrap_in_create_new'] = '收集生产废料';
+$lang['scrap_in_detail'] = '废料入库详情';
+$lang['scrap_in_export'] = '导出Excel';
+$lang['scrap_in_doc_number'] = '文件编号';
+$lang['scrap_in_doc_date'] = '文件日期';
+$lang['scrap_in_source'] = '来源';
+$lang['scrap_in_created_by'] = '创建人';
+$lang['scrap_in_status'] = '状态';
+$lang['scrap_in_actions'] = '操作';
+$lang['scrap_in_view'] = '查看';
+$lang['scrap_in_delete'] = '删除';
+$lang['scrap_in_search'] = '搜索文件编号...';
+$lang['scrap_in_search_button'] = '搜索';
+$lang['scrap_in_reset'] = '重置';
+$lang['scrap_in_no_data'] = '没有废料入库数据';
+$lang['scrap_in_from_production'] = '生产结果';
+$lang['scrap_in_status_draft'] = '草稿';
+$lang['scrap_in_status_confirmed'] = '已确认';
+$lang['scrap_in_status_cancelled'] = '已取消';
+$lang['scrap_in_confirm_delete'] = '确定要删除此废料入库文件吗？';
+$lang['scrap_in_collect_new'] = '收集新废料';
+
+// Scrap Out (废料出库)
+$lang['scrap_out_title'] = '废料出库';
+$lang['scrap_out_list'] = '废料出库列表';
+$lang['scrap_out_create'] = '创建新废料出库';
+$lang['scrap_out_detail'] = '废料出库详情';
+
+// Jurnal Umum (总分类账)
+$lang['jurnal_umum_title'] = '总分类账（分录）';
+$lang['jurnal_umum_create'] = '创建新总分类账';
+$lang['jurnal_umum_view'] = '查看分录';
+$lang['jurnal_umum_import'] = '导入分录详情';
+$lang['jurnal_umum_batch_import'] = '总分类账批量导入';
+
+// Reports (报告)
+$lang['reports_title'] = '报告';
+$lang['reports_profit_loss'] = '损益表';
+$lang['reports_balance_sheet'] = '资产负债表';
+$lang['reports_general_ledger'] = '总账';
+$lang['reports_trial_balance'] = '试算平衡表';
+$lang['reports_cash_flow'] = '现金流量表（直接法）';
+
+// AP Invoice (应付账款发票)
+$lang['ap_invoice_title'] = '供应商发票列表（应付账款）';
+$lang['ap_invoice_create'] = '创建新供应商发票';
+$lang['ap_invoice_view'] = '查看供应商发票';
+
+// AR Invoice (应收账款发票)
+$lang['ar_invoice_title'] = '客户发票列表（应收账款）';
+$lang['ar_invoice_create'] = '创建新客户发票';
+$lang['ar_invoice_view'] = '查看客户发票';
+
+// Setting Akun (账户设置)
+$lang['setting_akun_title'] = '自动分录账户设置';
+
+// Year End Closing (年终结账)
+$lang['year_end_closing_title'] = '年终结账';
+$lang['year_end_closing_create'] = '创建年终结账';
+
+// Notifications (通知)
+$lang['notifications_title'] = '所有通知';
+
+// Common Code (公共代码)
+$lang['common_code_title'] = '公共代码 - 组管理';
+
+// Finished Goods (成品)
+$lang['fg_receipt_title'] = '创建新成品入库（按工单）';
+
+// Stock Reports (库存报告)
+$lang['stock_report_title'] = '废料库存详细报告（按批次）';
+$lang['stock_summary_title'] = '废料库存汇总';
+$lang['stock_traceability_title'] = '废料可追溯性详情';
+
+// Finished Goods Mutation (成品变动)
+$lang['fg_mutation_title'] = '成品变动责任报告';
+$lang['fg_mutation_detail'] = '变动详情';
+$lang['fg_recap_title'] = '成品库存汇总报告';
+$lang['fg_receipt_proof'] = '成品入库凭证';
+$lang['fg_delivery_note'] = '送货单';
+
+// BC Dashboard (海关仪表板)
+$lang['dashboard_bc_title'] = '海关仪表板';
+$lang['dashboard_bc_welcome'] = '欢迎！';
+$lang['dashboard_bc_info'] = '此仪表板仅显示海关（BC）文件，不包含公司内部数据。';
+$lang['dashboard_bc_incoming_month'] = 'BC入境文件（本月）';
+$lang['dashboard_bc_outgoing_month'] = 'BC出境文件（本月）';
+$lang['dashboard_bc_total_docs'] = 'BC文件总数';
+$lang['dashboard_bc_pending'] = '待验证';
+$lang['dashboard_bc_recent_incoming'] = '最新入境BC文件';
+$lang['dashboard_bc_recent_outgoing'] = '最新出境BC文件';
+$lang['dashboard_bc_statistics'] = '按类型划分的BC文件统计';
+$lang['dashboard_bc_chart_incoming'] = '入境文件';
+$lang['dashboard_bc_chart_outgoing'] = '出境文件';
+

@@ -8,7 +8,7 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 
-class LapMutasiFinished extends CI_Controller {
+class LapMutasiFinished extends MY_Controller {
 
     public function __construct()
     {
@@ -27,7 +27,7 @@ class LapMutasiFinished extends CI_Controller {
      */
     public function index()
     {
-        $data['title'] = 'Laporan Pertanggung Jawaban Mutasi Barang Jadi';
+        $data['title'] = lang_line('fg_mutation_title', 'Laporan Pertanggung Jawaban Mutasi Barang Jadi');
         
         $data['start_date'] = $this->input->get('start_date') ?: date('Y-m-01');
         $data['end_date'] = $this->input->get('end_date') ?: date('Y-m-t');

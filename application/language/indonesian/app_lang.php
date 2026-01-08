@@ -1005,3 +1005,103 @@ $lang['stock_ledger_warehouse_machine'] = 'Machine';
 $lang['stock_ledger_warehouse_inventory'] = 'Inventory';
 $lang['stock_ledger_warehouse_semifinished'] = 'Semifinished Goods';
 $lang['stock_ledger_warehouse_finished'] = 'Finished Goods';
+
+// Scrap In (Penerimaan Scrap)
+$lang['scrap_in_title'] = 'Penerimaan Scrap';
+$lang['scrap_in_list'] = 'Daftar Penerimaan Scrap';
+$lang['scrap_in_create'] = 'Kumpulkan Scrap Baru';
+$lang['scrap_in_create_new'] = 'Kumpulkan Scrap dari Produksi';
+$lang['scrap_in_detail'] = 'Detail Penerimaan Scrap';
+$lang['scrap_in_export'] = 'Ekspor Excel';
+$lang['scrap_in_doc_number'] = 'No. Dokumen';
+$lang['scrap_in_doc_date'] = 'Tgl Dokumen';
+$lang['scrap_in_source'] = 'Sumber';
+$lang['scrap_in_created_by'] = 'Dibuat Oleh';
+$lang['scrap_in_status'] = 'Status';
+$lang['scrap_in_actions'] = 'Aksi';
+$lang['scrap_in_view'] = 'Lihat';
+$lang['scrap_in_delete'] = 'Hapus';
+$lang['scrap_in_search'] = 'Cari No. Dokumen...';
+$lang['scrap_in_search_button'] = 'Cari';
+$lang['scrap_in_reset'] = 'Reset';
+$lang['scrap_in_no_data'] = 'Belum ada data penerimaan scrap';
+$lang['scrap_in_from_production'] = 'Hasil Produksi';
+$lang['scrap_in_status_draft'] = 'Draft';
+$lang['scrap_in_status_confirmed'] = 'Confirmed';
+$lang['scrap_in_status_cancelled'] = 'Cancelled';
+$lang['scrap_in_confirm_delete'] = 'Yakin hapus Dokumen Draft ini?';
+$lang['scrap_in_collect_new'] = 'Kumpulkan Scrap Baru';
+
+// Scrap Out (Pengeluaran Scrap)
+$lang['scrap_out_title'] = 'Pengeluaran Scrap';
+$lang['scrap_out_list'] = 'Daftar Pengeluaran Scrap';
+$lang['scrap_out_create'] = 'Buat Pengeluaran Scrap Baru';
+$lang['scrap_out_detail'] = 'Detail Pengeluaran Scrap';
+
+// Jurnal Umum (General Journal)
+$lang['jurnal_umum_title'] = 'Jurnal Umum (Jurnal Entry)';
+$lang['jurnal_umum_create'] = 'Buat Jurnal Umum Baru';
+$lang['jurnal_umum_view'] = 'Lihat Jurnal';
+$lang['jurnal_umum_import'] = 'Impor Detail Jurnal';
+$lang['jurnal_umum_batch_import'] = 'Batch Import Jurnal Umum';
+
+// Reports
+$lang['reports_title'] = 'Laporan';
+$lang['reports_profit_loss'] = 'Laporan Laba Rugi';
+$lang['reports_balance_sheet'] = 'Laporan Neraca';
+$lang['reports_general_ledger'] = 'Buku Besar';
+$lang['reports_trial_balance'] = 'Laporan Neraca Saldo (Trial Balance)';
+$lang['reports_cash_flow'] = 'Laporan Arus Kas (Metode Langsung)';
+
+// AP Invoice
+$lang['ap_invoice_title'] = 'Daftar Faktur Supplier (AP)';
+$lang['ap_invoice_create'] = 'Buat Faktur Supplier Baru';
+$lang['ap_invoice_view'] = 'Lihat Faktur Supplier';
+
+// AR Invoice
+$lang['ar_invoice_title'] = 'Daftar Faktur Customer (AR)';
+$lang['ar_invoice_create'] = 'Buat Faktur Customer Baru';
+$lang['ar_invoice_view'] = 'Lihat Faktur Customer';
+
+// Setting Akun
+$lang['setting_akun_title'] = 'Setting Akun Jurnal Otomatis';
+
+// Year End Closing
+$lang['year_end_closing_title'] = 'Tutup Buku Tahunan (Year-End Closing)';
+$lang['year_end_closing_create'] = 'Buat Year-End Closing';
+
+// Notifications
+$lang['notifications_title'] = 'Semua Notifikasi';
+
+// Common Code
+$lang['common_code_title'] = 'Common Code - Manajemen Grup';
+
+// Finished Goods
+$lang['fg_receipt_title'] = 'Buat Penerimaan Barang Jadi Baru (by WO)';
+
+// Stock Reports
+$lang['stock_report_title'] = 'Laporan Rinci Stok Scrap (per Batch)';
+$lang['stock_summary_title'] = 'Ringkasan Stok Scrap';
+$lang['stock_traceability_title'] = 'Detail Traceability Scrap';
+
+// Finished Goods Mutation
+$lang['fg_mutation_title'] = 'Laporan Pertanggung Jawaban Mutasi Barang Jadi';
+$lang['fg_mutation_detail'] = 'Detail Mutasi';
+$lang['fg_recap_title'] = 'Laporan Rekapitulasi Stok Barang Jadi';
+$lang['fg_receipt_proof'] = 'Bukti Terima Barang Jadi';
+$lang['fg_delivery_note'] = 'Surat Jalan';
+
+// BC Dashboard
+$lang['dashboard_bc_title'] = 'Dashboard Bea Cukai';
+$lang['dashboard_bc_welcome'] = 'Selamat Datang!';
+$lang['dashboard_bc_info'] = 'Dashboard ini hanya menampilkan dokumen-dokumen Bea Cukai (BC) tanpa data internal perusahaan.';
+$lang['dashboard_bc_incoming_month'] = 'Dok. BC Masuk (Bulan Ini)';
+$lang['dashboard_bc_outgoing_month'] = 'Dok. BC Keluar (Bulan Ini)';
+$lang['dashboard_bc_total_docs'] = 'Total Dokumen BC';
+$lang['dashboard_bc_pending'] = 'Pending Verifikasi';
+$lang['dashboard_bc_recent_incoming'] = 'Dokumen BC Masuk Terbaru';
+$lang['dashboard_bc_recent_outgoing'] = 'Dokumen BC Keluar Terbaru';
+$lang['dashboard_bc_statistics'] = 'Statistik Dokumen BC per Tipe';
+$lang['dashboard_bc_chart_incoming'] = 'Dokumen Masuk';
+$lang['dashboard_bc_chart_outgoing'] = 'Dokumen Keluar';
+

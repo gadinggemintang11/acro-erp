@@ -1,7 +1,7 @@
 <?php
 defined('BASEPATH') OR exit('No direct script access allowed');
 
-class StockOpname extends CI_Controller {
+class StockOpname extends MY_Controller {
 
     public function __construct()
     {

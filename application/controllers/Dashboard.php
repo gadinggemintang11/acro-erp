@@ -23,14 +23,23 @@ class Dashboard extends MY_Controller {
     public function index() {
         $data['title'] = 'Dashboard';
         
-        // Data User untuk Topbar (Sudah benar)
+        // Data User untuk Topbar
         $data['username'] = $this->session->userdata('fullname');
+        $role_id = $this->session->userdata('role_id');
         $data['role_name'] = $this->db
-            ->get_where('roles', ['id' => $this->session->userdata('role_id')])
+            ->get_where('roles', ['id' => $role_id])
             ->row('role_name');
 
         // ====================================================================
-        // Mengambil Statistik KPI ERP
+        // CEK ROLE: Jika Bea Cukai, redirect ke dashboard khusus BC
+        // ====================================================================
+        $role_name_lower = strtolower($data['role_name']);
+        if (in_array($role_name_lower, ['bc', 'bea cukai', 'beacukai', 'customs'])) {
+            return $this->bc_dashboard();
+        }
+
+        // ====================================================================
+        // DASHBOARD NORMAL (Internal Company)
         // ====================================================================
 
         // 1. PO Baru Bulan Ini (dari 'po_header')
@@ -304,5 +313,147 @@ class Dashboard extends MY_Controller {
 
         header('Content-Type: application/json');
         echo json_encode($result);
+    }
+
+    /**
+     * ====================================================================
+     * DASHBOARD KHUSUS BEA CUKAI
+     * Hanya menampilkan data customs/BC tanpa data internal perusahaan
+     * ====================================================================
+     */
+    public function bc_dashboard()
+    {
+        $data['title'] = lang_line('dashboard_bc_title', 'Dashboard Bea Cukai');
+        
+        // Data User
+        $data['username'] = $this->session->userdata('fullname');
+        $data['role_name'] = $this->db
+            ->get_where('roles', ['id' => $this->session->userdata('role_id')])
+            ->row('role_name');
+
+        // ====================================================================
+        // STATISTIK BEA CUKAI (BC Related Only)
+        // ====================================================================
+
+        // 1. Total Dokumen BC Masuk (GRN) bulan ini
+        $data['bc_grn_count'] = $this->db
+            ->where('MONTH(grn_date)', date('m'))
+            ->where('YEAR(grn_date)', date('Y'))
+            ->where('bc_type_code IS NOT NULL')
+            ->count_all_results('grn_header');
+
+        // 2. Total Dokumen BC Keluar (Subkon Out + FG Delivery) bulan ini
+        $subkon_out = $this->db
+            ->where('MONTH(shipping_date)', date('m'))
+            ->where('YEAR(shipping_date)', date('Y'))
+            ->where('bc_type_code IS NOT NULL')
+            ->count_all_results('subkon_out_header');
+        
+        $fg_delivery = $this->db
+            ->where('MONTH(delivery_date)', date('m'))
+            ->where('YEAR(delivery_date)', date('Y'))
+            ->where('bc_type_id IS NOT NULL')
+            ->count_all_results('fg_delivery_header');
+        
+        $data['bc_out_count'] = $subkon_out + $fg_delivery;
+
+        // 3. Total Dokumen BC (All Time)
+        $data['total_bc_documents'] = $this->db
+            ->where('bc_type_code IS NOT NULL')
+            ->count_all_results('grn_header') +
+            $this->db->where('bc_type_code IS NOT NULL')->count_all_results('subkon_out_header') +
+            $this->db->where('bc_type_id IS NOT NULL')->count_all_results('fg_delivery_header');
+
+        // 4. Pending Verification (Status Draft/Pending)
+        $data['pending_verification'] = $this->db
+            ->where('bc_type_code IS NOT NULL')
+            ->where_in('status', ['Draft', 'Pending'])
+            ->count_all_results('grn_header');
+
+        // ====================================================================
+        // RECENT BC INCOMING DOCUMENTS (Barang Masuk dengan BC)
+        // ====================================================================
+        $data['recent_bc_incoming'] = $this->db
+            ->select('grn.id, grn.grn_number, grn.grn_date, grn.bc_type_code, grn.bc_number, 
+                      grn.bc_date, grn.status, s.nama_supplier, cc.description as bc_type_name')
+            ->from('grn_header grn')
+            ->join('suppliers s', 's.id = grn.supplier_id', 'left')
+            ->join('common_code cc', "cc.code = grn.bc_type_code AND cc.group_code = 'BC_TYPE'", 'left')
+            ->where('grn.bc_type_code IS NOT NULL')
+            ->order_by('grn.grn_date', 'DESC')
+            ->limit(10)
+            ->get()
+            ->result();
+
+        // ====================================================================
+        // RECENT BC OUTGOING DOCUMENTS (Barang Keluar dengan BC)
+        // ====================================================================
+        
+        // Subkon Out
+        $subkon = $this->db
+            ->select('so.id, so.subkon_out_no as doc_number, so.shipping_date as doc_date, so.bc_type_code, so.bc_number, 
+                      so.bc_date, so.status, s.nama_supplier, cc.description as bc_type_name, 
+                      "SUBKON" as doc_type')
+            ->from('subkon_out_header so')
+            ->join('suppliers s', 's.id = so.supplier_id', 'left')
+            ->join('common_code cc', "cc.code = so.bc_type_code AND cc.group_code = 'BC_TYPE'", 'left')
+            ->where('so.bc_type_code IS NOT NULL')
+            ->order_by('so.shipping_date', 'DESC')
+            ->limit(5)
+            ->get()
+            ->result();
+
+        // FG Delivery
+        $fg_del = $this->db
+            ->select('fd.id, fd.delivery_number as doc_number, fd.delivery_date as doc_date, 
+                      fd.bc_type_id as bc_type_code, fd.bc_number, fd.bc_date, fd.status, 
+                      c.nama_customer as nama_supplier, cc.description as bc_type_name,
+                      "FG_DELIVERY" as doc_type')
+            ->from('fg_delivery_header fd')
+            ->join('customers c', 'c.id = fd.customer_id', 'left')
+            ->join('common_code cc', "cc.code = fd.bc_type_id AND cc.group_code = 'BC_TYPE'", 'left')
+            ->where('fd.bc_type_id IS NOT NULL')
+            ->order_by('fd.delivery_date', 'DESC')
+            ->limit(5)
+            ->get()
+            ->result();
+
+        // Merge dan sort by date
+        $data['recent_bc_outgoing'] = array_merge($subkon, $fg_del);
+        usort($data['recent_bc_outgoing'], function($a, $b) {
+            return strtotime($b->doc_date) - strtotime($a->doc_date);
+        });
+        $data['recent_bc_outgoing'] = array_slice($data['recent_bc_outgoing'], 0, 10);
+
+        // ====================================================================
+        // BC STATISTICS BY TYPE (Chart Data)
+        // ====================================================================
+        $bc_stats = [];
+        $bc_types = $this->db
+            ->select('code, description')
+            ->from('common_code')
+            ->where('group_code', 'BC_TYPE')
+            ->get()
+            ->result();
+
+        foreach ($bc_types as $type) {
+            $incoming = $this->db->where('bc_type_code', $type->code)->count_all_results('grn_header');
+            $outgoing_subkon = $this->db->where('bc_type_code', $type->code)->count_all_results('subkon_out_header');
+            $outgoing_fg = $this->db->where('bc_type_id', $type->code)->count_all_results('fg_delivery_header');
+            
+            $bc_stats[] = [
+                'type' => $type->description,
+                'incoming' => $incoming,
+                'outgoing' => $outgoing_subkon + $outgoing_fg
+            ];
+        }
+        $data['bc_statistics'] = $bc_stats;
+
+        // Load BC Dashboard View
+        $this->load->view('templates/header', $data);
+        $this->load->view('templates/sidebar', $data);
+        $this->load->view('templates/topbar', $data);
+        $this->load->view('dashboard/bc_dashboard', $data);
+        $this->load->view('templates/footer');
     }
 }

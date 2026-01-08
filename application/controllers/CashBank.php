@@ -8,7 +8,7 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 
-class CashBank extends CI_Controller {
+class CashBank extends MY_Controller {
 
     public function __construct()
     {

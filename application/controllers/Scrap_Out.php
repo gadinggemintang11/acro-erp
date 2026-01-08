@@ -6,7 +6,7 @@ require_once FCPATH . 'vendor/autoload.php';
 use Dompdf\Dompdf;
 use Dompdf\Options;
 
-class Scrap_Out extends CI_Controller {
+class Scrap_Out extends MY_Controller {
 
     public function __construct() {
         parent::__construct();
@@ -26,7 +26,7 @@ class Scrap_Out extends CI_Controller {
         // permission check bila ada
         // if (!check_access('scrap_out','view')) redirect('denied');
 
-        $data['title'] = 'Daftar Scrap Out';
+        $data['title'] = lang_line('scrap_out_title', 'Pengeluaran Scrap');
         $data['documents'] = $this->Scrap_Out_model->get_all();
 
         // load views (pastikan view scrap_out/list.php ada)
@@ -43,7 +43,7 @@ class Scrap_Out extends CI_Controller {
     public function create() {
         // if (!check_access('scrap_out','add')) redirect('denied');
 
-        $data['title'] = 'Tambah Scrap Out';
+        $data['title'] = lang_line('scrap_out_create', 'Buat Pengeluaran Scrap Baru');
         $data['doc_no'] = $this->Scrap_Out_model->generate_doc_no();
         $data['bc_types'] = $this->Scrap_Out_model->get_commoncode_bc();
         $data['customers'] = $this->Scrap_Out_model->get_customers();
@@ -127,7 +127,7 @@ class Scrap_Out extends CI_Controller {
         if (empty($id)) show_404();
         // if (!check_access('scrap_out','view')) redirect('denied');
 
-        $data['title'] = 'Detail Scrap Out';
+        $data['title'] = lang_line('scrap_out_detail', 'Detail Pengeluaran Scrap');
         $data_comp = $this->Scrap_Out_model->get_by_id($id);
         if (!$data_comp) show_404();
 
@@ -159,7 +159,7 @@ class Scrap_Out extends CI_Controller {
             redirect('Scrap_Out/view/' . $id);
         }
 
-        $data['title'] = 'Edit Scrap Out';
+        $data['title'] = lang_line('scrap_out_create', 'Edit Pengeluaran Scrap');
         $data['header'] = $doc['header'];
         $data['details'] = $doc['details'];
         $data['bc_types'] = $this->Scrap_Out_model->get_commoncode_bc();

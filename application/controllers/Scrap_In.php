@@ -6,7 +6,7 @@ use Mpdf\Mpdf;
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
-class Scrap_In extends CI_Controller {
+class Scrap_In extends MY_Controller {
 
     public function __construct() {
         parent::__construct();
@@ -20,7 +20,7 @@ class Scrap_In extends CI_Controller {
 
     public function index() {
         // if (!check_access('scrap_in', 'view')) redirect('denied');
-        $data['title'] = 'Penerimaan Scrap';
+        $data['title'] = lang_line('scrap_in_title', 'Penerimaan Scrap');
         
         // Ambil filter
         $filters = ['search' => $this->input->get('search')];
@@ -38,7 +38,7 @@ class Scrap_In extends CI_Controller {
     // --- REVISI: create() ---
     public function create() {
         // if (!check_access('scrap_in', 'add')) redirect('denied');
-        $data['title'] = 'Kumpulkan Scrap dari Produksi';
+        $data['title'] = lang_line('scrap_in_create_new', 'Kumpulkan Scrap dari Produksi');
         // Ambil data scrap PER BARIS production_outputs
         $data['uncollected_scrap_rows'] = $this->Scrap_In_model->get_uncollected_production_scrap();
         $data['doc_no'] = $this->Scrap_In_model->generate_doc_no();

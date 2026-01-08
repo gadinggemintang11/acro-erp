@@ -5,7 +5,7 @@ use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Mpdf\Mpdf;
 
-class Reports extends CI_Controller {
+class Reports extends MY_Controller {
 
     public function __construct()
     {
@@ -25,7 +25,7 @@ class Reports extends CI_Controller {
      */
     public function index()
     {
-        $data['title'] = 'Reports';
+        $data['title'] = lang_line('reports_title', 'Laporan');
         
         $this->load->view('templates/header', $data);
         $this->load->view('templates/sidebar', $data);
@@ -60,7 +60,7 @@ class Reports extends CI_Controller {
         $data['end_date'] = $endDate;
         
         // Data untuk template
-        $data['title'] = 'Laporan Laba Rugi';
+        $data['title'] = lang_line('reports_profit_loss', 'Laporan Laba Rugi');
 
         if ($export) {
             $this->_export_data('accounting/reports/laba_rugi', $data, $export);
@@ -91,7 +91,7 @@ class Reports extends CI_Controller {
         $data['as_of_date'] = $asOfDate;
         
         // Data untuk template
-        $data['title'] = 'Laporan Neraca';
+        $data['title'] = lang_line('reports_balance_sheet', 'Laporan Neraca');
 
         if ($export) {
             $this->_export_data('accounting/reports/neraca', $data, $export);
@@ -171,7 +171,7 @@ class Reports extends CI_Controller {
         $data['as_of_date'] = $asOfDate;
         
         // Data untuk template
-        $data['title'] = 'Laporan Neraca Saldo (Trial Balance)';
+        $data['title'] = lang_line('reports_trial_balance', 'Laporan Neraca Saldo (Trial Balance)');
 
         if ($export) {
             $this->_export_data('accounting/reports/trial_balance', $data, $export);
@@ -207,7 +207,7 @@ class Reports extends CI_Controller {
         $data['end_date'] = $endDate;
         
         // Data untuk template
-        $data['title'] = 'Laporan Arus Kas (Metode Langsung)';
+        $data['title'] = lang_line('reports_cash_flow', 'Laporan Arus Kas (Metode Langsung)');
 
         if ($export) {
             $this->_export_data('accounting/reports/cash_flow', $data, $export);

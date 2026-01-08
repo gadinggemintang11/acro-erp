@@ -8,7 +8,7 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 
-class ApInvoice extends CI_Controller {
+class ApInvoice extends MY_Controller {
 
     public function __construct()
     {
@@ -28,7 +28,7 @@ class ApInvoice extends CI_Controller {
      */
     public function index()
     {
-        $data['title'] = 'Daftar Faktur Supplier (AP)';
+        $data['title'] = lang_line('ap_invoice_title', 'Daftar Faktur Supplier (AP)');
         $data['invoices'] = $this->model->get_all_invoice_headers();
         
         $this->load->view('templates/header', $data);
@@ -43,7 +43,7 @@ class ApInvoice extends CI_Controller {
      */
     public function create()
     {
-        $data['title'] = 'Buat Faktur Supplier Baru';
+        $data['title'] = lang_line('ap_invoice_create', 'Buat Faktur Supplier Baru');
         $data['suppliers'] = $this->model->get_suppliers();
         $data['accounts'] = $this->model->get_postable_accounts_for_expense();
         

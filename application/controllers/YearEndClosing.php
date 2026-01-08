@@ -1,7 +1,7 @@
 <?php
 defined('BASEPATH') OR exit('No direct script access allowed');
 
-class YearEndClosing extends CI_Controller {
+class YearEndClosing extends MY_Controller {
 
     public function __construct()
     {
@@ -15,7 +15,7 @@ class YearEndClosing extends CI_Controller {
 
     public function index()
     {
-        $data['title'] = 'Year-End Closing (Tutup Buku Tahunan)';
+        $data['title'] = lang_line('year_end_closing_title', 'Tutup Buku Tahunan (Year-End Closing)');
         $data['closings'] = $this->model->get_all_closings();
         
         $this->load->view('templates/header', $data);
@@ -27,7 +27,7 @@ class YearEndClosing extends CI_Controller {
 
     public function create()
     {
-        $data['title'] = 'Buat Year-End Closing';
+        $data['title'] = lang_line('year_end_closing_create', 'Buat Year-End Closing');
         $data['years'] = $this->model->get_available_years();
         $data['retained_earnings_accounts'] = $this->model->get_retained_earnings_accounts();
         

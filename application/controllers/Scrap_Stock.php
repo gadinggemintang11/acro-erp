@@ -22,7 +22,7 @@ class Scrap_Stock extends MY_Controller {
        ============================================================ */
     public function index() {
         check_access('scrap_stock', 'view');
-        $data['title'] = 'Laporan Rinci Stok Scrap (per Batch)';
+        $data['title'] = lang_line('stock_report_title', 'Laporan Rinci Stok Scrap (per Batch)');
 
         $filters = ['search' => trim($this->input->get('search', TRUE))];
         $per_page = 25;
@@ -62,7 +62,7 @@ class Scrap_Stock extends MY_Controller {
        ============================================================ */
     public function summary() {
         check_access('scrap_stock', 'view');
-        $data['title'] = 'Ringkasan Stok Scrap';
+        $data['title'] = lang_line('stock_summary_title', 'Ringkasan Stok Scrap');
 
         $filters = ['search' => trim($this->input->get('search', TRUE))];
         $per_page = 25;

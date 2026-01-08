@@ -8,7 +8,7 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 
-class ArReceipt extends CI_Controller {
+class ArReceipt extends MY_Controller {
 
     public function __construct()
     {

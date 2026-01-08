@@ -1,7 +1,7 @@
 <?php
 defined('BASEPATH') OR exit('No direct script access allowed');
 
-class SettingAkun extends CI_Controller {
+class SettingAkun extends MY_Controller {
 
     public function __construct()
     {
@@ -16,7 +16,7 @@ class SettingAkun extends CI_Controller {
 
     public function index()
     {
-        $data['title'] = 'Setting Akun Jurnal Otomatis';
+        $data['title'] = lang_line('setting_akun_title', 'Setting Akun Jurnal Otomatis');
         
         // 1. Ambil setting yang sudah dikelompokkan
         $data['settings_grouped'] = $this->model->get_all_settings_grouped();

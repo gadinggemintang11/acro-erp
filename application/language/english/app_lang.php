@@ -1005,3 +1005,103 @@ $lang['stock_ledger_warehouse_machine'] = 'Machine';
 $lang['stock_ledger_warehouse_inventory'] = 'Inventory';
 $lang['stock_ledger_warehouse_semifinished'] = 'Semifinished Goods';
 $lang['stock_ledger_warehouse_finished'] = 'Finished Goods';
+
+// Scrap In (Scrap Receipt)
+$lang['scrap_in_title'] = 'Scrap Receipt';
+$lang['scrap_in_list'] = 'Scrap Receipt List';
+$lang['scrap_in_create'] = 'Collect New Scrap';
+$lang['scrap_in_create_new'] = 'Collect Scrap from Production';
+$lang['scrap_in_detail'] = 'Scrap Receipt Detail';
+$lang['scrap_in_export'] = 'Export Excel';
+$lang['scrap_in_doc_number'] = 'Document No.';
+$lang['scrap_in_doc_date'] = 'Document Date';
+$lang['scrap_in_source'] = 'Source';
+$lang['scrap_in_created_by'] = 'Created By';
+$lang['scrap_in_status'] = 'Status';
+$lang['scrap_in_actions'] = 'Actions';
+$lang['scrap_in_view'] = 'View';
+$lang['scrap_in_delete'] = 'Delete';
+$lang['scrap_in_search'] = 'Search Document No...';
+$lang['scrap_in_search_button'] = 'Search';
+$lang['scrap_in_reset'] = 'Reset';
+$lang['scrap_in_no_data'] = 'No scrap receipt data yet';
+$lang['scrap_in_from_production'] = 'Production Output';
+$lang['scrap_in_status_draft'] = 'Draft';
+$lang['scrap_in_status_confirmed'] = 'Confirmed';
+$lang['scrap_in_status_cancelled'] = 'Cancelled';
+$lang['scrap_in_confirm_delete'] = 'Are you sure to delete this Draft Document?';
+$lang['scrap_in_collect_new'] = 'Collect New Scrap';
+
+// Scrap Out (Scrap Issue)
+$lang['scrap_out_title'] = 'Scrap Issue';
+$lang['scrap_out_list'] = 'Scrap Issue List';
+$lang['scrap_out_create'] = 'Create New Scrap Issue';
+$lang['scrap_out_detail'] = 'Scrap Issue Detail';
+
+// Jurnal Umum (General Journal)
+$lang['jurnal_umum_title'] = 'General Journal (Journal Entry)';
+$lang['jurnal_umum_create'] = 'Create New General Journal';
+$lang['jurnal_umum_view'] = 'View Journal';
+$lang['jurnal_umum_import'] = 'Import Journal Details';
+$lang['jurnal_umum_batch_import'] = 'General Journal Batch Import';
+
+// Reports
+$lang['reports_title'] = 'Reports';
+$lang['reports_profit_loss'] = 'Profit & Loss Report';
+$lang['reports_balance_sheet'] = 'Balance Sheet Report';
+$lang['reports_general_ledger'] = 'General Ledger';
+$lang['reports_trial_balance'] = 'Trial Balance Report';
+$lang['reports_cash_flow'] = 'Cash Flow Report (Direct Method)';
+
+// AP Invoice
+$lang['ap_invoice_title'] = 'Supplier Invoice List (AP)';
+$lang['ap_invoice_create'] = 'Create New Supplier Invoice';
+$lang['ap_invoice_view'] = 'View Supplier Invoice';
+
+// AR Invoice
+$lang['ar_invoice_title'] = 'Customer Invoice List (AR)';
+$lang['ar_invoice_create'] = 'Create New Customer Invoice';
+$lang['ar_invoice_view'] = 'View Customer Invoice';
+
+// Setting Akun
+$lang['setting_akun_title'] = 'Automatic Journal Account Settings';
+
+// Year End Closing
+$lang['year_end_closing_title'] = 'Year-End Closing';
+$lang['year_end_closing_create'] = 'Create Year-End Closing';
+
+// Notifications
+$lang['notifications_title'] = 'All Notifications';
+
+// Common Code
+$lang['common_code_title'] = 'Common Code - Group Management';
+
+// Finished Goods
+$lang['fg_receipt_title'] = 'Create New Finished Goods Receipt (by WO)';
+
+// Stock Reports
+$lang['stock_report_title'] = 'Detailed Scrap Stock Report (per Batch)';
+$lang['stock_summary_title'] = 'Scrap Stock Summary';
+$lang['stock_traceability_title'] = 'Scrap Traceability Detail';
+
+// Finished Goods Mutation
+$lang['fg_mutation_title'] = 'Finished Goods Mutation Accountability Report';
+$lang['fg_mutation_detail'] = 'Mutation Detail';
+$lang['fg_recap_title'] = 'Finished Goods Stock Recapitulation Report';
+$lang['fg_receipt_proof'] = 'Finished Goods Receipt Proof';
+$lang['fg_delivery_note'] = 'Delivery Note';
+
+// BC Dashboard
+$lang['dashboard_bc_title'] = 'Customs Dashboard';
+$lang['dashboard_bc_welcome'] = 'Welcome!';
+$lang['dashboard_bc_info'] = 'This dashboard only displays Customs (BC) documents without internal company data.';
+$lang['dashboard_bc_incoming_month'] = 'Incoming BC Docs (This Month)';
+$lang['dashboard_bc_outgoing_month'] = 'Outgoing BC Docs (This Month)';
+$lang['dashboard_bc_total_docs'] = 'Total BC Documents';
+$lang['dashboard_bc_pending'] = 'Pending Verification';
+$lang['dashboard_bc_recent_incoming'] = 'Recent Incoming BC Documents';
+$lang['dashboard_bc_recent_outgoing'] = 'Recent Outgoing BC Documents';
+$lang['dashboard_bc_statistics'] = 'BC Document Statistics by Type';
+$lang['dashboard_bc_chart_incoming'] = 'Incoming Documents';
+$lang['dashboard_bc_chart_outgoing'] = 'Outgoing Documents';
+

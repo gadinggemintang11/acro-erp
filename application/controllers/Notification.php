@@ -1,7 +1,7 @@
 <?php
 defined('BASEPATH') OR exit('No direct script access allowed');
 
-class Notification extends CI_Controller {
+class Notification extends MY_Controller {
 
     public function __construct() {
         parent::__construct();
@@ -109,7 +109,7 @@ class Notification extends CI_Controller {
      */
     public function index() {
         $data['page'] = 'Notification/Index';
-        $data['title'] = 'All Notifications';
+        $data['title'] = lang_line('notifications_title', 'All Notifications');
         
         $user_id = $this->session->userdata('user_id');
         $data['notifications'] = $this->Notification_model->get_notifications($user_id, 50);

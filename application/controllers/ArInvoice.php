@@ -8,7 +8,7 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 use Dompdf\Dompdf;
 use Dompdf\Options;
 
-class ArInvoice extends CI_Controller {
+class ArInvoice extends MY_Controller {
 
     public function __construct()
     {
@@ -42,7 +42,7 @@ class ArInvoice extends CI_Controller {
      */
     public function create()
     {
-        $data['title'] = 'Buat Faktur Customer Baru';
+        $data['title'] = lang_line('ar_invoice_create', 'Buat Faktur Customer Baru');
         $data['customers'] = $this->model->get_customers();
         
         $this->load->view('templates/header', $data);
