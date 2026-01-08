@@ -149,3 +149,19 @@ $route['scrap_stock/summary'] = 'Scrap_Stock/summary';
 $route['scrap_stock/detail/(:num)'] = 'Scrap_Stock/detail/$1';
 $route['scrap_stock/export_excel'] = 'Scrap_Stock/export_excel';
 $route['scrap_stock/export_pdf'] = 'Scrap_Stock/export_pdf';
+
+// Jurnal Umum routes (for production 404 fix)
+$route['jurnalumum/batch_import'] = 'JurnalUmum/batch_import';
+$route['jurnalumum/process_batch_import'] = 'JurnalUmum/process_batch_import';
+$route['jurnalumum/download_batch_template'] = 'JurnalUmum/download_batch_template';
+$route['jurnalumum/export_list_excel'] = 'JurnalUmum/export_list_excel';
+$route['jurnalumum/export_excel/(:num)'] = 'JurnalUmum/export_excel/$1';
+$route['jurnalumum/export_pdf/(:num)'] = 'JurnalUmum/export_pdf/$1';
+$route['jurnalumum/view/(:num)'] = 'JurnalUmum/view/$1';
+$route['jurnalumum/post/(:num)'] = 'JurnalUmum/post/$1';
+$route['jurnalumum/delete/(:num)'] = 'JurnalUmum/delete/$1';
+$route['jurnalumum/create'] = 'JurnalUmum/create';
+$route['jurnalumum/store'] = 'JurnalUmum/store';
+$route['jurnalumum/import'] = 'JurnalUmum/import';
+$route['jurnalumum/process_import'] = 'JurnalUmum/process_import';
+$route['jurnalumum'] = 'JurnalUmum/index';
