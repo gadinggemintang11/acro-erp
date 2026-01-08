@@ -396,4 +396,357 @@ class JurnalUmum extends CI_Controller {
         return $this->db->select('id, fullname, username')->where('id', $user_id)->get('users')->row();
  
     }
+
+    /**
+     * ✅ Export List Jurnal ke Excel dengan Filter
+     */
+    public function export_list_excel()
+    {
+        $start_date = $this->input->get('start_date');
+        $end_date = $this->input->get('end_date');
+        $status = $this->input->get('status');
+        
+        // Build query dengan filter
+        $this->db->select('jh.*, u.fullname as creator_name');
+        $this->db->from('journal_header jh');
+        $this->db->join('users u', 'jh.created_by = u.id', 'left');
+        
+        if (!empty($start_date)) {
+            $this->db->where('jh.journal_date >=', $start_date);
+        }
+        if (!empty($end_date)) {
+            $this->db->where('jh.journal_date <=', $end_date);
+        }
+        if (!empty($status)) {
+            $this->db->where('jh.status', $status);
+        }
+        
+        $this->db->order_by('jh.journal_date', 'DESC');
+        $this->db->order_by('jh.id', 'DESC');
+        $journals = $this->db->get()->result();
+        
+        // Create Excel
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        
+        // Header
+        $sheet->setCellValue('A1', 'DAFTAR JURNAL UMUM');
+        $sheet->mergeCells('A1:H1');
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+        $sheet->getStyle('A1')->getAlignment()->setHorizontal('center');
+        
+        // Filter info
+        $filterInfo = 'Periode: ';
+        if ($start_date && $end_date) {
+            $filterInfo .= date('d/m/Y', strtotime($start_date)) . ' - ' . date('d/m/Y', strtotime($end_date));
+        } elseif ($start_date) {
+            $filterInfo .= 'Dari ' . date('d/m/Y', strtotime($start_date));
+        } elseif ($end_date) {
+            $filterInfo .= 'Sampai ' . date('d/m/Y', strtotime($end_date));
+        } else {
+            $filterInfo .= 'Semua';
+        }
+        if ($status) {
+            $filterInfo .= ' | Status: ' . $status;
+        }
+        
+        $sheet->setCellValue('A2', $filterInfo);
+        $sheet->mergeCells('A2:H2');
+        $sheet->getStyle('A2')->getFont()->setItalic(true);
+        
+        // Column Headers
+        $sheet->setCellValue('A4', 'No.');
+        $sheet->setCellValue('B4', 'No. Jurnal');
+        $sheet->setCellValue('C4', 'Tanggal');
+        $sheet->setCellValue('D4', 'Keterangan');
+        $sheet->setCellValue('E4', 'Mata Uang');
+        $sheet->setCellValue('F4', 'Debit');
+        $sheet->setCellValue('G4', 'Kredit');
+        $sheet->setCellValue('H4', 'Status');
+        
+        $sheet->getStyle('A4:H4')->getFont()->setBold(true);
+        $sheet->getStyle('A4:H4')->getFill()->setFillType('solid')->getStartColor()->setARGB('FF4472C4');
+        $sheet->getStyle('A4:H4')->getFont()->getColor()->setARGB('FFFFFFFF');
+        
+        // Data
+        $row = 5;
+        $no = 1;
+        $total_debit = 0;
+        $total_kredit = 0;
+        
+        foreach ($journals as $j) {
+            $sheet->setCellValue('A' . $row, $no++);
+            $sheet->setCellValue('B' . $row, $j->journal_no);
+            $sheet->setCellValue('C' . $row, date('d/m/Y', strtotime($j->journal_date)));
+            $sheet->setCellValue('D' . $row, $j->description);
+            $sheet->setCellValue('E' . $row, $j->currency ?? 'IDR');
+            $sheet->setCellValue('F' . $row, (float)$j->total_debit);
+            $sheet->setCellValue('G' . $row, (float)$j->total_kredit);
+            $sheet->setCellValue('H' . $row, $j->status);
+            
+            $sheet->getStyle('F' . $row . ':G' . $row)->getNumberFormat()->setFormatCode('#,##0');
+            
+            $total_debit += (float)$j->total_debit;
+            $total_kredit += (float)$j->total_kredit;
+            
+            $row++;
+        }
+        
+        // Total
+        $sheet->setCellValue('E' . $row, 'TOTAL:');
+        $sheet->setCellValue('F' . $row, $total_debit);
+        $sheet->setCellValue('G' . $row, $total_kredit);
+        $sheet->getStyle('E' . $row . ':G' . $row)->getFont()->setBold(true);
+        $sheet->getStyle('F' . $row . ':G' . $row)->getNumberFormat()->setFormatCode('#,##0');
+        
+        // Column widths
+        $sheet->getColumnDimension('A')->setWidth(6);
+        $sheet->getColumnDimension('B')->setWidth(18);
+        $sheet->getColumnDimension('C')->setWidth(12);
+        $sheet->getColumnDimension('D')->setWidth(35);
+        $sheet->getColumnDimension('E')->setWidth(10);
+        $sheet->getColumnDimension('F')->setWidth(15);
+        $sheet->getColumnDimension('G')->setWidth(15);
+        $sheet->getColumnDimension('H')->setWidth(12);
+        
+        $filename = 'Daftar_Jurnal_' . date('YmdHis') . '.xlsx';
+        
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header("Content-Disposition: attachment; filename=\"{$filename}\"");
+        
+        $writer = new XlsxWriter($spreadsheet);
+        $writer->save('php://output');
+        exit;
+    }
+
+    /**
+     * ✅ BATCH IMPORT - Upload Excel dengan banyak transaksi
+     * Pemisah transaksi menggunakan kolom Reference
+     */
+    public function batch_import()
+    {
+        $data['title'] = 'Batch Import Jurnal Umum';
+        
+        $this->load->view('templates/header', $data);
+        $this->load->view('templates/sidebar', $data);
+        $this->load->view('templates/topbar', $data);
+        $this->load->view('accounting/jurnal_umum/batch_import', $data);
+        $this->load->view('templates/footer');
+    }
+
+    /**
+     * ✅ Process Batch Import dari Excel
+     */
+    public function process_batch_import()
+    {
+        // Gunakan absolute path untuk upload directory
+        $upload_path = FCPATH . 'uploads/temp/';
+        
+        // Buat direktori jika belum ada
+        if (!is_dir($upload_path)) {
+            if (!mkdir($upload_path, 0777, TRUE)) {
+                $this->session->set_flashdata('error', 'Gagal membuat folder upload. Periksa permission folder.');
+                redirect('jurnalumum/batch_import');
+                return;
+            }
+        }
+        
+        // Cek apakah folder writable
+        if (!is_writable($upload_path)) {
+            $this->session->set_flashdata('error', 'Folder upload tidak dapat ditulis. Path: ' . $upload_path);
+            redirect('jurnalumum/batch_import');
+            return;
+        }
+        
+        $config['upload_path']   = $upload_path;
+        $config['allowed_types'] = 'xls|xlsx|csv';
+        $config['max_size']      = 10240; // 10MB
+        $config['encrypt_name']  = TRUE;
+
+        $this->load->library('upload', $config);
+
+        if (!$this->upload->do_upload('file_batch')) {
+            $error = $this->upload->display_errors('', '');
+            $this->session->set_flashdata('error', 'Upload gagal: ' . $error);
+            redirect('jurnalumum/batch_import');
+        } else {
+            $file_data = $this->upload->data();
+            $file_path = $file_data['full_path'];
+
+            $extension = pathinfo($file_path, PATHINFO_EXTENSION);
+            if ('csv' == $extension) {
+                $reader = new Csv();
+            } else if ('xls' == $extension) {
+                $reader = new Xls();
+            } else {
+                $reader = new Xlsx();
+            }
+
+            try {
+                $spreadsheet = $reader->load($file_path);
+                $worksheet = $spreadsheet->getActiveSheet();
+                
+                // ✅ Baca data dengan cara yang benar untuk preserve numeric values
+                $sheet_data = [];
+                $highestRow = $worksheet->getHighestRow();
+                $highestColumn = $worksheet->getHighestColumn();
+                
+                for ($row = 1; $row <= $highestRow; $row++) {
+                    $rowData = [];
+                    foreach (range('A', $highestColumn) as $col) {
+                        $cell = $worksheet->getCell($col . $row);
+                        // Get calculated value (untuk formula) atau raw value
+                        $rowData[$col] = $cell->getCalculatedValue();
+                    }
+                    $sheet_data[$row] = $rowData;
+                }
+                
+                // Process batch data
+                $result = $this->model->process_batch_import($sheet_data, $this->session->userdata('user_id'));
+                
+                unlink($file_path);
+
+                if ($result['success']) {
+                    $message = "Berhasil mengimpor {$result['total_transactions']} transaksi jurnal:<br>";
+                    foreach ($result['journal_numbers'] as $jno) {
+                        $message .= "✓ {$jno}<br>";
+                    }
+                    $this->session->set_flashdata('success', $message);
+                    redirect('jurnalumum');
+                } else {
+                    $this->session->set_flashdata('error', 'Gagal mengimpor: ' . $result['message']);
+                    redirect('jurnalumum/batch_import');
+                }
+
+            } catch (Exception $e) {
+                if (file_exists($file_path)) unlink($file_path);
+                $this->session->set_flashdata('error', 'Gagal membaca file: ' . $e->getMessage());
+                redirect('jurnalumum/batch_import');
+            }
+        }
+    }
+
+    /**
+     * ✅ Download Template Excel untuk Batch Import
+     */
+    public function download_batch_template()
+    {
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        
+        // Header
+        $sheet->setCellValue('A1', 'TEMPLATE BATCH IMPORT JURNAL UMUM');
+        $sheet->mergeCells('A1:H1');
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+        $sheet->getStyle('A1')->getAlignment()->setHorizontal('center');
+        
+        $sheet->setCellValue('A2', 'Petunjuk: Isi data mulai dari baris 5. Setiap transaksi baru ditandai dengan Reference baru di kolom pertama.');
+        $sheet->mergeCells('A2:H2');
+        
+        $sheet->setCellValue('A3', 'PENTING: Untuk kolom Debit/Kredit, isi angka TANPA titik atau koma. Contoh: 50000000 (bukan 50.000.000)');
+        $sheet->mergeCells('A3:H3');
+        $sheet->getStyle('A3')->getFont()->setBold(true)->getColor()->setARGB('FFFF0000');
+        
+        // Column Headers
+        $sheet->setCellValue('A4', 'Reference');
+        $sheet->setCellValue('B4', 'Tanggal (YYYY-MM-DD)');
+        $sheet->setCellValue('C4', 'Keterangan Jurnal');
+        $sheet->setCellValue('D4', 'Kode Akun');
+        $sheet->setCellValue('E4', 'Nama Akun');
+        $sheet->setCellValue('F4', 'Debit');
+        $sheet->setCellValue('G4', 'Kredit');
+        $sheet->setCellValue('H4', 'Keterangan Detail');
+        
+        $sheet->getStyle('A4:H4')->getFont()->setBold(true);
+        $sheet->getStyle('A4:H4')->getFill()->setFillType('solid')->getStartColor()->setARGB('FF4472C4');
+        $sheet->getStyle('A4:H4')->getFont()->getColor()->setARGB('FFFFFFFF');
+        
+        // Contoh Data - Transaksi 1: Gaji (Debit dulu, lalu Kredit)
+        $sheet->setCellValue('A5', 'GAJI-JAN-2026');
+        $sheet->setCellValue('B5', '2026-01-31');
+        $sheet->setCellValue('C5', 'Pembayaran Gaji Karyawan Januari 2026');
+        $sheet->setCellValueExplicit('D5', '5.200.001.00', \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+        $sheet->setCellValue('E5', 'Beban Gaji');
+        $sheet->setCellValue('F5', 50000000);
+        $sheet->setCellValue('G5', 0);
+        $sheet->setCellValue('H5', 'Gaji pokok karyawan');
+        
+        $sheet->setCellValue('A6', '');
+        $sheet->setCellValue('B6', '2026-01-31');
+        $sheet->setCellValue('C6', '');
+        $sheet->setCellValueExplicit('D6', '1.101.001.00', \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+        $sheet->setCellValue('E6', 'Kas');
+        $sheet->setCellValue('F6', 0);
+        $sheet->setCellValue('G6', 50000000);
+        $sheet->setCellValue('H6', 'Pembayaran tunai');
+        
+        // Transaksi 2: Penjualan (Kredit dulu, lalu Debit - Reference di kredit)
+        $sheet->setCellValue('A7', 'PENJUALAN-001');
+        $sheet->setCellValue('B7', '2026-01-15');
+        $sheet->setCellValue('C7', 'Penjualan Tunai');
+        $sheet->setCellValueExplicit('D7', '4.110.001.00', \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+        $sheet->setCellValue('E7', 'Pendapatan Penjualan');
+        $sheet->setCellValue('F7', 0);
+        $sheet->setCellValue('G7', 10000000);
+        $sheet->setCellValue('H7', 'Pendapatan hari ini');
+        
+        $sheet->setCellValue('A8', '');
+        $sheet->setCellValue('B8', '2026-01-15');
+        $sheet->setCellValue('C8', '');
+        $sheet->setCellValueExplicit('D8', '1.101.001.00', \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+        $sheet->setCellValue('E8', 'Kas');
+        $sheet->setCellValue('F8', 10000000);
+        $sheet->setCellValue('G8', 0);
+        $sheet->setCellValue('H8', 'Terima tunai');
+        
+        // Transaksi 3: Listrik dengan banyak detail
+        $sheet->setCellValue('A9', 'LISTRIK-JAN-2026');
+        $sheet->setCellValue('B9', '2026-01-20');
+        $sheet->setCellValue('C9', 'Biaya Listrik Multi Lokasi');
+        $sheet->setCellValueExplicit('D9', '6.220.001.00', \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+        $sheet->setCellValue('E9', 'Beban Listrik');
+        $sheet->setCellValue('F9', 3000000);
+        $sheet->setCellValue('G9', 0);
+        $sheet->setCellValue('H9', 'Kantor Pusat');
+        
+        $sheet->setCellValue('A10', '');
+        $sheet->setCellValue('B10', '2026-01-20');
+        $sheet->setCellValue('C10', '');
+        $sheet->setCellValueExplicit('D10', '6.220.001.00', \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+        $sheet->setCellValue('E10', 'Beban Listrik');
+        $sheet->setCellValue('F10', 1500000);
+        $sheet->setCellValue('G10', 0);
+        $sheet->setCellValue('H10', 'Kantor Cabang');
+        
+        $sheet->setCellValue('A11', '');
+        $sheet->setCellValue('B11', '2026-01-20');
+        $sheet->setCellValue('C11', '');
+        $sheet->setCellValueExplicit('D11', '1.101.001.00', \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_STRING);
+        $sheet->setCellValue('E11', 'Kas');
+        $sheet->setCellValue('F11', 0);
+        $sheet->setCellValue('G11', 4500000);
+        $sheet->setCellValue('H11', 'Pembayaran tunai');
+        
+        // Set column widths
+        $sheet->getColumnDimension('A')->setWidth(20);
+        $sheet->getColumnDimension('B')->setWidth(18);
+        $sheet->getColumnDimension('C')->setWidth(35);
+        $sheet->getColumnDimension('D')->setWidth(12);
+        $sheet->getColumnDimension('E')->setWidth(25);
+        $sheet->getColumnDimension('F')->setWidth(15);
+        $sheet->getColumnDimension('G')->setWidth(15);
+        $sheet->getColumnDimension('H')->setWidth(25);
+        
+        // Format angka
+        $sheet->getStyle('F5:G11')->getNumberFormat()->setFormatCode('#,##0');
+        
+        $filename = 'Template_Batch_Jurnal_' . date('YmdHis') . '.xlsx';
+        
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header("Content-Disposition: attachment; filename=\"{$filename}\"");
+        
+        $writer = new XlsxWriter($spreadsheet);
+        $writer->save('php://output');
+        exit;
+    }
 }

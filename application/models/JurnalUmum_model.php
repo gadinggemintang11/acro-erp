@@ -170,4 +170,238 @@ class JurnalUmum_model extends CI_Model {
         $this->db->trans_complete();
         return ($this->db->trans_status() === FALSE) ? FALSE : $header_id;
     }
+
+    /**
+     * ✅ Process Batch Import - Multiple Transactions from Excel
+     * Pemisah transaksi menggunakan kolom Reference
+     * 
+     * Format Excel:
+     * Column A: Reference (penanda transaksi baru jika tidak kosong)
+     * Column B: Tanggal (YYYY-MM-DD)
+     * Column C: Keterangan Jurnal
+     * Column D: Kode Akun
+     * Column E: Nama Akun (optional, untuk validasi)
+     * Column F: Debit
+     * Column G: Kredit
+     * Column H: Keterangan Detail
+     * 
+     * PENTING: 
+     * - Setiap kali kolom A (Reference) TIDAK KOSONG = TRANSAKSI BARU
+     * - Tidak peduli apakah itu di debit atau kredit
+     * - Reference kosong = lanjutan detail dari transaksi sebelumnya
+     */
+    public function process_batch_import($sheet_data, $user_id)
+    {
+        // Ambil semua akun yang bisa di-post
+        $accounts = $this->get_postable_accounts();
+        $account_map = [];
+        foreach ($accounts as $acc) {
+            $account_map[trim($acc->account_code)] = $acc;
+        }
+
+        $transactions = [];
+        $current_transaction = null;
+        $errors = [];
+
+        // Parse data mulai dari baris ke-5 (setelah header)
+        foreach ($sheet_data as $row_num => $row) {
+            if ($row_num < 5) continue; // Skip header rows
+            
+            $reference = trim($row['A'] ?? '');
+            $date = trim($row['B'] ?? '');
+            $journal_desc = trim($row['C'] ?? '');
+            
+            // ✅ Kode akun bisa berupa string atau number dari Excel
+            $account_code_raw = $row['D'] ?? '';
+            $account_code = trim(strval($account_code_raw));
+            
+            // ✅ Ambil nilai ASLI dari Excel (bukan formatted value)
+            // Excel menyimpan 50000000 sebagai number, bukan "50.000.000"
+            $debit = abs((float) ($row['F'] ?? 0));
+            $kredit = abs((float) ($row['G'] ?? 0));
+            $detail_desc = trim($row['H'] ?? '');
+
+            // Skip baris yang benar-benar kosong semua
+            if (empty($reference) && empty($account_code) && $debit == 0 && $kredit == 0) {
+                continue;
+            }
+
+            // ✅ LOGIKA PEMISAH: Setiap ada Reference TIDAK KOSONG = Transaksi Baru
+            // Tidak peduli di baris kredit atau debit, yang penting Reference terisi
+            if (!empty($reference)) {
+                // Simpan transaksi sebelumnya jika ada
+                if ($current_transaction !== null) {
+                    $transactions[] = $current_transaction;
+                }
+
+                // Mulai transaksi baru
+                $current_transaction = [
+                    'reference' => $reference,
+                    'date' => $date,
+                    'description' => !empty($journal_desc) ? $journal_desc : $reference,
+                    'details' => []
+                ];
+            }
+
+            // Validasi: harus ada transaksi aktif
+            if ($current_transaction === null) {
+                $errors[] = "Baris {$row_num}: Tidak ada reference untuk memulai transaksi. Pastikan baris pertama memiliki Reference.";
+                continue;
+            }
+
+            // Jika baris ini hanya berisi reference tanpa detail akun, skip (akan diproses sebagai header saja)
+            if (empty($account_code)) {
+                // Tapi update info jika ada tanggal/keterangan di baris reference
+                if (!empty($date) && empty($current_transaction['date'])) {
+                    $current_transaction['date'] = $date;
+                }
+                if (!empty($journal_desc) && $current_transaction['description'] == $current_transaction['reference']) {
+                    $current_transaction['description'] = $journal_desc;
+                }
+                continue;
+            }
+
+            // Validasi akun
+            if (!isset($account_map[$account_code])) {
+                $errors[] = "Baris {$row_num}: Kode akun '{$account_code}' tidak ditemukan atau tidak aktif";
+                continue;
+            }
+
+            // Validasi debit/kredit
+            if ($debit == 0 && $kredit == 0) {
+                $errors[] = "Baris {$row_num}: Debit dan Kredit tidak boleh kosong semua";
+                continue;
+            }
+
+            if ($debit != 0 && $kredit != 0) {
+                $errors[] = "Baris {$row_num}: Debit dan Kredit tidak boleh diisi bersamaan";
+                continue;
+            }
+
+            // Update tanggal/keterangan jika baris detail punya info lebih lengkap
+            if (!empty($date) && empty($current_transaction['date'])) {
+                $current_transaction['date'] = $date;
+            }
+            if (!empty($journal_desc) && $current_transaction['description'] == $current_transaction['reference']) {
+                $current_transaction['description'] = $journal_desc;
+            }
+
+            // Tambahkan detail ke transaksi saat ini
+            $current_transaction['details'][] = [
+                'account_id' => $account_map[$account_code]->id,
+                'account_code' => $account_code,
+                'debit' => $debit,
+                'kredit' => $kredit,
+                'description' => $detail_desc
+            ];
+        }
+
+        // Simpan transaksi terakhir
+        if ($current_transaction !== null) {
+            $transactions[] = $current_transaction;
+        }
+
+        // Jika ada error, return
+        if (!empty($errors)) {
+            return [
+                'success' => false,
+                'message' => implode('; ', $errors)
+            ];
+        }
+
+        // Jika tidak ada transaksi valid
+        if (empty($transactions)) {
+            return [
+                'success' => false,
+                'message' => 'Tidak ada transaksi valid yang ditemukan dalam file'
+            ];
+        }
+
+        // Proses setiap transaksi
+        $this->db->trans_start();
+        $journal_numbers = [];
+        
+        foreach ($transactions as $trans) {
+            // Validasi tanggal
+            if (empty($trans['date']) || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $trans['date'])) {
+                $this->db->trans_rollback();
+                return [
+                    'success' => false,
+                    'message' => "Reference '{$trans['reference']}': Format tanggal harus YYYY-MM-DD"
+                ];
+            }
+
+            // Hitung total debit dan kredit
+            $total_debit = 0;
+            $total_kredit = 0;
+            
+            foreach ($trans['details'] as $detail) {
+                $total_debit += $detail['debit'];
+                $total_kredit += $detail['kredit'];
+            }
+
+            // Validasi balance
+            if (abs($total_debit - $total_kredit) > 0.01) {
+                $this->db->trans_rollback();
+                return [
+                    'success' => false,
+                    'message' => "Reference '{$trans['reference']}': Tidak seimbang (Debit: {$total_debit}, Kredit: {$total_kredit})"
+                ];
+            }
+
+            // Generate nomor jurnal baru
+            $journal_no = $this->get_new_journal_number();
+
+            // Insert header
+            $header_data = [
+                'journal_no' => $journal_no,
+                'journal_date' => $trans['date'],
+                'description' => !empty($trans['description']) ? $trans['description'] : $trans['reference'],
+                'currency' => 'IDR',
+                'exchange_rate' => 1,
+                'total_debit' => $total_debit,
+                'total_kredit' => $total_kredit,
+                'total_debit_local' => $total_debit,
+                'total_kredit_local' => $total_kredit,
+                'created_by' => $user_id,
+                'status' => 'Draft',
+                'created_at' => date('Y-m-d H:i:s')
+            ];
+
+            $this->db->insert('journal_header', $header_data);
+            $header_id = $this->db->insert_id();
+
+            // Insert details
+            foreach ($trans['details'] as $detail) {
+                $detail_data = [
+                    'journal_header_id' => $header_id,
+                    'account_id' => $detail['account_id'],
+                    'debit' => $detail['debit'],
+                    'kredit' => $detail['kredit'],
+                    'debit_local' => $detail['debit'],
+                    'kredit_local' => $detail['kredit'],
+                    'description' => $detail['description']
+                ];
+                
+                $this->db->insert('journal_details', $detail_data);
+            }
+
+            $journal_numbers[] = $journal_no;
+        }
+
+        $this->db->trans_complete();
+
+        if ($this->db->trans_status() === FALSE) {
+            return [
+                'success' => false,
+                'message' => 'Terjadi kesalahan saat menyimpan ke database'
+            ];
+        }
+
+        return [
+            'success' => true,
+            'total_transactions' => count($transactions),
+            'journal_numbers' => $journal_numbers
+        ];
+    }
 }
