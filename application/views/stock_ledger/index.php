@@ -107,6 +107,7 @@
 
         /* Filter Form Styling */
         .filter-row-form .form-group label {
+            font-size: 0.85rem;
             color: #495057;
             margin-bottom: 0.4rem;
             display: block;
