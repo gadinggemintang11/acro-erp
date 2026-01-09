@@ -104,3 +104,41 @@
 .sidebar.toggled .nav-item-logout .nav-link {
   padding-top: 1rem;
 }
+
+
+/* ====================================================
+   MOBILE RESPONSIVE - MINIMAL (BIARKAN BOOTSTRAP HANDLE)
+   ==================================================== */
+
+/* Hanya untuk form zoom prevention di iOS */
+@media (max-width: 992px) {
+  .form-control,
+  .form-select,
+  select.form-control,
+  input[type="text"],
+  input[type="number"],
+  input[type="email"],
+  textarea {
+    font-size: 16px !important; /* Prevent zoom on iOS */
+  }
+  
+  /* Table scroll */
+  .table-responsive {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+}
+
+/* Print styles */
+@media print {
+  .sidebar,
+  .topbar,
+  .btn,
+  .no-print {
+    display: none !important;
+  }
+  
+  #content-wrapper {
+    margin-left: 0 !important;
+  }
+}

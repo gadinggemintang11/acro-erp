@@ -63,43 +63,18 @@ class Stock_ledger extends MY_Controller {
             'search'         => $search
         ];
 
-        // --- Pagination Config ---
-        $config['base_url'] = base_url('stock_ledger/index');
-        // Panggil model count dengan filter yang sama
-        $config['total_rows'] = $this->Stock_ledger_model->count_stock_summary_report($filters);
-        $config['per_page'] = 25; 
-        $config['reuse_query_string'] = TRUE; 
-        $config['use_page_numbers'] = TRUE;
-        $config['num_links'] = 2;
-
-        // Styling Pagination Bootstrap 4 (Sudah benar)
-        $config['full_tag_open'] = '<nav aria-label="Page navigation"><ul class="pagination pagination-sm justify-content-center flex-wrap">';
-        $config['full_tag_close'] = '</ul></nav>';
-        $config['first_link'] = '&laquo; First'; $config['first_tag_open'] = '<li class="page-item">'; $config['first_tag_close'] = '</li>';
-        $config['last_link'] = 'Last &raquo;'; $config['last_tag_open'] = '<li class="page-item">'; $config['last_tag_close'] = '</li>';
-        $config['next_link'] = 'Next &rsaquo;'; $config['next_tag_open'] = '<li class="page-item">'; $config['next_tag_close'] = '</li>';
-        $config['prev_link'] = '&lsaquo; Prev'; $config['prev_tag_open'] = '<li class="page-item">'; $config['prev_tag_close'] = '</li>';
-        $config['cur_tag_open'] = '<li class="page-item active"><span class="page-link">'; $config['cur_tag_close'] = '</span></li>';
-        $config['num_tag_open'] = '<li class="page-item">'; $config['num_tag_close'] = '</li>';
-        $config['attributes'] = array('class' => 'page-link');
-
-        $this->pagination->initialize($config);
-        // Ambil nomor halaman dari URI segment ke-3, default 1
-        $page = ($this->uri->segment(3)) ? (int)$this->uri->segment(3) : 1;
-        // Hitung offset berdasarkan nomor halaman
-        $offset = ($page > 0) ? ($page - 1) * $config['per_page'] : 0;
+        // --- Get ALL Data (DataTables akan handle pagination) ---
+        $report_data = $this->Stock_ledger_model->get_stock_summary_report($filters, 0, 0);
 
         // --- Get Data ---
         $data = [
             'title'        => 'Laporan Ringkasan Stok Barang',
-            'report'       => $this->Stock_ledger_model->get_stock_summary_report($filters, $config['per_page'], $offset),
-            'pagination'   => $this->pagination->create_links(),
+            'report'       => $report_data, // Kirim SEMUA data
             'filters'      => $filters, // Kirim filter ke view untuk ditampilkan
             'selected_month' => $month, // Untuk nilai default dropdown bulan
             'selected_year' => $year,   // Untuk nilai default dropdown tahun
             'item_types'   => $this->item_types, // Gunakan array dari properti class
-            'total_rows'   => $config['total_rows'], // Info jumlah total item
-            'start_no'     => $offset + 1 // Nomor urut awal untuk tabel
+            'total_rows'   => count($report_data) // Total item
         ];
 
         // --- Load Views ---
@@ -300,7 +275,11 @@ class Stock_ledger extends MY_Controller {
      * Fungsi Export PDF (Mengambil semua data)
      */
     public function export_pdf() {
-       if (!check_access('stock_ledger', 'view')) { show_error('Tidak ada izin.', 403); return;}
+       // Pastikan user sudah login
+       if (!$this->session->userdata('user_id')) {
+           show_error('Silakan login terlebih dahulu.', 403);
+           return;
+       }
 
        // Ambil filter dari GET (identik dengan index)
        $month = $this->input->get('month') ?: date('m'); $year = $this->input->get('year') ?: date('Y');
@@ -344,7 +323,11 @@ class Stock_ledger extends MY_Controller {
      * Fungsi Export Excel (Mengambil semua data)
      */
     public function export_excel() {
-        if (!check_access('stock_ledger', 'view')) { show_error('Tidak ada izin.', 403); return;}
+        // Pastikan user sudah login
+        if (!$this->session->userdata('user_id')) {
+            show_error('Silakan login terlebih dahulu.', 403);
+            return;
+        }
 
         // Ambil filter dari GET (identik dengan index)
         $month = $this->input->get('month') ?: date('m'); $year = $this->input->get('year') ?: date('Y');

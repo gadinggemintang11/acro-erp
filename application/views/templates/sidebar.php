@@ -146,7 +146,206 @@ html, body {
     background: rgba(255,255,255,0.2);
     border-radius: 10px;
 }
+
+/* ============================================
+   MOBILE RESPONSIVE - SIMPLE & CLEAN
+   ============================================ */
+@media (max-width: 768px) {
+    /* Sidebar: Hidden by default, slide from left */
+    #accordionSidebar {
+        position: fixed !important;
+        left: -16rem !important;
+        top: 0 !important;
+        width: 16rem !important;
+        height: 100vh !important;
+        z-index: 9999 !important;
+        transition: left 0.3s ease !important;
+        padding-top: 0.5rem !important;
+    }
+    
+    /* Sidebar: Visible when toggled */
+    #accordionSidebar.show-mobile {
+        left: 0 !important;
+    }
+    
+    /* Content: Full width */
+    #content-wrapper {
+        margin-left: 0 !important;
+        width: 100% !important;
+    }
+    
+    /* Overlay backdrop */
+    .sidebar-backdrop {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.5);
+        z-index: 9998;
+        display: none;
+    }
+    .sidebar-backdrop.show {
+        display: block;
+    }
+    
+    /* ===== MENU STYLING MOBILE ===== */
+    
+    /* Logo lebih kecil */
+    #accordionSidebar .sidebar-brand {
+        padding: 0.75rem !important;
+    }
+    #accordionSidebar .sidebar-brand img {
+        max-height: 50px !important;
+    }
+    
+    /* Section heading */
+    #accordionSidebar .sidebar-heading {
+        font-size: 0.65rem !important;
+        padding: 0.5rem 1rem !important;
+        margin-top: 0.25rem !important;
+    }
+    
+    /* Menu items - horizontal layout */
+    #accordionSidebar .nav-item .nav-link {
+        display: flex !important;
+        flex-direction: row !important;
+        align-items: center !important;
+        padding: 0.6rem 1rem !important;
+        font-size: 0.85rem !important;
+    }
+    
+    #accordionSidebar .nav-item .nav-link i {
+        width: 1.5rem !important;
+        font-size: 0.9rem !important;
+        margin-right: 0.5rem !important;
+        text-align: center !important;
+    }
+    
+    #accordionSidebar .nav-item .nav-link span {
+        font-size: 0.85rem !important;
+    }
+    
+    /* Dropdown arrow */
+    #accordionSidebar .nav-link[data-toggle="collapse"]::after {
+        margin-left: auto !important;
+    }
+    
+    /* ===== DROPDOWN SUBMENU STYLING ===== */
+    /* Reset SEMUA styling bawaan sb-admin-2 */
+    #accordionSidebar .nav-item .collapse {
+        position: relative !important;
+        left: 0 !important;
+        top: 0 !important;
+        z-index: 1 !important;
+        margin: 0 !important;
+    }
+    
+    #accordionSidebar .nav-item .collapse .collapse-inner,
+    #accordionSidebar .nav-item .collapsing .collapse-inner {
+        padding: 0 !important;
+        margin: 0 !important;
+        border-radius: 0 !important;
+        background: rgba(0, 0, 0, 0.15) !important;
+        box-shadow: none !important;
+        min-width: 0 !important;
+    }
+    
+    /* Sembunyikan header di mobile */
+    #accordionSidebar .collapse .collapse-header {
+        display: none !important;
+    }
+    
+    /* Submenu items - SEJAJAR LURUS dengan TEXT menu utama */
+    #accordionSidebar .nav-item .collapse .collapse-inner .collapse-item,
+    #accordionSidebar .nav-item .collapsing .collapse-inner .collapse-item {
+        padding: 0.5rem 1rem !important;
+        margin: 0 !important;
+        font-size: 0.85rem !important;
+        color: rgba(255,255,255,0.85) !important;
+        white-space: normal !important;
+        word-wrap: break-word !important;
+        line-height: 1.4 !important;
+        display: block !important;
+        border: none !important;
+        border-radius: 0 !important;
+        background: transparent !important;
+    }
+    
+    #accordionSidebar .nav-item .collapse .collapse-inner .collapse-item:hover {
+        background: rgba(255,255,255,0.1) !important;
+        color: #fff !important;
+    }
+    
+    #accordionSidebar .nav-item .collapse .collapse-inner .collapse-item.active {
+        background: rgba(255,255,255,0.2) !important;
+        color: #fff !important;
+        font-weight: 600 !important;
+    }
+    
+    /* Divider */
+    #accordionSidebar .sidebar-divider {
+        margin: 0.5rem 1rem !important;
+    }
+}
+
+/* Tablet (768px - 992px) */
+@media (min-width: 769px) and (max-width: 992px) {
+    #accordionSidebar {
+        width: 14rem !important;
+    }
+}
 </style>
+
+<!-- Mobile Sidebar Backdrop -->
+<div class="sidebar-backdrop" id="sidebarBackdrop"></div>
+
+<!-- Mobile Sidebar Toggle Script -->
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    // Only on mobile
+    if (window.innerWidth <= 768) {
+        var sidebar = document.getElementById('accordionSidebar');
+        var backdrop = document.getElementById('sidebarBackdrop');
+        var toggleBtn = document.getElementById('sidebarToggleTop');
+        
+        // Toggle sidebar
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                sidebar.classList.toggle('show-mobile');
+                backdrop.classList.toggle('show');
+            });
+        }
+        
+        // Close on backdrop click
+        if (backdrop) {
+            backdrop.addEventListener('click', function() {
+                sidebar.classList.remove('show-mobile');
+                backdrop.classList.remove('show');
+            });
+        }
+        
+        // Close on menu item click (for non-dropdown items)
+        var menuLinks = sidebar.querySelectorAll('.nav-link:not([data-toggle="collapse"])');
+        menuLinks.forEach(function(link) {
+            link.addEventListener('click', function() {
+                sidebar.classList.remove('show-mobile');
+                backdrop.classList.remove('show');
+            });
+        });
+        
+        // Close on submenu item click
+        var subMenuLinks = sidebar.querySelectorAll('.collapse-item');
+        subMenuLinks.forEach(function(link) {
+            link.addEventListener('click', function() {
+                sidebar.classList.remove('show-mobile');
+                backdrop.classList.remove('show');
+            });
+        });
+    }
+});
+</script>
 
 <ul class="navbar-nav bg-gradient-primary sidebar sidebar-dark accordion shadow-sm" id="accordionSidebar">
 
