@@ -75,6 +75,50 @@ class Sc_model extends CI_Model {
     }
 
     /**
+     * Cek apakah nomor SC sudah digunakan
+     */
+    public function is_sc_number_exists($sc_number) {
+        if (empty($sc_number)) return false;
+        return $this->db->where('sc_number', $sc_number)->count_all_results($this->table_sc) > 0;
+    }
+
+    /**
+     * Ambil customer_id berdasarkan kode customer
+     */
+    public function get_customer_id_by_code($kode_customer) {
+        if (empty($kode_customer)) return null;
+        $row = $this->db->select('id')->from($this->table_customer)->where('kode_customer', $kode_customer)->get()->row();
+        return $row ? $row->id : null;
+    }
+
+    /**
+     * Ambil customer_id berdasarkan nama supplier/customer
+     */
+    public function get_customer_id_by_name($nama_customer) {
+        if (empty($nama_customer)) return null;
+        $row = $this->db->select('id')->from($this->table_customer)->where('nama_customer', $nama_customer)->get()->row();
+        return $row ? $row->id : null;
+    }
+
+    /**
+     * Ambil fg_id berdasarkan kode barang/style
+     */
+    public function get_fg_id_by_code($kode_barang) {
+        if (empty($kode_barang)) return null;
+        $row = $this->db->select('id')->from($this->table_fg)->where('kode_barang', $kode_barang)->get()->row();
+        return $row ? $row->id : null;
+    }
+
+    /**
+     * Ambil fg_id berdasarkan nama barang
+     */
+    public function get_fg_id_by_name($nama_barang) {
+        if (empty($nama_barang)) return null;
+        $row = $this->db->select('id')->from($this->table_fg)->where('nama_barang', $nama_barang)->get()->row();
+        return $row ? $row->id : null;
+    }
+
+    /**
      * Mengupdate data Sales Contract
      */
     public function update($id, $data) {

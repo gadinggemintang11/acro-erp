@@ -8,6 +8,9 @@
             <button class="btn btn-primary shadow-sm" data-toggle="modal" data-target="#addModal">
                 <i class="fas fa-plus-circle mr-1"></i> <?= lang_line('sc_create_new', 'Buat SC Baru'); ?>
             </button>
+            <button class="btn btn-success shadow-sm ml-2" data-toggle="modal" data-target="#uploadModal">
+                <i class="fas fa-file-upload mr-1"></i> Import Excel / Template
+            </button>
         <?php endif; ?>
     </div>
 
@@ -115,6 +118,10 @@
                 <div class="modal-body">
                     <div class="row">
                         <div class="col-md-6 form-group">
+                            <label for="add_sc_number">Nomor SC (opsional, kosongkan untuk auto)</label>
+                            <input type="text" name="sc_number" id="add_sc_number" class="form-control" placeholder="Kosongkan agar auto-generate">
+                        </div>
+                        <div class="col-md-6 form-group">
                             <label for="add_customer_id"><?= lang_line('sc_customer', 'Pelanggan'); ?> <span class="text-danger">*</span></label>
                             <select name="customer_id" id="add_customer_id" class="form-control" required>
                                 <option value=""><?= lang_line('sc_customer_select', '-- Pilih Pelanggan --'); ?></option>
@@ -178,6 +185,51 @@
                 <div class="modal-footer">
                     <button type="submit" class="btn btn-primary btn-load"><i class="fas fa-save mr-1"></i> <?= lang_line('sc_save', 'Simpan'); ?></button>
                     <button type="button" class="btn btn-secondary" data-dismiss="modal"><?= lang_line('sc_cancel', 'Batal'); ?></button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- ============================================== -->
+<!-- MODAL IMPORT EXCEL -->
+<!-- ============================================== -->
+<div class="modal fade" id="uploadModal" tabindex="-1" aria-labelledby="uploadModalLabel" aria-hidden="true">
+    <div class="modal-dialog">
+        <form method="post" action="<?= base_url('sales_contract/upload_excel'); ?>" enctype="multipart/form-data">
+            <input type="hidden" name="<?= $this->security->get_csrf_token_name(); ?>" value="<?= $this->security->get_csrf_hash(); ?>">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-gradient-success text-white">
+                    <h5 class="modal-title" id="uploadModalLabel"><i class="fas fa-file-upload mr-2"></i>Import Sales Contract via Excel</h5>
+                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <div class="p-3 mb-3 border rounded" style="background: linear-gradient(135deg, #e8f5e9 0%, #f0fff4 100%);">
+                        <div class="d-flex align-items-center mb-2">
+                            <div class="badge badge-success mr-2"><i class="fas fa-info-circle"></i></div>
+                            <strong>Petunjuk Import</strong>
+                        </div>
+                        <div class="small text-muted mb-2">Gunakan template agar format tepat. Header baris 1:</div>
+                        <ul class="small mb-2 pl-3">
+                            <li>A: <code>sc_number</code> (boleh kosong untuk auto)</li>
+                            <li>B: <code>customer_name</code> (nama supplier/customer)</li>
+                            <li>C: <code>fg_name</code> (nama barang di master FG)</li>
+                            <li>D: <code>contract_date</code> (Y-m-d), E: <code>lchd_date</code> (Y-m-d)</li>
+                            <li>F: <code>po_qty</code>, G: <code>currency_code</code>, H: <code>unit_price</code>, I: <code>destination</code></li>
+                        </ul>
+                        <a href="<?= base_url('sales_contract/download_template'); ?>" class="btn btn-sm btn-outline-success">
+                            <i class="fas fa-download mr-1"></i> Download Template
+                        </a>
+                    </div>
+
+                    <div class="form-group mb-0">
+                        <label class="font-weight-bold">File Excel (.xlsx / .xls)</label>
+                        <input type="file" name="excel_file" class="form-control" accept=".xlsx,.xls" required>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-success"><i class="fas fa-upload mr-1"></i>Upload</button>
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
                 </div>
             </div>
         </form>
