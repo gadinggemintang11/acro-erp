@@ -19,8 +19,46 @@ class Master_material extends MY_Controller {
             show_error('Anda tidak memiliki izin untuk melihat modul ini.', 403);
         }
 
+        $keyword = $this->input->get('q');
+        $per_page = 20;
+        $page = (int) $this->input->get('page');
+        $offset = $page > 0 ? ($page - 1) * $per_page : 0;
+
+        $total_rows = $this->Material_model->count_filtered($keyword);
+        $materials = $this->Material_model->get_paginated($per_page, $offset, $keyword);
+
+        // Pagination config
+        $this->load->library('pagination');
+        $config['base_url'] = site_url('master_material');
+        $config['total_rows'] = $total_rows;
+        $config['per_page'] = $per_page;
+        $config['page_query_string'] = TRUE;
+        $config['query_string_segment'] = 'page';
+        $config['reuse_query_string'] = TRUE;
+        $config['use_page_numbers'] = TRUE;
+
+        // Styling bootstrap
+        $config['full_tag_open'] = '<ul class="pagination justify-content-end">';
+        $config['full_tag_close'] = '</ul>';
+        $config['num_tag_open'] = '<li class="page-item">';
+        $config['num_tag_close'] = '</li>';
+        $config['cur_tag_open'] = '<li class="page-item active"><a class="page-link" href="#">';
+        $config['cur_tag_close'] = '</a></li>';
+        $config['prev_tag_open'] = '<li class="page-item">';
+        $config['prev_tag_close'] = '</li>';
+        $config['next_tag_open'] = '<li class="page-item">';
+        $config['next_tag_close'] = '</li>';
+        $config['attributes'] = array('class' => 'page-link');
+
+        $this->pagination->initialize($config);
+
         $data['title'] = 'Master Material';
-        $data['materials'] = $this->Material_model->get_all();
+        $data['materials'] = $materials;
+        $data['pagination'] = $this->pagination->create_links();
+        $data['keyword'] = $keyword;
+        $data['offset'] = $offset;
+        $data['per_page'] = $per_page;
+
         // ✅ DINAMIS: Menggunakan Commoncode_model yang lebih umum
         $data['satuan_list'] = $this->Commoncode_model->get_by_group('SATUAN');
         $data['kategori_list'] = $this->Commoncode_model->get_by_group('MATERIAL_CATEGORY');
@@ -39,15 +77,22 @@ class Master_material extends MY_Controller {
             show_error('Anda tidak memiliki izin untuk menambah data.', 403);
         }
 
+        $nama_material = $this->input->post('nama_material');
         $kategori = $this->input->post('kategori');
         $asal = $this->input->post('asal');
+        $satuan = $this->input->post('satuan');
+
+        if (empty($kategori) || empty($asal)) {
+            $this->session->set_flashdata('error', 'Kategori dan asal wajib diisi untuk menghasilkan kode material.');
+            return redirect('master_material');
+        }
 
         $data = [
             'kode_material' => $this->Material_model->generate_kode($kategori, $asal),
-            'nama_material' => $this->input->post('nama_material'),
+            'nama_material' => $nama_material,
             'kategori'      => $kategori,
             'asal'          => $asal,
-            'satuan'        => $this->input->post('satuan'),
+            'satuan'        => $satuan,
             'status'        => 'active'
         ];
 

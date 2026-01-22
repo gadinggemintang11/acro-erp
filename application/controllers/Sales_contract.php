@@ -380,13 +380,11 @@ class Sales_contract extends MY_Controller {
         $sc_data = $this->Sc_model->get_by_id($id);
         if (!$sc_data) show_404();
 
-        // Asumsi model->delete() = soft delete (update status Cancelled)
-        // Jika hard delete, logika log harus disesuaikan
+        
         if ($this->Sc_model->delete($id)) { 
             // --- LOGGING (UPDATE STATUS / CANCEL) ---
             $deskripsi = "Membatalkan Sales Contract: {$sc_data->sc_number} (ID: $id)";
-            $this->_log('UPDATE', $deskripsi); // Atau 'DELETE' jika hard delete
-            // --- END LOG ---
+            $this->_log('UPDATE', $deskripsi); 
             
             $this->session->set_flashdata('success', 'Sales Contract berhasil dibatalkan!');
         } else {

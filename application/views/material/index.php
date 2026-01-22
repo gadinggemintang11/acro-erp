@@ -4,11 +4,18 @@
             <i class="fas fa-cubes text-primary mr-2"></i><?= htmlspecialchars($title); ?>
         </h3>
 
-        <?php if (check_access('master_material', 'add')): ?>
-            <button class="btn btn-primary shadow-sm" data-toggle="modal" data-target="#addModal">
-                <i class="fas fa-plus-circle mr-1"></i> Tambah Material
-            </button>
-        <?php endif; ?>
+        <div class="d-flex align-items-center">
+            <form class="form-inline mr-2" method="get" action="<?= base_url('master_material'); ?>">
+                <input type="text" name="q" class="form-control form-control-sm mr-2" placeholder="Cari kode / nama / kategori" value="<?= htmlspecialchars($keyword ?? ''); ?>">
+                <button class="btn btn-sm btn-outline-primary" type="submit"><i class="fas fa-search"></i></button>
+            </form>
+
+            <?php if (check_access('master_material', 'add')): ?>
+                <button class="btn btn-primary shadow-sm" data-toggle="modal" data-target="#addModal">
+                    <i class="fas fa-plus-circle mr-1"></i> Tambah Material
+                </button>
+            <?php endif; ?>
+        </div>
     </div>
 
     <div class="card border-0 shadow-sm rounded">
@@ -28,7 +35,8 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <?php $no=1; foreach($materials as $m): ?>
+                        <?php $no = isset($offset) ? ((int)$offset + 1) : 1; ?>
+                        <?php if(!empty($materials)): foreach($materials as $m): ?>
                         <tr class="text-center">
                             <td><?= $no++; ?></td>
                             <td><span class="font-weight-bold text-primary"><?= htmlspecialchars($m->kode_material); ?></span></td>
@@ -119,9 +127,14 @@
                                 </form>
                             </div>
                         </div>
-                        <?php endforeach; ?>
+                        <?php endforeach; else: ?>
+                            <tr><td colspan="8" class="text-center text-muted py-3">Tidak ada data</td></tr>
+                        <?php endif; ?>
                     </tbody>
                 </table>
+                <div class="d-flex justify-content-end">
+                    <?= $pagination ?? ''; ?>
+                </div>
             </div>
         </div>
     </div>

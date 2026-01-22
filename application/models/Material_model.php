@@ -9,6 +9,41 @@ class Material_model extends CI_Model {
         return $this->db->get($this->table)->result();
     }
 
+    /**
+     * Ambil data dengan pagination & pencarian
+     */
+    public function get_paginated($limit, $offset, $keyword = null) {
+        if ($keyword) {
+            $this->db->group_start()
+                ->like('kode_material', $keyword)
+                ->or_like('nama_material', $keyword)
+                ->or_like('kategori', $keyword)
+                ->or_like('asal', $keyword)
+                ->or_like('satuan', $keyword)
+            ->group_end();
+        }
+
+        $this->db->order_by('id', 'DESC');
+        $query = $this->db->get($this->table, $limit, $offset);
+        return $query->result();
+    }
+
+    /**
+     * Hitung total data untuk pagination dengan filter pencarian
+     */
+    public function count_filtered($keyword = null) {
+        if ($keyword) {
+            $this->db->group_start()
+                ->like('kode_material', $keyword)
+                ->or_like('nama_material', $keyword)
+                ->or_like('kategori', $keyword)
+                ->or_like('asal', $keyword)
+                ->or_like('satuan', $keyword)
+            ->group_end();
+        }
+        return $this->db->count_all_results($this->table);
+    }
+
     public function get_by_id($id) {
         return $this->db->get_where($this->table, ['id' => $id])->row();
     }
