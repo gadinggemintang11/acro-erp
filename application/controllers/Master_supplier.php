@@ -34,35 +34,31 @@ class Master_supplier extends MY_Controller {
         // Get paginated data
         $suppliers = $this->Supplier_model->get_paginated($search, $jenis, $status, $limit, $offset);
 
-        // Pagination config
-        $config['base_url'] = base_url('master_supplier/index');
+        // Pagination config - Sama seperti Master Material
+        $config['base_url'] = site_url('master_supplier');
         $config['total_rows'] = $total_rows;
         $config['per_page'] = $limit;
-        $config['uri_segment'] = 3;
-        $config['full_tag_open'] = '<ul class="pagination">';
-        $config['full_tag_close'] = '</ul>';
-        $config['first_tag_open'] = '<li>';
-        $config['first_tag_close'] = '</li>';
-        $config['last_tag_open'] = '<li>';
-        $config['last_tag_close'] = '</li>';
-        $config['next_tag_open'] = '<li>';
-        $config['next_tag_close'] = '</li>';
-        $config['prev_tag_open'] = '<li>';
-        $config['prev_tag_close'] = '</li>';
-        $config['num_tag_open'] = '<li>';
-        $config['num_tag_close'] = '</li>';
-        $config['cur_tag_open'] = '<li class="active"><a href="#">';
-        $config['cur_tag_close'] = '</a></li>';
+        $config['page_query_string'] = TRUE;
+        $config['query_string_segment'] = 'page';
+        $config['reuse_query_string'] = TRUE;
+        $config['use_page_numbers'] = TRUE;
 
-        // Query string untuk maintain search & filter
-        if (!empty($search) || !empty($jenis) || !empty($status)) {
-            $config['suffix'] = '?' . http_build_query([
-                'search' => $search,
-                'jenis' => $jenis,
-                'status' => $status
-            ]);
-            $config['first_url'] = $config['base_url'] . $config['suffix'];
-        }
+        // Bootstrap styling - SAMA SEPERTI MASTER MATERIAL
+        $config['full_tag_open'] = '<ul class="pagination justify-content-end">';
+        $config['full_tag_close'] = '</ul>';
+        $config['num_tag_open'] = '<li class="page-item">';
+        $config['num_tag_close'] = '</li>';
+        $config['cur_tag_open'] = '<li class="page-item active"><a class="page-link" href="#">';
+        $config['cur_tag_close'] = '</a></li>';
+        $config['first_tag_open'] = '<li class="page-item">';
+        $config['first_tag_close'] = '</li>';
+        $config['last_tag_open'] = '<li class="page-item">';
+        $config['last_tag_close'] = '</li>';
+        $config['next_tag_open'] = '<li class="page-item">';
+        $config['next_tag_close'] = '</li>';
+        $config['prev_tag_open'] = '<li class="page-item">';
+        $config['prev_tag_close'] = '</li>';
+        $config['attributes'] = array('class' => 'page-link');
 
         $this->pagination->initialize($config);
 

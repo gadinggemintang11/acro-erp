@@ -161,11 +161,11 @@
                 </table>
             </div>
 
-            <!-- ✅ PAGINATION -->
+            <!-- ✅ PAGINATION - Bootstrap Styled (Sama seperti Master Material) -->
             <?php if (!empty($pagination)): ?>
-            <nav class="d-flex justify-content-center mt-4">
+            <div class="card-footer py-2 px-3">
                 <?= $pagination; ?>
-            </nav>
+            </div>
             <?php endif; ?>
         </div>
     </div>
