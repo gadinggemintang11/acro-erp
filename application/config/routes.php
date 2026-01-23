@@ -148,6 +148,12 @@ $route['scrap_stock'] = 'Scrap_Stock/index';
 $route['scrap_stock/summary'] = 'Scrap_Stock/summary';
 $route['scrap_stock/detail/(:num)'] = 'Scrap_Stock/detail/$1';
 $route['scrap_stock/export_excel'] = 'Scrap_Stock/export_excel';
+
+// Work Order routes
+$route['work_order'] = 'Work_order/index';
+$route['work_order/detail/(:num)'] = 'Work_order/detail/$1';
+$route['work_order/confirm_wo/(:num)'] = 'Work_order/confirm_wo/$1';
+$route['work_order/unconfirm_wo/(:num)'] = 'Work_order/unconfirm_wo/$1';
 $route['scrap_stock/export_pdf'] = 'Scrap_Stock/export_pdf';
 
 // Jurnal Umum routes (for production 404 fix)

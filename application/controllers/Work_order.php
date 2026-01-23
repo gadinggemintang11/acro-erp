@@ -234,6 +234,18 @@ class Work_order extends MY_Controller {
         } else { $this->session->set_flashdata('error', 'Gagal konfirmasi Work Order.'); }
         redirect('work_order/detail/' . $id);
     }
+
+    public function unconfirm_wo($id) {
+        if (!check_access('work_order', 'edit')) { show_error('Tidak ada izin.', 403); }
+        $header = $this->Wo_model->get_header_by_id($id);
+        if (!$header || $header->status != 'In Progress') { redirect('work_order/detail/' . $id); }
+        
+        $user_id = $this->session->userdata('user_id') ?? null;
+        if ($this->Wo_model->update_status($id, 'Planned', $user_id)) {
+            $this->session->set_flashdata('success', 'Work Order dibatalkan, status kembali ke Planned.');
+        } else { $this->session->set_flashdata('error', 'Gagal batalkan Work Order.'); }
+        redirect('work_order/detail/' . $id);
+    }
     public function ajax_search_open_wo_for_return() {
         $term = $this->input->get('q');
         $work_orders = $this->Wo_model->search_open_work_orders($term); // Panggil fungsi model baru
