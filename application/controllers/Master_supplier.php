@@ -13,20 +13,21 @@ class Master_supplier extends MY_Controller {
         $this->load->library('pagination');
     }
 
-    public function index($page = 0) {
+    public function index() {
         // ✅ KEAMANAN: Check akses view
         if (!check_access('master_supplier', 'view')) {
             show_error('Anda tidak memiliki izin untuk melihat modul ini.', 403);
         }
 
-        // ✅ GET: search, jenis, status dari form
+        // ✅ GET: search, jenis, status, page dari query string
         $search = $this->input->get('search', true);
         $jenis = $this->input->get('jenis', true);
         $status = $this->input->get('status', true);
+        $page = (int) $this->input->get('page', 0);
 
         // ✅ PAGINATION CONFIG
         $limit = 10;
-        $offset = $page * $limit;
+        $offset = $page > 0 ? ($page - 1) * $limit : 0;
 
         // Count total records
         $total_rows = $this->Supplier_model->count_all($search, $jenis, $status);
