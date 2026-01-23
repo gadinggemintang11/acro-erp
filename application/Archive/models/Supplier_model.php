@@ -44,4 +44,100 @@ class Supplier_model extends CI_Model {
         $this->db->order_by('nama_supplier', 'ASC');
         return $this->db->get('suppliers')->result();
     }
+
+    // ✅ BARU: Pagination dengan Search & Filter
+    public function get_paginated($search = '', $jenis = '', $status = '', $limit = 10, $offset = 0) {
+        $query = $this->db->select('*')
+            ->from($this->table);
+
+        // Search: nama_supplier, kode_supplier, npwp, alamat
+        if (!empty($search)) {
+            $query->group_start()
+                ->like('nama_supplier', $search)
+                ->or_like('kode_supplier', $search)
+                ->or_like('npwp', $search)
+                ->or_like('alamat', $search)
+                ->group_end();
+        }
+
+        // Filter: jenis
+        if (!empty($jenis)) {
+            $query->where('jenis', $jenis);
+        }
+
+        // Filter: status
+        if (!empty($status)) {
+            $query->where('status', $status);
+        } else {
+            // Default: show only active
+            $query->where('status', 'active');
+        }
+
+        $query->order_by('id', 'DESC')
+            ->limit($limit, $offset);
+
+        return $query->get()->result();
+    }
+
+    // ✅ BARU: Count total records (untuk pagination)
+    public function count_all($search = '', $jenis = '', $status = '') {
+        $query = $this->db->select('id')
+            ->from($this->table);
+
+        // Search
+        if (!empty($search)) {
+            $query->group_start()
+                ->like('nama_supplier', $search)
+                ->or_like('kode_supplier', $search)
+                ->or_like('npwp', $search)
+                ->or_like('alamat', $search)
+                ->group_end();
+        }
+
+        // Filter: jenis
+        if (!empty($jenis)) {
+            $query->where('jenis', $jenis);
+        }
+
+        // Filter: status
+        if (!empty($status)) {
+            $query->where('status', $status);
+        } else {
+            $query->where('status', 'active');
+        }
+
+        return $query->count_all_results();
+    }
+
+    // ✅ BARU: Get untuk export (all records)
+    public function get_for_export($search = '', $jenis = '', $status = '') {
+        $query = $this->db->select('kode_supplier, nama_supplier, jenis, npwp, alamat, telepon, status')
+            ->from($this->table);
+
+        // Search
+        if (!empty($search)) {
+            $query->group_start()
+                ->like('nama_supplier', $search)
+                ->or_like('kode_supplier', $search)
+                ->or_like('npwp', $search)
+                ->or_like('alamat', $search)
+                ->group_end();
+        }
+
+        // Filter: jenis
+        if (!empty($jenis)) {
+            $query->where('jenis', $jenis);
+        }
+
+        // Filter: status
+        if (!empty($status)) {
+            $query->where('status', $status);
+        } else {
+            $query->where('status', 'active');
+        }
+
+        $query->order_by('id', 'DESC');
+
+        return $query->get()->result();
+    }
 }

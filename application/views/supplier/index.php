@@ -11,7 +11,64 @@
         <?php endif; ?>
     </div>
 
+    <!-- ✅ SEARCH & FILTER FORM -->
+    <div class="card border-0 shadow-sm rounded mb-4">
+        <div class="card-body">
+            <form method="get" action="<?= base_url('master_supplier'); ?>" class="form-inline">
+                <div class="form-group mr-2 mb-2" style="flex: 1;">
+                    <input type="text" name="search" class="form-control w-100" placeholder="Cari: Kode, Nama, NPWP, Alamat..." 
+                        value="<?= htmlspecialchars($search); ?>">
+                </div>
+
+                <div class="form-group mr-2 mb-2">
+                    <select name="jenis" class="form-control">
+                        <option value="">-- Semua Jenis --</option>
+                        <?php foreach($jenis_list as $j): ?>
+                            <option value="<?= $j->code; ?>" <?= $jenis == $j->code ? 'selected' : ''; ?>>
+                                <?= htmlspecialchars($j->description); ?>
+                            </option>
+                        <?php endforeach; ?>
+                    </select>
+                </div>
+
+                <div class="form-group mr-2 mb-2">
+                    <select name="status" class="form-control">
+                        <option value="active" <?= empty($status) || $status == 'active' ? 'selected' : ''; ?>>Active</option>
+                        <option value="inactive" <?= $status == 'inactive' ? 'selected' : ''; ?>>Inactive</option>
+                        <option value="">Semua Status</option>
+                    </select>
+                </div>
+
+                <div class="form-group mr-2 mb-2">
+                    <button type="submit" class="btn btn-info">
+                        <i class="fas fa-search mr-1"></i> Cari
+                    </button>
+                    <a href="<?= base_url('master_supplier'); ?>" class="btn btn-secondary ml-2">
+                        <i class="fas fa-redo mr-1"></i> Reset
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <div class="card border-0 shadow-sm rounded">
+        <div class="card-header bg-light d-flex justify-content-between align-items-center">
+            <div>
+                <span class="text-muted">Total: <strong><?= $total_rows; ?></strong> Supplier</span>
+            </div>
+            <div>
+                <!-- ✅ EXPORT BUTTONS -->
+                <a href="<?= base_url('master_supplier/export_excel?' . http_build_query(['search' => $search, 'jenis' => $jenis, 'status' => $status])); ?>" 
+                    class="btn btn-sm btn-success" title="Export ke Excel">
+                    <i class="fas fa-file-excel mr-1"></i> Excel
+                </a>
+                <a href="<?= base_url('master_supplier/export_pdf?' . http_build_query(['search' => $search, 'jenis' => $jenis, 'status' => $status])); ?>" 
+                    class="btn btn-sm btn-danger" title="Export ke PDF">
+                    <i class="fas fa-file-pdf mr-1"></i> PDF
+                </a>
+            </div>
+        </div>
+
         <div class="card-body">
             <div class="table-responsive">
                 <table class="table table-striped table-hover align-middle">
@@ -28,7 +85,10 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <?php if(!empty($suppliers)): $no=1; foreach($suppliers as $s): ?>
+                        <?php if(!empty($suppliers)): 
+                            $no = $offset + 1; 
+                            foreach($suppliers as $s): 
+                        ?>
                         <tr class="text-center">
                             <td><?= $no++; ?></td>
                             <td class="font-weight-bold text-primary"><?= htmlspecialchars($s->kode_supplier); ?></td>
@@ -100,6 +160,13 @@
                     </tbody>
                 </table>
             </div>
+
+            <!-- ✅ PAGINATION -->
+            <?php if (!empty($pagination)): ?>
+            <nav class="d-flex justify-content-center mt-4">
+                <?= $pagination; ?>
+            </nav>
+            <?php endif; ?>
         </div>
     </div>
 </div>
