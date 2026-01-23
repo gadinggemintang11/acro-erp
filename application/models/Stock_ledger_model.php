@@ -408,10 +408,10 @@ class Stock_ledger_model extends CI_Model {
             // Jika ini transaksi Gudang (GRN/ADJ), ambil saldo terakhir Gudang
             $this->db->where_in('transaction_type', $this->get_warehouse_tx_types());
         } else if (in_array($transaction_type, $wip_types)) {
-            // Jika ini transaksi WIP, ambil saldo terakhir WIP
-            $this->db->where_in('transaction_type', $wip_types);
+            // Jika ini transaksi WIP, ambil saldo terakhir (bisa dari gudang atau wip)
+            // PENTING: wip_in pertama harus lanjut dari warehouse balance, bukan 0
+            // Jadi cari saldo TERAKHIR dari SEMUA transaksi (gudang + wip)
         }
-        // Jika tipe lain, ia akan menggunakan filter default (yang biasanya mencakup Gudang Utama)
         
         $this->db->order_by('id', 'DESC');
         $this->db->limit(1);

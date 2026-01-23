@@ -143,14 +143,18 @@ class Fg_stock_ledger_model extends CI_Model {
         $this->db->join($this->table_fg . ' fg', 'sl.item_id = fg.id', 'inner');
 
         // Join untuk Receipt
-        $this->db->join($this->table_receipt_details . ' frd', "sl.transaction_id = frd.id AND sl.source_doc_type IN ('FG_RECEIPT', 'FG_UNCONFIRM', 'FG_CANCEL')", 'left');
+        // PERBAIKAN: Hapus source_doc_type FG_UNCONFIRM dan FG_CANCEL
+        // karena sekarang unconfirm hanya DELETE entry fg_in, tidak insert reversal
+        $this->db->join($this->table_receipt_details . ' frd', "sl.transaction_id = frd.id AND sl.source_doc_type = 'FG_RECEIPT'", 'left');
         $this->db->join($this->table_receipt_header . ' frh', 'frd.fg_receipt_header_id = frh.id', 'left');
         $this->db->join($this->table_prod_header . ' ph', 'frh.production_header_id = ph.id', 'left');
         $this->db->join($this->table_wo_header . ' wo', 'ph.wo_header_id = wo.id', 'left');
         $this->db->join($this->table_sc . ' sc_prod', 'wo.sales_contract_id = sc_prod.id', 'left');
 
-        // Join untuk Delivery (aktif)
-        $this->db->join($this->table_delivery_details . ' fdd', "sl.transaction_id = fdd.id AND sl.source_doc_type IN ('FG_DELIVERY', 'FG_UNSHIP', 'FG_CANCEL', 'FG_OUT_REVERSAL')", 'left');
+        // Join untuk Delivery
+        // PERBAIKAN: Hapus source_doc_type FG_UNSHIP dan FG_OUT_REVERSAL 
+        // karena sekarang unship hanya DELETE entry fg_out, tidak insert reversal
+        $this->db->join($this->table_delivery_details . ' fdd', "sl.transaction_id = fdd.id AND sl.source_doc_type = 'FG_DELIVERY'", 'left');
         $this->db->join($this->table_delivery_header . ' fdh', 'fdd.fg_delivery_header_id = fdh.id', 'left');
         $this->db->join($this->table_sc . ' sc_del', 'fdh.sales_contract_id = sc_del.id', 'left');
 

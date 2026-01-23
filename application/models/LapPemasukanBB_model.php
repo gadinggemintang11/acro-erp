@@ -56,19 +56,20 @@ class LapPemasukanBB_model extends CI_Model {
             COALESCE(po.currency_code, mir.currency_code, 'IDR') AS currency_code,
 
             CASE
-                WHEN gd.source_doc_type = 'PO' THEN gd.unit_value * sl.qty_in
-                WHEN gd.source_doc_type = 'MIR' THEN gd.unit_value * sl.qty_in
+                WHEN po.id IS NOT NULL THEN COALESCE(pd.local_price, 0) * sl.qty_in
                 ELSE 0
             END AS unit_value_idr
         ");
         $this->db->from('stock_ledger sl');
         $this->db->join('grn_header grn', 'sl.transaction_id = grn.id AND sl.transaction_type = "in"', 'left');
         $this->db->join('suppliers s', 'grn.supplier_id = s.id', 'left');
-        $this->db->join('grn_details gd', 'grn.id = gd.grn_header_id AND sl.item_id = gd.item_id AND sl.item_type = gd.item_type', 'left'); // FIX KRITIS: Tambahkan item_type ke kondisi join
+        $this->db->join('grn_details gd', 'grn.id = gd.grn_header_id AND sl.item_id = gd.item_id AND sl.item_type = gd.item_type', 'left');
 
-        // JOIN ke PO/MIR header
+        // JOIN ke PO/MIR header dan details (untuk ambil unit_cost dari source)
         $this->db->join('po_header po', 'gd.source_doc_type = "PO" AND gd.source_doc_header_id = po.id', 'left');
+        $this->db->join('po_details pd', 'po.id = pd.po_header_id AND gd.item_id = pd.item_id', 'left');
         $this->db->join('mir_header mir', 'gd.source_doc_type = "MIR" AND gd.source_doc_header_id = mir.id', 'left');
+        $this->db->join('mir_details md', 'mir.id = md.mir_header_id AND gd.item_id = md.item_id', 'left');
 
         // JOIN master item
         $this->db->join('materials m', 'sl.item_id = m.id AND sl.item_type = "material"', 'left');

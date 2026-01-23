@@ -354,15 +354,21 @@ class Mr_model extends CI_Model {
         }
 
         // 2. Pindahkan stok ke WIP: catat ke stock_ledger sebagai 'wip_in'
+        // PENTING: Setiap item detail punya wo_header_id sendiri, bukan dari mr_header!
         $items = $this->db->get_where('mr_details', ['mr_header_id' => $mr_id])->result();
         $this->load->model('Stock_ledger_model');
 
         foreach ($items as $item) {
             if (isset($item->issued_qty) && (float)$item->issued_qty > 0) {
+                // Validasi: WO ID harus ada di setiap item
+                if (empty($item->wo_header_id)) {
+                    log_message('error', '[MR] process_reception: wo_header_id kosong untuk mr_id=' . $mr_id . ' detail_id=' . $item->id);
+                    $this->db->trans_rollback();
+                    return false;
+                }
+
                 // Ambil unit_value last known dari stock_ledger jika ada
                 $unit_value = 0.0;
-                $last_ledger = $this->Stock_ledger_model->get_last_balance($item->component_item_id, $item->component_item_type);
-                // Note: get_last_balance() mengembalikan balance, bukan unit_value. Jika kamu punya unit_value history, ambil dari stock_ledger table:
                 $this->db->reset_query();
                 $this->db->select('unit_value')->from('stock_ledger')
                          ->where('item_id', $item->component_item_id)
@@ -378,7 +384,7 @@ class Mr_model extends CI_Model {
                     'transaction_type'=> 'wip_in',
                     'transaction_id'  => $mr_id,
                     'source_doc_type' => 'MR',
-                    'source_doc_id'   => $mr_header->wo_header_id, // PENTING: simpan WO ID agar bisa diquery di production process
+                    'source_doc_id'   => $item->wo_header_id, // PENTING: Gunakan WO ID dari detail (bukan header)
                     'qty_in'          => (float)$item->issued_qty,
                     'qty_out'         => 0,
                     'unit_value'      => $unit_value,

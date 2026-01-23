@@ -334,7 +334,8 @@ class Fg_receipt_model extends CI_Model {
 
 
     // ==========================================================
-    // UNCONFIRM RECEIPT -> REVERSE STOK
+    // UNCONFIRM RECEIPT -> DELETE fg_in entries and recalculate balance
+    // PERBAIKAN: Jangan insert reversal entry, cukup hapus fg_in original
     // ==========================================================
     public function unconfirm_receipt($id) {
         $header = $this->get_header_by_id($id);
@@ -344,16 +345,6 @@ class Fg_receipt_model extends CI_Model {
 
         $this->db->trans_start();
 
-        // cek semua details apakah saldo cukup
-        foreach ($details as $detail) {
-            $last_balance = (float) ($this->Stock_ledger_model->get_last_balance($detail->fg_id, 'finished_goods') ?? 0);
-            if ($last_balance < (float)$detail->qty_received) {
-                // tidak cukup stok untuk membatalkan
-                $this->db->trans_rollback();
-                return false;
-            }
-        }
-
         // ubah status
         $this->db->where('id', $id)->update($this->table_header, [
             'status' => 'Draft',
@@ -361,26 +352,49 @@ class Fg_receipt_model extends CI_Model {
             'confirmed_by' => NULL
         ]);
 
-        $now = date('Y-m-d H:i:s');
+        // DELETE fg_in entries (don't insert reversal, just remove the original)
         foreach ($details as $detail) {
-            $last_balance = (float) ($this->Stock_ledger_model->get_last_balance($detail->fg_id, 'finished_goods') ?? 0);
-            $ledger_data = [
-                'item_id' => $detail->fg_id,
-                'item_type' => 'finished_goods',
-                'transaction_date' => $now,
-                'transaction_type' => 'fg_in_reversal',
-                'transaction_id' => $detail->id,
-                'source_doc_type' => 'FG_UNCONFIRM',
-                'source_doc_id' => $id,
-                'qty_in' => 0,
-                'qty_out' => (float)$detail->qty_received,
-                'balance' => $last_balance - (float)$detail->qty_received
-            ];
-            $this->Stock_ledger_model->insert($ledger_data);
+            $this->db->where('transaction_type', 'fg_in')
+                    ->where('transaction_id', $detail->id)
+                    ->where('source_doc_type', 'FG_RECEIPT')
+                    ->where('source_doc_id', $id)
+                    ->delete('stock_ledger');
+        }
+        
+        // RECALCULATE all balances for affected items
+        $affected_fgs = [];
+        foreach ($details as $d) {
+            $affected_fgs[] = $d->fg_id;
+        }
+        
+        if (!empty($affected_fgs)) {
+            // For each affected FG, recalculate all balances from scratch
+            foreach ($affected_fgs as $fg_id) {
+                $this->_recalculate_fg_balance($fg_id);
+            }
         }
 
         $this->db->trans_complete();
         return $this->db->trans_status();
+    }
+    
+    /**
+     * Helper: Recalculate running balance for a finished good
+     */
+    private function _recalculate_fg_balance($fg_id) {
+        // Get all entries for this FG, ordered by ID (creation order)
+        $entries = $this->db->select('id, qty_in, qty_out')
+                            ->where('item_id', $fg_id)
+                            ->where('item_type', 'finished_goods')
+                            ->order_by('id', 'ASC')
+                            ->get('stock_ledger')
+                            ->result();
+        
+        $running_balance = 0;
+        foreach ($entries as $e) {
+            $running_balance += ((float)$e->qty_in - (float)$e->qty_out);
+            $this->db->where('id', $e->id)->update('stock_ledger', ['balance' => $running_balance]);
+        }
     }
 
     // ==========================================================

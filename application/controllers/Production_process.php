@@ -923,6 +923,8 @@ class Production_process extends MY_Controller {
             $options = new Options(); 
             $options->set('isHtml5ParserEnabled', true); 
             $options->set('isRemoteEnabled', true);
+            $options->set('fontDir', FCPATH . 'assets/fonts');
+            $options->set('fontCache', sys_get_temp_dir());
             $dompdf = new Dompdf($options);
             $html = $this->load->view($view_path, $data, true);
             $dompdf->loadHtml($html); 

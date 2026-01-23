@@ -4,9 +4,8 @@
     <meta charset="utf-8">
     <title>Preparation Report - <?= htmlspecialchars($header->production_number ?? 'N/A'); ?></title>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap');
         :root{ --brand:#1d3557; --muted:#6c757d; --accent:#457b9d; --border:#e9ecef; }
-        html,body{ margin:0; padding:0; font-family: 'Inter', Arial, Helvetica, sans-serif; color:#222; }
+        html,body{ margin:0; padding:0; font-family: Arial, Helvetica, sans-serif; color:#222; }
         .page{ padding:24px 28px; font-size:11px; }
         header.top{ display:flex; align-items:center; justify-content:space-between; border-bottom:3px solid var(--accent); padding-bottom:12px; margin-bottom:18px; }
         .company{ display:flex; align-items:center; gap:12px; }

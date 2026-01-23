@@ -85,10 +85,12 @@ class Material_issuance_model extends CI_Model {
      * Hitung stok tersedia dari stock_ledger
      */
     private function get_stock_from_ledger($item_id, $item_type) {
+        // Hitung WAREHOUSE stock saja (exclude WIP materials yang sedang diproses)
         $this->db->select('COALESCE(SUM(qty_in), 0) - COALESCE(SUM(qty_out), 0) as balance');
         $this->db->from('stock_ledger');
         $this->db->where('item_id', $item_id);
         $this->db->where('item_type', $item_type);
+        $this->db->where_not_in('transaction_type', ['wip_in', 'wip_out']);
         $query = $this->db->get();
         
         if ($query && $query->num_rows() > 0) {
@@ -148,6 +150,20 @@ class Material_issuance_model extends CI_Model {
                 return ['success' => false, 'message' => "Stok tidak cukup untuk {$item_type} ID {$item_id}. Tersedia: {$current_stock}, Diminta: {$issued_qty_total}"];
             }
 
+            // Hitung warehouse stock (exclude WIP)
+            $warehouse_stock = $this->db->query("
+                SELECT COALESCE(SUM(qty_in), 0) - COALESCE(SUM(qty_out), 0) as balance
+                FROM stock_ledger
+                WHERE item_id = {$item_id}
+                AND item_type = '{$item_type}'
+                AND transaction_type NOT IN ('wip_in', 'wip_out')
+            ")->row()->balance;
+            
+            if ($warehouse_stock < $issued_qty_total) {
+                $this->db->trans_rollback();
+                return ['success' => false, 'message' => "Stok di gudang tidak cukup untuk {$item_type} ID {$item_id}. Tersedia di gudang: {$warehouse_stock}, Diminta: {$issued_qty_total}"];
+            }
+
             // FIFO: Ambil batch dari stock_on_hand untuk traceability
             $this->db->reset_query();
             $available_batches = $this->db
@@ -155,7 +171,6 @@ class Material_issuance_model extends CI_Model {
                 ->from('stock_on_hand')
                 ->where('item_id', $item_id)
                 ->where('item_type', $item_type)
-                ->where('available_qty >', 0)
                 ->order_by('id', 'ASC') // FIFO: batch lama dulu
                 ->get()->result();
 
@@ -168,8 +183,24 @@ class Material_issuance_model extends CI_Model {
                     if ($qty_needed <= 0) break;
 
                     $batch_soh_id = $batch->id;
-                    $batch_available = (float)$batch->available_qty;
                     $batch_cost = (float)$batch->unit_value;
+                    
+                    // Hitung available warehouse qty untuk batch ini (exclude WIP)
+                    $warehouse_batch_qty = $this->db->query("
+                        SELECT COALESCE(SUM(qty_in), 0) - COALESCE(SUM(qty_out), 0) as balance
+                        FROM stock_ledger
+                        WHERE item_id = {$item_id}
+                        AND item_type = '{$item_type}'
+                        AND stock_on_hand_id = {$batch_soh_id}
+                        AND transaction_type NOT IN ('wip_in', 'wip_out')
+                    ")->row()->balance;
+                    
+                    $batch_available = max(0, (float)$warehouse_batch_qty);
+                    
+                    // Skip batch jika tidak ada stok di gudang
+                    if ($batch_available <= 0) {
+                        continue;
+                    }
 
                     $qty_to_take = min($batch_available, $qty_needed);
                     $new_batch_qty = $batch_available - $qty_to_take;

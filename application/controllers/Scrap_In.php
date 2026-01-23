@@ -144,7 +144,16 @@ class Scrap_In extends MY_Controller {
         $data['title'] = 'Bukti Penerimaan Scrap - ' . $data['data']['header']->doc_no;
         $html = $this->load->view('scrap_in/print_pdf', $data, TRUE);
         
-        $mpdf = new \Mpdf\Mpdf(['format' => 'A4']);
+        // Configure Mpdf with writable temp directory
+        $temp_dir = '/tmp/mingbao_mpdf';
+        if (!is_dir($temp_dir)) {
+            @mkdir($temp_dir, 0777, true);
+        }
+        
+        $mpdf = new \Mpdf\Mpdf([
+            'format' => 'A4',
+            'tempDir' => $temp_dir
+        ]);
         $mpdf->WriteHTML($html);
         $mpdf->Output('ScrapIn-' . $data['data']['header']->doc_no . '.pdf', 'I'); 
     }

@@ -273,6 +273,10 @@ class Fg_delivery_model extends CI_Model {
     /**
      * Unship (unconfirm) -> create reversal entries to restore stock and set status to Draft
      */
+    /**
+     * Unship (unconfirm) -> DELETE the original fg_out entries and recalculate balances
+     * PERBAIKAN: Jangan insert reversal entry, cukup hapus fg_out original
+     */
     public function unship_delivery($id) {
         $h = $this->get_header_by_id($id);
         if (!$h || $h->status != 'Confirmed') return false;
@@ -288,30 +292,50 @@ class Fg_delivery_model extends CI_Model {
             'shipped_by_user' => NULL
         ]);
 
-        // insert reversal ledger entries (increase stock)
-        $now = date('Y-m-d H:i:s');
+        // DELETE fg_out entries (don't insert reversal, just remove the original)
         foreach ($details as $d) {
-            $last_balance = $this->Fg_stock_ledger_model->get_last_balance($d->fg_id);
-            $ledger = [
-                'item_id' => $d->fg_id,
-                'item_type' => 'finished_goods',
-                'transaction_date' => $now,
-                'transaction_type' => 'fg_out_reversal',
-                'transaction_id' => $d->id,
-                'source_doc_type' => 'FG_UNSHIP',
-                'source_doc_id' => $id,
-                'qty_in' => $d->qty_shipped,
-                'qty_out' => 0,
-                'balance' => $last_balance + $d->qty_shipped,
-                'bc_type_code' => $h->bc_type_id,
-                'bc_number' => $h->bc_number,
-                'bc_date' => $h->bc_date
-            ];
-            $this->db->insert($this->table_stock, $ledger);
+            $this->db->where('transaction_type', 'fg_out')
+                    ->where('transaction_id', $d->id)
+                    ->where('source_doc_type', 'FG_DELIVERY')
+                    ->where('source_doc_id', $id)
+                    ->delete($this->table_stock);
+        }
+        
+        // RECALCULATE all balances for affected items
+        // Get all affected FG items
+        $affected_fgs = [];
+        foreach ($details as $d) {
+            $affected_fgs[] = $d->fg_id;
+        }
+        
+        if (!empty($affected_fgs)) {
+            // For each affected FG, recalculate all balances from scratch
+            foreach ($affected_fgs as $fg_id) {
+                $this->_recalculate_fg_balance($fg_id);
+            }
         }
 
         $this->db->trans_complete();
         return $this->db->trans_status();
+    }
+    
+    /**
+     * Helper: Recalculate running balance for a finished good
+     */
+    private function _recalculate_fg_balance($fg_id) {
+        // Get all entries for this FG, ordered by ID (creation order)
+        $entries = $this->db->select('id, qty_in, qty_out')
+                            ->where('item_id', $fg_id)
+                            ->where('item_type', 'finished_goods')
+                            ->order_by('id', 'ASC')
+                            ->get($this->table_stock)
+                            ->result();
+        
+        $running_balance = 0;
+        foreach ($entries as $e) {
+            $running_balance += ((float)$e->qty_in - (float)$e->qty_out);
+            $this->db->where('id', $e->id)->update($this->table_stock, ['balance' => $running_balance]);
+        }
     }
 
     /**
