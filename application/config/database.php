@@ -76,6 +76,7 @@ $query_builder = TRUE;
 $db['default'] = array(
     'dsn'   => '',
     'hostname' => getenv('DB_HOSTNAME') ?: 'localhost',
+    'port'     => getenv('DB_PORT') ?: '3306',
     'username' => getenv('DB_USERNAME') ?: 'root',
     'password' => getenv('DB_PASSWORD') ?: '',
     'database' => getenv('DB_DATABASE') ?: 'erp_mingbao_local',
