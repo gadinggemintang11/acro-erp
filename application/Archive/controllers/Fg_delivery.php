@@ -35,7 +35,7 @@ class Fg_delivery extends MY_Controller {
         ];
 
         $data = [
-            'title' => 'Pengeluaran Barang Jadi (Delivery)',
+            'title' => 'Bukti Pengeluaran Barang Jadi',
             'filters' => $filters,
             'deliveries' => $this->Fg_delivery_model->get_all($filters)
         ];

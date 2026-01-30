@@ -2,7 +2,7 @@
 
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h1 class="h5 text-gray-800">
-            <i class="fas fa-sign-out-alt text-warning mr-2"></i> Detail Pengeluaran Barang Jadi
+            <i class="fas fa-sign-out-alt text-warning mr-2"></i> Detail 
         </h1>
         <a href="<?= base_url('LapMutasiFinished') ?>" class="btn btn-secondary btn-sm"><i class="fas fa-arrow-left"></i> Kembali</a>
     </div>

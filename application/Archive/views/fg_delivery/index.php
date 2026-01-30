@@ -3,7 +3,7 @@
 
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h3 class="fw-bold text-primary mb-0">
-            <i class="fas fa-dolly me-2"></i>Pengeluaran Barang Jadi (FG Delivery)
+            <i class="fas fa-dolly me-2"></i>Bukti Pengeluaran Barang Jadi
         </h3>
         <a href="<?= site_url('fg_delivery/create') ?>" class="btn btn-primary shadow-sm">
             <i class="fas fa-plus me-1"></i> Tambah Delivery
