@@ -236,9 +236,9 @@ class LapMutasiMaterial extends MY_Controller {
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         
-        $sheet->setTitle('Laporan Mutasi Material');
+        $sheet->setTitle('Laporan Mutasi Bahan Baku dan Bahan Penolong');
 
-        $sheet->mergeCells('A1:M1')->setCellValue('A1', 'Laporan Mutasi Material & Semifinished');
+        $sheet->mergeCells('A1:M1')->setCellValue('A1', 'Laporan Mutasi Bahan Baku dan Bahan Penolong');
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(16);
         $sheet->mergeCells('A2:M2')->setCellValue('A2', "Periode: $start s/d $end");
 
@@ -308,7 +308,7 @@ class LapMutasiMaterial extends MY_Controller {
             'margin_right' => 10,
         ]);
 
-        $mpdf->SetTitle('Laporan Mutasi Material');
+        $mpdf->SetTitle('Laporan Mutasi Bahan Baku dan Bahan Penolong');
         $mpdf->WriteHTML($html);
         $mpdf->Output('Laporan_Mutasi_Material_' . date('Ymd_His') . '.pdf', 'D');
     }

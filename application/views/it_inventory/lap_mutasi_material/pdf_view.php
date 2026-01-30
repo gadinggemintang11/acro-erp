@@ -1,7 +1,7 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Laporan Mutasi Material</title>
+    <title>Laporan Mutasi Bahan Baku dan Bahan Penolong</title>
     <style>
         body { font-family: sans-serif; font-size: 10px; }
         .table { width: 100%; border-collapse: collapse; }
@@ -14,7 +14,7 @@
     </style>
 </head>
 <body>
-    <h3>Laporan Mutasi Material & Semifinished</h3>
+    <h3>Laporan Mutasi Bahan Baku dan Bahan Penolong</h3>
     <h4>Periode: <?= date('d M Y', strtotime($start)) . ' s/d ' . date('d M Y', strtotime($end)); ?></h4>
     <br>
     
