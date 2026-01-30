@@ -15,7 +15,7 @@ class LapMutasiMesin extends MY_Controller {
 
     public function index() {
         $data = [
-            'page_title' => 'Laporan Mutasi Mesin',
+            'page_title' => 'Laporan Mutasi Mesin & Peralatan Mekanik',
             'start'      => '2025-10-01', // Tanggal mulai
             'end'        => '2025-11-01'
         ];

@@ -2,7 +2,7 @@
     
     <div class="d-sm-flex align-items-center justify-content-between mb-4">
         <h1 class="h3 mb-0 text-gray-800">
-            <i class="fas fa-tools text-primary mr-2"></i><?= $page_title ?? 'Laporan Mutasi Mesin'; ?>
+            <i class="fas fa-tools text-primary mr-2"></i><?= $page_title ?? 'Laporan Mutasi Mesin & Peralatan Mekanik'; ?>
         </h1>
         <div class="d-none d-sm-inline-block">
             <button type="button" id="btn-export-excel" class="btn btn-sm btn-success shadow-sm">
