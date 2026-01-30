@@ -559,10 +559,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 <?php if (check_access('lap_pengeluaran_barang', 'view')): ?>
                     <a class="collapse-item <?= ($current == 'lappengeluaranbarang') ? 'active' : ''; ?>" href="<?= $base; ?>LapPengeluaranBarang"><?= lang_line('sidebar_goods_outgoing_report', 'Lap Pengeluaran Barang'); ?></a>
                 <?php endif; ?>
+                <h6 class="collapse-header"><?= lang_line('sidebar_mutation_reports', 'Laporan Mutasi:'); ?></h6>
                 <?php if (check_access('lap_mutasi_scrap', 'view')): ?>
                     <a class="collapse-item <?= ($current == 'lapmutasiscrap') ? 'active' : ''; ?>" href="<?= $base; ?>LapMutasiScrap"><?= lang_line('sidebar_scrap_mutation_report', 'Lap Mutasi Scrap'); ?></a>
                 <?php endif; ?>
-                <h6 class="collapse-header"><?= lang_line('sidebar_mutation_reports', 'Laporan Mutasi:'); ?></h6>
                 <?php if (check_access('lapmutasimaterial', 'view')): ?>
                     <a class="collapse-item <?= ($current == 'lapmutasimaterial') ? 'active' : ''; ?>" href="<?= $base; ?>LapMutasiMaterial"><?= lang_line('sidebar_material_mutation_report', 'Lap Mutasi Material'); ?></a>
                 <?php endif; ?>

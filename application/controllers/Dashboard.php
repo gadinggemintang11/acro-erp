@@ -348,21 +348,28 @@ class Dashboard extends MY_Controller {
             ->where('YEAR(shipping_date)', date('Y'))
             ->where('bc_type_code IS NOT NULL')
             ->count_all_results('subkon_out_header');
-        
+
         $fg_delivery = $this->db
             ->where('MONTH(delivery_date)', date('m'))
             ->where('YEAR(delivery_date)', date('Y'))
             ->where('bc_type_id IS NOT NULL')
             ->count_all_results('fg_delivery_header');
-        
-        $data['bc_out_count'] = $subkon_out + $fg_delivery;
+
+        $scrap_out_count = $this->db
+            ->where('MONTH(doc_date)', date('m'))
+            ->where('YEAR(doc_date)', date('Y'))
+            ->where('bc_type_code IS NOT NULL')
+            ->count_all_results('scrap_out_header');
+
+        $data['bc_out_count'] = $subkon_out + $fg_delivery + $scrap_out_count;
 
         // 3. Total Dokumen BC (All Time)
-        $data['total_bc_documents'] = $this->db
-            ->where('bc_type_code IS NOT NULL')
-            ->count_all_results('grn_header') +
-            $this->db->where('bc_type_code IS NOT NULL')->count_all_results('subkon_out_header') +
-            $this->db->where('bc_type_id IS NOT NULL')->count_all_results('fg_delivery_header');
+        $grn_total = $this->db->where('bc_type_code IS NOT NULL')->count_all_results('grn_header');
+        $subkon_total = $this->db->where('bc_type_code IS NOT NULL')->count_all_results('subkon_out_header');
+        $fg_total = $this->db->where('bc_type_id IS NOT NULL')->count_all_results('fg_delivery_header');
+        $scrap_total = $this->db->where('bc_type_code IS NOT NULL')->count_all_results('scrap_out_header');
+
+        $data['total_bc_documents'] = $grn_total + $subkon_total + $fg_total + $scrap_total;
 
         // 4. Pending Verification (Status Draft/Pending)
         $data['pending_verification'] = $this->db
@@ -411,15 +418,27 @@ class Dashboard extends MY_Controller {
                       "FG_DELIVERY" as doc_type')
             ->from('fg_delivery_header fd')
             ->join('customers c', 'c.id = fd.customer_id', 'left')
-            ->join('common_code cc', "cc.code = fd.bc_type_id AND cc.group_code = 'BC_TYPE'", 'left')
+            ->join('common_code cc', "(cc.code = fd.bc_type_id OR cc.id = fd.bc_type_id) AND cc.group_code = 'BC_TYPE'", 'left')
             ->where('fd.bc_type_id IS NOT NULL')
             ->order_by('fd.delivery_date', 'DESC')
             ->limit(5)
             ->get()
             ->result();
 
-        // Merge dan sort by date
-        $data['recent_bc_outgoing'] = array_merge($subkon, $fg_del);
+        // Scrap Out (jika ada BC untuk scrap keluar)
+        $scrap_out = $this->db
+            ->select('so.id, so.doc_no as doc_number, so.doc_date as doc_date, so.bc_type_code, so.bc_number, so.bc_date, so.status, c.nama_customer as nama_supplier, cc.description as bc_type_name, "SCRAP_OUT" as doc_type')
+            ->from('scrap_out_header so')
+            ->join('customers c', 'c.id = so.destination', 'left')
+            ->join('common_code cc', "cc.code = so.bc_type_code AND cc.group_code = 'BC_TYPE'", 'left')
+            ->where('so.bc_type_code IS NOT NULL')
+            ->order_by('so.doc_date', 'DESC')
+            ->limit(5)
+            ->get()
+            ->result();
+
+        // Merge dan sort by date (termasuk scrap_out)
+        $data['recent_bc_outgoing'] = array_merge($subkon, $fg_del, $scrap_out);
         usort($data['recent_bc_outgoing'], function($a, $b) {
             return strtotime($b->doc_date) - strtotime($a->doc_date);
         });
@@ -430,7 +449,7 @@ class Dashboard extends MY_Controller {
         // ====================================================================
         $bc_stats = [];
         $bc_types = $this->db
-            ->select('code, description')
+            ->select('id, code, description')
             ->from('common_code')
             ->where('group_code', 'BC_TYPE')
             ->get()
@@ -439,12 +458,16 @@ class Dashboard extends MY_Controller {
         foreach ($bc_types as $type) {
             $incoming = $this->db->where('bc_type_code', $type->code)->count_all_results('grn_header');
             $outgoing_subkon = $this->db->where('bc_type_code', $type->code)->count_all_results('subkon_out_header');
-            $outgoing_fg = $this->db->where('bc_type_id', $type->code)->count_all_results('fg_delivery_header');
-            
+            // bc_type_id in fg_delivery_header can store either the code (e.g. '4.0') or the common_code.id (numeric), so
+            // count matches where bc_type_id equals either the code or the id.
+            $this->db->where_in('bc_type_id', [$type->code, $type->id]);
+            $outgoing_fg = $this->db->count_all_results('fg_delivery_header');
+            $outgoing_scrap = $this->db->where('bc_type_code', $type->code)->count_all_results('scrap_out_header');
+
             $bc_stats[] = [
                 'type' => $type->description,
                 'incoming' => $incoming,
-                'outgoing' => $outgoing_subkon + $outgoing_fg
+                'outgoing' => $outgoing_subkon + $outgoing_fg + $outgoing_scrap
             ];
         }
         $data['bc_statistics'] = $bc_stats;
