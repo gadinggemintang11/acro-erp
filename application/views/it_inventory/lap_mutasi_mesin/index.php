@@ -47,19 +47,21 @@
         <div class="card-body">
             <div class="table-responsive">
                 <table class="table table-bordered table-sm table-hover" id="mainTable" width="100%" cellspacing="0" style="font-size: 0.9rem;">
-                    <thead class="thead-dark"> <tr>
+                    <thead class="thead-light">
+                        <tr>
                             <th>No</th>
                             <th>Kode Mesin</th>
                             <th>Nama Mesin</th>
-                            <th>Kategori</th>
                             <th>Satuan</th>
                             <th class="text-right">Saldo Awal</th>
                             <th class="text-right">Masuk</th>
+                            <th class="text-right">Keluar</th>
                             <th class="text-right">Penyesuaian</th>
                             <th class="text-right">Saldo Akhir</th>
                             <th class="text-center">Aksi</th>
                         </tr>
                     </thead>
+                    <tbody></tbody>
                 </table>
             </div>
         </div>
@@ -101,11 +103,12 @@ $(document).ready(function() {
             { "data": null, "render": function (data, type, row, meta) { return meta.row + 1; }, "searchable": false, "orderable": false },
             { "data": "kode_mesin" },
             { "data": "nama_mesin" },
-            { "data": "kategori" },
             { "data": "satuan" },
             { "data": "saldo_awal", "className": "text-right", "render": $.fn.dataTable.render.number('.', ',', 2) },
             // Menambahkan warna hijau untuk Masuk
             { "data": "total_masuk", "className": "text-right text-success font-weight-bold", "render": $.fn.dataTable.render.number('.', ',', 2) },
+            // Menambahkan warna merah untuk Keluar
+            { "data": "total_keluar", "className": "text-right text-danger font-weight-bold", "render": $.fn.dataTable.render.number('.', ',', 2) },
             // Menambahkan warna oranye/merah untuk Penyesuaian
             { "data": "total_penyesuaian", "className": "text-right text-warning font-weight-bold", "render": $.fn.dataTable.render.number('.', ',', 2) },
             { "data": "saldo_akhir", "className": "text-right font-weight-bold", "render": $.fn.dataTable.render.number('.', ',', 2) },

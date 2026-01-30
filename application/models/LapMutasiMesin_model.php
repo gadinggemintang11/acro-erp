@@ -31,13 +31,14 @@ class LapMutasiMesin_model extends CI_Model {
             mutasi AS (
                 SELECT
                     item_id,
-                    SUM(CASE WHEN transaction_type = 'in' THEN qty_in ELSE 0 END) as total_masuk,
+                    SUM(CASE WHEN transaction_type IN ('in', 'wip_in', 'IN_RETURN_WIP') THEN qty_in ELSE 0 END) as total_masuk,
+                    SUM(CASE WHEN transaction_type IN ('out', 'production_out', 'wip_out') THEN qty_out ELSE 0 END) as total_keluar,
                     SUM(CASE WHEN transaction_type = 'adjustment' THEN (qty_in - qty_out) ELSE 0 END) as total_penyesuaian
                 FROM stock_ledger
                 WHERE transaction_date >= ?
                 AND transaction_date <= ?
                 AND item_type = 'machine'
-                AND transaction_type IN ('in', 'adjustment')
+                AND transaction_type IN ('in', 'wip_in', 'IN_RETURN_WIP', 'out', 'adjustment', 'production_out', 'wip_out')
                 GROUP BY item_id
             )
             
@@ -45,12 +46,12 @@ class LapMutasiMesin_model extends CI_Model {
                 m.id, 
                 m.kode_mesin, 
                 m.nama_mesin, 
-                m.kategori,
                 m.satuan,
                 COALESCE(sa.balance, 0) AS saldo_awal,
                 COALESCE(mut.total_masuk, 0) AS total_masuk,
+                COALESCE(mut.total_keluar, 0) AS total_keluar,
                 COALESCE(mut.total_penyesuaian, 0) AS total_penyesuaian,
-                (COALESCE(sa.balance, 0) + COALESCE(mut.total_masuk, 0) + COALESCE(mut.total_penyesuaian, 0)) AS saldo_akhir
+                (COALESCE(sa.balance, 0) + COALESCE(mut.total_masuk, 0) - COALESCE(mut.total_keluar, 0) + COALESCE(mut.total_penyesuaian, 0)) AS saldo_akhir
                 
             FROM machines m
             LEFT JOIN saldo_awal sa ON m.id = sa.item_id
@@ -62,11 +63,41 @@ class LapMutasiMesin_model extends CI_Model {
             ORDER BY m.kode_mesin ASC
         ";
         
-        return $this->db->query($sql, [
+        $query = $this->db->query($sql, [
             $date_awal_minus_1_dt,
             $date_start_dt,
             $date_end_dt
-        ])->result_array(); 
+        ]);
+
+        $result = $query->result_array();
+
+        // Jika perhitungan mutasi menghasilkan saldo_akhir = 0,
+        // tetapi stock_ledger menyimpan balance terakhir > 0, gunakan nilai ledger terakhir.
+        foreach ($result as &$row) {
+            $computed = (float)($row['saldo_akhir'] ?? 0);
+            if ($computed === 0.0) {
+                $this->db->select('balance')->from('stock_ledger')
+                         ->where('item_id', $row['id'])
+                         ->where('item_type', 'machine')
+                         ->order_by('id', 'DESC')
+                         ->limit(1);
+                $bal_q = $this->db->get();
+                if ($bal_q && $bal_q->num_rows() > 0) {
+                    $bal = (float)$bal_q->row()->balance;
+                    if ($bal !== 0.0) {
+                        log_message('debug', 'LapMutasiMesin: fallback ledger balance used for item_id ' . $row['id'] . ' => ' . $bal);
+                        $row['saldo_akhir'] = $bal;
+                    }
+                }
+            }
+        }
+        unset($row);
+
+        log_message('debug', 'LapMutasiMesin Query: ' . $sql);
+        log_message('debug', 'Params: ' . json_encode([$date_awal_minus_1_dt, $date_start_dt, $date_end_dt]));
+        log_message('debug', 'Result count: ' . count($result));
+
+        return $result;
     }
 
     public function get_item_basic_mesin($item_id) {
@@ -82,7 +113,8 @@ class LapMutasiMesin_model extends CI_Model {
         $this->db->select("
             sl.transaction_date, sl.transaction_type, sl.qty_in, sl.qty_out, sl.balance,
             grn.grn_number,
-            adj.doc_no as adjustment_doc, adj.notes as adjustment_notes
+            adj.doc_no as adjustment_doc, adj.notes as adjustment_notes,
+            woh.wo_number
         ");
         
         $this->db->from('stock_ledger sl');
@@ -92,9 +124,11 @@ class LapMutasiMesin_model extends CI_Model {
         $this->db->join('adjustment_details ad', 'sl.transaction_id = ad.id AND sl.transaction_type = \'adjustment\'', 'left');
         $this->db->join('adjustment_header adj', 'ad.adjustment_header_id = adj.id', 'left');
         
+        $this->db->join('wo_header woh', '(sl.source_doc_id = woh.id AND sl.transaction_type IN (\'production_out\', \'wip_out\'))', 'left');
+        
         $this->db->where('sl.item_id', $item_id);
         $this->db->where('sl.item_type', 'machine');
-        $this->db->where_in('sl.transaction_type', ['in', 'adjustment']);
+        $this->db->where_in('sl.transaction_type', ['in', 'wip_in', 'IN_RETURN_WIP', 'out', 'adjustment', 'production_out', 'wip_out']);
         
         $this->db->order_by('sl.transaction_date', 'ASC');
         $this->db->order_by('sl.id', 'ASC');

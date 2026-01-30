@@ -57,8 +57,10 @@ class LapPemasukanBB_model extends CI_Model {
 
             CASE
                 WHEN po.id IS NOT NULL THEN COALESCE(pd.local_price, 0) * sl.qty_in
+                WHEN mir.id IS NOT NULL THEN COALESCE(gd.unit_value, 0) * sl.qty_in
                 ELSE 0
-            END AS unit_value_idr
+            END AS unit_value_idr,
+            COALESCE(pd.base_price, 0) AS unit_value_foreign
         ");
         $this->db->from('stock_ledger sl');
         $this->db->join('grn_header grn', 'sl.transaction_id = grn.id AND sl.transaction_type = "in"', 'left');

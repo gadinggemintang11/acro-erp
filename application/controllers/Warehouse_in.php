@@ -316,6 +316,20 @@ class Warehouse_in extends MY_Controller {
         $source_doc_type = $header->base_on;
         $source_doc_header_id = $this->input->post('source_doc_id');
 
+        // Validasi input
+        $this->form_validation->set_rules('source_doc_id', 'Source Document', 'required');
+        $this->form_validation->set_rules('item_selector', 'Item', 'required');
+        $this->form_validation->set_rules('receive_qty', 'Receive Qty', 'required|numeric|greater_than[0]');
+        if ($source_doc_type == 'MIR') {
+            $this->form_validation->set_rules('unit_value_mir', 'Unit Value', 'required|numeric|greater_than[0]');
+        }
+
+        if ($this->form_validation->run() == FALSE) {
+            $this->session->set_flashdata('error', validation_errors());
+            redirect('warehouse_in/detail/' . $grn_id);
+            return;
+        }
+
         // Update supplier_id
         if (empty($header->supplier_id) && $source_doc_header_id) {
             $source_header = ($source_doc_type == 'PO')

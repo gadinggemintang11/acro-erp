@@ -37,6 +37,11 @@ class LapMutasiMesin extends MY_Controller {
         // ========================================================
         // LOGGING KRITIS UNTUK DEBUGGING
         // ========================================================
+        log_message('debug', 'LapMutasiMesin ajax_list: start=' . $start . ', end=' . $end . ', search=' . $search);
+        log_message('debug', 'Rows count: ' . count($rows));
+        if (!empty($rows)) {
+            log_message('debug', 'First row keys: ' . json_encode(array_keys($rows[0])));
+        }
         if (empty($rows)) {
             // Ambil query SQL terakhir yang dijalankan model
             $last_query = $this->db->last_query();
