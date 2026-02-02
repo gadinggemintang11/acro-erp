@@ -51,8 +51,8 @@
             <tr>
                 <td class="text-center"><?= $no++; ?></td>
                 <td><?= ucfirst($d->item_type); ?></td>
-                <td><?= htmlspecialchars($d->item_code); ?></td>
-                <td><?= htmlspecialchars($d->item_name); ?></td>
+                <td><?= htmlspecialchars($d->component_code); ?></td>
+                <td><?= htmlspecialchars($d->component_name); ?></td>
                 <td class="text-right"><?= number_format($d->quantity_required, 4); ?></td>
                 <td class="text-center"><?= htmlspecialchars($d->unit_measure ?? '-'); ?></td>
             </tr>
