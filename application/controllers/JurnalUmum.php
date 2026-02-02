@@ -110,12 +110,116 @@ class JurnalUmum extends MY_Controller {
         
         $data['title'] = 'View Jurnal: ' . $data['header']->journal_no;
         $data['details'] = $this->model->get_details_by_header_id($id);
+        $data['can_edit'] = $this->model->can_edit_journal($id);
         
         $this->load->view('templates/header', $data);
         $this->load->view('templates/sidebar', $data);
         $this->load->view('templates/topbar', $data);
         $this->load->view('accounting/jurnal_umum/view', $data);
         $this->load->view('templates/footer');
+    }
+
+    public function edit($id)
+    {
+        $data['header'] = $this->model->get_header_by_id($id);
+        if (!$data['header']) show_404();
+        
+        // Check if can edit
+        if (!$this->model->can_edit_journal($id)) {
+            $this->session->set_flashdata('error', 'Jurnal ini sudah di-posting dan tidak bisa diedit.');
+            redirect('jurnalumum/view/' . $id);
+        }
+
+        $data['title'] = 'Edit Jurnal: ' . $data['header']->journal_no;
+        $data['details'] = $this->model->get_details_by_header_id($id);
+        $data['accounts'] = $this->model->get_postable_accounts();
+        $data['currencies'] = $this->model->get_currencies();
+        
+        $this->load->view('templates/header', $data);
+        $this->load->view('templates/sidebar', $data);
+        $this->load->view('templates/topbar', $data);
+        $this->load->view('accounting/jurnal_umum/edit', $data);
+        $this->load->view('templates/footer');
+    }
+
+    public function update($id)
+    {
+        $header = $this->model->get_header_by_id($id);
+        if (!$header) show_404();
+        
+        // Check if can edit
+        if (!$this->model->can_edit_journal($id)) {
+            $this->session->set_flashdata('error', 'Jurnal ini sudah di-posting dan tidak bisa diedit.');
+            redirect('jurnalumum/view/' . $id);
+        }
+
+        $this->form_validation->set_rules('journal_date', 'Tanggal Jurnal', 'required');
+        $this->form_validation->set_rules('description', 'Keterangan', 'required');
+        
+        if ($this->form_validation->run() == FALSE) {
+            $this->edit($id);
+            return;
+        }
+
+        // Collect header data
+        $header_data = [
+            'journal_date' => $this->input->post('journal_date'),
+            'description' => $this->input->post('description'),
+            'currency' => $this->input->post('currency'),
+            'exchange_rate' => (float) $this->input->post('exchange_rate')
+        ];
+
+        // Collect details data
+        $details_data = [];
+        $accounts = $this->input->post('account_id');
+        $debits = $this->input->post('debit');
+        $kredits = $this->input->post('kredit');
+        $descriptions = $this->input->post('detail_description');
+        
+        $total_debit = 0;
+        $total_kredit = 0;
+        
+        if ($accounts) {
+            for ($i = 0; $i < count($accounts); $i++) {
+                if (!empty($accounts[$i]) && ($debits[$i] > 0 || $kredits[$i] > 0)) {
+                    $debit = (float) str_replace(',', '', $debits[$i]);
+                    $kredit = (float) str_replace(',', '', $kredits[$i]);
+                    
+                    $details_data[] = [
+                        'account_id' => $accounts[$i],
+                        'debit' => $debit,
+                        'kredit' => $kredit,
+                        'description' => $descriptions[$i]
+                    ];
+                    
+                    $total_debit += $debit;
+                    $total_kredit += $kredit;
+                }
+            }
+        }
+        
+        // Validate balance
+        if (abs($total_debit - $total_kredit) > 0.01) {
+            $this->session->set_flashdata('error', 'Total Debit dan Kredit harus seimbang!');
+            $this->edit($id);
+            return;
+        }
+        
+        // Add totals to header data
+        $rate = $header_data['exchange_rate'];
+        $header_data['total_debit'] = $total_debit;
+        $header_data['total_kredit'] = $total_kredit;
+        $header_data['total_debit_local'] = $total_debit * $rate;
+        $header_data['total_kredit_local'] = $total_kredit * $rate;
+
+        // Update journal
+        if ($this->model->update_journal($id, $header_data, $details_data)) {
+            $this->session->set_flashdata('success', 'Jurnal berhasil diperbarui.');
+            redirect('jurnalumum/view/' . $id);
+        } else {
+            $this->session->set_flashdata('error', 'Gagal memperbarui jurnal.');
+            $this->edit($id);
+        }
     }
 
     public function post($id)

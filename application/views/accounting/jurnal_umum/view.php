@@ -27,6 +27,9 @@
                     <h6 class="m-0 font-weight-bold text-primary">Informasi Jurnal</h6>
                     <?php if($header->status == 'Draft'): ?>
                     <div>
+                        <a href="<?= base_url('jurnalumum/edit/' . $header->id); ?>" class="btn btn-warning btn-sm mr-2">
+                            <i class="fas fa-edit"></i> Edit
+                        </a>
                         <a href="<?= base_url('jurnalumum/delete/' . $header->id); ?>" class="btn btn-danger btn-sm" onclick="return confirm('Anda yakin ingin menghapus dokumen DRAFT ini?');">
                             <i class="fas fa-trash"></i> Hapus
                         </a>
