@@ -88,7 +88,30 @@
                             <td class="text-right"><?= number_format($d->total_value ?? 0, 2); ?></td>
                             <td class="text-center">
                                 <?php if ($header->status == 'Draft' && check_access('warehouse_in', 'edit')): ?>
-                                <a href="<?= base_url('warehouse_in/delete_item/'.$d->grn_header_id.'/'.$d->id); ?>" class="btn btn-danger btn-xs btn-delete"> <i class="fas fa-trash"></i> </a>
+                                    <?php 
+                                        // Get user's role from DB if not passed (fallback)
+                                        if (empty($user_role)) {
+                                            $user_id = $this->session->userdata('user_id');
+                                            $user = $this->db->select('role_id')->from('users')->where('id', $user_id)->get()->row();
+                                            $user_role = $user->role_id ?? null;
+                                        }
+                                        // Get role name
+                                        $role = $this->db->select('role_name')->from('roles')->where('id', $user_role)->get()->row();
+                                        $is_admin = ($role && stripos($role->role_name, 'admin') !== false);
+                                    ?>
+                                    <?php if ($header->base_on == 'MIR'): ?>
+                                    <!-- Admin can edit both qty and unit_value, Non-admin can only edit unit_value -->
+                                    <button type="button" class="btn btn-warning btn-xs btn-sm mr-1" data-toggle="modal" data-target="#editMirItemModal" 
+                                            data-detail-id="<?= $d->id; ?>" data-receive-qty="<?= $d->receive_qty; ?>" data-unit-value="<?= $d->unit_value; ?>"
+                                            data-item-name="<?= htmlspecialchars($d->item_name); ?>" data-is-admin="<?= $is_admin ? '1' : '0'; ?>">
+                                        <i class="fas fa-edit"></i> Edit
+                                    </button>
+                                    <!-- Both admin and non-admin can delete MIR items -->
+                                    <a href="<?= base_url('warehouse_in/delete_item/'.$d->grn_header_id.'/'.$d->id); ?>" class="btn btn-danger btn-xs btn-delete"> <i class="fas fa-trash"></i> </a>
+                                    <?php elseif ($header->base_on != 'MIR'): ?>
+                                    <!-- For non-MIR items, normal access control -->
+                                    <a href="<?= base_url('warehouse_in/delete_item/'.$d->grn_header_id.'/'.$d->id); ?>" class="btn btn-danger btn-xs btn-delete"> <i class="fas fa-trash"></i> </a>
+                                    <?php endif; ?>
                                 <?php endif; ?>
                             </td>
                         </tr>
@@ -146,6 +169,89 @@
                 <div class="modal-footer">
                     <button type="submit" class="btn btn-success btn-load"><i class="fas fa-save mr-1"></i> <?= lang_line('warehouse_in_save', 'Simpan Penerimaan'); ?></button>
                     <button type="button" class="btn btn-secondary" data-dismiss="modal"><?= lang_line('warehouse_in_cancel', 'Batal'); ?></button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal MIR Auto-Load (untuk status Draft dengan base_on = MIR) -->
+<?php if ($header->base_on == 'MIR' && $header->status == 'Draft' && empty($details)): ?>
+<div class="modal fade" id="mirAutoLoadModal" tabindex="-1" data-backdrop="static" data-keyboard="false" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-info text-white">
+                <h5 class="modal-title"><i class="fas fa-file-import mr-2"></i>Pilih MIR untuk Auto-Load Items</h5>
+            </div>
+            <div class="modal-body">
+                <p>Pilih nomor MIR untuk secara otomatis memuat semua item yang diminta. Anda tinggal mengonfirmasi penerimaan tanpa perlu input manual item satu per satu.</p>
+                <div class="form-group">
+                    <label><strong>Nomor MIR</strong></label>
+                    <select id="mir_selector" name="mir_id" class="form-control" style="width: 100%;" required>
+                        <option value="">-- Pilih MIR --</option>
+                    </select>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-info btn-load" id="mirAutoLoadBtn"><i class="fas fa-check mr-1"></i> Load Items</button>
+                <button type="button" class="btn btn-secondary" id="mirSkipBtn">Skip untuk Sekarang</button>
+            </div>
+        </div>
+    </div>
+</div>
+<?php endif; ?>
+
+<!-- Modal Edit MIR Item (qty and/or unit_value) -->
+<div class="modal fade" id="editMirItemModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form id="editMirItemForm" method="post">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title"><i class="fas fa-edit mr-2"></i>Edit Item MIR</h5>
+                    <button type="button" class="close" data-dismiss="modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="editDetailId" name="detail_id" value="">
+                    <input type="hidden" id="editIsAdmin" value="">
+                    <p><strong>Item:</strong> <span id="editItemName"></span></p>
+                    <div class="form-group" id="editQtyGroup">
+                        <label><strong>Quantity Diterima</strong> <small class="text-muted">(Hanya Admin)</small></label>
+                        <input type="number" step="any" id="editReceiveQty" name="receive_qty" class="form-control" required min="0">
+                    </div>
+                    <div class="form-group">
+                        <label><strong>Nilai Satuan (IDR)</strong></label>
+                        <input type="text" id="editUnitValue" name="unit_value" class="form-control autonumeric-edit text-right" value="0.00">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-warning btn-load"><i class="fas fa-save mr-1"></i> Simpan</button>
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                </div>
+            </div>
+        </form>
+    </div>
+</div>
+
+<!-- Modal Edit Qty (only for MIR items and admin users) -->
+<div class="modal fade" id="editQtyModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered">
+        <form id="editQtyForm" method="post">
+            <div class="modal-content border-0 shadow">
+                <div class="modal-header bg-warning text-dark">
+                    <h5 class="modal-title"><i class="fas fa-edit mr-2"></i>Edit Quantity Penerimaan</h5>
+                    <button type="button" class="close" data-dismiss="modal">&times;</button>
+                </div>
+                <div class="modal-body">
+                    <input type="hidden" id="editDetailId2" name="detail_id" value="">
+                    <p><strong>Item:</strong> <span id="editItemName2"></span></p>
+                    <div class="form-group">
+                        <label><strong>Quantity Diterima</strong></label>
+                        <input type="number" step="any" id="editReceiveQty2" name="receive_qty" class="form-control" required min="0">
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="submit" class="btn btn-warning btn-load"><i class="fas fa-save mr-1"></i> Simpan</button>
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
                 </div>
             </div>
         </form>
@@ -211,6 +317,110 @@ $(document).ready(function() {
     const baseOnType = '<?= $header->base_on; ?>';
     const warehouseType = '<?= $header->warehouse_type; ?>';
     const currentStatus = '<?= $header->status; ?>';
+    const grn_id = '<?= $header->id; ?>';
+
+    // Show MIR Auto-Load Modal if base_on is MIR and no items yet
+    <?php if ($header->base_on == 'MIR' && $header->status == 'Draft' && empty($details)): ?>
+    setTimeout(function() {
+        $('#mirAutoLoadModal').modal('show');
+    }, 500);
+    <?php endif; ?>
+
+    // Initialize MIR Selector for Auto-Load
+    if ($('#mir_selector').length) {
+        $('#mir_selector').select2({
+            placeholder: '-- Pilih MIR --',
+            minimumInputLength: 1,
+            ajax: {
+                url: '<?= base_url("warehouse_in/search_source_docs"); ?>',
+                dataType: 'json',
+                delay: 250,
+                data: function (params) {
+                    return { q: params.term, type: 'MIR' };
+                },
+                processResults: function (data) {
+                    return { results: data.results };
+                },
+            },
+            dropdownParent: $('#mirAutoLoadModal')
+        });
+
+        // Handle Auto-Load button
+        $('#mirAutoLoadBtn').on('click', function() {
+            const mir_id = $('#mir_selector').val();
+            if (!mir_id) {
+                alert('Silakan pilih MIR terlebih dahulu.');
+                return;
+            }
+            // Redirect to auto_load_mir_items endpoint
+            window.location.href = '<?= base_url("warehouse_in/auto_load_mir_items/"); ?>' + grn_id + '/' + mir_id;
+        });
+
+        // Handle Skip button
+        $('#mirSkipBtn').on('click', function() {
+            $('#mirAutoLoadModal').modal('hide');
+        });
+    }
+
+    // Handle Edit MIR Item Modal
+    $('#editMirItemModal').on('show.bs.modal', function(event) {
+        const btn = $(event.relatedTarget);
+        const detail_id = btn.data('detail-id');
+        const receive_qty = btn.data('receive-qty');
+        const unit_value = btn.data('unit-value');
+        const item_name = btn.data('item-name');
+        const is_admin = btn.data('is-admin') == '1';
+
+        $('#editDetailId').val(detail_id);
+        $('#editItemName').text(item_name);
+        $('#editReceiveQty').val(receive_qty);
+        $('#editUnitValue').val(unit_value);
+        $('#editIsAdmin').val(is_admin ? '1' : '0');
+
+        // Show/hide quantity field based on admin status
+        if (is_admin) {
+            $('#editQtyGroup').show();
+            $('#editReceiveQty').prop('required', true);
+        } else {
+            $('#editQtyGroup').hide();
+            $('#editReceiveQty').prop('required', false);
+        }
+
+        // Reinitialize AutoNumeric for the edit unit value field
+        if (typeof anEditUnitValue !== 'undefined') {
+            anEditUnitValue.set(unit_value);
+        }
+    });
+
+    // Handle Edit MIR Item Form Submission
+    $('#editMirItemForm').on('submit', function(e) {
+        e.preventDefault();
+        const detail_id = $('#editDetailId').val();
+        const is_admin = $('#editIsAdmin').val() == '1';
+        const new_qty = is_admin ? $('#editReceiveQty').val() : null;
+        const new_unit_value = $('#editUnitValue').val().replace(/,/g, ''); // Remove commas from formatted number
+
+        // Choose endpoint based on admin status
+        const endpoint = is_admin ? 
+            '<?= base_url("warehouse_in/update_mir_item"); ?>' : 
+            '<?= base_url("warehouse_in/update_mir_unit_value"); ?>';
+        
+        const data = is_admin ? 
+            { detail_id: detail_id, receive_qty: new_qty, unit_value: new_unit_value } :
+            { detail_id: detail_id, unit_value: new_unit_value };
+
+        // Send AJAX to update the item
+        $.post(endpoint, data, function(response) {
+            if (response.status === 'success') {
+                alert('Item berhasil diperbarui. Silakan refresh halaman.');
+                location.reload();
+            } else {
+                alert('Error: ' + response.message);
+            }
+        }, 'json').fail(function() {
+            alert('Gagal mengirim request.');
+        });
+    });
 
     // Inisialisasi hanya jika status Draft
     if (currentStatus === 'Draft') {
@@ -219,6 +429,12 @@ $(document).ready(function() {
             const anMirValue = new AutoNumeric('input[name="unit_value_mir"]', { decimalPlaces: 2 });
              if (baseOnType === 'MIR') { anMirValue.set(0); } // Set default jika MIR
         }
+        
+        // Initialize AutoNumeric for edit unit value field
+        if ($('#editUnitValue').length) {
+            window.anEditUnitValue = new AutoNumeric('#editUnitValue', { decimalPlaces: 2 });
+        }
+        
         if ($('.autonumeric-4dec').length) {
             const anEditExchangeRate = new AutoNumeric('.autonumeric-4dec', { decimalPlaces: 4 });
             // Pasang event handler kurs HANYA JIKA elemen edit ada

@@ -305,8 +305,8 @@ class Warehouse_in_model extends CI_Model {
 
         } elseif ($source_type == 'MIR') {
             $select_clause = "
-                md.id as source_detail_id, md.item_id, md.item_type, md.qty as source_qty, 0 as source_unit_price,
-                GREATEST(0, md.qty - IFNULL(received.total_received, 0)) as remaining_qty,
+                md.id as source_detail_id, md.item_id, md.item_type, md.qty, md.allowance, md.total_qty as source_qty, 0 as source_unit_price,
+                GREATEST(0, md.total_qty - IFNULL(received.total_received, 0)) as remaining_qty,
                 CASE WHEN md.item_type = 'material' THEN m.kode_material WHEN md.item_type = 'machine' THEN mc.kode_mesin WHEN md.item_type = 'inventory' THEN i.kode_barang WHEN md.item_type = 'semifinished' THEN sf.kode_barang END as item_code,
                 CASE WHEN md.item_type = 'material' THEN m.nama_material WHEN md.item_type = 'machine' THEN mc.nama_mesin WHEN md.item_type = 'inventory' THEN i.nama_barang WHEN md.item_type = 'semifinished' THEN sf.nama_barang END as item_name
             ";

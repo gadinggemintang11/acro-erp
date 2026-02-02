@@ -94,9 +94,18 @@ class Warehouse_in extends MY_Controller {
         } else {
             // Jika transaksi berhasil
             if ($insert_id) {
-                $this->session->set_flashdata('success', 'Header GRN ' . $grn_number . ' berhasil dibuat. Silakan tambahkan item.');
-                // Langsung arahkan ke halaman detail untuk tambah item
-                redirect('warehouse_in/detail/' . $insert_id);
+                // Jika base_on = MIR, redirect ke auto-load items endpoint dengan MIR ID
+                $base_on = $this->input->post('base_on');
+                if ($base_on === 'MIR') {
+                    $this->session->set_flashdata('info', 'GRN dibuat. Memuat items dari MIR...');
+                    // Redirect ke detail page dengan pesan untuk trigger auto-load
+                    // User akan melihat modal untuk memilih MIR nomor di detail page
+                    redirect('warehouse_in/detail/' . $insert_id);
+                } else {
+                    $this->session->set_flashdata('success', 'Header GRN ' . $grn_number . ' berhasil dibuat. Silakan tambahkan item.');
+                    // Langsung arahkan ke halaman detail untuk tambah item
+                    redirect('warehouse_in/detail/' . $insert_id);
+                }
             } else {
                 $this->session->set_flashdata('error', 'Gagal membuat GRN. Model tidak mengembalikan ID.');
                 redirect('warehouse_in');
@@ -161,7 +170,8 @@ class Warehouse_in extends MY_Controller {
             'title'   => 'Detail Penerimaan Barang',
             'header'  => $header,
             'details' => $this->Warehouse_in_model->get_details_by_id($id),
-            'bc_types' => $this->Commoncode_model->get_by_group('BC_TYPE')
+            'bc_types' => $this->Commoncode_model->get_by_group('BC_TYPE'),
+            'user_role' => $this->session->userdata('role_id') // Pass user role to view
             // Tambahkan data lain jika perlu untuk modal edit
         ];
         $this->load->view('templates/header', $data);
@@ -169,6 +179,158 @@ class Warehouse_in extends MY_Controller {
         $this->load->view('templates/topbar', $data);
         $this->load->view('warehouse_in/detail', $data);
         // Footer dipanggil di view detail.php
+    }
+
+    /**
+     * Auto-load all items from a MIR when base_on is MIR
+     * Called after GRN header is created with base_on = 'MIR'
+     */
+    public function auto_load_mir_items($grn_id, $mir_id) {
+        if (!check_access('warehouse_in', 'edit')) {
+            show_error('Anda tidak memiliki izin.', 403);
+        }
+        if (empty($grn_id) || !is_numeric($grn_id) || empty($mir_id) || !is_numeric($mir_id)) {
+            $this->session->set_flashdata('error', 'Invalid parameters: grn_id=' . $grn_id . ', mir_id=' . $mir_id);
+            redirect('warehouse_in/detail/' . $grn_id);
+            return;
+        }
+
+        // DEBUG: Log the received parameters
+        log_message('debug', '[auto_load_mir_items] Called with grn_id=' . $grn_id . ', mir_id=' . $mir_id);
+
+        $header = $this->Warehouse_in_model->get_header_by_id($grn_id);
+        if (!$header || $header->status != 'Draft' || $header->base_on != 'MIR') {
+            $this->session->set_flashdata('error', 'GRN tidak valid untuk auto-load MIR items.');
+            redirect('warehouse_in/detail/' . $grn_id);
+            return;
+        }
+
+        // Check if MIR exists
+        $mir_header = $this->Mir_model->get_header_by_id($mir_id);
+        if (!$mir_header) {
+            $this->session->set_flashdata('error', 'MIR tidak ditemukan.');
+            redirect('warehouse_in/detail/' . $grn_id);
+            return;
+        }
+
+        // Fetch ALL items from the MIR first (without qty filter) to check if items exist at all
+        // Using mir_details table (same as get_available_items method)
+        // Use total_qty which includes allowance (qty + allowance)
+        $all_mir_items = $this->db
+            ->select('md.id as mir_detail_id, md.item_id, md.item_type, md.qty, md.allowance, md.total_qty')
+            ->from('mir_details md')
+            ->where('md.mir_header_id', $mir_id)
+            ->get()
+            ->result();
+
+        log_message('debug', '[Warehouse_in] Auto-load MIR ' . $mir_id . ': Found ' . count($all_mir_items) . ' total items in mir_details');
+
+        // Check how many items have already been received
+        $received_subquery = $this->db->select('source_doc_detail_id, SUM(receive_qty) as total_received')
+                                        ->from('grn_details')
+                                        ->where('source_doc_header_id', $mir_id)
+                                        ->where('source_doc_type', 'MIR')
+                                        ->group_by('source_doc_detail_id')
+                                        ->get_compiled_select();
+        
+        $this->db->reset_query();
+        
+        // Filter items that still need to be received (same logic as get_available_items)
+        $mir_details = [];
+        foreach ($all_mir_items as $item) {
+            // Get total already received for this detail
+            $received_result = $this->db->select('SUM(receive_qty) as total_received')
+                                        ->from('grn_details')
+                                        ->where('source_doc_header_id', $mir_id)
+                                        ->where('source_doc_type', 'MIR')
+                                        ->where('source_doc_detail_id', $item->mir_detail_id)
+                                        ->get()
+                                        ->row();
+            
+            $total_received = $received_result->total_received ?? 0;
+            $receive_qty = $item->total_qty - $total_received; // Use total_qty (includes allowance)
+            
+            if ($receive_qty > 0.001) {
+                $item->remaining_qty = $receive_qty;
+                $mir_details[] = $item;
+            }
+        }
+
+        log_message('debug', '[Warehouse_in] Auto-load MIR ' . $mir_id . ': After filtering, ' . count($mir_details) . ' items need to be received');
+
+        if (empty($mir_details)) {
+            if (empty($all_mir_items)) {
+                $this->session->set_flashdata('error', 'MIR tidak memiliki item yang diminta.');
+            } else {
+                $this->session->set_flashdata('warning', 'Semua item di MIR sudah diterima atau dikembalikan. Tidak ada yang perlu di-load.');
+            }
+            redirect('warehouse_in/detail/' . $grn_id);
+            return;
+        }
+
+        // Get item names for GRN details
+        $success_count = 0;
+        foreach ($mir_details as $md) {
+            $receive_qty = $md->remaining_qty;
+
+            // Default unit_value to 0 (will be set manually by user if needed)
+            $unit_value = 0;
+            $total_value = 0;
+
+            // Get item name and code based on item_type (same logic as get_available_items)
+            $item_code = '';
+            $item_name = '';
+            if ($md->item_type == 'material') {
+                $item = $this->db->select('kode_material, nama_material')->from('materials')->where('id', $md->item_id)->get()->row();
+                if ($item) {
+                    $item_code = $item->kode_material ?? '';
+                    $item_name = $item->nama_material ?? '';
+                }
+            } else if ($md->item_type == 'semifinished') {
+                $item = $this->db->select('kode_barang, nama_barang')->from('semifinished_goods')->where('id', $md->item_id)->get()->row();
+                if ($item) {
+                    $item_code = $item->kode_barang ?? '';
+                    $item_name = $item->nama_barang ?? '';
+                }
+            } else if ($md->item_type == 'machine') {
+                $item = $this->db->select('kode_mesin, nama_mesin')->from('machines')->where('id', $md->item_id)->get()->row();
+                if ($item) {
+                    $item_code = $item->kode_mesin ?? '';
+                    $item_name = $item->nama_mesin ?? '';
+                }
+            } else if ($md->item_type == 'inventory') {
+                $item = $this->db->select('kode_barang, nama_barang')->from('inventories')->where('id', $md->item_id)->get()->row();
+                if ($item) {
+                    $item_code = $item->kode_barang ?? '';
+                    $item_name = $item->nama_barang ?? '';
+                }
+            }
+
+            $data = [
+                'grn_header_id' => $grn_id,
+                'source_doc_header_id' => $mir_id,
+                'source_doc_detail_id' => $md->mir_detail_id,
+                'source_doc_type' => 'MIR',
+                'item_id' => $md->item_id,
+                'item_type' => $md->item_type,
+                'receive_qty' => $receive_qty,
+                'unit_value' => $unit_value,
+                'total_value' => $total_value
+            ];
+
+            if ($this->Warehouse_in_model->insert_item($data)) {
+                $success_count++;
+                log_message('debug', '[Warehouse_in] Inserted item: ' . $item_name . ' (qty: ' . $receive_qty . ')');
+            }
+        }
+
+        if ($success_count > 0) {
+            $this->session->set_flashdata('success', 'Auto-loaded ' . $success_count . ' item(s) dari MIR. Silakan input unit value dan review sebelum konfirmasi.');
+        } else {
+            $this->session->set_flashdata('warning', 'Tidak ada item yang berhasil di-load.');
+        }
+
+        redirect('warehouse_in/detail/' . $grn_id);
     }
 
     // === Confirm / Unconfirm ===
@@ -363,9 +525,180 @@ class Warehouse_in extends MY_Controller {
         if (!check_access('warehouse_in', 'edit')) { show_error('Anda tidak memiliki izin.', 403); }
         $header = $this->Warehouse_in_model->get_header_by_id($grn_id);
         if (!$header || $header->status != 'Draft') { redirect('warehouse_in/detail/' . $grn_id); }
+        
+        // For MIR items, all users with warehouse_in edit access can delete
+        // (since they can at least edit unit_value)
+        
         if ($this->Warehouse_in_model->delete_item($detail_id)) { $this->session->set_flashdata('success', 'Item dihapus.'); }
         else { $this->session->set_flashdata('error', 'Gagal menghapus item!'); }
         redirect('warehouse_in/detail/' . $grn_id);
+    }
+
+    /**
+     * AJAX endpoint to update MIR item (both quantity and unit_value)
+     * Only accessible by admin users for MIR items
+     */
+    public function update_mir_item() {
+        if (!check_access('warehouse_in', 'edit')) {
+            header('Content-Type: application/json');
+            echo json_encode(['status' => 'error', 'message' => 'Unauthorized']);
+            return;
+        }
+
+        // Check if user is admin for MIR item editing
+        $user_role = $this->session->userdata('role_id');
+        $role = $this->db->select('role_name')->from('roles')->where('id', $user_role)->get()->row();
+        $is_admin = ($role && stripos($role->role_name, 'admin') !== false);
+        
+        if (!$is_admin) {
+            header('Content-Type: application/json');
+            echo json_encode(['status' => 'error', 'message' => 'Only admin can edit MIR item quantities']);
+            return;
+        }
+
+        $detail_id = $this->input->post('detail_id');
+        $new_qty = (float) $this->input->post('receive_qty');
+        $new_unit_value = (float) $this->input->post('unit_value');
+
+        if (empty($detail_id) || $new_qty < 0 || $new_unit_value < 0) {
+            header('Content-Type: application/json');
+            echo json_encode(['status' => 'error', 'message' => 'Invalid input']);
+            return;
+        }
+
+        // Get the detail to verify GRN is Draft and is MIR
+        $detail = $this->db->select('gd.*, gh.status, gh.base_on')
+            ->from('grn_details gd')
+            ->join('grn_header gh', 'gh.id = gd.grn_header_id')
+            ->where('gd.id', $detail_id)
+            ->get()
+            ->row();
+
+        if (!$detail || $detail->status != 'Draft' || $detail->base_on != 'MIR') {
+            header('Content-Type: application/json');
+            echo json_encode(['status' => 'error', 'message' => 'Item not found or not editable']);
+            return;
+        }
+
+        // Update quantity, unit_value and recalculate total_value
+        $total_value = $new_qty * $new_unit_value;
+        if ($this->db->update('grn_details', [
+            'receive_qty' => $new_qty,
+            'unit_value' => $new_unit_value,
+            'total_value' => $total_value
+        ], ['id' => $detail_id])) {
+            header('Content-Type: application/json');
+            echo json_encode(['status' => 'success', 'message' => 'Item updated']);
+        } else {
+            header('Content-Type: application/json');
+            echo json_encode(['status' => 'error', 'message' => 'Failed to update']);
+        }
+    }
+
+    /**
+     * AJAX endpoint to update MIR item unit_value only (for non-admin users)
+     */
+    public function update_mir_unit_value() {
+        if (!check_access('warehouse_in', 'edit')) {
+            header('Content-Type: application/json');
+            echo json_encode(['status' => 'error', 'message' => 'Unauthorized']);
+            return;
+        }
+
+        $detail_id = $this->input->post('detail_id');
+        $new_unit_value = (float) $this->input->post('unit_value');
+
+        if (empty($detail_id) || $new_unit_value < 0) {
+            header('Content-Type: application/json');
+            echo json_encode(['status' => 'error', 'message' => 'Invalid input']);
+            return;
+        }
+
+        // Get the detail to verify GRN is Draft and is MIR
+        $detail = $this->db->select('gd.*, gh.status, gh.base_on')
+            ->from('grn_details gd')
+            ->join('grn_header gh', 'gh.id = gd.grn_header_id')
+            ->where('gd.id', $detail_id)
+            ->get()
+            ->row();
+
+        if (!$detail || $detail->status != 'Draft' || $detail->base_on != 'MIR') {
+            header('Content-Type: application/json');
+            echo json_encode(['status' => 'error', 'message' => 'Item not found or not editable']);
+            return;
+        }
+
+        // Update unit_value only and recalculate total_value (keep existing qty)
+        $total_value = $detail->receive_qty * $new_unit_value;
+        if ($this->db->update('grn_details', [
+            'unit_value' => $new_unit_value,
+            'total_value' => $total_value
+        ], ['id' => $detail_id])) {
+            header('Content-Type: application/json');
+            echo json_encode(['status' => 'success', 'message' => 'Unit value updated']);
+        } else {
+            header('Content-Type: application/json');
+            echo json_encode(['status' => 'error', 'message' => 'Failed to update']);
+        }
+    }
+
+    /**
+     * AJAX endpoint to update item quantity
+     * Only accessible by admin users for MIR items
+     */
+    public function update_item_qty() {
+        if (!check_access('warehouse_in', 'edit')) {
+            header('Content-Type: application/json');
+            echo json_encode(['status' => 'error', 'message' => 'Unauthorized']);
+            return;
+        }
+
+        // Check if user is admin for MIR item editing  
+        $user_role = $this->session->userdata('role_id');
+        $role = $this->db->select('role_name')->from('roles')->where('id', $user_role)->get()->row();
+        $is_admin = ($role && stripos($role->role_name, 'admin') !== false);
+        
+        if (!$is_admin) {
+            header('Content-Type: application/json');
+            echo json_encode(['status' => 'error', 'message' => 'Only admin can edit MIR items']);
+            return;
+        }
+
+        $detail_id = $this->input->post('detail_id');
+        $new_qty = (float) $this->input->post('receive_qty');
+
+        if (empty($detail_id) || $new_qty < 0) {
+            header('Content-Type: application/json');
+            echo json_encode(['status' => 'error', 'message' => 'Invalid input']);
+            return;
+        }
+
+        // Get the detail to verify GRN is Draft and is MIR
+        $detail = $this->db->select('gd.*, gh.status, gh.base_on')
+            ->from('grn_details gd')
+            ->join('grn_header gh', 'gh.id = gd.grn_header_id')
+            ->where('gd.id', $detail_id)
+            ->get()
+            ->row();
+
+        if (!$detail || $detail->status != 'Draft' || $detail->base_on != 'MIR') {
+            header('Content-Type: application/json');
+            echo json_encode(['status' => 'error', 'message' => 'Item not found or not editable']);
+            return;
+        }
+
+        // Update quantity and recalculate total_value
+        $total_value = $new_qty * $detail->unit_value;
+        if ($this->db->update('grn_details', [
+            'receive_qty' => $new_qty,
+            'total_value' => $total_value
+        ], ['id' => $detail_id])) {
+            header('Content-Type: application/json');
+            echo json_encode(['status' => 'success', 'message' => 'Quantity updated']);
+        } else {
+            header('Content-Type: application/json');
+            echo json_encode(['status' => 'error', 'message' => 'Failed to update']);
+        }
     }
     public function export_excel($id) {
        if (!check_access('warehouse_in', 'view')) {

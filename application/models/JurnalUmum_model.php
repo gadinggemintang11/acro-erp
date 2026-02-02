@@ -87,6 +87,49 @@ class JurnalUmum_model extends CI_Model {
         $this->db->trans_complete();
         return ($this->db->trans_status() && $affected_rows > 0);
     }
+
+    public function update_journal($header_id, $header_data, $details_data)
+    {
+        $this->db->trans_start();
+
+        // Update header (hanya jika status masih Draft)
+        $this->db->where('id', $header_id);
+        $this->db->where('status', 'Draft');
+        $this->db->update('journal_header', $header_data);
+        
+        if ($this->db->affected_rows() == 0) {
+            $this->db->trans_rollback();
+            return false; // Jurnal tidak ditemukan atau sudah dipost
+        }
+
+        // Hapus detail lama
+        $this->db->delete('journal_details', ['journal_header_id' => $header_id]);
+        
+        // Insert detail baru
+        $rate = (float) $header_data['exchange_rate'];
+        foreach ($details_data as $detail) {
+            if (!empty($detail['account_id']) && ($detail['debit'] > 0 || $detail['kredit'] > 0)) {
+                $detail['journal_header_id'] = $header_id;
+                
+                $detail['debit_local'] = (float) $detail['debit'] * $rate;
+                $detail['kredit_local'] = (float) $detail['kredit'] * $rate;
+                
+                $this->db->insert('journal_details', $detail);
+            }
+        }
+
+        $this->db->trans_complete();
+        return ($this->db->trans_status() !== FALSE);
+    }
+
+    public function can_edit_journal($header_id)
+    {
+        $this->db->select('status');
+        $this->db->where('id', $header_id);
+        $journal = $this->db->get('journal_header')->row();
+        
+        return ($journal && $journal->status === 'Draft');
+    }
     
     public function process_import_data($sheet_data)
     {
