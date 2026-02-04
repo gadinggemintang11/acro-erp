@@ -95,40 +95,59 @@
 
         .logo {
             text-align: center;
-            margin-bottom: 20px;
+            margin-bottom: 10px;
         }
 
+
         .logo img {
-            width: 80px;
-            height: 80px;
+            width: 900px !important;
+            height: 900px !important;
+            /* max-width: 35px !important;
+            max-height: 35px !important; */
         }
     </style>
 </head>
 
 <body>
-    <!-- Logo image disabled for DomPDF compatibility - DomPDF has permission issues with external images -->
-    <!-- <div class="logo">
-        <img src="<?= FCPATH . 'assets/img/fav.png'; ?>" alt="Company Logo">
-    </div> -->
-    <h1>PURCHASE ORDER<br><span style="font-size: 14px;">采购订单</span></h1>
+    <!-- Header with Company Info and PO Title -->
+    <table style="width: 100%; margin-bottom: 15px; border-collapse: collapse;">
+        <tr>
+            <td style="width: 50%; vertical-align: top; padding: 0; border: none;">
+                <div style="margin: 10px 0;">
+                    <img src="<?= FCPATH . 'assets/img/fav.png'; ?>" alt="Company Logo" style="width: 35px; height: 35px; max-width: 35px; max-height: 35px;">
+                </div>
+                <div style="font-size: 11px; line-height: 1.4;">
+                    <strong style="font-size: 12px;">PT. MINGBAO LIANCHUANG INTERNATIONAL</strong><br>
+                    Jalan Kawasan Industri Candi 11B No. 8<br>
+                    Kel. Bambankerep, Kec. Ngaliyan, Kota Semarang
+                    purchasing@mingbaolianchuanginternational.com
+                </div>
+            </td>
+            <td style="width: 50%; vertical-align: top; text-align: center; padding: 0; border: none;">
+                <div style="text-align: center; padding-right: 10px;">
+                    <div style="font-size: 16px; font-weight: bold;">PURCHASE ORDER</div>
+                    <div style="font-size: 12px; text-decoration: underline;">采购订单</div>
+                    <div style="margin-top: 10px; font-size: 10px; line-height: 1.6; text-align: right;">
+                        <div><strong>Nomor PO 采购编号:</strong> <?= htmlspecialchars($header->po_number); ?></div>
+                        <div><strong>Tanggal 采购日期:</strong> <?= date('d F Y', strtotime($header->po_date)); ?></div>
+                        <div><strong>Currency:</strong> <?= htmlspecialchars($header->currency_code); ?>
+                            <?php if ($header->currency_code != 'IDR'): ?>
+                                (Kurs: <?= number_format((float)$header->exchange_rate, 4); ?>)
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                </div>
+            </td>
+        </tr>
+    </table>
 
     <table class="info-table">
         <tr>
-            <td style="width: 50%;">
+            <td style="width: 100%;">
                 <strong>Kepada Yth:</strong><br>
                 <strong><?= htmlspecialchars($header->nama_supplier); ?></strong><br>
                 <?= nl2br(htmlspecialchars($header->alamat ?? '-')); ?><br>
                 Telp: <?= htmlspecialchars($header->telepon ?? '-'); ?>
-            </td>
-            <td style="width: 50%; vertical-align: top;">
-                <strong>Nomor PO:</strong> <?= htmlspecialchars($header->po_number); ?><br>
-                <strong>Tanggal:</strong> <?= date('d F Y', strtotime($header->po_date)); ?><br>
-                <strong>Currency:</strong> <?= htmlspecialchars($header->currency_code); ?>
-                <?php if ($header->currency_code != 'IDR'): ?>
-                    (Kurs: <?= number_format((float)$header->exchange_rate, 4); ?>)
-                <?php endif; ?><br>
-                <strong>Pembayaran:</strong> <?= htmlspecialchars($header->payment_mode_desc ?? '-'); ?><br>
-                <strong>Pengiriman:</strong> <?= htmlspecialchars($header->shipping_mode_desc ?? '-'); ?>
             </td>
         </tr>
     </table>
@@ -137,13 +156,14 @@
     <table>
         <thead>
             <tr>
-                <th style="width:5%">No<br>序号</th>
-                <th style="width:15%">Kode<br>代码</th>
-                <th>Nama Barang & Deskripsi<br>产品名称及描述</th>
-                <th style="width:10%">Qty<br>数量</th>
-                <th style="width:10%">Satuan<br>单位</th>
-                <th style="width:15%">Harga (<?= $header->currency_code; ?>)<br>价格 (<?= $header->currency_code; ?>)</th>
-                <th style="width:15%">Total (<?= $header->currency_code; ?>)<br>总计 (<?= $header->currency_code; ?>)</th>
+                <th style="width:4%">No<br>序号</th>
+                <th style="width:12%">Kode<br>代码</th>
+                <th style="width:20%">Nama Barang<br>产品名称</th>
+                <th style="width:15%">商品</th>
+                <th style="width:8%">Qty<br>数量</th>
+                <th style="width:8%">Satuan<br>单位</th>
+                <th style="width:12%">Harga Satuan(<?= $header->currency_code; ?>)<br>单价</th>
+                <th style="width:12%">Total (<?= $header->currency_code; ?>)<br>合计</th>
             </tr>
         </thead>
         <tbody>
@@ -162,13 +182,17 @@
                     <td>
                         <?= htmlspecialchars($d->item_name); ?>
                         <?php if (!empty($d->description)): ?>
-                            <br><small><i><?= nl2br(htmlspecialchars($d->description)); // Gunakan nl2br juga 
-                                            ?></i></small>
+                            <br><small><i><?= nl2br(htmlspecialchars($d->description)); ?></i></small>
                         <?php endif; ?>
-                        <?php if (!empty($d->sc_number)): // Tampilkan SC jika ada 
-                        ?>
+                        <?php if (!empty($d->sc_number)): ?>
                             <br><small><i>(Ref: <?= htmlspecialchars($d->sc_number); ?>)</i></small>
                         <?php endif; ?>
+                    </td>
+                    <td class="text-center" style="font-size: 9px;">
+                        <?php 
+                            $chinese_name = translate_to_chinese($d->item_name ?? '');
+                            echo htmlspecialchars($chinese_name);
+                        ?>
                     </td>
                     <td class="text-right"><?= number_format((float)($d->qty ?? 0), 4, '.', ','); ?></td>
                     <td class="text-center"><?= htmlspecialchars($d->item_unit ?? '-'); ?></td>
@@ -179,7 +203,7 @@
         </tbody>
         <tfoot>
             <tr>
-                <td colspan="6" class="text-right no-border" style="border-bottom: 1px solid #ddd !important;"><strong>Subtotal (<?= $header->currency_code; ?>)</strong></td>
+                <td colspan="6" class="text-right no-border" style="border-bottom: 1px solid #ddd !important;"><strong>Subtotal 税前及折扣前总额(<?= $header->currency_code; ?>)</strong></td>
                 <td class="text-right" style="border-bottom: 1px solid #ddd !important;"><strong><?= number_format($grand_total_base, 2, '.', ','); ?></strong></td>
             </tr>
             <?php
@@ -188,11 +212,11 @@
             ?>
             <?php if ($header->has_ppn): ?>
                 <tr>
-                    <td colspan="6" class="text-right no-border">PPN 11%</td>
+                    <td colspan="6" class="text-right no-border">PPN 11% 增值税</td>
                     <td class="text-right"><?= number_format($ppn_amount, 2, '.', ','); ?></td>
                 </tr>
                 <tr>
-                    <td colspan="6" class="text-right no-border"><strong>Total Setelah PPN (<?= $header->currency_code; ?>)</strong></td>
+                    <td colspan="6" class="text-right no-border"><strong>Grand Total 总计 (<?= $header->currency_code; ?>)</strong></td>
                     <td class="text-right"><strong><?= number_format($total_after_ppn_base, 2, '.', ','); ?></strong></td>
                 </tr>
             <?php endif; ?>
@@ -211,28 +235,83 @@
     </table>
 
     <?php if (!empty($header->remarks)): ?>
-        <div class="notes">
-            <strong>Catatan:</strong><br>
-            <?= nl2br(htmlspecialchars($header->remarks)); ?>
-        </div>
+        <table style="margin-top: 15px; margin-bottom: 0; border: 1px solid #ddd;">
+            <tr>
+                <td style="padding: 10px; border-bottom: 1px solid #ddd;">
+                    <strong>Catatan / 备注:</strong>
+                </td>
+            </tr>
+            <tr>
+                <td style="padding: 10px;">
+                    <?= nl2br(htmlspecialchars($header->remarks)); ?>
+                </td>
+            </tr>
+        </table>
     <?php endif; ?>
 
-    <table style="margin-top: 40px; border: none;">
+    <!-- Payment and Delivery Info -->
+    <table style="margin-top: 10px; margin-bottom: 0; border: 1px solid #ddd;">
         <tr>
-            <td style="width: 50%; text-align: center; border: none;">Disetujui Oleh,</td>
-            <td style="width: 50%; text-align: center; border: none;">Dibuat Oleh,</td>
+            <td style="width: 50%; padding: 10px; border-right: 1px solid #ddd; border-bottom: 1px solid #ddd;">
+                <strong>Pembayaran / 付款条款:</strong>
+            </td>
+            <td style="width: 50%; padding: 10px; border-bottom: 1px solid #ddd;">
+                <strong>Pengiriman / 交货:</strong>
+            </td>
         </tr>
         <tr>
-            <td style="height: 60px; border: none;"></td>
-            <td style="border: none;"></td>
+            <td style="width: 50%; padding: 10px; border-right: 1px solid #ddd;">
+                <?= htmlspecialchars($header->payment_mode_desc ?? '-'); ?>
+            </td>
+            <td style="width: 50%; padding: 10px;">
+                <?= htmlspecialchars($header->shipping_mode_desc ?? '-'); ?>
+            </td>
+        </tr>
+    </table>
+
+    <!-- Signature Table -->
+    <table style="margin-top: 15px; border: 1px solid #ddd;">
+        <tr>
+            <td style="width: 25%; text-align: center; padding: 10px; border-right: 1px solid #ddd; border-bottom: 1px solid #ddd;">
+                <strong>Disetujui<br>批准</strong>
+            </td>
+            <td style="width: 25%; text-align: center; padding: 10px; border-right: 1px solid #ddd; border-bottom: 1px solid #ddd;">
+                <strong>Kepala Bagian<br>行政主管</strong>
+            </td>
+            <td style="width: 25%; text-align: center; padding: 10px; border-right: 1px solid #ddd; border-bottom: 1px solid #ddd;">
+                <strong>Kepala Akuntan<br>会计主管</strong>
+            </td>
+            <td style="width: 25%; text-align: center; padding: 10px;">
+                <strong>Pemohon<br>申请人</strong>
+            </td>
         </tr>
         <tr>
-            <td style="text-align: center; border: none;">(.......................)</td>
-            <td style="text-align: center; border: none;">( <?= htmlspecialchars($header->creator_name ?? 'Admin'); ?> )</td>
+            <td style="width: 25%; text-align: center; padding: 40px 10px; border-right: 1px solid #ddd;">
+                &nbsp;
+            </td>
+            <td style="width: 25%; text-align: center; padding: 40px 10px; border-right: 1px solid #ddd;">
+                &nbsp;
+            </td>
+            <td style="width: 25%; text-align: center; padding: 40px 10px; border-right: 1px solid #ddd;">
+                &nbsp;
+            </td>
+            <td style="width: 25%; text-align: center; padding: 40px 10px;">
+                &nbsp;
+            </td>
         </tr>
         <tr>
-            <td style="text-align: center; border: none; font-size: 9px;">(Purchasing / Manager)</td>
-            <td style="text-align: center; border: none; font-size: 9px;">(PPIC / Staff)</td>
+            <td style="width: 25%; text-align: center; padding: 10px; border-right: 1px solid #ddd; font-size: 9px;">
+                Tanda Tangan / 签名
+            </td>
+            <td style="width: 25%; text-align: center; padding: 10px; border-right: 1px solid #ddd; font-size: 9px;">
+                Tanda Tangan / 签名
+            </td>
+            <td style="width: 25%; text-align: center; padding: 10px; border-right: 1px solid #ddd; font-size: 9px;">
+                Tanda Tangan / 签名
+            </td>
+            <td style="width: 25%; text-align: center; padding: 10px; font-size: 9px;">
+                Tanda Tangan / 签名
+            </td>
         </tr>
     </table>
 

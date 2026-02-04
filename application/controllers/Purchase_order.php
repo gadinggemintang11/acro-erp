@@ -21,7 +21,7 @@ class Purchase_order extends MY_Controller { // Asumsi extends MY_Controller
             'Sc_model' // Untuk data Sales Contract
         ]);
 
-        $this->load->helper('url');
+        $this->load->helper(['url', 'translation']);
         $this->load->library('user_agent');
         $this->load->library('session'); 
         $this->load->library('form_validation'); 
@@ -125,10 +125,13 @@ class Purchase_order extends MY_Controller { // Asumsi extends MY_Controller
 
         $currency_code = $this->input->post('currency_code');
         // Ambil nilai yang sudah bersih dari $_POST
-        $exchange_rate = (float)$this->input->post('exchange_rate'); 
+        $exchange_rate = (float)$this->input->post('exchange_rate');
+        
+        // Get PO number - either manual input or auto-generate
+        $po_number = trim($this->input->post('po_number'));
 
         $data = [
-            'po_number'           => $this->Po_model->generate_po_number(), 
+            'po_number'           => $po_number, // Pass empty string or manual PO number to model
             'supplier_id'         => $this->input->post('supplier_id'),
             'po_date'             => $this->input->post('po_date'),
             'shipping_mode_code'  => $this->input->post('shipping_mode_code') ?: NULL, 
@@ -148,7 +151,11 @@ class Purchase_order extends MY_Controller { // Asumsi extends MY_Controller
         } else {
             $db_error = $this->db->error(); 
             log_message('error','Gagal insert header PO: '. print_r($db_error, true));
-            $this->session->set_flashdata('error', 'Gagal membuat header PO! Terjadi kesalahan database.');
+            if ($this->Po_model->check_po_number_exists($po_number) && !empty($po_number)) {
+                $this->session->set_flashdata('error', 'Nomor PO sudah ada! Gunakan nomor yang berbeda atau biarkan kosong untuk auto-generate.');
+            } else {
+                $this->session->set_flashdata('error', 'Gagal membuat header PO! Terjadi kesalahan database.');
+            }
             redirect('purchase_order');
         }
     }

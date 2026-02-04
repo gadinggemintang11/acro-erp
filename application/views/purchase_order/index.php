@@ -144,6 +144,12 @@
                         </div>
                     </div>
                     <div class="row">
+                        <div class="col-md-6 form-group">
+                            <label>Nomor PO <small class="text-muted">(Biarkan kosong untuk auto-generate)</small></label>
+                            <input type="text" name="po_number" class="form-control" placeholder="Contoh: PO/MLI/202602/0001">
+                        </div>
+                    </div>
+                    <div class="row">
                          <div class="col-md-6 form-group">
                             <label><?= lang_line('po_shipping_mode', 'Mode Pengiriman'); ?></label>
                             <select name="shipping_mode_code" class="form-control select2-modal" style="width: 100%;">

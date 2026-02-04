@@ -67,6 +67,18 @@ class Po_model extends CI_Model {
 
     public function insert_header($data) {
         if (empty($data['status'])) { $data['status'] = 'Draft'; }
+        
+        // If po_number is not provided or empty, auto-generate it
+        if (empty($data['po_number'])) {
+            $data['po_number'] = $this->generate_po_number();
+        } else {
+            // Check if manual po_number already exists
+            if ($this->check_po_number_exists($data['po_number'])) {
+                log_message('error', 'Po_model::insert_header() - PO number already exists: ' . $data['po_number']);
+                return false;
+            }
+        }
+        
         $this->db->insert($this->table_header, $data);
         return $this->db->insert_id();
     }
@@ -87,12 +99,18 @@ class Po_model extends CI_Model {
     }
 
     public function generate_po_number() {
-        $prefix = 'PO/' . date('Ym') . '/';
+        $prefix = 'PO/MLI/' . date('Ym') . '/';
         $this->db->like('po_number', $prefix, 'after');
         $this->db->order_by('id', 'DESC');
         $last = $this->db->get($this->table_header, 1)->row();
         $new_num = $last ? (int) substr($last->po_number, -4) + 1 : 1;
         return $prefix . str_pad($new_num, 4, '0', STR_PAD_LEFT);
+    }
+
+    public function check_po_number_exists($po_number) {
+        $this->db->where('po_number', $po_number);
+        $query = $this->db->get($this->table_header, 1);
+        return $query->num_rows() > 0;
     }
 
     public function update_status($id, $new_status, $userId = NULL, $reset_approval = FALSE) {
@@ -134,6 +152,7 @@ class Po_model extends CI_Model {
                 WHEN d.item_type = 'machine' THEN COALESCE(mc.satuan, 'Unit')            
                 ELSE 'pcs'
             END as item_unit,
+            COALESCE(m.nama_material, sf.nama_barang, mc.nama_mesin, i.nama_barang, '') as item_name_for_translation,
             sc.sc_number
         ";
         $this->db->select($select_clause, FALSE);
