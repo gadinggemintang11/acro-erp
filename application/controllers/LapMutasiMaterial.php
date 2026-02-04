@@ -236,23 +236,45 @@ class LapMutasiMaterial extends MY_Controller {
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         
-        $sheet->setTitle('Laporan Mutasi Bahan Baku dan Bahan Penolong');
+        // Sheet title max 31 characters
+        $sheet->setTitle('Mutasi Material');
 
-        $sheet->mergeCells('A1:M1')->setCellValue('A1', 'Laporan Mutasi Bahan Baku dan Bahan Penolong');
-        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(16);
-        $sheet->mergeCells('A2:M2')->setCellValue('A2', "Periode: $start s/d $end");
+        // --- Header dengan Company Name ---
+        $sheet->setCellValue('A1', 'PT MINGBAO LIANCHUANG INTERNATIONAL');
+        $sheet->mergeCells('A1:M1');
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(11);
+        $sheet->getStyle('A1')->getAlignment()->setHorizontal('center');
+        
+        $sheet->setCellValue('A2', 'Laporan Mutasi Bahan Baku dan Bahan Penolong');
+        $sheet->mergeCells('A2:M2');
+        $sheet->getStyle('A2')->getFont()->setBold(true)->setSize(12);
+        $sheet->getStyle('A2')->getAlignment()->setHorizontal('center');
+        
+        // --- Periode ---
+        $start_fmt = date('d M Y', strtotime($start));
+        $end_fmt = date('d M Y', strtotime($end));
+        $sheet->setCellValue('A3', "Periode: $start_fmt s/d $end_fmt");
+        $sheet->mergeCells('A3:M3');
+        $sheet->getStyle('A3')->getAlignment()->setHorizontal('center');
 
+        // --- Header Table ---
         $header = [
             'No', 'Kode Barang', 'Nama Barang', 'Satuan', 'Jenis Item',
             'Saldo Awal', 'Pemasukan', 'Retur Prod.', 'Pengeluaran Prod.', 
             'Penyesuaian', 'Saldo Akhir (Sistem)', 'Hasil Pencacahan', 'Jumlah Selisih'
         ];
-        $sheet->fromArray($header, null, 'A4');
-        $sheet->getStyle('A4:M4')->getFont()->setBold(true);
-        $sheet->getStyle('A4:M4')->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setARGB('FFFFE0');
+        $sheet->fromArray($header, null, 'A5');
+        
+        // Style header table
+        $headerStyle = $sheet->getStyle('A5:M5');
+        $headerStyle->getFont()->setBold(true)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color('FFFFFFFF'));
+        $headerStyle->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setARGB('FF667eea');
+        $headerStyle->getAlignment()->setHorizontal('center')->setVertical('center');
+        $headerStyle->getBorders()->getAllBorders()->setBorderStyle('thin');
 
+        // --- Data rows ---
         $no = 1;
-        $rowNum = 5;
+        $rowNum = 6;
         foreach ($rows as $r) {
             $sheet->fromArray([
                 $no++,
@@ -270,13 +292,27 @@ class LapMutasiMaterial extends MY_Controller {
                 ($r['jumlah_selisih'] !== NULL) ? $r['jumlah_selisih'] : '',
             ], null, "A$rowNum");
             
+            // Format numbers dengan 2 desimal
             $sheet->getStyle("F$rowNum:M$rowNum")->getNumberFormat()->setFormatCode('#,##0.00');
+            
+            // Border untuk semua cells
+            $sheet->getStyle("A$rowNum:M$rowNum")->getBorders()->getAllBorders()->setBorderStyle('thin');
+            
             $rowNum++;
         }
 
+        // --- Column width dan alignment ---
         foreach (range('A', 'M') as $col) {
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
+        
+        // Center align untuk kolom No, Satuan, Jenis Item
+        $sheet->getStyle("A6:A" . ($rowNum-1))->getAlignment()->setHorizontal('center');
+        $sheet->getStyle("D6:D" . ($rowNum-1))->getAlignment()->setHorizontal('center');
+        $sheet->getStyle("E6:E" . ($rowNum-1))->getAlignment()->setHorizontal('center');
+        
+        // Right align untuk numeric columns
+        $sheet->getStyle("F6:M" . ($rowNum-1))->getAlignment()->setHorizontal('right');
 
         header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         header('Content-Disposition: attachment; filename="Laporan_Mutasi_Material_' . date('Ymd_His') . '.xlsx"');
@@ -300,16 +336,21 @@ class LapMutasiMaterial extends MY_Controller {
 
         $html = $this->load->view('it_inventory/lap_mutasi_material/pdf_view', $data, true); 
 
-        $mpdf = new Mpdf([
-            'format' => 'A4-L',
-            'margin_top' => 15,
-            'margin_bottom' => 15,
-            'margin_left' => 10,
-            'margin_right' => 10,
-        ]);
+        try {
+            $mpdf = new Mpdf([
+                'format' => 'A4-L',
+                'margin_top' => 15,
+                'margin_bottom' => 15,
+                'margin_left' => 10,
+                'margin_right' => 10,
+            ]);
 
-        $mpdf->SetTitle('Laporan Mutasi Bahan Baku dan Bahan Penolong');
-        $mpdf->WriteHTML($html);
-        $mpdf->Output('Laporan_Mutasi_Material_' . date('Ymd_His') . '.pdf', 'D');
+            $mpdf->SetTitle('Laporan Mutasi Bahan Baku dan Bahan Penolong');
+            $mpdf->WriteHTML($html);
+            $mpdf->Output('Laporan_Mutasi_Material_' . date('Ymd_His') . '.pdf', 'D');
+        } catch (\Mpdf\MpdfException $e) {
+            log_message('error', 'PDF Export Error (LapMutasiMaterial): ' . $e->getMessage());
+            show_error('Gagal membuat PDF.');
+        }
     }
 }

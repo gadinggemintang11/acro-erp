@@ -3,151 +3,356 @@
 <head>
     <meta charset="UTF-8">
     <title>Purchase Order: <?= htmlspecialchars($header->po_number) ?></title>
+    <!-- TEMPLATE VERSION: <?= isset($cache_buster) ? $cache_buster : time() ?> - BILINGUAL WITH CHINESE -->
     <style>
-        /* (Style CSS Anda sudah bagus, tidak perlu diubah) */
-        body { font-family: 'Helvetica', sans-serif; font-size: 10px; }
-        .header, .footer { width: 100%; text-align: center; position: fixed; }
-        .header { top: 0px; }
-        .footer { bottom: 0px; font-size: 8px; }
-        .pagenum:before { content: counter(page); }
-        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
-        th, td { border: 1px solid #ddd; padding: 5px; text-align: left; vertical-align: top; } /* Tambah vertical-align */
-        th { background-color: #f2f2f2; text-align: center;}
-        .text-right { text-align: right; }
-        .text-center { text-align: center; }
-        .mb-1 { margin-bottom: 0.25rem; }
-        .mb-0 { margin-bottom: 0; }
-        h1 { text-align: center; margin-bottom: 20px; font-size: 16px; text-decoration: underline; } /* Tambah underline */
-        .info-table { width: 100%; margin-bottom: 15px; }
-        .info-table td { border: none; padding: 2px 0;}
-        .no-border { border: none !important; } /* Class untuk tanda tangan */
-        .notes { margin-top: 20px; font-size: 9px; }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            font-size: 8px;
+            color: #000;
+            line-height: 1.3;
+        }
+        
+        @page {
+            size: A4;
+            margin: 12mm 20mm;
+        }
+        
+        .container {
+            width: 100%;
+            margin: 0 auto;
+        }
+        
+        /* Header Section */
+        .header {
+            display: table;
+            width: 100%;
+            margin-bottom: 8px;
+        }
+        
+        .header-left {
+            display: table-cell;
+            width: 35%;
+            vertical-align: top;
+            font-size: 8px;
+        }
+        
+        .header-center {
+            display: table-cell;
+            width: 30%;
+            text-align: center;
+            vertical-align: middle;
+        }
+        
+        .header-right {
+            display: table-cell;
+            width: 35%;
+            text-align: right;
+            vertical-align: top;
+            font-size: 8px;
+        }
+        
+        .po-title {
+            font-size: 14px;
+            font-weight: bold;
+            line-height: 1.2;
+        }
+        
+        .supplier-label {
+            font-weight: bold;
+            font-size: 9px;
+            margin-bottom: 2px;
+        }
+        
+        .supplier-name {
+            font-weight: bold;
+            font-size: 8px;
+            margin-bottom: 2px;
+        }
+        
+        .po-meta-label {
+            font-weight: bold;
+            font-size: 8px;
+            margin-bottom: 1px;
+        }
+        
+        .po-meta-value {
+            font-size: 8px;
+            margin-bottom: 3px;
+        }
+        
+        /* Table Styles */
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 8px;
+        }
+        
+        th {
+            background-color: #cccccc;
+            border: 1px solid #000;
+            padding: 4px;
+            font-weight: bold;
+            text-align: center;
+            font-size: 7px;
+            line-height: 1.3;
+        }
+        
+        td {
+            border: 1px solid #000;
+            padding: 3px;
+            font-size: 7px;
+            vertical-align: middle;
+        }
+        
+        .text-right {
+            text-align: right;
+            padding-right: 4px;
+        }
+        
+        .text-center {
+            text-align: center;
+        }
+        
+        .totals-row {
+            background-color: #e0e0e0;
+            font-weight: bold;
+        }
+        
+        .totals-row td {
+            padding: 3px;
+            font-size: 7px;
+        }
+        
+        /* Payment Section */
+        .payment-section {
+            margin: 6px 0;
+            font-size: 7px;
+            line-height: 1.4;
+        }
+        
+        .payment-section strong {
+            font-weight: bold;
+        }
+        
+        /* Signature Section */
+        .signature-section {
+            margin-top: 10px;
+        }
+        
+        .signature-table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 5px;
+        }
+        
+        .signature-table td {
+            border: none;
+            padding: 4px;
+            text-align: center;
+            font-size: 7px;
+            width: 25%;
+        }
+        
+        .sig-title {
+            font-weight: bold;
+            margin-bottom: 3px;
+            line-height: 1.3;
+        }
+        
+        .sig-space {
+            height: 40px;
+        }
+        
+        .sig-line {
+            border-top: 1px solid #000;
+            padding-top: 2px;
+            font-size: 6px;
+        }
     </style>
 </head>
 <body>
-    <h1>PURCHASE ORDER</h1>
-
-    <table class="info-table">
-        <tr>
-            <td style="width: 50%;">
-                <strong>Kepada Yth:</strong><br>
-                <strong><?= htmlspecialchars($header->nama_supplier); ?></strong><br>
-                <?= nl2br(htmlspecialchars($header->alamat ?? '-')); ?><br>
-                Telp: <?= htmlspecialchars($header->telepon ?? '-'); ?>
-            </td>
-            <td style="width: 50%; vertical-align: top;">
-                <strong>Nomor PO:</strong> <?= htmlspecialchars($header->po_number); ?><br>
-                <strong>Tanggal:</strong> <?= date('d F Y', strtotime($header->po_date)); ?><br>
-                <strong>Currency:</strong> <?= htmlspecialchars($header->currency_code); ?>
-                <?php if($header->currency_code != 'IDR'): ?>
-                    (Kurs: <?= number_format((float)$header->exchange_rate, 4); ?>)
-                <?php endif; ?><br>
-                <strong>Pembayaran:</strong> <?= htmlspecialchars($header->payment_mode_desc ?? '-'); ?><br>
-                <strong>Pengiriman:</strong> <?= htmlspecialchars($header->shipping_mode_desc ?? '-'); ?>
-            </td>
-        </tr>
-    </table>
-
-
-    <table>
-        <thead>
-            <tr>
-                <th style="width:5%">No</th>
-                <th style="width:15%">Kode</th>
-                <th>Nama Barang & Deskripsi</th>
-                <th style="width:10%">Qty</th>
-                <th style="width:10%">Satuan</th>
-                <th style="width:15%">Harga (<?= $header->currency_code; ?>)</th>
-                <th style="width:15%">Total (<?= $header->currency_code; ?>)</th>
-            </tr>
-        </thead>
-        <tbody>
-            <?php 
-                $no = 1; 
-                $grand_total_base = 0; 
-                $grand_total_local = 0; // Inisialisasi total local
-                foreach($details as $d): 
-                    $total_base = (float)($d->qty ?? 0) * (float)($d->base_price ?? 0); 
-                    $grand_total_base += $total_base;
-                    $grand_total_local += (float)($d->total_local ?? 0); // Akumulasi total local
-            ?>
-            <tr>
-                <td class="text-center"><?= $no++; ?></td>
-                <td><?= htmlspecialchars($d->item_code); ?></td>
-                <td>
-                    <?= htmlspecialchars($d->item_name); ?>
-                    <?php if(!empty($d->description)): ?>
-                        <br><small><i><?= nl2br(htmlspecialchars($d->description)); // Gunakan nl2br juga ?></i></small>
-                    <?php endif; ?>
-                    <?php if(!empty($d->sc_number)): // Tampilkan SC jika ada ?>
-                        <br><small><i>(Ref: <?= htmlspecialchars($d->sc_number); ?>)</i></small>
-                    <?php endif; ?>
-                </td>
-                <td class="text-right"><?= number_format((float)($d->qty ?? 0), 4, '.', ','); ?></td>
-                <td class="text-center"><?= htmlspecialchars($d->item_unit ?? '-'); ?></td>
-                <td class="text-right"><?= number_format((float)($d->base_price ?? 0), 2, '.', ','); ?></td>
-                <td class="text-right"><?= number_format($total_base, 2, '.', ','); ?></td>
-            </tr>
-            <?php endforeach; ?>
-        </tbody>
-        <tfoot>
-            <tr>
-                <td colspan="6" class="text-right no-border" style="border-bottom: 1px solid #ddd !important;"><strong>Subtotal (<?= $header->currency_code; ?>)</strong></td>
-                <td class="text-right" style="border-bottom: 1px solid #ddd !important;"><strong><?= number_format($grand_total_base, 2, '.', ','); ?></strong></td>
-            </tr>
-            <?php 
-                $ppn_amount = $header->has_ppn ? $grand_total_base * 0.11 : 0;
-                $total_after_ppn_base = $grand_total_base + $ppn_amount;
-            ?>
-            <?php if($header->has_ppn): ?>
-            <tr>
-                <td colspan="6" class="text-right no-border">PPN 11%</td>
-                <td class="text-right"><?= number_format($ppn_amount, 2, '.', ','); ?></td>
-            </tr>
-            <tr>
-                <td colspan="6" class="text-right no-border"><strong>Total Setelah PPN (<?= $header->currency_code; ?>)</strong></td>
-                <td class="text-right"><strong><?= number_format($total_after_ppn_base, 2, '.', ','); ?></strong></td>
-            </tr>
+    <div class="container">
+        <!-- Header Section -->
+        <div class="header">
+            <div class="header-left">
+                <div class="supplier-label">SUPPLIER :</div>
+                <div class="supplier-name"><?= htmlspecialchars($header->nama_supplier); ?></div>
+                <div style="font-size: 7px;"><?= htmlspecialchars(str_replace("\n", " ", $header->alamat ?? '')); ?></div>
+            </div>
+            <div class="header-center">
+                <div class="po-title">PURCHASE<br>ORDER</div>
+            </div>
+            <div class="header-right">
+                <div class="po-meta-label">Purchase No<br>采购单号</div>
+                <div class="po-meta-value"><?= htmlspecialchars($header->po_number); ?></div>
+                <div class="po-meta-label" style="margin-top: 4px;">Purchase Date<br>采购日期</div>
+                <div class="po-meta-value"><?= date('d-m-Y', strtotime($header->po_date)); ?></div>
+            </div>
+        </div>
+        
+        <!-- Items Table -->
+        <table>
+            <thead>
+                <tr>
+                    <th style="width: 3%;">No<br>编号</th>
+                    <th style="width: 12%;">Nama Barang<br>商品名称</th>
+                    <th style="width: 12%;">中文翻译<br>Chinese</th>
+                    <th style="width: 5%;">Qty<br>数量</th>
+                    <th style="width: 4%;">Unit<br>单位</th>
+                    <th style="width: 9%;">Harga<br>单价</th>
+                    <th style="width: 9%;">Total<br>合计</th>
+                    <th style="width: 8%;">Diskon<br>折扣</th>
+                    <th style="width: 5%;">PPN<br>税</th>
+                    <th style="width: 10%;">Sub Total<br>小计</th>
+                </tr>
+            </thead>
+            <tbody>
+                <?php 
+                    $no = 1; 
+                    $total_before_discount = 0;
+                    $total_discount = 0;
+                    $total_ppn = 0;
+                    $total_subtotal = 0;
+                    
+                    foreach($details as $d): 
+                        $qty = (float)($d->qty ?? 0);
+                        $price = (float)($d->base_price ?? 0);
+                        $total = $qty * $price;
+                        $discount = (float)($d->discount_amount ?? 0);
+                        $after_discount = $total - $discount;
+                        $ppn = $header->has_ppn ? $after_discount * 0.11 : 0;
+                        $subtotal = $after_discount + $ppn;
+                        
+                        $total_before_discount += $total;
+                        $total_discount += $discount;
+                        $total_ppn += $ppn;
+                        $total_subtotal += $subtotal;
+                        
+                        $item_name = htmlspecialchars($d->item_name ?? '');
+                        
+                        // Translate to Chinese
+                        $chinese_text = '';
+                        $text_upper = strtoupper($item_name);
+                        $translations = [
+                            'MARKING' => '标记',
+                            'STICKER' => '贴纸',
+                            'CLEANER' => '清洁剂',
+                            'TREATMENT' => '处理',
+                            'PVC' => 'PVC',
+                            'STABILIZER' => '稳定剂',
+                            'PLASTIC' => '塑料',
+                            'RESIN' => '树脂',
+                            'POWDER' => '粉末',
+                            'ADDITIVE' => '添加剂',
+                            'CHEMICAL' => '化学',
+                            'COMPOUND' => '复合',
+                            'MATERIAL' => '材料',
+                            'METAL' => '金属',
+                            'RUBBER' => '橡胶',
+                            'PAINT' => '油漆',
+                            'COATING' => '涂层',
+                            'MACHINE' => '机器',
+                            'EQUIPMENT' => '设备',
+                        ];
+                        
+                        foreach($translations as $en => $cn) {
+                            if (stripos($text_upper, $en) !== false) {
+                                $chinese_text = $cn;
+                                break;
+                            }
+                        }
+                        
+                        if (empty($chinese_text)) {
+                            $chinese_text = htmlspecialchars($item_name);
+                        }
+                ?>
+                <tr>
+                    <td class="text-center"><?= $no++; ?></td>
+                    <td><?= $item_name; ?></td>
+                    <td class="text-center"><?= $chinese_text; ?></td>
+                    <td class="text-right"><?= number_format($qty, 0); ?></td>
+                    <td class="text-center"><?= htmlspecialchars($d->item_unit ?? '-'); ?></td>
+                    <td class="text-right"><?= htmlspecialchars($header->currency_code); ?> <?= number_format($price, 0); ?></td>
+                    <td class="text-right"><?= htmlspecialchars($header->currency_code); ?> <?= number_format($total, 0); ?></td>
+                    <td class="text-right"><?= htmlspecialchars($header->currency_code); ?> <?= number_format($discount, 0); ?></td>
+                    <td class="text-center"><?= $header->has_ppn ? '11%' : '-'; ?></td>
+                    <td class="text-right"><?= htmlspecialchars($header->currency_code); ?> <?= number_format($subtotal, 0); ?></td>
+                </tr>
+                <?php endforeach; ?>
+            </tbody>
+            <tfoot>
+                <tr class="totals-row">
+                    <td colspan="6" class="text-right">Total Sebelum Pajak & Diskon / 税前折扣前总额</td>
+                    <td class="text-right"><?= htmlspecialchars($header->currency_code); ?> <?= number_format($total_before_discount, 0); ?></td>
+                    <td class="text-right"><?= htmlspecialchars($header->currency_code); ?> <?= number_format($total_discount, 0); ?></td>
+                    <td colspan="2"></td>
+                </tr>
+                <tr class="totals-row">
+                    <td colspan="6" class="text-right">Diskon / 折扣</td>
+                    <td class="text-right">-</td>
+                    <td class="text-right"><?= htmlspecialchars($header->currency_code); ?> <?= number_format($total_discount, 0); ?></td>
+                    <td colspan="2"></td>
+                </tr>
+                <tr class="totals-row">
+                    <td colspan="6" class="text-right">PPN 11% / 增值税</td>
+                    <td class="text-right">-</td>
+                    <td class="text-right"><?= htmlspecialchars($header->currency_code); ?> <?= number_format($total_ppn, 0); ?></td>
+                    <td colspan="2"></td>
+                </tr>
+                <tr class="totals-row">
+                    <td colspan="6" class="text-right">Grand Total / 总计</td>
+                    <td colspan="2" class="text-right"><?= htmlspecialchars($header->currency_code); ?> <?= number_format($total_subtotal, 0); ?></td>
+                    <td colspan="2"></td>
+                </tr>
+            </tfoot>
+        </table>
+        
+        <!-- Payment Section -->
+        <div class="payment-section">
+            <strong>Payment Terms / 付款条款:</strong> <?= htmlspecialchars($header->payment_mode_desc ?? '-'); ?><br>
+            <strong>Delivery / 交货:</strong> <?= htmlspecialchars($header->shipping_mode_desc ?? '-'); ?><br>
+            <?php if(!empty($header->remarks)): ?>
+                <strong>Notes / 备注:</strong> <?= htmlspecialchars($header->remarks); ?><br>
             <?php endif; ?>
-
-            <?php if($header->currency_code != 'IDR'): ?>
-            <?php 
-                // Logika estimasi total IDR (sama seperti di view detail.php)
-                $grand_total_final_local = $grand_total_local * ($header->has_ppn ? 1.11 : 1);
-            ?>
-            <tr>
-                <td colspan="6" class="text-right no-border" style="background-color: #f2f2f2;"><strong>Estimasi Grand Total (IDR)</strong></td>
-                <td class="text-right" style="background-color: #f2f2f2;"><strong><?= number_format($grand_total_final_local, 2, '.', ','); ?></strong></td>
-            </tr>
-            <?php endif; ?>
-        </tfoot>
-    </table>
-
-     <?php if(!empty($header->remarks)): ?>
-         <div class="notes">
-             <strong>Catatan:</strong><br>
-             <?= nl2br(htmlspecialchars($header->remarks)); ?>
-         </div>
-     <?php endif; ?>
-
-    <table style="margin-top: 40px; border: none;">
-         <tr>
-             <td style="width: 50%; text-align: center; border: none;">Disetujui Oleh,</td>
-             <td style="width: 50%; text-align: center; border: none;">Dibuat Oleh,</td>
-         </tr>
-          <tr>
-             <td style="height: 60px; border: none;"></td>
-             <td style="border: none;"></td>
-         </tr>
-          <tr>
-             <td style="text-align: center; border: none;">(.......................)</td>
-             <td style="text-align: center; border: none;">( <?= htmlspecialchars($header->creator_name ?? 'Admin'); ?> )</td>
-         </tr>
-         <tr>
-             <td style="text-align: center; border: none; font-size: 9px;">(Purchasing / Manager)</td>
-             <td style="text-align: center; border: none; font-size: 9px;">(PPIC / Staff)</td>
-         </tr>
-    </table>
-
+        </div>
+        
+        <!-- Signature Section -->
+        <div class="signature-section">
+            <table class="signature-table">
+                <tr>
+                    <td>
+                        <div class="sig-title">Disetujui<br>批准</div>
+                    </td>
+                    <td>
+                        <div class="sig-title">Kepala Bagian<br>行政主管</div>
+                    </td>
+                    <td>
+                        <div class="sig-title">Kepala Akuntan<br>会计主管</div>
+                    </td>
+                    <td>
+                        <div class="sig-title">Pemohon<br>申请人</div>
+                    </td>
+                </tr>
+                <tr>
+                    <td class="sig-space"></td>
+                    <td class="sig-space"></td>
+                    <td class="sig-space"></td>
+                    <td class="sig-space"></td>
+                </tr>
+                <tr>
+                    <td class="sig-line">(.......................)</td>
+                    <td class="sig-line">(.......................)</td>
+                    <td class="sig-line">(.......................)</td>
+                    <td class="sig-line">(<?= htmlspecialchars($header->creator_name ?? 'Admin'); ?>)</td>
+                </tr>
+            </table>
+        </div>
+    </div>
 </body>
 </html>

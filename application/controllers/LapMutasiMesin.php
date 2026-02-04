@@ -16,8 +16,8 @@ class LapMutasiMesin extends MY_Controller {
     public function index() {
         $data = [
             'page_title' => 'Laporan Mutasi Mesin & Peralatan Mekanik',
-            'start'      => '2025-10-01', // Tanggal mulai
-            'end'        => '2025-11-01'
+            'start'      => date('Y-m-01'),
+            'end'        => date('Y-m-t')
         ];
 
         $this->load->view('templates/header', $data);
@@ -72,44 +72,87 @@ class LapMutasiMesin extends MY_Controller {
 
         $rows = $this->LapMutasiMesin_model->get_mutasi_mesin($start, $end, $search);
 
+        if (empty($rows)) {
+            show_error('Tidak ada data untuk periode yang dipilih.');
+            return;
+        }
+
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         
-        $sheet->setTitle('Laporan Mutasi Mesin');
-        $sheet->mergeCells('A1:H1')->setCellValue('A1', 'Laporan Mutasi Mesin');
-        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(16);
-        $sheet->mergeCells('A2:H2')->setCellValue('A2', "Periode: $start s/d $end");
+        // Sheet title max 31 characters
+        $sheet->setTitle('Mutasi Mesin');
 
-        $header = ['No', 'Kode Mesin', 'Nama Mesin', 'Kategori', 'Saldo Awal', 'Masuk', 'Penyesuaian', 'Saldo Akhir'];
-        $sheet->fromArray($header, null, 'A4');
-        $sheet->getStyle('A4:H4')->getFont()->setBold(true);
+        // --- Header dengan Company Name ---
+        $sheet->setCellValue('A1', 'PT MINGBAO LIANCHUANG INTERNATIONAL');
+        $sheet->mergeCells('A1:H1');
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(11);
+        $sheet->getStyle('A1')->getAlignment()->setHorizontal('center');
+        
+        $sheet->setCellValue('A2', 'Laporan Mutasi Mesin & Peralatan Mekanik');
+        $sheet->mergeCells('A2:H2');
+        $sheet->getStyle('A2')->getFont()->setBold(true)->setSize(12);
+        $sheet->getStyle('A2')->getAlignment()->setHorizontal('center');
+        
+        // --- Periode ---
+        $start_fmt = date('d M Y', strtotime($start));
+        $end_fmt = date('d M Y', strtotime($end));
+        $sheet->setCellValue('A3', "Periode: $start_fmt s/d $end_fmt");
+        $sheet->mergeCells('A3:H3');
+        $sheet->getStyle('A3')->getAlignment()->setHorizontal('center');
 
+        // --- Header Table ---
+        $header = ['No', 'Kode Mesin', 'Nama Mesin', 'Satuan', 'Saldo Awal', 'Masuk', 'Penyesuaian', 'Saldo Akhir'];
+        $sheet->fromArray($header, null, 'A5');
+        
+        // Style header table
+        $headerStyle = $sheet->getStyle('A5:H5');
+        $headerStyle->getFont()->setBold(true)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color('FFFFFFFF'));
+        $headerStyle->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setARGB('FF667eea');
+        $headerStyle->getAlignment()->setHorizontal('center')->setVertical('center');
+        $headerStyle->getBorders()->getAllBorders()->setBorderStyle('thin');
+
+        // --- Data rows ---
         $no = 1;
-        $rowNum = 5;
+        $rowNum = 6;
         foreach ($rows as $r) {
             $sheet->fromArray([
                 $no++,
-                $r['kode_mesin'],
-                $r['nama_mesin'],
-                $r['kategori'],
-                $r['saldo_awal'],
-                $r['total_masuk'],
-                $r['total_penyesuaian'],
-                $r['saldo_akhir']
+                $r['kode_mesin'] ?? '',
+                $r['nama_mesin'] ?? '',
+                $r['satuan'] ?? '',
+                (float)($r['saldo_awal'] ?? 0),
+                (float)($r['total_masuk'] ?? 0),
+                (float)($r['total_penyesuaian'] ?? 0),
+                (float)($r['saldo_akhir'] ?? 0)
             ], null, "A$rowNum");
             
+            // Format numbers dengan 2 desimal
             $sheet->getStyle("E$rowNum:H$rowNum")->getNumberFormat()->setFormatCode('#,##0.00');
+            
+            // Border untuk semua cells
+            $sheet->getStyle("A$rowNum:H$rowNum")->getBorders()->getAllBorders()->setBorderStyle('thin');
+            
             $rowNum++;
         }
 
+        // --- Column width dan alignment ---
         foreach (range('A', 'H') as $col) {
             $sheet->getColumnDimension($col)->setAutoSize(true);
         }
+        
+        // Center align untuk kolom No dan Satuan
+        $sheet->getStyle("A6:A" . ($rowNum-1))->getAlignment()->setHorizontal('center');
+        $sheet->getStyle("D6:D" . ($rowNum-1))->getAlignment()->setHorizontal('center');
+        
+        // Right align untuk numeric columns
+        $sheet->getStyle("E6:H" . ($rowNum-1))->getAlignment()->setHorizontal('right');
 
         header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
         header('Content-Disposition: attachment; filename="Laporan_Mutasi_Mesin_' . date('Ymd_His') . '.xlsx"');
         $writer = new Xlsx($spreadsheet);
         $writer->save('php://output');
+        exit;
     }
 
     public function export_pdf() {
@@ -119,17 +162,33 @@ class LapMutasiMesin extends MY_Controller {
 
         $rows = $this->LapMutasiMesin_model->get_mutasi_mesin($start, $end, $search);
 
+        // Format dates for display
+        $start_fmt = date('d M Y', strtotime($start));
+        $end_fmt = date('d M Y', strtotime($end));
+
         $data = [
-            'rows'  => $rows,
-            'start' => $start,
-            'end'   => $end
+            'rows'   => $rows,
+            'start'  => $start_fmt,
+            'end'    => $end_fmt
         ];
 
         $html = $this->load->view('it_inventory/lap_mutasi_mesin/pdf_view', $data, true); 
 
-        $mpdf = new Mpdf(['format' => 'A4-L']);
-        $mpdf->SetTitle('Laporan Mutasi Mesin');
-        $mpdf->WriteHTML($html);
-        $mpdf->Output('Laporan_Mutasi_Mesin_' . date('Ymd_His') . '.pdf', 'D');
+        try {
+            $mpdf = new Mpdf([
+                'format' => 'A4-L',
+                'margin_top' => 15,
+                'margin_bottom' => 15,
+                'margin_left' => 10,
+                'margin_right' => 10,
+            ]);
+
+            $mpdf->SetTitle('Laporan Mutasi Mesin & Peralatan Mekanik');
+            $mpdf->WriteHTML($html);
+            $mpdf->Output('Laporan_Mutasi_Mesin_' . date('Ymd_His') . '.pdf', 'D');
+        } catch (\Mpdf\MpdfException $e) {
+            log_message('error', 'PDF Export Error (LapMutasiMesin): ' . $e->getMessage());
+            show_error('Gagal membuat PDF.');
+        }
     }
 }

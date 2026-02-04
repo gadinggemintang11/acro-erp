@@ -23,23 +23,15 @@
         </div>
         <div class="card-body pt-0">
             <form class="row g-3">
-                <div class="col-md-3">
+                <div class="col-md-4">
                     <label for="start_date" class="form-label text-muted small">Tanggal Mulai</label>
                     <input type="date" id="start_date" class="form-control form-control-sm shadow-none" value="<?= htmlspecialchars($start); ?>">
                 </div>
-                <div class="col-md-3">
+                <div class="col-md-4">
                     <label for="end_date" class="form-label text-muted small">Tanggal Selesai</label>
                     <input type="date" id="end_date" class="form-control form-control-sm shadow-none" value="<?= htmlspecialchars($end); ?>">
                 </div>
-                <div class="col-md-3">
-                    <label for="item_type" class="form-label text-muted small">Tipe Item</label>
-                    <select id="item_type" class="form-select form-select-sm shadow-none">
-                        <option value="">Semua Tipe</option>
-                        <option value="material">Material</option>
-                        <option value="semifinished">Semifinished</option>
-                    </select>
-                </div>
-                <div class="col-md-3 d-flex align-items-end">
+                <div class="col-md-4 d-flex align-items-end">
                     <button id="btn-filter" class="btn btn-sm btn-primary w-100 shadow-sm">
                         <i class="fas fa-search me-1"></i> Tampilkan
                     </button>
@@ -128,7 +120,6 @@ $(function() {
             data: d => {
                 d.start = $('#start_date').val();
                 d.end = $('#end_date').val();
-                d.item_type = $('#item_type').val();
             },
             dataSrc: "data"
         },
@@ -181,13 +172,12 @@ $(function() {
         // Redirect ke halaman index dengan parameter GET agar filter tersimpan
         const params = $.param({ 
             start: $('#start_date').val(), 
-            end: $('#end_date').val(), 
-            item_type: $('#item_type').val() 
+            end: $('#end_date').val() 
         });
         window.location.href = '<?= base_url("LapMutasiMaterial"); ?>?' + params;
     });
     
-    const getExportUrl = () => '?' + $.param({ start:$('#start_date').val(), end:$('#end_date').val(), item_type:$('#item_type').val(), search:table.search() });
+    const getExportUrl = () => '?' + $.param({ start:$('#start_date').val(), end:$('#end_date').val(), search:table.search() });
     $('#btn-export-excel').click(()=> window.location.href = '<?= base_url("LapMutasiMaterial/export_excel"); ?>' + getExportUrl());
     $('#btn-export-pdf').click(()=> window.open('<?= base_url("LapMutasiMaterial/export_pdf"); ?>' + getExportUrl(), '_blank'));
 

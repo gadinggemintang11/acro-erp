@@ -16,20 +16,32 @@ class Exim_verification_model extends CI_Model {
             grn.id,
             grn.grn_number,
             grn.grn_date,
+            grn.base_on,
             grn.bc_type_code,
             grn.bc_number,
             grn.bc_date,
             grn.status,
             grn.exim_verified,
             grn.exim_verified_at,
-            s.nama_supplier,
+            CASE 
+                WHEN grn.base_on = "PO" THEN s.nama_supplier
+                WHEN grn.base_on = "MIR" THEN s_mir.nama_supplier
+                ELSE NULL
+            END AS nama_supplier,
             u.fullname as verified_by_name,
             COUNT(DISTINCT grnd.id) as num_items,
             SUM(grnd.receive_qty) as total_qty
-        ');
+        ', FALSE);
         $this->db->from('grn_header grn');
+        // JOIN untuk supplier PO
         $this->db->join('suppliers s', 'grn.supplier_id = s.id', 'left');
+        // JOIN untuk supplier MIR (melalui grn_details, mir_header, dan suppliers)
+        $this->db->join('grn_details grnd_temp', 'grn.id = grnd_temp.grn_header_id AND grnd_temp.source_doc_type = "MIR"', 'left');
+        $this->db->join('mir_header mh', 'grnd_temp.source_doc_header_id = mh.id', 'left');
+        $this->db->join('suppliers s_mir', 'mh.supplier_id = s_mir.id', 'left');
+        // JOIN untuk items details
         $this->db->join('grn_details grnd', 'grn.id = grnd.grn_header_id', 'left');
+        // JOIN untuk verified_by user
         $this->db->join('users u', 'grn.exim_verified_by = u.id', 'left');
 
         // Filter by date range
@@ -82,6 +94,7 @@ class Exim_verification_model extends CI_Model {
                 fgd.delivery_number as doc_number,
                 fgd.delivery_date as doc_date,
                 fgd.bc_type_id,
+                cc.description as bc_type_description,
                 fgd.bc_number,
                 fgd.bc_date,
                 fgd.status,
@@ -96,6 +109,7 @@ class Exim_verification_model extends CI_Model {
             $this->db->from('fg_delivery_header fgd');
             $this->db->join('customers c', 'fgd.customer_id = c.id', 'left');
             $this->db->join('fg_delivery_details fgdd', 'fgd.id = fgdd.fg_delivery_header_id', 'left');
+            $this->db->join('common_code cc', 'cc.group_code = "BC_TYPE" AND cc.code = fgd.bc_type_id', 'left');
             $this->db->join('users u', 'fgd.exim_verified_by = u.id', 'left');
 
             // Apply filters
@@ -131,12 +145,13 @@ class Exim_verification_model extends CI_Model {
                 so.doc_no as doc_number,
                 so.doc_date as doc_date,
                 so.bc_type_code as bc_type_id,
+                cc2.description as bc_type_description,
                 so.bc_number,
                 so.bc_date,
                 so.status,
                 so.exim_verified,
                 so.exim_verified_at,
-                so.destination as customer_name,
+                c.nama_customer as customer_name,
                 u.fullname as verified_by_name,
                 "SCRAP_OUT" as doc_type,
                 COUNT(DISTINCT sod.id) as num_items,
@@ -144,6 +159,8 @@ class Exim_verification_model extends CI_Model {
             ');
             $this->db->from('scrap_out_header so');
             $this->db->join('scrap_out_detail sod', 'so.id = sod.header_id', 'left');
+            $this->db->join('common_code cc2', 'cc2.group_code = "BC_TYPE" AND cc2.code = so.bc_type_code', 'left');
+            $this->db->join('customers c', 'so.destination = c.id', 'left');
             $this->db->join('users u', 'so.exim_verified_by = u.id', 'left');
 
             // Apply filters
@@ -371,7 +388,7 @@ class Exim_verification_model extends CI_Model {
             fg.kode_barang as item_code,
             fg.nama_barang as item_name,
             fg.satuan as item_unit,
-            sc.contract_number,
+            sc.sc_number as contract_number,
             sc.unit_price,
             sc.currency_code
         ');

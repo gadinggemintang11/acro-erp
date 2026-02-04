@@ -66,3 +66,11 @@
                         <td><?= $material['bc_type_code']; ?></td>
                         <td><?= $material['bc_number']; ?></td>
                         <td><?= $material['bc_date']; ?></td>
+                    </tr>
+                <?php endforeach; ?>
+            </tbody>
+        </table>
+    <?php endif; ?>
+</body>
+</html>
+                        <td><?= $material['bc_date']; ?></td>

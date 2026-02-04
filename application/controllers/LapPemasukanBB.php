@@ -203,93 +203,137 @@ class LapPemasukanBB extends MY_Controller {
      * Fungsi Export Excel
      */
     public function export_excel() {
-         if (!check_access('lap_pemasukan_bb', 'view')) { show_error('Tidak ada izin.', 403); return;}
+        if (!check_access('lap_pemasukan_bb', 'view')) { show_error('Tidak ada izin.', 403); return; }
 
-        
         $start_date = $this->input->get('start_date') ?: date('Y-m-01');
         $end_date = $this->input->get('end_date') ?: date('Y-m-d');
         $bc_type = $this->input->get('bc_type');
         $search = $this->input->get('search');
         $filters = ['start_date' => $start_date, 'end_date' => $end_date, 'bc_type' => $bc_type, 'search' => $search];
 
-        
+        // Ambil data (model mengembalikan array)
         $report_data = $this->LapPemasukanBB_model->get_report($filters, 0, 0);
         $bc_types_map = array_column($this->Commoncode_model->get_by_group('BC_TYPE'), 'description', 'code');
 
-
         try {
-            $rowNum = $headerRow + 1; // Inisialisasi rowNum di sini
             $spreadsheet = new Spreadsheet();
             $sheet = $spreadsheet->getActiveSheet();
             $sheet->setTitle("Pemasukan BB");
 
             // --- Header Laporan ---
-            $rowIdx = 1;
-            $sheet->setCellValue('A'.$rowIdx, $this->report_title); $sheet->mergeCells('A'.$rowIdx.':J'.$rowIdx); // Sesuaikan range J jika kolom bertambah
-            $sheet->getStyle('A'.$rowIdx)->getFont()->setBold(true)->setSize(14); $sheet->getStyle('A'.$rowIdx)->getAlignment()->setHorizontal('center'); $rowIdx++;
-            $sheet->setCellValue('A'.$rowIdx, 'Periode: ' . date('d M Y', strtotime($start_date)) . ' s/d ' . date('d M Y', strtotime($end_date))); $sheet->mergeCells('A'.$rowIdx.':J'.$rowIdx); $sheet->getStyle('A'.$rowIdx)->getAlignment()->setHorizontal('center'); $rowIdx++;
-            if($bc_type) { $sheet->setCellValue('A'.$rowIdx, 'Filter BC Type: ' . ($bc_types_map[$bc_type] ?? $bc_type)); $rowIdx++; }
-            if($search) { $sheet->setCellValue('A'.$rowIdx, 'Pencarian: ' . $search); $rowIdx++; }
-            $rowIdx++;
+            $sheet->setCellValue('A1', $this->report_title);
+            $sheet->mergeCells('A1:M1');
+            $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+            $sheet->getStyle('A1')->getAlignment()->setHorizontal('center');
+            
+            // Tambah nama perusahaan
+            $sheet->setCellValue('A2', 'PT MINGBAO LIANCHUANG INTERNATIONAL');
+            $sheet->mergeCells('A2:M2');
+            $sheet->getStyle('A2')->getFont()->setBold(true)->setSize(11);
+            $sheet->getStyle('A2')->getAlignment()->setHorizontal('center');
+            
+            // Format periode dengan format tanggal yang lebih readable
+            $start_display = date('d M Y', strtotime($start_date));
+            $end_display = date('d M Y', strtotime($end_date));
+            $sheet->setCellValue('A3', 'Periode: ' . $start_display . ' s/d ' . $end_display);
+            $sheet->mergeCells('A3:M3');
+            $sheet->getStyle('A3')->getAlignment()->setHorizontal('center');
 
             // --- Header Tabel ---
-            $headerRow = $rowIdx;
-            // Sesuaikan header ini dengan query di model get_report
-            $headers = ['Tanggal', 'No. Pendaf.', 'Tgl Pendaf.', 'No. Masuk (GRN)', 'Supplier', 'Kode Barang', 'Nama Barang', 'Satuan', 'Jumlah', 'Nilai Barang (Valuta?)', 'Nilai Barang (IDR)'];
-            $sheet->fromArray($headers, NULL, 'A'.$headerRow);
-            $lastHeaderCol = \PhpOffice\PhpSpreadsheet\Cell\Coordinate::stringFromColumnIndex(count($headers));
-            $sheet->getStyle('A'.$headerRow.':'.$lastHeaderCol.$headerRow)->getFont()->setBold(true);
-            $sheet->getStyle('A'.$headerRow.':'.$lastHeaderCol.$headerRow)->getAlignment()->setHorizontal('center')->setVertical('center');
-            $sheet->getStyle('A'.$headerRow.':'.$lastHeaderCol.$headerRow)->getBorders()->getBottom()->setBorderStyle('thick');
-            $rowIdx++;
+            $headerRow = 5;
+            $sheet->setCellValue('A'.$headerRow, 'NO');
+            $sheet->setCellValue('B'.$headerRow, 'JENIS BC');
+            $sheet->setCellValue('C'.$headerRow, 'NOMOR BC');
+            $sheet->setCellValue('D'.$headerRow, 'TANGGAL BC');
+            $sheet->setCellValue('E'.$headerRow, 'NOMOR GRN');
+            $sheet->setCellValue('F'.$headerRow, 'TANGGAL GRN');
+            $sheet->setCellValue('G'.$headerRow, 'SUPPLIER');
+            $sheet->setCellValue('H'.$headerRow, 'KODE BARANG');
+            $sheet->setCellValue('I'.$headerRow, 'NAMA BARANG');
+            $sheet->setCellValue('J'.$headerRow, 'JUMLAH');
+            $sheet->setCellValue('K'.$headerRow, 'SATUAN');
+            $sheet->setCellValue('L'.$headerRow, 'MATA UANG');
+            $sheet->setCellValue('M'.$headerRow, 'NILAI BARANG');
+
+            // Style header
+            $sheet->getStyle('A'.$headerRow.':M'.$headerRow)->getFont()->setBold(true);
+            $sheet->getStyle('A'.$headerRow.':M'.$headerRow)->getAlignment()->setHorizontal('center')->setVertical('center');
+            $sheet->getStyle('A'.$headerRow.':M'.$headerRow)->getFill()->setFillType('solid')->getStartColor()->setARGB('FFD3D3D3');
 
             // --- Isi Data ---
+            $rowNum = $headerRow + 1;
+            $no = 1;
+            
             if (!empty($report_data)) {
                 foreach ($report_data as $row) {
-                    $rowData = [
-                        isset($row->transaction_date) ? \PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel($row->transaction_date) : '', // Format tanggal Excel
-                        $row->bc_number ?? '',
-                        isset($row->bc_date) ? \PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel($row->bc_date) : '', // Format tanggal Excel
-                        $row->grn_number ?? ($row->source_doc_id ?? ''),
-                        $row->nama_supplier ?? '',
-                        $row->item_code ?? '',
-                        $row->item_name ?? '',
-                        $row->item_unit ?? '',
-                        $row->qty_in ?? 0,
-                        $row->unit_value_foreign ?? null, // Ambil nilai valuta jika ada di query
-                        $row->unit_value_idr ?? ($row->unit_value ?? 0) // Ambil nilai IDR
-                    ];
-                    $sheet->fromArray($rowData, NULL, 'A' . $rowNum);
-                    // Format Angka & Tanggal
-                    $sheet->getStyle('A'.$rowNum)->getNumberFormat()->setFormatCode('dd/mm/yyyy hh:mm');
-                    $sheet->getStyle('C'.$rowNum)->getNumberFormat()->setFormatCode('dd/mm/yyyy');
-                    $sheet->getStyle('I'.$rowNum.':K'.$rowNum)->getNumberFormat()->setFormatCode('#,##0.00'); // Kolom Jumlah & Nilai
+                    // $row adalah array, gunakan index
+                    $bc_code = isset($row['bc_type_code']) ? $row['bc_type_code'] : '';
+                    $bc_desc = isset($bc_types_map[$bc_code]) ? $bc_types_map[$bc_code] : $bc_code;
+                    
+                    // Format tanggal untuk display
+                    $bc_date_display = isset($row['bc_date']) && !empty($row['bc_date']) 
+                        ? date('d M Y', strtotime($row['bc_date'])) 
+                        : '-';
+                    $grn_date_display = isset($row['grn_date']) && !empty($row['grn_date']) 
+                        ? date('d M Y', strtotime($row['grn_date'])) 
+                        : '-';
+                    
+                    // Tulis setiap cell untuk menghindari issue dengan data type
+                    $sheet->setCellValue('A'.$rowNum, $no++);
+                    $sheet->setCellValue('B'.$rowNum, $bc_desc ? $bc_desc : '-');
+                    $sheet->setCellValue('C'.$rowNum, isset($row['bc_number']) ? $row['bc_number'] : '-');
+                    $sheet->setCellValue('D'.$rowNum, $bc_date_display);
+                    $sheet->setCellValue('E'.$rowNum, isset($row['grn_number']) ? $row['grn_number'] : '-');
+                    $sheet->setCellValue('F'.$rowNum, $grn_date_display);
+                    $sheet->setCellValue('G'.$rowNum, isset($row['nama_supplier']) ? $row['nama_supplier'] : '-');
+                    $sheet->setCellValue('H'.$rowNum, isset($row['item_code']) ? $row['item_code'] : '-');
+                    $sheet->setCellValue('I'.$rowNum, isset($row['item_name']) ? $row['item_name'] : '-');
+                    $sheet->setCellValue('J'.$rowNum, isset($row['qty_in']) ? (float)$row['qty_in'] : 0);
+                    $sheet->setCellValue('K'.$rowNum, isset($row['item_unit']) ? $row['item_unit'] : '-');
+                    $sheet->setCellValue('L'.$rowNum, isset($row['currency_code']) ? $row['currency_code'] : 'IDR');
+                    $sheet->setCellValue('M'.$rowNum, isset($row['unit_value_idr']) ? (float)$row['unit_value_idr'] : 0);
+                    
+                    // Format nomor untuk lebih readable
+                    $sheet->getStyle('J'.$rowNum)->getNumberFormat()->setFormatCode('#,##0.00');
+                    $sheet->getStyle('M'.$rowNum)->getNumberFormat()->setFormatCode('#,##0.00');
+                    
                     $rowNum++;
                 }
             } else {
-                 $sheet->setCellValue('A'.$rowNum, 'Tidak ada data.');
-                 $sheet->mergeCells('A'.$rowNum.':'.$lastHeaderCol.$rowNum);
+                $sheet->setCellValue('A'.$rowNum, 'Tidak ada data.');
+                $sheet->mergeCells('A'.$rowNum.':M'.$rowNum);
             }
 
             // --- Styling Akhir ---
-             $lastRow = $rowNum - 1;
-             if ($lastRow >= $headerRow + 1) {
-                 $sheet->getStyle('A'.$headerRow.':'.$lastHeaderCol.$lastRow)->getBorders()->getAllBorders()->setBorderStyle('thin');
-             }
-            foreach (range('A', $lastHeaderCol) as $col) { $sheet->getColumnDimension($col)->setAutoSize(true); }
-            $sheet->freezePane('A'.($headerRow + 1));
+            foreach (range('A', 'M') as $col) {
+                $sheet->getColumnDimension($col)->setAutoSize(true);
+            }
+            
+            // Add borders
+            $lastRow = $rowNum - 1;
+            if ($lastRow >= $headerRow) {
+                $sheet->getStyle('A'.$headerRow.':M'.$lastRow)->getBorders()->getAllBorders()->setBorderStyle('thin');
+            }
 
             // --- Output File ---
             $writer = new Xlsx($spreadsheet);
-            $safe_report_name = 'Pemasukan_BB';
-            $filename = "IT_Inventory_{$safe_report_name}_".date('Ymd', strtotime($start_date))."_sd_".date('Ymd', strtotime($end_date)).".xlsx";
+            $filename = "Lap_Pemasukan_BB_".date('Ymd', strtotime($start_date))."_sd_".date('Ymd', strtotime($end_date)).".xlsx";
+            
+            // Clear output buffer
+            if (ob_get_contents()) ob_end_clean();
+            
             header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
             header('Content-Disposition: attachment;filename="'. $filename.'"');
             header('Cache-Control: max-age=0');
+            header('Pragma: public');
+            
             $writer->save('php://output');
             exit;
 
-        } catch (Exception $e) { log_message('error', 'Excel Export Error (LapPemasukanBB): ' . $e->getMessage()); show_error('Gagal membuat Excel.'); }
+        } catch (Exception $e) { 
+            log_message('error', 'Excel Export Error (LapPemasukanBB): ' . $e->getMessage()); 
+            show_error('Gagal membuat Excel: ' . $e->getMessage()); 
+        }
     }
 
 

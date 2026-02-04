@@ -130,7 +130,7 @@
                                 <td><strong><?= htmlspecialchars($doc->doc_number); ?></strong></td>
                                 <td><?= date('d/m/Y', strtotime($doc->doc_date)); ?></td>
                                 <td><?= htmlspecialchars($doc->customer_name ?? '-'); ?></td>
-                                <td><?= htmlspecialchars($doc->bc_type_code ?? '-'); ?></td>
+                                <td><?= htmlspecialchars($doc->bc_type_description ?? $doc->bc_type_id ?? '-'); ?></td>
                                 <td><?= htmlspecialchars($doc->bc_number ?? '-'); ?></td>
                                 <td><?= $doc->bc_date ? date('d/m/Y', strtotime($doc->bc_date)) : '-'; ?></td>
                                 <td class="text-right"><?= number_format($doc->num_items, 0); ?></td>

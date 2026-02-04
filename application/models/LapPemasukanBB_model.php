@@ -25,7 +25,7 @@ class LapPemasukanBB_model extends CI_Model {
             grn.bc_type_code,
             grn.bc_number,
             grn.bc_date,
-            s.nama_supplier,
+            COALESCE(s.nama_supplier, s_po.nama_supplier, s_mir.nama_supplier) as nama_supplier,
             
             
             CASE 
@@ -72,6 +72,10 @@ class LapPemasukanBB_model extends CI_Model {
         $this->db->join('po_details pd', 'po.id = pd.po_header_id AND gd.item_id = pd.item_id', 'left');
         $this->db->join('mir_header mir', 'gd.source_doc_type = "MIR" AND gd.source_doc_header_id = mir.id', 'left');
         $this->db->join('mir_details md', 'mir.id = md.mir_header_id AND gd.item_id = md.item_id', 'left');
+        
+        // Add fallback suppliers for when GRN supplier_id is NULL (from PO or MIR)
+        $this->db->join('suppliers s_po', 's_po.id = po.supplier_id', 'left');
+        $this->db->join('suppliers s_mir', 's_mir.id = mir.supplier_id', 'left');
 
         // JOIN master item
         $this->db->join('materials m', 'sl.item_id = m.id AND sl.item_type = "material"', 'left');
@@ -172,22 +176,21 @@ class LapPemasukanBB_model extends CI_Model {
 
 
     // === FUNGSI DETAIL HISTORY ===
-    // (Fungsi ini tidak berubah, join ke grn_details tidak pakai stock_ledger_id)
+    // PERBAIKAN: Tambah fallback supplier dari PO/MIR jika GRN supplier_id NULL
     public function get_trace_detail($ledger_id)
     {
         $this->db->select("
             sl.*, 
             grn.grn_number, grn.grn_date, grn.bc_type_code, grn.bc_number, grn.bc_date,
-            s.nama_supplier, 
+            COALESCE(NULLIF(s.nama_supplier, ''), NULLIF(s_po.nama_supplier, ''), NULLIF(s_mir.nama_supplier, '')) as nama_supplier, 
             prh.prod_return_no, prh.return_date, 
             mr_h.mr_number, mr_h.request_date, 
             
-           
-            po.po_number, 
+            COALESCE(po.po_number, mir.mir_number) as po_number, 
             
             woh.wo_number, 
-            po.currency_code, po.exchange_rate, 
-            
+            po.currency_code, 
+            po.exchange_rate, 
             
             COALESCE(gd.unit_value, pod.local_price) AS unit_value_idr,
             pod.base_price AS unit_value_foreign,
@@ -205,13 +208,17 @@ class LapPemasukanBB_model extends CI_Model {
         $this->db->join('grn_header grn', 'sl.transaction_id = grn.id AND sl.transaction_type = "in"', 'left');
         $this->db->join('suppliers s', 'grn.supplier_id = s.id', 'left');
         
-        // FIX KRITIS 2: JOIN ke GRN Details (menggunakan item_id untuk akurasi)
+        // JOIN ke GRN Details (menggunakan item_id untuk akurasi)
         $this->db->join('grn_details gd', 'grn.id = gd.grn_header_id AND sl.item_id = gd.item_id AND sl.item_type = gd.item_type', 'left');
         
         // JOIN PO Header dan Detail
         $this->db->join('po_details pod', 'gd.source_doc_type = "PO" AND gd.source_doc_detail_id = pod.id', 'left');
-        // sl.source_doc_id seharusnya berisi ID PO
         $this->db->join('po_header po', 'gd.source_doc_type = "PO" AND gd.source_doc_header_id = po.id', 'left'); 
+        $this->db->join('suppliers s_po', 's_po.id = po.supplier_id', 'left');
+        
+        // JOIN MIR Header untuk fallback supplier
+        $this->db->join('mir_header mir', 'gd.source_doc_type = "MIR" AND gd.source_doc_header_id = mir.id', 'left');
+        $this->db->join('suppliers s_mir', 's_mir.id = mir.supplier_id', 'left');
         
         $this->db->join('prod_return_header prh', 'sl.transaction_id = prh.id AND sl.transaction_type = "IN_RETURN_WIP"', 'left');
         $this->db->join('mr_header mr_h', 'sl.transaction_id = mr_h.id AND sl.transaction_type = "production_out"', 'left');

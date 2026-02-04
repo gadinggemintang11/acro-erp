@@ -65,39 +65,92 @@
                 <h6 class="m-0 font-weight-bold text-primary"><i class="fas fa-cogs"></i> Bahan Baku Digunakan (Traceability)</h6>
             </div>
             <div class="card-body">
-                <p>Menampilkan material yang diminta (Issued) untuk WO ini dan yang terpakai (Used) di No. Produksi ini.</p>
+                <p>Menampilkan material yang diminta (Issued) untuk WO ini dan yang terpakai (Used) di No. Produksi ini dengan informasi BC dan tanggal kedatangan.</p>
                 <div class="table-responsive">
-                    <table class="table table-sm table-bordered table-hover" style="font-size: 0.9rem;">
+                    <table class="table table-sm table-bordered table-hover" style="font-size: 0.85rem;">
                         <thead class="thead-light text-center">
                             <tr>
-                                <th>Kode Material</th>
-                                <th>Nama Material</th>
-                                <th>Qty Issued (MR)</th>
-                                <th>Qty Terpakai (Produksi)</th>
-                                <th>Satuan</th>
+                                <th rowspan="2" class="align-middle">Kode Material</th>
+                                <th rowspan="2" class="align-middle">Nama Material</th>
+                                <th colspan="2" class="bg-info text-white">Quantity</th>
+                                <th rowspan="2" class="align-middle">Satuan</th>
+                                <th colspan="4" class="bg-warning">Informasi BC & Kedatangan</th>
+                                <th rowspan="2" class="align-middle">Supplier</th>
+                            </tr>
+                            <tr>
+                                <th class="bg-info text-white">Qty Issued (MR)</th>
+                                <th class="bg-info text-white">Qty Terpakai</th>
+                                <th class="bg-warning">Tipe BC</th>
+                                <th class="bg-warning">No. BC</th>
+                                <th class="bg-warning">Tgl. BC</th>
+                                <th class="bg-warning">Tgl. Kedatangan</th>
                             </tr>
                         </thead>
                         <tbody>
                             <?php if (!empty($materials)): ?>
                                 <?php foreach ($materials as $mat): ?>
                                     <tr>
-                                        <td><?= $mat['kode_material']; ?></td>
-                                        <td><?= $mat['nama_material']; ?></td>
+                                        <td><strong><?= htmlspecialchars($mat['kode_material']); ?></strong></td>
+                                        <td><?= htmlspecialchars($mat['nama_material']); ?></td>
                                         <td class="text-right"><?= number_format($mat['issued_qty'], 2); ?></td>
-                                        <td class="text-right font-weight-bold"><?= number_format($mat['qty_terpakai'], 2); ?></td>
-                                        <td class="text-center"><?= $mat['satuan']; ?></td>
+                                        <td class="text-right font-weight-bold text-primary"><?= number_format($mat['qty_terpakai'], 2); ?></td>
+                                        <td class="text-center"><?= htmlspecialchars($mat['satuan']); ?></td>
+                                        <td class="text-center">
+                                            <span class="badge badge-<?= !empty($mat['bc_type_code']) && $mat['bc_type_code'] != '-' ? 'success' : 'secondary' ?>">
+                                                <?= htmlspecialchars($mat['bc_type_code'] ?? '-'); ?>
+                                            </span>
+                                        </td>
+                                        <td class="text-center">
+                                            <?php if (!empty($mat['bc_number']) && $mat['bc_number'] != '-'): ?>
+                                                <a href="<?= base_url('BeaCukai/detail/' . urlencode($mat['bc_number'])); ?>" 
+                                                   target="_blank" class="text-decoration-none">
+                                                    <strong><?= htmlspecialchars($mat['bc_number']); ?></strong>
+                                                    <i class="fas fa-external-link-alt fa-xs ml-1"></i>
+                                                </a>
+                                            <?php else: ?>
+                                                <span class="text-muted">-</span>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td class="text-center">
+                                            <?= !empty($mat['bc_date']) ? '<strong>' . date('d-M-Y', strtotime($mat['bc_date'])) . '</strong>' : '<span class="text-muted">-</span>'; ?>
+                                        </td>
+                                        <td class="text-center">
+                                            <?= !empty($mat['arrival_date']) ? '<strong class="text-success">' . date('d-M-Y', strtotime($mat['arrival_date'])) . '</strong>' : '<span class="text-muted">-</span>'; ?>
+                                        </td>
+                                        <td><?= htmlspecialchars($mat['nama_supplier'] ?? '-'); ?></td>
                                     </tr>
                                 <?php endforeach; ?>
                             <?php else: ?>
                                 <tr>
-                                    <td colspan="5" class="text-center">Data material tidak ditemukan.</td>
+                                    <td colspan="10" class="text-center">Data material tidak ditemukan.</td>
                                 </tr>
                             <?php endif; ?>
                         </tbody>
                     </table>
                 </div>
-                <div class="alert alert-info mt-2" style="font-size: 0.8rem;">
-                    <strong>Info BC Material:</strong> Untuk melacak No. BC material, diperlukan penelusuran lebih dalam per-batch material di modul Laporan Mutasi Bahan Baku.
+                <div class="alert alert-success mt-2" style="font-size: 0.8rem;">
+                    <i class="fas fa-info-circle"></i> <strong>Enhanced Deep Traceability:</strong> 
+                    Tabel ini menampilkan informasi lengkap material termasuk BC Number, BC Type, tanggal BC, tanggal kedatangan material, dan supplier. 
+                    Data diambil dari transaksi penerimaan material terakhir sebelum tanggal produksi.
+                </div>
+                
+                <!-- Enhanced Export Buttons -->
+                <div class="row mt-3">
+                    <div class="col-12">
+                        <div class="btn-group" role="group">
+                            <a href="<?= base_url('LapMutasiFinished/export_bc_traceability_excel/' . $detail->fg_receipt_detail_id); ?>" 
+                               class="btn btn-success btn-sm" target="_blank">
+                                <i class="fas fa-file-excel"></i> Export BC Excel
+                            </a>
+                            <a href="<?= base_url('LapMutasiFinished/export_bc_traceability_pdf/' . $detail->fg_receipt_detail_id); ?>" 
+                               class="btn btn-danger btn-sm" target="_blank">
+                                <i class="fas fa-file-pdf"></i> Export BC PDF
+                            </a>
+                        </div>
+                        <small class="text-muted d-block mt-1">
+                            <i class="fas fa-download"></i> Export lengkap dengan informasi BC dan tanggal kedatangan material
+                        </small>
+                    </div>
                 </div>
             </div>
         </div>

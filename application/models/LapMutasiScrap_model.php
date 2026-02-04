@@ -475,76 +475,74 @@ class LapMutasiScrap_model extends CI_Model {
 
         // 1) Try find in production_outputs (most likely)
         $this->db->reset_query();
-        $this->db->select('po.id AS production_output_id, po.stage_name, ph.id AS production_header_id, ph.production_number, ph.production_date, ph.fg_item_id, fg.scrap_code AS fg_code, fg.scrap_name AS fg_name, ph.wo_header_id, wo.wo_number, ph.sales_contract_id, sc.contract_number AS sales_contract', false);
+        $this->db->select('po.id AS production_output_id, po.stage_name, ph.id AS production_header_id, ph.production_number, ph.production_date, ph.fg_id, fg.scrap_code AS fg_code, fg.scrap_name AS fg_name, ph.wo_header_id, wo.wo_number', false);
         $this->db->from('production_outputs po');
         $this->db->join('production_header ph', 'po.production_header_id = ph.id', 'left');
         $this->db->join('wo_header wo', 'ph.wo_header_id = wo.id', 'left');
-        $this->db->join('sales_contract sc', 'ph.sales_contract_id = sc.id', 'left');
-        $this->db->join('master_scrap fg', 'ph.fg_item_id = fg.id', 'left');
+        $this->db->join('master_scrap fg', 'ph.fg_id = fg.id', 'left');
         $this->db->where('po.id', $id);
         $hdr = $this->db->get()->row();
 
         if (!$hdr) {
             // fallback: maybe id is production_header id
             $this->db->reset_query();
-            $this->db->select('ph.id AS production_header_id, ph.production_number, ph.production_date, ph.fg_item_id, fg.scrap_code AS fg_code, fg.scrap_name AS fg_name, ph.wo_header_id, wo.wo_number, ph.sales_contract_id, sc.contract_number AS sales_contract', false);
+            $this->db->select('ph.id AS production_header_id, ph.production_number, ph.production_date, ph.fg_id, fg.scrap_code AS fg_code, fg.scrap_name AS fg_name, ph.wo_header_id, wo.wo_number', false);
             $this->db->from('production_header ph');
             $this->db->join('wo_header wo', 'ph.wo_header_id = wo.id', 'left');
-            $this->db->join('sales_contract sc', 'ph.sales_contract_id = sc.id', 'left');
-            $this->db->join('master_scrap fg', 'ph.fg_item_id = fg.id', 'left');
+            $this->db->join('master_scrap fg', 'ph.fg_id = fg.id', 'left');
             $this->db->where('ph.id', $id);
             $hdr = $this->db->get()->row();
         }
 
         $out['header_info'] = $hdr ?: (object)[];
 
-        // 2) Materials used: try production_inputs referencing production_output_id or production_header_id
-        $this->db->reset_query();
-        $this->db->select('pi.item_id, m.scrap_code AS item_code, m.scrap_name AS item_name, pi.qty_used, pi.unit', false);
-        $this->db->from('production_inputs pi');
-        $this->db->join('master_scrap m', 'pi.item_id = m.id', 'left');
-        $this->db->where('pi.production_output_id', $id);
-        $q = $this->db->get();
-        if ($q && $q->num_rows() > 0) {
-            $out['materials_used'] = $q->result_array();
-        } else {
-            // fallback by production_header_id if available
-            $ph_id = $hdr->production_header_id ?? null;
-            if ($ph_id) {
-                $this->db->reset_query();
-                $this->db->select('pi.item_id, m.scrap_code AS item_code, m.scrap_name AS item_name, pi.qty_used, pi.unit', false);
-                $this->db->from('production_inputs pi');
-                $this->db->join('master_scrap m', 'pi.item_id = m.id', 'left');
-                $this->db->where('pi.production_header_id', $ph_id);
-                $res = $this->db->get();
-                if ($res && $res->num_rows() > 0) $out['materials_used'] = $res->result_array();
+        // Get production_header_id untuk query materials
+        $ph_id = $hdr->production_header_id ?? null;
+        
+        // 2) Materials used: query dari production_inputs dengan JOIN ke GRN untuk BC info
+        if ($ph_id) {
+            $this->db->reset_query();
+            $this->db->select("
+                COALESCE(mm.kode_material, sf.kode_barang, fg.kode_barang) AS item_code,
+                COALESCE(mm.nama_material, sf.nama_barang, fg.nama_barang) AS item_name,
+                COALESCE(mm.satuan, sf.satuan, fg.satuan, 'PCS') AS unit,
+                pi.qty_used,
+                gh.bc_type_code,
+                gh.bc_number,
+                gh.bc_date,
+                COALESCE(s.nama_supplier, s_mir.nama_supplier) AS supplier_name,
+                pi.item_id,
+                pi.item_type
+            ", false);
+            $this->db->from('production_inputs pi');
+            $this->db->join('materials mm', 'mm.id = pi.item_id AND pi.item_type = "material"', 'left');
+            $this->db->join('semifinished_goods sf', 'sf.id = pi.item_id AND pi.item_type = "semifinished"', 'left');
+            $this->db->join('finished_goods fg', 'fg.id = pi.item_id AND pi.item_type = "finished_goods"', 'left');
+            $this->db->join('grn_details gd', 'gd.item_id = pi.item_id', 'left');
+            $this->db->join('grn_header gh', 'gh.id = gd.grn_header_id', 'left');
+            $this->db->join('suppliers s', 's.id = gh.supplier_id', 'left');
+            // Fallback ke MIR jika GRN base_on MIR
+            $this->db->join('mir_header mh', 'mh.id = gd.source_doc_header_id AND gd.source_doc_type = "MIR"', 'left');
+            $this->db->join('suppliers s_mir', 's_mir.id = mh.supplier_id', 'left');
+            $this->db->where('pi.production_header_id', $ph_id);
+            $q = $this->db->get();
+            if ($q && $q->num_rows() > 0) {
+                $out['materials_used'] = $q->result_array();
             }
         }
 
-        // 3) Try attach ex-BC info for each material by looking at the ledger incoming records for that material prior to production_date.
-        if (!empty($out['materials_used']) && !empty($out['header_info']->production_date)) {
-            $prod_date = $out['header_info']->production_date;
+        // 3) Rename fields untuk consistency dengan export Excel (ex_bc_* format)
+        if (!empty($out['materials_used'])) {
             foreach ($out['materials_used'] as &$mat) {
-                $mat['ex_bc_type'] = null;
-                $mat['ex_bc_number'] = null;
-                $mat['ex_bc_date'] = null;
-
-                // find last IN ledger for that material before prod_date
-                $this->db->reset_query();
-                $this->db->select('bc_type_code, bc_number, bc_date, transaction_date')
-                         ->from($this->ledger)
-                         ->where('item_type', 'material')
-                         ->where('item_id', $mat['item_id'])
-                         ->where('qty_in >', 0)
-                         ->where('transaction_date <=', $prod_date . ' 23:59:59')
-                         ->order_by('transaction_date', 'DESC')
-                         ->order_by('id', 'DESC')
-                         ->limit(1);
-                $r = $this->db->get()->row();
-                if ($r) {
-                    $mat['ex_bc_type'] = $r->bc_type_code ?? null;
-                    $mat['ex_bc_number'] = $r->bc_number ?? null;
-                    $mat['ex_bc_date'] = isset($r->transaction_date) ? substr($r->transaction_date,0,10) : ($r->bc_date ?? null);
+                // Rename BC fields untuk export
+                if (!isset($mat['ex_bc_type'])) {
+                    $mat['ex_bc_type'] = $mat['bc_type_code'] ?? null;
+                }
+                if (!isset($mat['ex_bc_number'])) {
+                    $mat['ex_bc_number'] = $mat['bc_number'] ?? null;
+                }
+                if (!isset($mat['ex_bc_date'])) {
+                    $mat['ex_bc_date'] = $mat['bc_date'] ?? null;
                 }
             }
             unset($mat);

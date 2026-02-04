@@ -194,52 +194,13 @@ class LapMutasiScrap extends MY_Controller {
         $h = $trace['header_info'];
         $materials = $trace['materials_used'] ?? [];
 
-        ob_start(); ?>
-            <div class="d-flex justify-content-end mb-2">
-                <a href="<?= base_url('LapMutasiScrap/export_production_trace_pdf/' . $prod_id); ?>" class="btn btn-sm btn-danger me-2" target="_blank">
-                    <i class="fas fa-file-pdf"></i> Export PDF
-                </a>
-                <a href="<?= base_url('LapMutasiScrap/export_production_trace_excel/' . $prod_id); ?>" class="btn btn-sm btn-success me-2" target="_blank">
-                    <i class="fas fa-file-excel"></i> Export Excel
-                </a>
-            </div>
+        $data = [
+            'prod_id' => $prod_id,
+            'header_info' => $h,
+            'materials_used' => $materials
+        ];
 
-            <h6 class="mb-2"><i class="fas fa-industry"></i> Detail Produksi</h6>
-            <div class="row">
-                <div class="col-md-6">
-                    <table class="table table-sm table-borderless">
-                        <tr><th width="40%">No. Produksi</th><td><?= htmlspecialchars($h->production_number ?? '-'); ?></td></tr>
-                        <tr><th>Nama FG</th><td><?= htmlspecialchars($h->fg_name ?? '-'); ?></td></tr>
-                    </table>
-                </div>
-                <div class="col-md-6">
-                    <table class="table table-sm table-borderless">
-                        <tr><th width="40%">No. WO</th><td><?= htmlspecialchars($h->wo_number ?? '-'); ?></td></tr>
-                        <tr><th>No. Sales Contract</th><td><?= htmlspecialchars($h->sales_contract ?? '-'); ?></td></tr>
-                    </table>
-                </div>
-            </div>
-
-            <h6 class="mt-3">Material yang menghasilkan scrap (input)</h6>
-            <div class="table-responsive">
-            <table class="table table-sm table-bordered">
-                <thead class="thead-light"><tr><th>Kode</th><th>Nama</th><th class="text-right">Qty Terpakai</th><th>Satuan</th><th>BC Asal</th></tr></thead>
-                <tbody>
-                    <?php if (empty($materials)): ?>
-                        <tr><td colspan="5" class="text-center">Tidak ada data material.</td></tr>
-                    <?php else: foreach ($materials as $m): ?>
-                        <tr>
-                            <td><?= htmlspecialchars($m['item_code'] ?? '-'); ?></td>
-                            <td><?= htmlspecialchars($m['item_name'] ?? '-'); ?></td>
-                            <td class="text-right"><?= number_format((float)($m['qty_used'] ?? 0),2); ?></td>
-                            <td><?= htmlspecialchars($m['unit'] ?? '-'); ?></td>
-                            <td><?= htmlspecialchars(($m['ex_bc_type'] ?? '-') . '/' . ($m['ex_bc_number'] ?? '-')); ?></td>
-                        </tr>
-                    <?php endforeach; endif; ?>
-                </tbody>
-            </table></div>
-        <?php
-        $html = ob_get_clean();
+        $html = $this->load->view('it_inventory/lap_mutasi_scrap/modal_production_trace', $data, true);
         header('Content-Type: application/json');
         echo json_encode(['success'=>true,'html'=>$html]);
     }
@@ -408,7 +369,8 @@ class LapMutasiScrap extends MY_Controller {
             pi.qty_used,
             gh.bc_type_code,
             gh.bc_number,
-            gh.bc_date
+            gh.bc_date,
+            COALESCE(s.nama_supplier, s_mir.nama_supplier) AS supplier_name
         ");
         $this->db->from('production_inputs pi');
         $this->db->join('materials mm', 'mm.id = pi.item_id AND pi.item_type = "material"', 'left');
@@ -416,11 +378,17 @@ class LapMutasiScrap extends MY_Controller {
         $this->db->join('finished_goods fg', 'fg.id = pi.item_id AND pi.item_type = "finished_goods"', 'left');
         $this->db->join('grn_details gd', 'gd.item_id = pi.item_id', 'left');
         $this->db->join('grn_header gh', 'gh.id = gd.grn_header_id', 'left');
+        $this->db->join('suppliers s', 's.id = gh.supplier_id', 'left');
+        // Fallback ke MIR jika GRN base_on MIR
+        $this->db->join('mir_header mh', 'mh.id = gd.source_doc_header_id AND gd.source_doc_type = "MIR"', 'left');
+        $this->db->join('suppliers s_mir', 's_mir.id = mh.supplier_id', 'left');
         $this->db->where('pi.production_header_id', $production['production_header_id']);
         $materials = $this->db->get()->result_array();
 
         // Kirim ke view
         $scrap_sources = [[
+            'production_header_id' => $production['production_header_id'],
+            'production_output_id' => $production_output_id,
             'production_number' => $production['production_number'],
             'wo_number'         => $production['wo_number'] ?? '-',
             'process_name'      => $production['stage_name'] ?? '-',
@@ -515,35 +483,53 @@ class LapMutasiScrap extends MY_Controller {
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Trace Produksi');
 
-        // Header
-        $sheet->setCellValue('A1', 'Detail Produksi');
-        $sheet->setCellValue('A2', 'No. Produksi:')->setCellValue('B2', $h->production_number ?? '-');
-        $sheet->setCellValue('A3', 'Nama FG:')->setCellValue('B3', $h->fg_name ?? '-');
-        $sheet->setCellValue('D2', 'No. WO:')->setCellValue('E2', $h->wo_number ?? '-');
-        $sheet->setCellValue('D3', 'No. Sales Contract:')->setCellValue('E3', $h->sales_contract ?? '-');
+        // --- Header ---
+        $sheet->setCellValue('A1', 'PT MINGBAO LIANCHUANG INTERNATIONAL');
+        $sheet->mergeCells('A1:E1');
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(11);
+        $sheet->getStyle('A1')->getAlignment()->setHorizontal('center');
+        
+        $sheet->setCellValue('A2', 'Detail Produksi - Trace Asal Material Scrap');
+        $sheet->mergeCells('A2:E2');
+        $sheet->getStyle('A2')->getFont()->setBold(true)->setSize(12);
+        
+        $sheet->setCellValue('A4', 'No. Produksi:')->setCellValue('B4', $h->production_number ?? '-');
+        $sheet->setCellValue('A5', 'Nama FG:')->setCellValue('B5', $h->fg_name ?? '-');
+        $sheet->setCellValue('D4', 'No. WO:')->setCellValue('E4', $h->wo_number ?? '-');
+        $sheet->setCellValue('D5', 'Sales Contract:')->setCellValue('E5', $h->sales_contract ?? '-');
 
-        // Header Tabel Material
-        $sheet->setCellValue('A5', 'Material yang menghasilkan scrap (input)');
-        $sheet->getStyle('A5')->getFont()->setBold(true);
-        $headers = ['Kode', 'Nama', 'Qty Terpakai', 'Satuan', 'BC Asal'];
-        $sheet->fromArray($headers, NULL, 'A6');
-        $sheet->getStyle('A6:E6')->getFont()->setBold(true);
+        // --- Header Tabel Material ---
+        $headerRow = 7;
+        $sheet->setCellValue('A'.$headerRow, 'Material yang menghasilkan scrap (input)');
+        $sheet->mergeCells('A'.$headerRow.':H'.$headerRow);
+        $sheet->getStyle('A'.$headerRow)->getFont()->setBold(true);
+        
+        $headerRow = 8;
+        $headers = ['Kode', 'Nama', 'Qty Terpakai', 'Satuan', 'Tipe BC', 'No BC', 'Tgl BC', 'Supplier'];
+        $sheet->fromArray($headers, NULL, 'A'.$headerRow);
+        $sheet->getStyle('A'.$headerRow.':H'.$headerRow)->getFont()->setBold(true);
+        $sheet->getStyle('A'.$headerRow.':H'.$headerRow)->getAlignment()->setHorizontal('center');
+        $sheet->getStyle('A'.$headerRow.':H'.$headerRow)->getFill()->setFillType('solid')->getStartColor()->setARGB('FFD3D3D3');
+        $sheet->getStyle('A'.$headerRow.':H'.$headerRow)->getBorders()->getAllBorders()->setBorderStyle('thin');
 
         // Data Material
-        $rowNum = 7;
+        $rowNum = 9;
         foreach ($materials as $m) {
             $sheet->fromArray([
                 $m['item_code'] ?? '-',
                 $m['item_name'] ?? '-',
                 (float)($m['qty_used'] ?? 0),
                 $m['unit'] ?? '-',
-                ($m['ex_bc_type'] ?? '-') . '/' . ($m['ex_bc_number'] ?? '-')
+                $m['bc_type_code'] ?? '-',
+                $m['bc_number'] ?? '-',
+                !empty($m['bc_date']) ? date('d M Y', strtotime($m['bc_date'])) : '-',
+                $m['supplier_name'] ?? '-'
             ], NULL, 'A'.$rowNum);
             $sheet->getStyle('C'.$rowNum)->getNumberFormat()->setFormatCode('#,##0.00');
             $rowNum++;
         }
 
-        foreach(range('A','E') as $col) { $sheet->getColumnDimension($col)->setAutoSize(true); }
+        foreach(range('A','H') as $col) { $sheet->getColumnDimension($col)->setAutoSize(true); }
 
         $writer = new Xlsx($spreadsheet);
         $filename = 'trace_produksi_' . ($h->production_number ?? $prod_id) . '.xlsx';
@@ -654,28 +640,85 @@ class LapMutasiScrap extends MY_Controller {
         // Logika pengambilan data disalin dari ajax_get_wh_trace
         $ledger = $this->db->get_where('stock_ledger', ['id' => $ledger_id])->row_array();
         if (!$ledger) { show_error('Data ledger tidak ditemukan', 404); return; }
-        $production_output_id = ($ledger['transaction_type'] === 'IN_SCRAP_WH') ? $this->db->get_where('scrap_in_detail_sources', ['scrap_in_detail_id' => $this->db->get_where('scrap_in_detail', ['header_id' => $ledger['transaction_id']])->row('id')])->row('production_output_id') : $ledger['transaction_id'];
-        $production = $this->db->query("SELECT ph.id AS production_header_id, ph.production_number, wo.wo_number, po.stage_name, (SELECT fg.nama_barang FROM production_outputs po2 LEFT JOIN finished_goods fg ON fg.id = po2.item_id WHERE po2.production_header_id = ph.id AND po2.item_type = 'finished_goods' LIMIT 1) AS fg_name FROM production_outputs po LEFT JOIN production_header ph ON ph.id = po.production_header_id LEFT JOIN wo_header wo ON wo.id = ph.wo_header_id WHERE po.id = ?", [$production_output_id])->row_array();
+        
+        // Determine production_output_id
+        if ($ledger['transaction_type'] === 'IN_SCRAP_WH') {
+            $scrap_header = $this->db->get_where('scrap_in_header', ['id' => $ledger['transaction_id']])->row_array();
+            if (!$scrap_header) { show_error('Data scrap_in_header tidak ditemukan', 404); return; }
+            $scrap_detail = $this->db->get_where('scrap_in_detail', ['header_id' => $scrap_header['id']])->row_array();
+            if (!$scrap_detail) { show_error('Detail scrap tidak ditemukan', 404); return; }
+            $source = $this->db->get_where('scrap_in_detail_sources', ['scrap_in_detail_id' => $scrap_detail['id']])->row_array();
+            if (!$source) { show_error('Data asal produksi tidak ditemukan', 404); return; }
+            $production_output_id = $source['production_output_id'];
+        } else {
+            $production_output_id = $ledger['transaction_id'];
+        }
+        
+        $sql = "SELECT ph.id AS production_header_id, ph.production_number, wo.wo_number, po.stage_name, 
+                (SELECT fg.nama_barang FROM production_outputs po2 LEFT JOIN finished_goods fg ON fg.id = po2.item_id 
+                 WHERE po2.production_header_id = ph.id AND po2.item_type = 'finished_goods' LIMIT 1) AS fg_name 
+                FROM production_outputs po LEFT JOIN production_header ph ON ph.id = po.production_header_id 
+                LEFT JOIN wo_header wo ON wo.id = ph.wo_header_id WHERE po.id = ?";
+        $production = $this->db->query($sql, [$production_output_id])->row_array();
         if (!$production) { show_error('Data asal scrap tidak ditemukan', 404); return; }
-        $materials = $this->db->select("COALESCE(mm.kode_material, sf.kode_barang, fg.kode_barang) AS item_code, COALESCE(mm.nama_material, sf.nama_barang, fg.nama_barang) AS item_name, COALESCE(mm.satuan, sf.satuan, fg.satuan, 'PCS') AS unit, pi.qty_used, gh.bc_type_code, gh.bc_number, gh.bc_date")->from('production_inputs pi')->join('materials mm', 'mm.id = pi.item_id AND pi.item_type = "material"', 'left')->join('semifinished_goods sf', 'sf.id = pi.item_id AND pi.item_type = "semifinished"', 'left')->join('finished_goods fg', 'fg.id = pi.item_id AND pi.item_type = "finished_goods"', 'left')->join('grn_details gd', 'gd.item_id = pi.item_id', 'left')->join('grn_header gh', 'gh.id = gd.grn_header_id', 'left')->where('pi.production_header_id', $production['production_header_id'])->get()->result_array();
+        
+        $this->db->select("COALESCE(mm.kode_material, sf.kode_barang, fg.kode_barang) AS item_code,
+                          COALESCE(mm.nama_material, sf.nama_barang, fg.nama_barang) AS item_name,
+                          COALESCE(mm.satuan, sf.satuan, fg.satuan, 'PCS') AS unit,
+                          pi.qty_used, gh.bc_type_code, gh.bc_number, gh.bc_date");
+        $this->db->from('production_inputs pi');
+        $this->db->join('materials mm', 'mm.id = pi.item_id AND pi.item_type = "material"', 'left');
+        $this->db->join('semifinished_goods sf', 'sf.id = pi.item_id AND pi.item_type = "semifinished"', 'left');
+        $this->db->join('finished_goods fg', 'fg.id = pi.item_id AND pi.item_type = "finished_goods"', 'left');
+        $this->db->join('grn_details gd', 'gd.item_id = pi.item_id', 'left');
+        $this->db->join('grn_header gh', 'gh.id = gd.grn_header_id', 'left');
+        $this->db->where('pi.production_header_id', $production['production_header_id']);
+        $materials = $this->db->get()->result_array();
 
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Trace Asal Scrap');
 
-        // Header
-        $sheet->setCellValue('A1', 'Asal Scrap dari Produksi');
-        $sheet->setCellValue('A2', 'No. Produksi:')->setCellValue('B2', $production['production_number']);
-        $sheet->setCellValue('A3', 'No. WO:')->setCellValue('B3', $production['wo_number'] ?? '-');
-        $sheet->setCellValue('A4', 'Proses:')->setCellValue('B4', $production['stage_name'] ?? '-');
-        $sheet->setCellValue('A5', 'Nama FG:')->setCellValue('B5', $production['fg_name'] ?? '-');
+        // --- Header ---
+        $sheet->setCellValue('A1', 'PT MINGBAO LIANCHUANG INTERNATIONAL');
+        $sheet->mergeCells('A1:G1');
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(11);
+        $sheet->getStyle('A1')->getAlignment()->setHorizontal('center');
+        
+        $sheet->setCellValue('A2', 'Asal Scrap dari Produksi (Warehouse Trace)');
+        $sheet->mergeCells('A2:G2');
+        $sheet->getStyle('A2')->getFont()->setBold(true)->setSize(12);
 
-        // Header Tabel
-        $sheet->fromArray(['Kode Material', 'Nama Material', 'Qty Terpakai', 'Satuan', 'BC Type', 'BC Number', 'BC Date'], NULL, 'A7');
-        $sheet->getStyle('A7:G7')->getFont()->setBold(true);
+        $sheet->setCellValue('A4', 'No. Produksi:')->setCellValue('B4', $production['production_number']);
+        $sheet->setCellValue('A5', 'No. WO:')->setCellValue('B5', $production['wo_number'] ?? '-');
+        $sheet->setCellValue('A6', 'Proses:')->setCellValue('B6', $production['stage_name'] ?? '-');
+        $sheet->setCellValue('A7', 'Nama FG:')->setCellValue('B7', $production['fg_name'] ?? '-');
+
+        // --- Header Tabel ---
+        $headerRow = 9;
+        $headers = ['Kode Material', 'Nama Material', 'Qty Terpakai', 'Satuan', 'BC Type', 'BC Number', 'BC Date'];
+        $sheet->fromArray($headers, NULL, 'A'.$headerRow);
+        $sheet->getStyle('A'.$headerRow.':G'.$headerRow)->getFont()->setBold(true);
+        $sheet->getStyle('A'.$headerRow.':G'.$headerRow)->getAlignment()->setHorizontal('center');
+        $sheet->getStyle('A'.$headerRow.':G'.$headerRow)->getFill()->setFillType('solid')->getStartColor()->setARGB('FFD3D3D3');
+        $sheet->getStyle('A'.$headerRow.':G'.$headerRow)->getBorders()->getAllBorders()->setBorderStyle('thin');
 
         // Data
-        $sheet->fromArray($materials, NULL, 'A8');
+        $rowNum = 10;
+        foreach ($materials as $m) {
+            $sheet->fromArray([
+                $m['item_code'] ?? '-',
+                $m['item_name'] ?? '-',
+                (float)($m['qty_used'] ?? 0),
+                $m['unit'] ?? '-',
+                $m['bc_type_code'] ?? '-',
+                $m['bc_number'] ?? '-',
+                $m['bc_date'] ? date('d M Y', strtotime($m['bc_date'])) : ''
+            ], NULL, 'A'.$rowNum);
+            $sheet->getStyle('C'.$rowNum)->getNumberFormat()->setFormatCode('#,##0.00');
+            $rowNum++;
+        }
+
         foreach(range('A','G') as $col) { $sheet->getColumnDimension($col)->setAutoSize(true); }
 
         $writer = new Xlsx($spreadsheet);
@@ -760,6 +803,77 @@ class LapMutasiScrap extends MY_Controller {
     }
 
     /** ============================================================
+     *  EXPORT EXCEL UNTUK SCRAP ORIGIN TRACEABILITY
+     * ============================================================ */
+    public function export_scrap_origin_excel() {
+        if (!check_access('lap_mutasi_scrap', 'view')) { show_error('Akses ditolak', 403); return; }
+        
+        $detail_id = (int)$this->input->get('scrap_in_detail_id');
+        if ($detail_id <= 0) { show_error('Parameter scrap_in_detail_id tidak valid', 400); return; }
+        
+        $rows = $this->LapMutasiScrap_model->get_scrap_origin_trace($detail_id);
+        if (empty($rows)) { show_error('Data asal material scrap tidak ditemukan', 404); return; }
+        
+        // Get scrap in detail info untuk header
+        $scrap_detail = $this->db->select('d.*, h.doc_no, h.doc_date, m.scrap_name')
+            ->from('scrap_in_detail d')
+            ->join('scrap_in_header h', 'd.header_id = h.id', 'left')
+            ->join('master_scrap m', 'd.scrap_id = m.id', 'left')
+            ->where('d.id', $detail_id)
+            ->get()->row_array();
+        
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Asal Material Scrap');
+
+        // --- Header ---
+        $sheet->setCellValue('A1', 'PT MINGBAO LIANCHUANG INTERNATIONAL');
+        $sheet->mergeCells('A1:F1');
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(11);
+        $sheet->getStyle('A1')->getAlignment()->setHorizontal('center');
+        
+        $sheet->setCellValue('A2', 'Traceability - Asal Material Scrap');
+        $sheet->mergeCells('A2:F2');
+        $sheet->getStyle('A2')->getFont()->setBold(true)->setSize(12);
+
+        $sheet->setCellValue('A4', 'No. Dokumen:')->setCellValue('B4', $scrap_detail['doc_no'] ?? '-');
+        $sheet->setCellValue('A5', 'Tanggal Dokumen:')->setCellValue('B5', $scrap_detail['doc_date'] ? date('d M Y', strtotime($scrap_detail['doc_date'])) : '-');
+        $sheet->setCellValue('A6', 'Nama Scrap:')->setCellValue('B6', $scrap_detail['scrap_name'] ?? '-');
+
+        // --- Header Tabel ---
+        $headerRow = 8;
+        $headers = ['Material', 'Supplier', 'BC Type', 'BC Number', 'Tanggal BC', 'WO'];
+        $sheet->fromArray($headers, NULL, 'A'.$headerRow);
+        $sheet->getStyle('A'.$headerRow.':F'.$headerRow)->getFont()->setBold(true);
+        $sheet->getStyle('A'.$headerRow.':F'.$headerRow)->getAlignment()->setHorizontal('center')->setVertical('center');
+        $sheet->getStyle('A'.$headerRow.':F'.$headerRow)->getFill()->setFillType('solid')->getStartColor()->setARGB('FFD3D3D3');
+        $sheet->getStyle('A'.$headerRow.':F'.$headerRow)->getBorders()->getAllBorders()->setBorderStyle('thin');
+
+        // Data
+        $rowNum = 9;
+        foreach ($rows as $r) {
+            $sheet->fromArray([
+                $r['material_name'] ?? '-',
+                $r['nama_supplier'] ?? '-',
+                $r['bc_type_code'] ?? '-',
+                $r['bc_number'] ?? '-',
+                $r['bc_date'] ? date('d M Y', strtotime($r['bc_date'])) : '-',
+                $r['wo_number'] ?? '-'
+            ], NULL, 'A'.$rowNum);
+            $rowNum++;
+        }
+
+        foreach(range('A','F') as $col) { $sheet->getColumnDimension($col)->setAutoSize(true); }
+
+        $writer = new Xlsx($spreadsheet);
+        $filename = 'asal_material_scrap_' . ($scrap_detail['doc_no'] ?? $detail_id) . '.xlsx';
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment;filename="' . $filename . '"');
+        $writer->save('php://output');
+        exit;
+    }
+
+    /** ============================================================
      *  EXPORT EXCEL
      * ============================================================ */
     public function export_excel() {
@@ -775,13 +889,33 @@ class LapMutasiScrap extends MY_Controller {
 
         $spreadsheet = new Spreadsheet();
         $sheet = $spreadsheet->getActiveSheet();
+        
+        // --- Header Laporan ---
         $sheet->setCellValue('A1', $this->report_title);
         $sheet->mergeCells('A1:H1');
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+        
+        $sheet->setCellValue('A2', 'PT MINGBAO LIANCHUANG INTERNATIONAL');
+        $sheet->mergeCells('A2:H2');
+        $sheet->getStyle('A2')->getFont()->setBold(true)->setSize(11);
+        $sheet->getStyle('A2')->getAlignment()->setHorizontal('center');
+        
+        $sheet->setCellValue('A3', 'Periode: ' . date('d M Y', strtotime($filters['start_date'])) . ' s/d ' . date('d M Y', strtotime($filters['end_date'])));
+        $sheet->mergeCells('A3:H3');
+        $sheet->getStyle('A3')->getAlignment()->setHorizontal('center');
 
+        // --- Header Tabel ---
+        $headerRow = 5;
         $headers = ['Kode Scrap','Nama Scrap','Satuan','Saldo Awal','Masuk','Keluar','Adjustment','Saldo Akhir'];
-        $sheet->fromArray($headers,null,'A3');
-        $row = 4;
+        $sheet->fromArray($headers, null, 'A'.$headerRow);
+        
+        // Style header - Bold, Gray background, Center, Borders
+        $sheet->getStyle('A'.$headerRow.':H'.$headerRow)->getFont()->setBold(true);
+        $sheet->getStyle('A'.$headerRow.':H'.$headerRow)->getAlignment()->setHorizontal('center')->setVertical('center');
+        $sheet->getStyle('A'.$headerRow.':H'.$headerRow)->getFill()->setFillType('solid')->getStartColor()->setARGB('FFD3D3D3');
+        $sheet->getStyle('A'.$headerRow.':H'.$headerRow)->getBorders()->getAllBorders()->setBorderStyle('thin');
+        
+        $row = $headerRow + 1;
 
         foreach ($data as $d) {
             $sheet->fromArray([

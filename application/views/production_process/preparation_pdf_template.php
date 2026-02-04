@@ -101,7 +101,14 @@
 
         <?php
             $total_input_qty = 0.0; foreach ($preparation_inputs ?? [] as $r){ $total_input_qty += (float)($r->qty_used ?? 0); }
-            $total_output_qty = 0.0; $total_scrap_qty = 0.0; foreach ($preparation_outputs ?? [] as $r){ if ($r->item_type == 'semifinished') $total_output_qty += (float)($r->qty_produced ?? 0); if ($r->item_type == 'scrap') $total_scrap_qty += (float)($r->qty_scrap ?? 0); }
+            $total_output_qty = 0.0; $total_scrap_qty = 0.0; foreach ($preparation_outputs ?? [] as $r){ 
+                if ($r->item_type == 'semifinished') $total_output_qty += (float)($r->qty_produced ?? 0); 
+                if ($r->item_type == 'scrap') {
+                    // For scrap items, qty is stored in qty_produced, not qty_scrap (qty_scrap is always 0 by default)
+                    $qty = (float)($r->qty_produced ?? 0);
+                    $total_scrap_qty += $qty;
+                }
+            }
         ?>
 
         <h3 class="section">A. Input Usage</h3>
@@ -185,7 +192,7 @@
                 <tr>
                     <td class="no"><?= $k++; ?></td>
                     <td class="name"><?= htmlspecialchars($out->item_name ?? '-'); ?> <?= isset($out->item_code) ? ' (' . htmlspecialchars($out->item_code) . ')' : ''; ?></td>
-                    <td class="right"><?= number_format($out->qty_scrap ?? 0, 4); ?></td>
+                    <td class="right"><?= number_format($out->qty_produced ?? 0, 4); ?></td>
                     <td class="center"><?= htmlspecialchars($out->uom_code ?? ''); ?></td>
                     <td class="name"><?= htmlspecialchars($out->receiver_name ?? '-'); ?></td>
                 </tr>

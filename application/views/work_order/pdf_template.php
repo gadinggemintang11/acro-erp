@@ -8,267 +8,251 @@
             margin: 20mm 15mm;
         }
         body {
-            font-family: 'Segoe UI', 'Helvetica Neue', 'Arial', sans-serif;
+            font-family: Arial, sans-serif;
             font-size: 10pt;
             color: #1e293b;
-            line-height: 1.5;
+            line-height: 1.4;
+            margin: 0;
+            padding: 0;
         }
         .container {
             width: 100%;
-            margin: 0 auto;
         }
+        /* HEADER */
         .header {
             text-align: center;
-            background: #1e293b;
+            background-color: #667eea;
             color: white;
-            padding: 25px;
-            border-bottom: 4px solid #1e40af;
-            margin-bottom: 25px;
+            padding: 20px 15px;
+            margin-bottom: 20px;
+        }
+        .header .company-name {
+            font-size: 9.5pt;
+            font-weight: bold;
+            margin-bottom: 8px;
+            text-transform: uppercase;
         }
         .header h1 {
-            margin: 0;
-            font-size: 22pt;
-            font-weight: 700;
-            letter-spacing: 3px;
+            margin: 0 0 6px 0;
+            font-size: 20pt;
+            font-weight: bold;
             text-transform: uppercase;
-            color: white;
         }
-        .header p {
-            margin: 12px 0 0 0;
-            font-size: 13pt;
-            font-weight: 600;
-            background: #1e40af;
-            display: inline-block;
-            padding: 6px 24px;
-            border-radius: 4px;
-            letter-spacing: 1px;
+        .header .doc-number {
+            font-size: 12pt;
+            font-weight: bold;
         }
-        .info-section {
-            background: #f8fafc;
-            border: 1px solid #e2e8f0;
-            padding: 18px;
-            margin-bottom: 25px;
-        }
+        /* INFO SECTION */
         .info-table {
             width: 100%;
             border-collapse: collapse;
+            margin-bottom: 20px;
+            background-color: #f8fafc;
+            border: 1px solid #e2e8f0;
         }
         .info-table td {
-            padding: 7px 12px;
-            vertical-align: top;
+            padding: 8px 12px;
             font-size: 9.5pt;
+            border: 1px solid #e2e8f0;
         }
         .info-table .label {
-            font-weight: 600;
-            width: 140px;
+            font-weight: bold;
+            width: 20%;
             color: #475569;
             text-transform: uppercase;
             font-size: 8.5pt;
-            letter-spacing: 0.3px;
+            background-color: #f1f5f9;
         }
-        .info-table .value {
-            color: #1e293b;
-            font-weight: 500;
-        }
+        /* SECTION TITLE */
         .section-title {
             font-size: 11pt;
-            font-weight: 700;
-            color: #1e293b;
-            margin: 30px 0 15px 0;
-            padding: 10px 15px;
-            background: #f1f5f9;
-            border-left: 4px solid #1e40af;
+            font-weight: bold;
+            color: white;
+            background-color: #667eea;
+            padding: 12px 15px;
+            margin: 20px 0 15px 0;
             text-transform: uppercase;
-            letter-spacing: 1px;
         }
+        /* DETAILS TABLE */
         .details-table {
             width: 100%;
             border-collapse: collapse;
-            margin-top: 15px;
+            margin-bottom: 20px;
             border: 1px solid #cbd5e1;
         }
-        .details-table thead {
-            background: #1e293b;
+        .details-table thead tr {
+            background-color: #667eea;
             color: white;
         }
         .details-table th {
-            padding: 12px 10px;
+            padding: 12px 8px;
             text-align: center;
-            font-weight: 600;
+            font-weight: bold;
             text-transform: uppercase;
             font-size: 8.5pt;
-            letter-spacing: 0.5px;
-            border: 1px solid #475569;
+            border: 1px solid #667eea;
         }
         .details-table td {
-            border: 1px solid #cbd5e1;
-            padding: 10px;
+            padding: 10px 8px;
             font-size: 9.5pt;
+            border: 1px solid #cbd5e1;
         }
-        .details-table tbody tr:nth-child(even) {
+        .details-table tbody tr:nth-child(even) td {
             background-color: #f8fafc;
         }
-        .details-table .no { 
-            width: 40px; 
+        .details-table .no {
             text-align: center;
-            font-weight: 600;
-            color: #64748b;
+            width: 30px;
+            font-weight: bold;
         }
         .details-table .code {
-            font-family: 'Courier New', monospace;
-            font-weight: 600;
+            font-family: monospace;
+            font-weight: bold;
             color: #1e40af;
         }
-        .details-table .qty { 
-            width: 110px; 
+        .details-table .qty {
             text-align: right;
-            font-family: 'Segoe UI', 'Arial', sans-serif;
-            font-weight: 600;
-            color: #1e293b;
-            font-variant-numeric: tabular-nums;
+            width: 70px;
+            font-weight: bold;
         }
-        .details-table .unit { 
-            width: 80px; 
+        .details-table .unit {
             text-align: center;
-            font-weight: 500;
-            color: #475569;
+            width: 60px;
         }
         .details-table .type {
             text-align: center;
-            width: 100px;
+            width: 80px;
         }
+        /* BADGES */
         .badge {
             display: inline-block;
-            padding: 4px 10px;
-            border-radius: 3px;
+            padding: 3px 8px;
+            border-radius: 2px;
             font-size: 8pt;
-            font-weight: 600;
+            font-weight: bold;
             text-transform: uppercase;
-            letter-spacing: 0.3px;
         }
         .badge-material {
-            background: #dbeafe;
-            color: #1e40af;
-            border: 1px solid #bfdbfe;
+            background-color: #dbeafe;
+            color: #0c4a6e;
         }
         .badge-semifinished {
-            background: #fed7aa;
-            color: #c2410c;
-            border: 1px solid #fdba74;
+            background-color: #fed7aa;
+            color: #7c2d12;
         }
         .badge-status {
-            background: #d1fae5;
-            color: #065f46;
-            font-size: 9pt;
-            padding: 5px 14px;
-            border: 1px solid #a7f3d0;
+            background-color: #667eea;
+            color: white;
+            font-size: 8.5pt;
+            padding: 4px 10px;
         }
+        /* REMARKS */
         .remarks-section {
-            margin-top: 25px;
-            padding: 15px 18px;
-            background: #fffbeb;
-            border-left: 4px solid #f59e0b;
-            border: 1px solid #fde68a;
+            margin: 20px 0;
+            padding: 12px;
+            background-color: #f0f4ff;
+            border-left: 3px solid #667eea;
+            border: 1px solid #e2e8f0;
         }
         .remarks-section .label {
-            font-weight: 700;
-            color: #92400e;
-            margin-bottom: 6px;
+            font-weight: bold;
+            color: #1e293b;
+            margin-bottom: 4px;
             text-transform: uppercase;
             font-size: 8.5pt;
-            letter-spacing: 0.5px;
         }
         .remarks-section .content {
-            color: #78350f;
+            color: #475569;
             font-size: 9.5pt;
         }
+        /* SIGNATURE */
         .signature-section {
-            margin-top: 50px;
+            margin-top: 40px;
             page-break-inside: avoid;
         }
         .signature-table {
             width: 100%;
-            text-align: center;
             border-collapse: collapse;
         }
         .signature-table td {
-            width: 33.3%;
-            padding: 10px;
+            width: 33.33%;
+            text-align: center;
+            padding: 15px;
             vertical-align: top;
+            border: 1px solid #cbd5e1;
         }
         .sig-box {
-            border: 1px solid #cbd5e1;
-            padding: 15px;
-            background: white;
             min-height: 100px;
+            background-color: white;
         }
         .sig-label {
-            font-weight: 700;
-            color: #475569;
-            margin-bottom: 55px;
+            font-weight: bold;
+            color: #1e293b;
+            margin-bottom: 40px;
             font-size: 8.5pt;
             text-transform: uppercase;
-            letter-spacing: 0.5px;
         }
         .sig-line {
-            border-top: 2px solid #1e293b;
-            margin: 0 15px;
-            padding-top: 8px;
+            border-top: 1px solid #1e293b;
+            padding-top: 4px;
+            height: 16px;
         }
         .sig-name {
-            font-weight: 600;
             color: #1e293b;
-            font-size: 9.5pt;
+            font-size: 8.5pt;
         }
+        /* FOOTER */
         .footer-note {
-            margin-top: 30px;
+            margin-top: 25px;
             text-align: center;
-            font-size: 8pt;
+            font-size: 8.5pt;
             color: #64748b;
             border-top: 1px solid #cbd5e1;
-            padding-top: 12px;
-            letter-spacing: 0.3px;
+            padding-top: 10px;
         }
     </style>
 </head>
 <body>
     <div class="container">
+        <!-- HEADER -->
         <div class="header">
+            <div class="company-name">PT MINGBAO LIANCHUANG INTERNATIONAL</div>
             <h1>Work Order</h1>
-            <p><?= htmlspecialchars($header->wo_number); ?></p>
+            <div class="doc-number"><?= htmlspecialchars($header->wo_number); ?></div>
         </div>
 
-        <div class="info-section">
-            <table class="info-table">
-                <tr>
-                    <td class="label">Sales Contract</td>
-                    <td class="value">: <strong><?= htmlspecialchars($header->sc_number); ?></strong></td>
-                    <td class="label">Qty Rencana</td>
-                    <td class="value">: <strong><?= number_format($header->planned_qty, 2); ?></strong></td>
-                </tr>
-                <tr>
-                    <td class="label">Customer</td>
-                    <td class="value">: <?= htmlspecialchars($header->nama_customer); ?></td>
-                    <td class="label">Tgl Mulai</td>
-                    <td class="value">: <?= date('d F Y', strtotime($header->planned_start_date)); ?></td>
-                </tr>
-                <tr>
-                    <td class="label">Finished Good</td>
-                    <td class="value">: <strong><?= htmlspecialchars($header->fg_name); ?></strong></td>
-                    <td class="label">Tgl Selesai</td>
-                    <td class="value">: <?= $header->planned_end_date ? date('d F Y', strtotime($header->planned_end_date)) : '-'; ?></td>
-                </tr>
-                <tr>
-                    <td class="label">Status</td>
-                    <td class="value">: <span class="badge badge-status"><?= htmlspecialchars($header->status); ?></span></td>
-                    <td class="label">Dibuat Oleh</td>
-                    <td class="value">: <?= htmlspecialchars($header->creator_name); ?></td>
-                </tr>
-            </table>
-        </div>
+        <!-- INFO TABLE -->
+        <table class="info-table">
+            <tr>
+                <td class="label">Sales Contract</td>
+                <td><strong><?= htmlspecialchars($header->sc_number); ?></strong></td>
+                <td class="label">Qty Rencana</td>
+                <td><strong><?= number_format($header->planned_qty, 2); ?></strong></td>
+            </tr>
+            <tr>
+                <td class="label">Customer</td>
+                <td><?= htmlspecialchars($header->nama_customer); ?></td>
+                <td class="label">Tgl Mulai</td>
+                <td><?= date('d M Y', strtotime($header->planned_start_date)); ?></td>
+            </tr>
+            <tr>
+                <td class="label">Finished Good</td>
+                <td><strong><?= htmlspecialchars($header->fg_name); ?></strong></td>
+                <td class="label">Tgl Selesai</td>
+                <td><?= $header->planned_end_date ? date('d M Y', strtotime($header->planned_end_date)) : '-'; ?></td>
+            </tr>
+            <tr>
+                <td class="label">Status</td>
+                <td><span class="badge badge-status"><?= htmlspecialchars($header->status); ?></span></td>
+                <td class="label">Dibuat Oleh</td>
+                <td><?= htmlspecialchars($header->creator_name); ?></td>
+            </tr>
+        </table>
 
+        <!-- SECTION TITLE -->
         <div class="section-title">DETAIL KOMPONEN MATERIAL</div>
 
+        <!-- DETAILS TABLE -->
         <table class="details-table">
             <thead>
                 <tr>
@@ -281,70 +265,70 @@
                 </tr>
             </thead>
             <tbody>
-                <?php $no = 1; foreach ($details as $d): ?>
-                <tr>
-                    <td class="no"><?= $no++; ?></td>
-                    <td class="code"><?= htmlspecialchars($d->item_code); ?></td>
-                    <td><?= htmlspecialchars($d->item_name); ?></td>
-                    <td class="type">
-                        <span class="badge <?= $d->item_type == 'material' ? 'badge-material' : 'badge-semifinished'; ?>">
-                            <?= htmlspecialchars($d->item_type); ?>
-                        </span>
-                    </td>
-                    <td class="qty"><?= number_format($d->planned_qty, 2); ?></td>
-                    <td class="unit"><?= htmlspecialchars($d->unit_measure ?? '-'); ?></td>
-                </tr>
-                <?php endforeach; ?>
-                <?php if (empty($details)): ?>
-                <tr>
-                    <td colspan="6" style="text-align: center; color: #94a3b8; font-style: italic; padding: 20px;">Tidak ada data material.</td>
-                </tr>
+                <?php if (!empty($details)): ?>
+                    <?php $no = 1; foreach ($details as $d): ?>
+                    <tr>
+                        <td class="no"><?= $no++; ?></td>
+                        <td class="code"><?= htmlspecialchars($d->item_code); ?></td>
+                        <td><?= htmlspecialchars($d->item_name); ?></td>
+                        <td class="type">
+                            <span class="badge <?= $d->item_type == 'material' ? 'badge-material' : 'badge-semifinished'; ?>">
+                                <?= htmlspecialchars($d->item_type); ?>
+                            </span>
+                        </td>
+                        <td class="qty"><?= number_format($d->planned_qty, 2); ?></td>
+                        <td class="unit"><?= htmlspecialchars($d->unit_measure ?? '-'); ?></td>
+                    </tr>
+                    <?php endforeach; ?>
+                <?php else: ?>
+                    <tr>
+                        <td colspan="6" style="text-align: center; color: #94a3b8; padding: 20px;">Tidak ada data material.</td>
+                    </tr>
                 <?php endif; ?>
             </tbody>
         </table>
-        
+
+        <!-- REMARKS -->
         <?php if (!empty($header->remarks)): ?>
         <div class="remarks-section">
             <div class="label">Catatan</div>
-            <div class="content"><?= htmlspecialchars($header->remarks); ?></div>
+            <div class="content"><?= nl2br(htmlspecialchars($header->remarks)); ?></div>
         </div>
         <?php endif; ?>
 
+        <!-- SIGNATURE -->
         <div class="signature-section">
             <table class="signature-table">
                 <tr>
                     <td>
                         <div class="sig-box">
                             <div class="sig-label">Dibuat Oleh</div>
-                            <div class="sig-line">
-                                <div class="sig-name"><?= htmlspecialchars($header->creator_name); ?></div>
-                            </div>
+                            <div class="sig-line"></div>
+                            <div class="sig-name"><?= htmlspecialchars($header->creator_name); ?></div>
                         </div>
                     </td>
                     <td>
                         <div class="sig-box">
                             <div class="sig-label">Mengetahui</div>
-                            <div class="sig-line">
-                                <div class="sig-name">Manager PPIC</div>
-                            </div>
+                            <div class="sig-line"></div>
+                            <div class="sig-name">Manager PPIC</div>
                         </div>
                     </td>
                     <td>
                         <div class="sig-box">
                             <div class="sig-label">Disetujui</div>
-                            <div class="sig-line">
-                                <div class="sig-name">Manager Produksi</div>
-                            </div>
+                            <div class="sig-line"></div>
+                            <div class="sig-name">Manager Produksi</div>
                         </div>
                     </td>
                 </tr>
             </table>
         </div>
 
+        <!-- FOOTER -->
         <div class="footer-note">
-            Dokumen dicetak pada: <?= date('d F Y H:i:s'); ?>
+            Dokumen dicetak pada: <?= date('d M Y H:i:s'); ?>
         </div>
-
     </div>
 </body>
 </html>

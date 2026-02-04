@@ -574,7 +574,7 @@ $lang['warehouse_in_cancel'] = 'Batal';
 $lang['warehouse_in_select_warehouse_type'] = '-- Pilih Tipe Gudang --';
 $lang['warehouse_in_select_bc_type'] = '-- Pilih Tipe BC --';
 $lang['warehouse_in_po'] = 'Purchase Order (PO)';
-$lang['warehouse_in_mir'] = 'Material Issue Return (MIR)';
+$lang['warehouse_in_mir'] = ' (MIR)';
 $lang['optional'] = 'Opsional';
 $lang['first'] = 'dulu';
 $lang['save_changes'] = 'Simpan Perubahan';
@@ -700,7 +700,7 @@ $lang['sidebar_goods_incoming_report'] = 'Lap Pemasukan Barang';
 $lang['sidebar_goods_outgoing_report'] = 'Lap Pengeluaran Barang';
 $lang['sidebar_scrap_mutation_report'] = 'Lap Mutasi Scrap';
 $lang['sidebar_mutation_reports'] = 'Laporan Mutasi:';
-$lang['sidebar_material_mutation_report'] = 'Lap Mutasi Material';
+$lang['sidebar_material_mutation_report'] = 'Lap Mutasi Bahan Baku';
 $lang['sidebar_fg_mutation_report'] = 'Lap Mutasi Barang Jadi';
 $lang['sidebar_wip_mutation_report'] = 'Lap Mutasi WIP';
 $lang['sidebar_machine_mutation_report'] = 'Lap Mutasi Mesin';
@@ -1087,7 +1087,7 @@ $lang['stock_traceability_title'] = 'Detail Traceability Scrap';
 // Finished Goods Mutation
 $lang['fg_mutation_title'] = 'Laporan Pertanggung Jawaban Mutasi Barang Jadi';
 $lang['fg_mutation_detail'] = 'Detail Mutasi';
-$lang['fg_recap_title'] = 'Laporan Rekapitulasi Stok Barang Jadi';
+$lang['fg_recap_title'] = 'LAPORAN PERTANGGUNG JAWABAN MUTASI BARANG JADI';
 $lang['fg_receipt_proof'] = 'Bukti Terima Barang Jadi';
 $lang['fg_delivery_note'] = 'Surat Jalan';
 

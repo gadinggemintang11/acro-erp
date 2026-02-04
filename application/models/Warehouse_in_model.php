@@ -19,9 +19,28 @@ class Warehouse_in_model extends CI_Model {
         }
     }
     public function get_all() {
-        $this->db->select('h.id, h.grn_number, h.grn_date, h.status, s.nama_supplier, h.base_on');
+        // Use subquery to get only first GRN detail for supplier lookup
+        $first_detail_subquery = "
+            SELECT grn_header_id, MIN(id) as first_detail_id 
+            FROM grn_details 
+            GROUP BY grn_header_id
+        ";
+        
+        $this->db->select('
+            h.id, h.grn_number, h.grn_date, h.status, h.base_on,
+            COALESCE(s.nama_supplier, s_po.nama_supplier, s_mir.nama_supplier) as nama_supplier
+        ');
         $this->db->from($this->table_header . ' h');
         $this->db->join('suppliers s', 'h.supplier_id = s.id', 'left');
+        
+        // Fallback suppliers from first GRN detail only
+        $this->db->join("({$first_detail_subquery}) gd_first", 'h.id = gd_first.grn_header_id', 'left');
+        $this->db->join('grn_details gd', 'gd_first.first_detail_id = gd.id', 'left');
+        $this->db->join('po_header po', 'gd.source_doc_type = "PO" AND gd.source_doc_header_id = po.id', 'left');
+        $this->db->join('suppliers s_po', 's_po.id = po.supplier_id', 'left');
+        $this->db->join('mir_header mir', 'gd.source_doc_type = "MIR" AND gd.source_doc_header_id = mir.id', 'left');
+        $this->db->join('suppliers s_mir', 's_mir.id = mir.supplier_id', 'left');
+        
         $this->db->order_by('h.id', 'DESC');
         return $this->db->get()->result();
     }
@@ -41,7 +60,14 @@ class Warehouse_in_model extends CI_Model {
         $this->db->join('common_code cc_bc', 'h.bc_type_code = cc_bc.code AND cc_bc.group_code = "BC_TYPE"', 'left');
         $this->db->where('h.id', $id);
         $query = $this->db->get();
-        return $query ? $query->row() : null;
+        $header = $query ? $query->row() : null;
+        
+        // Enhance supplier info if null (fallback to PO/MIR)
+        if ($header) {
+            $header = $this->enhance_supplier_info($header);
+        }
+        
+        return $header;
     }
 
     public function insert_header($data) {
@@ -324,5 +350,67 @@ class Warehouse_in_model extends CI_Model {
             return $query ? $query->result() : [];
         }
         return [];
+    }
+
+    /**
+     * Enhance GRN header with supplier info fallback
+     * If supplier_id is null, get from first detail's PO or MIR
+     */
+    public function enhance_supplier_info($grn_header) {
+        if (empty($grn_header)) {
+            return $grn_header;
+        }
+
+        // If supplier already set, return as is
+        if (!empty($grn_header->nama_supplier) && $grn_header->nama_supplier !== '-') {
+            return $grn_header;
+        }
+
+        // Try to get supplier from first detail's PO or MIR
+        $first_detail = $this->db->select('source_doc_header_id, source_doc_type')
+            ->from('grn_details')
+            ->where('grn_header_id', $grn_header->id)
+            ->limit(1)
+            ->get()
+            ->row();
+
+        if ($first_detail) {
+            if ($first_detail->source_doc_type == 'PO') {
+                $supplier = $this->db->select('s.nama_supplier')
+                    ->from('po_header ph')
+                    ->join('suppliers s', 's.id = ph.supplier_id', 'left')
+                    ->where('ph.id', $first_detail->source_doc_header_id)
+                    ->get()
+                    ->row();
+                if ($supplier) {
+                    $grn_header->nama_supplier = $supplier->nama_supplier;
+                }
+            } else if ($first_detail->source_doc_type == 'MIR') {
+                // Get MIR supplier
+                $mir = $this->db->select('supplier_id')
+                    ->from('mir_header')
+                    ->where('id', $first_detail->source_doc_header_id)
+                    ->get()
+                    ->row();
+                
+                if ($mir && !empty($mir->supplier_id)) {
+                    $supplier = $this->db->select('nama_supplier')
+                        ->from('suppliers')
+                        ->where('id', $mir->supplier_id)
+                        ->get()
+                        ->row();
+                    if ($supplier) {
+                        $grn_header->nama_supplier = $supplier->nama_supplier;
+                    }
+                }
+            }
+        }
+
+        // Default if still empty
+        if (empty($grn_header->nama_supplier)) {
+            $grn_header->nama_supplier = '-';
+        }
+
+        return $grn_header;
     }
 }

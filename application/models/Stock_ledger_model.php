@@ -463,27 +463,45 @@ class Stock_ledger_model extends CI_Model {
     public function get_item_transaction_history($item_id, $item_type, $start_date = null, $end_date = null) {
         $this->db->reset_query();
         
+        // PERBAIKAN: Tambah COALESCE untuk fallback supplier dari PO/MIR jika GRN supplier_id NULL
         $select_clause = "
             sl.id as ledger_id, sl.transaction_date, sl.transaction_type, sl.transaction_id,
             sl.qty_in, sl.qty_out, sl.balance, sl.unit_value,
             sl.source_doc_type, sl.source_doc_id,
-            grn.grn_number, s.nama_supplier,
+            grn.grn_number, 
+            COALESCE(NULLIF(s.nama_supplier, ''), NULLIF(s_po.nama_supplier, ''), NULLIF(s_mir.nama_supplier, '')) as nama_supplier,
             grn.bc_type_code as grn_bc_type, grn.bc_number as grn_bc_no, grn.bc_date as grn_bc_date,
             prh.prod_return_no,
             mr_h.mr_number,
             sih.doc_no as scrap_in_doc_no,
             soh.doc_no as scrap_out_doc_no,
             soh.bc_type_code as scrap_out_bc_type, soh.bc_number as scrap_out_bc_no, soh.bc_date as scrap_out_bc_date
-            /* Hapus referensi ke production_outputs, adjustment, dll untuk menyederhanakan */
         ";
 
         $this->db->select($select_clause, FALSE);
         $this->db->from($this->table . ' sl');
 
         // --- JOIN BERDASARKAN TIPE TRANSAKSI ---
+        // GRN Header
         $this->db->join('grn_header grn', 'sl.transaction_id = grn.id AND sl.transaction_type = "in"', 'left');
+        
+        // GRN Details untuk mendapat source document (PO atau MIR)
+        $this->db->join('grn_details gd', 'grn.id = gd.grn_header_id AND gd.item_id = sl.item_id', 'left');
+        
+        // Supplier langsung dari GRN header
         $this->db->join('suppliers s', 'grn.supplier_id = s.id', 'left');
-        $this->db->join('prod_return_header prh', 'sl.transaction_id = prh.id AND sl.transaction_type = "IN_RETURN_WIP"', 'left');
+        
+        // Fallback supplier dari PO jika GRN supplier_id NULL dan source adalah PO
+        $this->db->join('po_header poh', 'gd.source_doc_type = "PO" AND gd.source_doc_header_id = poh.id', 'left');
+        $this->db->join('suppliers s_po', 's_po.id = poh.supplier_id', 'left');
+        
+        // Fallback supplier dari MIR jika GRN supplier_id NULL dan source adalah MIR
+        $this->db->join('mir_header mir', 'gd.source_doc_type = "MIR" AND gd.source_doc_header_id = mir.id', 'left');
+        $this->db->join('suppliers s_mir', 's_mir.id = mir.supplier_id', 'left');
+        
+        // Join lainnya
+        $this->db->join('prod_return_detail prd', 'sl.transaction_id = prd.id AND sl.transaction_type = "IN_RETURN_WIP"', 'left');
+        $this->db->join('prod_return_header prh', 'prd.prod_return_id = prh.id', 'left');
         $this->db->join('mr_header mr_h', 'sl.transaction_id = mr_h.id AND sl.transaction_type IN ("OUT_ISSUE", "production_out")', 'left'); 
         $this->db->join('scrap_in_header sih', 'sl.transaction_id = sih.id AND sl.transaction_type = "IN_SCRAP_WH"', 'left');
         $this->db->join('scrap_out_header soh', 'sl.transaction_id = soh.id AND sl.transaction_type = "OUT_SCRAP_BC"', 'left');
@@ -494,9 +512,8 @@ class Stock_ledger_model extends CI_Model {
         if ($start_date) { $this->db->where('sl.transaction_date >=', $start_date . ' 00:00:00'); }
         if ($end_date) { $this->db->where('sl.transaction_date <=', $end_date . ' 23:59:59'); }
         
-        // --- PERBAIKAN UTAMA: Filter hanya transaksi Gudang Utama ---
+        // --- Filter hanya transaksi Gudang Utama ---
         $this->db->where_in('sl.transaction_type', $this->get_warehouse_tx_types());
-        // --- AKHIR PERBAIKAN ---
         
         $this->db->group_by('sl.id'); 
         $this->db->order_by('sl.transaction_date', 'ASC');

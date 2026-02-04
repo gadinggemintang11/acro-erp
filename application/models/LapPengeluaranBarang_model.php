@@ -93,7 +93,7 @@ class LapPengeluaranBarang_model extends CI_Model {
             -- FIX KRITIS: JOIN COMMON CODE (Menggunakan Raw SQL untuk BC Type)
             LEFT JOIN common_code cc ON cc.group_code = 'BC_TYPE'
                 AND (
-                    (sl.transaction_type = 'fg_out' AND cc.id = fdh.bc_type_id) 
+                    (sl.transaction_type = 'fg_out' AND cc.code = fdh.bc_type_id) 
                     OR
                     (sl.transaction_type IN ('OUT_SCRAP_BC', 'production_out') AND cc.code = COALESCE(soh.bc_type_code, sout.bc_type_code))
                 )

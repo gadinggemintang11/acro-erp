@@ -11,7 +11,15 @@ if (!empty($trace)) {
     $item_name = $trace->item_name ?? '-';
     $item_unit = $trace->item_unit ?? '-';
     $sales_contract_ref = $trace->sales_contract_ref ?? '-';
-    $nilai_keluar = number_format(($trace->qty_out ?? 0) * ($trace->unit_value ?? 0), 2);
+    
+    // FIX: Gunakan nilai_barang_idr dari query (sudah dihitung untuk fg_out, scrap, dll)
+    // Fallback ke perhitungan manual jika nilai_barang_idr tidak ada
+    $nilai_keluar = $trace->nilai_barang_idr ?? (($trace->qty_out ?? 0) * ($trace->unit_value ?? 0));
+    $nilai_keluar_formatted = number_format($nilai_keluar, 2);
+    
+    // Hitung unit value untuk display (nilai per unit)
+    $qty_out = $trace->qty_out ?? $trace->jumlah ?? 0;
+    $unit_value_display = ($qty_out > 0) ? ($nilai_keluar / $qty_out) : ($trace->unit_value ?? 0);
     
     // BC Data
     $bc_desc = $trace->jenis_bc_desc ?? '-';
@@ -48,9 +56,9 @@ if (!empty($trace)) {
                     <tr><td colspan="2" class="font-weight-bold border-bottom">INFO ITEM</td></tr>
                     <tr><td width="50%">Kode Barang</td><td>: <strong><?= $item_code; ?></strong></td></tr>
                     <tr><td>Nama Barang</td><td>: <?= $item_name; ?></td></tr>
-                    <tr><td>Qty Keluar</td><td>: <strong><?= number_format($trace->qty_out ?? 0, 2); ?> <?= $item_unit; ?></strong></td></tr>
-                    <tr><td>Nilai/Unit (HPP)</td><td>: Rp <?= number_format($trace->unit_value ?? 0, 2); ?></td></tr>
-                    <tr><td>Total Nilai</td><td>: <strong class="text-danger">Rp <?= $nilai_keluar; ?></strong></td></tr>
+                    <tr><td>Qty Keluar</td><td>: <strong><?= number_format($qty_out, 2); ?> <?= $item_unit; ?></strong></td></tr>
+                    <tr><td>Nilai/Unit (HPP)</td><td>: Rp <?= number_format($unit_value_display, 2); ?></td></tr>
+                    <tr><td>Total Nilai</td><td>: <strong class="text-danger">Rp <?= $nilai_keluar_formatted; ?></strong></td></tr>
                 </table>
             </div>
 

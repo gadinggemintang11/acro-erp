@@ -554,7 +554,7 @@ $canViewSystem = check_access('commoncode', 'view') || check_access('roleaccess'
                 
                 <h6 class="collapse-header"><?= lang_line('sidebar_mutation_reports', 'Laporan Mutasi:'); ?></h6>
                 <?php if (check_access('lapmutasimaterial', 'view')): ?>
-                    <a class="collapse-item <?= ($current == 'lapmutasimaterial') ? 'active' : ''; ?>" href="<?= $base; ?>LapMutasiMaterial"><?= lang_line('sidebar_material_mutation_report', 'Lap Mutasi Material'); ?></a>
+                    <a class="collapse-item <?= ($current == 'lapmutasimaterial') ? 'active' : ''; ?>" href="<?= $base; ?>LapMutasiMaterial"><?= lang_line('sidebar_material_mutation_report', 'Lap Mutasi Bahan Baku'); ?></a>
                 <?php endif; ?>
                 <?php if (check_access('lapmutasifinished', 'view')): ?>
                     <a class="collapse-item <?= ($current == 'lapmutasifinished') ? 'active' : ''; ?>" href="<?= $base; ?>LapMutasiFinished"><?= lang_line('sidebar_fg_mutation_report', 'Lap Mutasi Barang Jadi'); ?></a>

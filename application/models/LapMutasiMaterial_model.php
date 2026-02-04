@@ -242,7 +242,7 @@ class LapMutasiMaterial_model extends CI_Model {
                 COALESCE(sf.nama_barang, fg.nama_barang, scr.scrap_name, 'Unknown') as related_item_name,
                 
                 CASE 
-                    WHEN po.item_type = 'scrap' THEN po.qty_scrap
+                    WHEN po.item_type = 'scrap' THEN po.qty_produced
                     ELSE po.qty_produced 
                 END as related_qty,
 

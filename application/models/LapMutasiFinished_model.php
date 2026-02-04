@@ -222,10 +222,172 @@ class LapMutasiFinished_model extends CI_Model {
         foreach($issued_materials as $item) {
             $item_id = $item['item_id'];
             $item['qty_terpakai'] = isset($used_materials[$item_id]) ? $used_materials[$item_id] : 0;
+            
+            // Enhanced: Add BC information and GRN details from the last incoming transaction
+            $bc_info = $this->get_material_bc_info($item_id, $prod_header_id);
+            $item = array_merge($item, $bc_info);
+            
             $result[] = $item;
         }
         
         return $result;
+    }
+
+    /**
+     * Get BC information and GRN details for a specific material based on production date
+     * This provides deep traceability showing BC number, type, date and arrival information
+     */
+    public function get_material_bc_info($material_id, $production_header_id)
+    {
+        try {
+            // Get production date to find the relevant material receipt
+            $this->db->select('production_date');
+            $this->db->from('production_header');
+            $this->db->where('id', $production_header_id);
+            $prod_header = $this->db->get()->row();
+            
+            if (!$prod_header) {
+                return $this->get_default_bc_info();
+            }
+
+            $prod_date = $prod_header->production_date;
+
+            // Find the most recent GRN for this material before production date
+            $this->db->select('
+                gh.grn_number,
+                gh.grn_date,
+                gh.bc_type_code,
+                gh.bc_number, 
+                gh.bc_date,
+                ph.po_number,
+                ph.po_date,
+                mh.mir_number,
+                COALESCE(s_po.nama_supplier, s_mir.nama_supplier) as nama_supplier,
+                sl.transaction_date as arrival_date
+            ');
+            $this->db->from('stock_ledger sl');
+            $this->db->join('grn_header gh', 'sl.transaction_id = gh.id AND sl.transaction_type = "in"', 'left');
+            $this->db->join('grn_details gd', 'gd.grn_header_id = gh.id AND gd.item_id = sl.item_id', 'left');
+            $this->db->join('po_header ph', 'gd.source_doc_header_id = ph.id AND gd.source_doc_type = "PO"', 'left');
+            $this->db->join('mir_header mh', 'gd.source_doc_header_id = mh.id AND gd.source_doc_type = "MIR"', 'left');
+            $this->db->join('suppliers s_po', 's_po.id = ph.supplier_id', 'left');
+            $this->db->join('suppliers s_mir', 's_mir.id = mh.supplier_id', 'left');
+            $this->db->where('sl.item_id', $material_id);
+            $this->db->where('sl.item_type', 'material');
+            $this->db->where('sl.transaction_type', 'in');
+            $this->db->where('sl.qty_in >', 0);
+            $this->db->where('sl.transaction_date <=', $prod_date . ' 23:59:59');
+            $this->db->order_by('sl.transaction_date', 'DESC');
+            $this->db->order_by('sl.id', 'DESC');
+            $this->db->limit(1);
+            
+            $bc_data = $this->db->get()->row();
+
+            if ($bc_data) {
+                return [
+                    'grn_number' => $bc_data->grn_number ?? '-',
+                    'grn_date' => $bc_data->grn_date ?? null,
+                    'bc_type_code' => $bc_data->bc_type_code ?? '-',
+                    'bc_number' => $bc_data->bc_number ?? '-',
+                    'bc_date' => $bc_data->bc_date ?? null,
+                    'po_number' => $bc_data->po_number ?? '-',
+                    'po_date' => $bc_data->po_date ?? null,
+                    'nama_supplier' => $bc_data->nama_supplier ?? '-',
+                    'arrival_date' => $bc_data->arrival_date ?? null,
+                    'qty_used_from_this_batch' => $this->calculate_batch_usage($material_id, $production_header_id, $bc_data->arrival_date ?? null)
+                ];
+            }
+
+            return $this->get_default_bc_info();
+        } catch (Exception $e) {
+            // Log error but don't fail, return default info
+            log_message('error', 'Error in get_material_bc_info: ' . $e->getMessage());
+            return $this->get_default_bc_info();
+        }
+    }
+
+    /**
+     * Calculate how much of this material was used from a specific batch/arrival
+     */
+    private function calculate_batch_usage($material_id, $production_header_id, $arrival_date)
+    {
+        try {
+            if (!$arrival_date) {
+                // If no specific arrival date, return total used
+                $this->db->select('SUM(qty_used) as total');
+                $this->db->from('production_inputs');
+                $this->db->where('production_header_id', $production_header_id);
+                $this->db->where('item_id', $material_id);
+                $this->db->where('item_type', 'material');
+                $result = $this->db->get()->row();
+                return $result ? (float)$result->total : 0;
+            }
+
+            // For more accurate tracking, we could implement FIFO logic here
+            // For now, return the total usage as batch tracking might need additional tables
+            $this->db->select('SUM(qty_used) as total');
+            $this->db->from('production_inputs');
+            $this->db->where('production_header_id', $production_header_id);
+            $this->db->where('item_id', $material_id);
+            $this->db->where('item_type', 'material');
+            $result = $this->db->get()->row();
+            return $result ? (float)$result->total : 0;
+        } catch (Exception $e) {
+            log_message('error', 'Error in calculate_batch_usage: ' . $e->getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * Default BC info structure when no data found
+     */
+    private function get_default_bc_info()
+    {
+        return [
+            'grn_number' => '-',
+            'grn_date' => null,
+            'bc_type_code' => '-',
+            'bc_number' => '-', 
+            'bc_date' => null,
+            'po_number' => '-',
+            'po_date' => null,
+            'nama_supplier' => '-',
+            'arrival_date' => null,
+            'qty_used_from_this_batch' => 0
+        ];
+    }
+
+    /**
+     * Enhanced get_materials_for_production that returns object format for modal_traceability.php
+     * This provides full BC traceability information for deep traceability reports
+     */
+    public function get_materials_with_full_bc_trace($wo_id, $prod_header_id)
+    {
+        $materials_array = $this->get_materials_for_production($wo_id, $prod_header_id);
+        
+        // Convert array format to object format for compatibility with existing modal
+        $materials_objects = [];
+        foreach ($materials_array as $material) {
+            $obj = new stdClass();
+            $obj->kode_material = $material['kode_material'];
+            $obj->nama_material = $material['nama_material'];
+            $obj->issued_qty = $material['issued_qty'];
+            $obj->qty_used_from_this_batch = $material['qty_used_from_this_batch'] ?? $material['qty_terpakai'];
+            $obj->satuan = $material['satuan'];
+            $obj->grn_number = $material['grn_number'];
+            $obj->grn_date = $material['grn_date'];
+            $obj->po_number = $material['po_number'];
+            $obj->po_date = $material['po_date'];
+            $obj->nama_supplier = $material['nama_supplier'];
+            $obj->bc_type_code = $material['bc_type_code'];
+            $obj->bc_number = $material['bc_number'];
+            $obj->bc_date = $material['bc_date'];
+            $obj->arrival_date = $material['arrival_date'];
+            
+            $materials_objects[] = $obj;
+        }
+        
+        return $materials_objects;
     }
 
     public function get_detail_pengiriman($fg_delivery_detail_id)

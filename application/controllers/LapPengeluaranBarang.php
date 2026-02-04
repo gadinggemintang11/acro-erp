@@ -170,14 +170,21 @@ class LapPengeluaranBarang extends MY_Controller {
         $bc_codes = array_column($this->Commoncode_model->get_by_group('BC_TYPE'), 'description', 'code');
 
         // --- Header Laporan ---
-        $sheet->setCellValue('A1', 'LAPORAN PENGELUARAN BARANG EKSTERNAL');
+        $sheet->setCellValue('A1', 'LAPORAN PERTANGGUNG JAWABAN PENGELUARAN BARANG');
         $sheet->mergeCells('A1:M1'); 
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
-        $sheet->setCellValue('A2', 'Periode: ' . date('d/m/Y', strtotime($filters['start_date'])) . ' s/d ' . date('d/m/Y', strtotime($filters['end_date'])));
+        $sheet->getStyle('A1')->getAlignment()->setHorizontal('center');
+        $sheet->setCellValue('A2', 'PT MINGBAO LIANCHUANG INTERNATIONAL');
         $sheet->mergeCells('A2:M2');
+        $sheet->getStyle('A2')->getFont()->setBold(true)->setSize(11);
+        $sheet->getStyle('A2')->getAlignment()->setHorizontal('center');
+        $sheet->setCellValue('A3', 'Periode: ' . date('d M Y', strtotime($filters['start_date'])) . ' s/d ' . date('d M Y', strtotime($filters['end_date'])));
+        $sheet->mergeCells('A3:M3');
+        $sheet->getStyle('A3')->getFont()->setBold(true)->setSize(11);
+        $sheet->getStyle('A3')->getAlignment()->setHorizontal('center');
         
         // --- Header Tabel ---
-        $headerRow = 4;
+        $headerRow = 5;
         $sheet->setCellValue('A'.$headerRow, 'NO')->mergeCells('A'.$headerRow.':A'.($headerRow+1));
         $sheet->setCellValue('B'.$headerRow, 'DATA DOKUMEN PABEAN')->mergeCells('B'.$headerRow.':D'.$headerRow);
         $sheet->setCellValue('E'.$headerRow, 'BUKTI PENGELUARAN BARANG')->mergeCells('E'.$headerRow.':G'.$headerRow);
@@ -197,6 +204,12 @@ class LapPengeluaranBarang extends MY_Controller {
         $sheet->setCellValue('L'.($headerRow+1), 'MATA UANG');
         $sheet->setCellValue('M'.($headerRow+1), 'NILAI BARANG');
 
+        // Style header - Bold, Gray background, Center, Borders
+        $sheet->getStyle('A'.$headerRow.':M'.($headerRow+1))->getFont()->setBold(true);
+        $sheet->getStyle('A'.$headerRow.':M'.($headerRow+1))->getAlignment()->setHorizontal('center')->setVertical('center');
+        $sheet->getStyle('A'.$headerRow.':M'.($headerRow+1))->getFill()->setFillType('solid')->getStartColor()->setARGB('FFD3D3D3');
+        $sheet->getStyle('A'.$headerRow.':M'.($headerRow+1))->getBorders()->getAllBorders()->setBorderStyle('thin');
+
         $rowNum = $headerRow + 2;
         $no = 1;
         // ▼ FIX: Looping aman menggunakan array asosiatif ($list) ▼
@@ -209,9 +222,9 @@ class LapPengeluaranBarang extends MY_Controller {
                 $no++,
                 $bc_desc_display,
                 $row['nomor_bc'],
-                $row['tanggal_bc'],
+                $row['tanggal_bc'] ? date('d M Y', strtotime($row['tanggal_bc'])) : '',
                 $row['nomor_pengeluaran'],
-                $row['tanggal_pengeluaran'],
+                $row['tanggal_pengeluaran'] ? date('d M Y', strtotime($row['tanggal_pengeluaran'])) : '',
                 $row['partner_name'],
                 $row['item_code'],
                 $row['item_name'],

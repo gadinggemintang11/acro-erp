@@ -208,5 +208,130 @@ class LapMutasiWIP extends MY_Controller {
         }
     }
 
+    public function export_excel() {
+        $start  = $this->input->get('start') ?: date('Y-m-01');
+        $end    = $this->input->get('end') ?: date('Y-m-t');
+        $type   = $this->input->get('item_type');
+        $search = $this->input->get('search');
+
+        $rows = $this->LapMutasiWIP_model->get_mutasi_wip($start, $end, $type, $search);
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        
+        // Sheet title max 31 characters
+        $sheet->setTitle('Mutasi WIP');
+
+        // --- Header dengan Company Name ---
+        $sheet->setCellValue('A1', 'PT MINGBAO LIANCHUANG INTERNATIONAL');
+        $sheet->mergeCells('A1:I1');
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(11);
+        $sheet->getStyle('A1')->getAlignment()->setHorizontal('center');
+        
+        $sheet->setCellValue('A2', 'Laporan Mutasi WIP (Work In Progress)');
+        $sheet->mergeCells('A2:I2');
+        $sheet->getStyle('A2')->getFont()->setBold(true)->setSize(12);
+        $sheet->getStyle('A2')->getAlignment()->setHorizontal('center');
+        
+        // --- Periode ---
+        $start_fmt = date('d M Y', strtotime($start));
+        $end_fmt = date('d M Y', strtotime($end));
+        $sheet->setCellValue('A3', "Periode: $start_fmt s/d $end_fmt");
+        $sheet->mergeCells('A3:I3');
+        $sheet->getStyle('A3')->getAlignment()->setHorizontal('center');
+
+        // --- Header Table ---
+        $header = [
+            'No', 'Kode Barang', 'Nama Barang', 'Satuan', 'Jenis Item',
+            'Saldo Awal', 'Masuk WIP', 'Keluar WIP', 'Saldo Akhir'
+        ];
+        $sheet->fromArray($header, null, 'A5');
+        
+        // Style header table
+        $headerStyle = $sheet->getStyle('A5:I5');
+        $headerStyle->getFont()->setBold(true)->setColor(new \PhpOffice\PhpSpreadsheet\Style\Color('FFFFFFFF'));
+        $headerStyle->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setARGB('FF667eea');
+        $headerStyle->getAlignment()->setHorizontal('center')->setVertical('center');
+        $headerStyle->getBorders()->getAllBorders()->setBorderStyle('thin');
+
+        // --- Data rows ---
+        $no = 1;
+        $rowNum = 6;
+        foreach ($rows as $r) {
+            $sheet->fromArray([
+                $no++,
+                $r['kode_barang'],
+                $r['nama_barang'],
+                $r['satuan'],
+                $r['item_type'],
+                $r['saldo_awal'],
+                $r['total_masuk'],
+                $r['total_keluar'],
+                $r['saldo_akhir'],
+            ], null, "A$rowNum");
+            
+            // Format numbers dengan 2 desimal
+            $sheet->getStyle("F$rowNum:I$rowNum")->getNumberFormat()->setFormatCode('#,##0.00');
+            
+            // Border untuk semua cells
+            $sheet->getStyle("A$rowNum:I$rowNum")->getBorders()->getAllBorders()->setBorderStyle('thin');
+            
+            $rowNum++;
+        }
+
+        // --- Column width dan alignment ---
+        foreach (range('A', 'I') as $col) {
+            $sheet->getColumnDimension($col)->setAutoSize(true);
+        }
+        
+        // Center align untuk kolom No, Satuan, Jenis Item
+        $sheet->getStyle("A6:A" . ($rowNum-1))->getAlignment()->setHorizontal('center');
+        $sheet->getStyle("D6:D" . ($rowNum-1))->getAlignment()->setHorizontal('center');
+        $sheet->getStyle("E6:E" . ($rowNum-1))->getAlignment()->setHorizontal('center');
+        
+        // Right align untuk numeric columns
+        $sheet->getStyle("F6:I" . ($rowNum-1))->getAlignment()->setHorizontal('right');
+
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment; filename="Laporan_Mutasi_WIP_' . date('Ymd_His') . '.xlsx"');
+        $writer = new Xlsx($spreadsheet);
+        $writer->save('php://output');
+        exit;
+    }
+
+    public function export_pdf() {
+        $start  = $this->input->get('start') ?: date('Y-m-01');
+        $end    = $this->input->get('end') ?: date('Y-m-t');
+        $type   = $this->input->get('item_type');
+        $search = $this->input->get('search');
+
+        $rows = $this->LapMutasiWIP_model->get_mutasi_wip($start, $end, $type, $search);
+
+        $data = [
+            'rows'  => $rows,
+            'start' => $start,
+            'end'   => $end
+        ];
+
+        $html = $this->load->view('it_inventory/lap_mutasi_wip/pdf_view', $data, true); 
+
+        try {
+            $mpdf = new Mpdf([
+                'format' => 'A4-L',
+                'margin_top' => 15,
+                'margin_bottom' => 15,
+                'margin_left' => 10,
+                'margin_right' => 10,
+            ]);
+
+            $mpdf->SetTitle('Laporan Mutasi WIP (Work In Progress)');
+            $mpdf->WriteHTML($html);
+            $mpdf->Output('Laporan_Mutasi_WIP_' . date('Ymd_His') . '.pdf', 'D');
+        } catch (\Mpdf\MpdfException $e) {
+            log_message('error', 'PDF Export Error (LapMutasiWIP): ' . $e->getMessage());
+            show_error('Gagal membuat PDF.');
+        }
+    }
+
    
 }

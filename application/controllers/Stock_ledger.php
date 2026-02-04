@@ -95,7 +95,8 @@ class Stock_ledger extends MY_Controller {
             sl.source_doc_type, sl.source_doc_id,
             
             -- Info GRN (Pemasukan Material Biasa)
-            grn.grn_number, s.nama_supplier,
+            grn.grn_number, 
+            COALESCE(NULLIF(s.nama_supplier, ''), NULLIF(s_po.nama_supplier, ''), NULLIF(s_mir.nama_supplier, '')) as nama_supplier,
             grn.bc_type_code as grn_bc_type, grn.bc_number as grn_bc_no, grn.bc_date as grn_bc_date,
             
             -- Info Retur (Pemasukan dari WIP)
@@ -126,7 +127,18 @@ class Stock_ledger extends MY_Controller {
         
         // Pemasukan Material (GRN)
         $this->db->join('grn_header grn', 'sl.transaction_id = grn.id AND sl.transaction_type = "in"', 'left');
+        
+        // Join with grn_details - for MIR-based GRN supplier lookup
+        // Use both PO and MIR joins directly, GRN details will only match relevant source
+        $this->db->join('grn_details gd', 'grn.id = gd.grn_header_id AND gd.item_id = sl.item_id', 'left');
+        
         $this->db->join('suppliers s', 'grn.supplier_id = s.id', 'left');
+        
+        // Fallback suppliers from PO/MIR when GRN supplier_id is NULL
+        $this->db->join('po_header po', 'gd.source_doc_type = "PO" AND gd.source_doc_header_id = po.id', 'left');
+        $this->db->join('suppliers s_po', 's_po.id = po.supplier_id', 'left');
+        $this->db->join('mir_header mir', 'gd.source_doc_type = "MIR" AND gd.source_doc_header_id = mir.id', 'left');
+        $this->db->join('suppliers s_mir', 's_mir.id = mir.supplier_id', 'left');
         
         // Pemasukan Retur WIP
         $this->db->join('prod_return_header prh', 'sl.transaction_id = prh.id AND sl.transaction_type = "IN_RETURN_WIP"', 'left');
@@ -155,7 +167,9 @@ class Stock_ledger extends MY_Controller {
         if ($start_date) { $this->db->where('sl.transaction_date >=', $start_date . ' 00:00:00'); }
         if ($end_date) { $this->db->where('sl.transaction_date <=', $end_date . ' 23:59:59'); }
         
-        $this->db->group_by('sl.id'); 
+        // Use DISTINCT to handle multiple grn_details rows for single ledger
+        // Only get first detail by limiting with MIN(gd.id) would require GROUP BY
+        // Instead, use raw query approach if needed
         
         $this->db->order_by('sl.transaction_date', 'ASC');
         $this->db->order_by('sl.id', 'ASC');
@@ -166,7 +180,44 @@ class Stock_ledger extends MY_Controller {
             return [];
         }
         log_message('debug', 'Item History SQL (Success): ' . $this->db->last_query());
-        return $query->result_array(); // Kembalikan sebagai array
+        
+        $result_array = $query->result_array();
+        
+        // DEBUG: Log raw result to see what query returns
+        if (!empty($result_array)) {
+            log_message('debug', 'Stock Ledger raw result count: ' . count($result_array));
+            log_message('debug', 'First row nama_supplier: ' . ($result_array[0]['nama_supplier'] ?? 'NULL'));
+        }
+        
+        // Deduplicate by ledger_id and keep first row with supplier info
+        $deduplicated = [];
+        foreach ($result_array as $row) {
+            $ledger_id = $row['ledger_id'];
+            if (!isset($deduplicated[$ledger_id])) {
+                // First occurrence - save it
+                $deduplicated[$ledger_id] = $row;
+            } else {
+                // Duplicate found - merge supplier name if current row has it
+                // Check explicitly for non-empty supplier
+                if ((!isset($deduplicated[$ledger_id]['nama_supplier']) || 
+                     $deduplicated[$ledger_id]['nama_supplier'] === null || 
+                     $deduplicated[$ledger_id]['nama_supplier'] === '') && 
+                    isset($row['nama_supplier']) && 
+                    $row['nama_supplier'] !== null && 
+                    $row['nama_supplier'] !== '') {
+                    $deduplicated[$ledger_id]['nama_supplier'] = $row['nama_supplier'];
+                }
+            }
+        }
+        
+        // DEBUG: Log deduplicated result
+        if (!empty($deduplicated)) {
+            log_message('debug', 'Deduplicated count: ' . count($deduplicated));
+            $first_dedup = reset($deduplicated);
+            log_message('debug', 'First dedup nama_supplier: ' . ($first_dedup['nama_supplier'] ?? 'NULL'));
+        }
+        
+        return array_values($deduplicated); // Return as reindexed array
     }
 
     /**
@@ -412,6 +463,59 @@ class Stock_ledger extends MY_Controller {
             log_message('error', 'Excel Export Error: ' . $e->getMessage());
             show_error('Gagal membuat Excel. Cek log error.');
         }
+    }
+
+    /**
+     * Debug method to check Stock Ledger supplier data
+     */
+    public function debug_supplier($item_id = null, $item_type = 'material') {
+        if (!$item_id) {
+            echo "Usage: /Stock_ledger/debug_supplier/[item_id]/[item_type]\n";
+            return;
+        }
+
+        echo "<h2>DEBUG: Stock Ledger Supplier Data</h2>";
+        echo "Item ID: $item_id, Type: $item_type<br><br>";
+
+        // Test query
+        $query = "
+        SELECT 
+            sl.id, sl.transaction_date, sl.transaction_type, sl.transaction_id,
+            grn.grn_number, grn.supplier_id as grn_supplier_id,
+            s.nama_supplier as from_grn_supplier,
+            gd.source_doc_type, gd.source_doc_header_id,
+            po.supplier_id as po_supplier_id, po_s.nama_supplier as from_po,
+            mir.supplier_id as mir_supplier_id, mir_s.nama_supplier as from_mir,
+            COALESCE(s.nama_supplier, po_s.nama_supplier, mir_s.nama_supplier) as nama_supplier_final
+        FROM stock_ledger sl
+        LEFT JOIN grn_header grn ON sl.transaction_id = grn.id AND sl.transaction_type = 'in'
+        LEFT JOIN suppliers s ON grn.supplier_id = s.id
+        LEFT JOIN grn_details gd ON grn.id = gd.grn_header_id AND gd.item_id = sl.item_id
+        LEFT JOIN po_header po ON gd.source_doc_type = 'PO' AND gd.source_doc_header_id = po.id
+        LEFT JOIN suppliers po_s ON po_s.id = po.supplier_id
+        LEFT JOIN mir_header mir ON gd.source_doc_type = 'MIR' AND gd.source_doc_header_id = mir.id
+        LEFT JOIN suppliers mir_s ON mir_s.id = mir.supplier_id
+        WHERE sl.item_id = {$item_id} AND sl.item_type = '{$item_type}' AND sl.transaction_type = 'in'
+        LIMIT 5
+        ";
+
+        $result = $this->db->query($query)->result();
+
+        echo "<table border='1' cellpadding='5'>";
+        echo "<tr><th>GRN</th><th>GRN Supplier</th><th>Source Doc</th><th>From PO</th><th>From MIR</th><th>COALESCE Result</th></tr>";
+
+        foreach ($result as $row) {
+            echo "<tr>";
+            echo "<td>{$row->grn_number}</td>";
+            echo "<td>{$row->from_grn_supplier} (ID: {$row->grn_supplier_id})</td>";
+            echo "<td>{$row->source_doc_type} #{$row->source_doc_header_id}</td>";
+            echo "<td>{$row->from_po}</td>";
+            echo "<td>{$row->from_mir}</td>";
+            echo "<td><strong>{$row->nama_supplier_final}</strong></td>";
+            echo "</tr>";
+        }
+
+        echo "</table>";
     }
 
 } // End Class

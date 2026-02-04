@@ -470,8 +470,8 @@ class Production_process extends MY_Controller {
         $data = [
             'production_header_id' => $prod_id, 'stage_name' => $current_stage,
             'item_id' => $item_id, 'item_type' => $item_type,
-            'qty_produced' => ($item_type == 'semifinished' || $item_type == 'finished_goods') ? $qty : 0,
-            'qty_scrap' => ($item_type == 'scrap') ? $qty : 0,
+            'qty_produced' => $qty,  // Semua output disimpan di qty_produced
+            'qty_scrap' => 0,        // qty_scrap hanya untuk referensi
             'received_by' => $this->session->userdata('user_id') ?? null,
             'received_at' => date('Y-m-d H:i:s')
         ];
