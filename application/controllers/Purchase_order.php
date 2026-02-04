@@ -477,7 +477,7 @@ class Purchase_order extends MY_Controller { // Asumsi extends MY_Controller
     }
 
     // --- FUNGSI EXPORT (Asumsikan sudah benar) ---
-    public function export_pdf($id) { /* ... kode sama ... */ 
+    public function export_pdf($id) {
         if (!check_access('purchase_order', 'view')) { show_error('Izin Ditolak.', 403); }
         if (empty($id) || !is_numeric($id)) show_404();
         $header = $this->Po_model->get_po_header_by_id($id);
@@ -485,12 +485,22 @@ class Purchase_order extends MY_Controller { // Asumsi extends MY_Controller
         $details = $this->Po_model->get_po_details_by_id($id);
         $data = ['header' => $header, 'details' => $details];
 
-        $options = new Options(); $options->set('isHtml5ParserEnabled', true); $options->set('isRemoteEnabled', true); 
+        $options = new Options();
+        $options->set('isHtml5ParserEnabled', true);
+        $options->set('isRemoteEnabled', true);
+        $options->set('isPhpEnabled', true); // Add this
+        $options->set('defaultFont', 'DejaVu Sans');
+        $options->set('isFontSubsettingEnabled', true);
+        $options->set('chroot', FCPATH); // Add this for local file access
+
         $dompdf = new Dompdf($options);
-        $html = $this->load->view('purchase_order/pdf_template', $data, true); 
-        $dompdf->loadHtml($html); $dompdf->setPaper('A4', 'portrait'); $dompdf->render();
-        $filename = "PO_".str_replace(['/','\\'], '-', $header->po_number).".pdf"; 
-        $dompdf->stream($filename, ["Attachment" => 0]); exit;
+        $html = $this->load->view('purchase_order/pdf_template', $data, true);
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', 'portrait');
+        $dompdf->render();
+        $filename = "PO_".str_replace(['/','\\'], '-', $header->po_number).".pdf";
+        $dompdf->stream($filename, ["Attachment" => 0]);
+        exit;
     }
     public function export_excel($id) { /* ... kode sama ... */ 
         if (!check_access('purchase_order', 'view')) { show_error('Izin Ditolak.', 403); }
