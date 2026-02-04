@@ -5,8 +5,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 require FCPATH . 'vendor/autoload.php'; 
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
-use Dompdf\Dompdf;
-use Dompdf\Options;
+use Mpdf\Mpdf;
 
 class Purchase_order extends MY_Controller { // Asumsi extends MY_Controller
 
@@ -485,22 +484,34 @@ class Purchase_order extends MY_Controller { // Asumsi extends MY_Controller
         $details = $this->Po_model->get_po_details_by_id($id);
         $data = ['header' => $header, 'details' => $details];
 
-        $options = new Options();
-        $options->set('isHtml5ParserEnabled', true);
-        $options->set('isRemoteEnabled', true);
-        $options->set('isPhpEnabled', true); // Add this
-        $options->set('defaultFont', 'DejaVu Sans');
-        $options->set('isFontSubsettingEnabled', true);
-        $options->set('chroot', FCPATH); // Add this for local file access
+        try {
+            // Create temp directory if it doesn't exist
+            $temp_dir = APPPATH . 'cache/pdf_temp/';
+            if (!is_dir($temp_dir)) {
+                @mkdir($temp_dir, 0777, true);
+                @chmod($temp_dir, 0777);
+            }
 
-        $dompdf = new Dompdf($options);
-        $html = $this->load->view('purchase_order/pdf_template', $data, true);
-        $dompdf->loadHtml($html);
-        $dompdf->setPaper('A4', 'portrait');
-        $dompdf->render();
-        $filename = "PO_".str_replace(['/','\\'], '-', $header->po_number).".pdf";
-        $dompdf->stream($filename, ["Attachment" => 0]);
-        exit;
+            // Use mPDF with CJK support
+            $mpdf = new Mpdf([
+                'tempDir' => $temp_dir,
+                'mode' => 'utf-8',
+                'format' => 'A4',
+                'orientation' => 'P',
+                'default_font_size' => 0,
+                'default_font' => 'sun-extA',  // Use Sun font which supports Chinese characters
+            ]);
+            
+            $html = $this->load->view('purchase_order/pdf_template', $data, true);
+            $mpdf->WriteHTML($html);
+            
+            $filename = "PO_".str_replace(['/','\\'], '-', $header->po_number).".pdf";
+            $mpdf->Output($filename, 'D'); // D = download
+            exit;
+        } catch (Exception $e) {
+            log_message('error', 'PDF Export Error: ' . $e->getMessage());
+            show_error('Gagal membuat PDF: ' . $e->getMessage(), 500);
+        }
     }
     public function export_excel($id) { /* ... kode sama ... */ 
         if (!check_access('purchase_order', 'view')) { show_error('Izin Ditolak.', 403); }

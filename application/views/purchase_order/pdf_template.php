@@ -5,22 +5,8 @@
     <meta charset="UTF-8">
     <title>Purchase Order: <?= htmlspecialchars($header->po_number) ?></title>
     <style>
-        @font-face {
-            font-family: 'Noto Sans SC';
-            font-style: normal;
-            font-weight: 400;
-            src: url('<?= base_url("assets/fonts/noto-sans-sc/NotoSansSC-Regular.ttf"); ?>') format('truetype');
-        }
-
-        @font-face {
-            font-family: 'Noto Sans SC';
-            font-style: normal;
-            font-weight: 700;
-            src: url('<?= base_url("assets/fonts/noto-sans-sc/NotoSansSC-Bold.ttf"); ?>') format('truetype');
-        }
-
         body {
-            font-family: 'Noto Sans SC', sans-serif;
+            font-family: sun-extA, DejaVu Sans, sans-serif;
             font-size: 10px;
         }
 
@@ -120,9 +106,10 @@
 </head>
 
 <body>
-    <div class="logo">
+    <!-- Logo image disabled for DomPDF compatibility - DomPDF has permission issues with external images -->
+    <!-- <div class="logo">
         <img src="<?= FCPATH . 'assets/img/fav.png'; ?>" alt="Company Logo">
-    </div>
+    </div> -->
     <h1>PURCHASE ORDER<br><span style="font-size: 14px;">采购订单</span></h1>
 
     <table class="info-table">
