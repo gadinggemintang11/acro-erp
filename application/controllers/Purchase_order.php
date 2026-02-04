@@ -477,86 +477,30 @@ class Purchase_order extends MY_Controller { // Asumsi extends MY_Controller
     }
 
     // --- FUNGSI EXPORT (Asumsikan sudah benar) ---
-    public function export_pdf($id) { 
+    public function export_pdf($id) {
         if (!check_access('purchase_order', 'view')) { show_error('Izin Ditolak.', 403); }
         if (empty($id) || !is_numeric($id)) show_404();
         $header = $this->Po_model->get_po_header_by_id($id);
         if (!$header) show_404();
         $details = $this->Po_model->get_po_details_by_id($id);
-        
-        // Load the auto translator library
-        $this->load->library('auto_translator');
-        
-        // Optional: Set Google API key if you have one
-        // $this->auto_translator->set_google_api_key('YOUR_GOOGLE_API_KEY_HERE');
-        
-        $data = [
-            'header' => $header, 
-            'details' => $details,
-            'translate_to_chinese' => function($text) {
-                return $this->auto_translator->translate_to_chinese($text);
-            }
-        ];
+        $data = ['header' => $header, 'details' => $details];
 
-        $options = new Options(); 
-        $options->set('isHtml5ParserEnabled', true); 
+        $options = new Options();
+        $options->set('isHtml5ParserEnabled', true);
         $options->set('isRemoteEnabled', true);
+        $options->set('isPhpEnabled', true); // Add this
+        $options->set('defaultFont', 'DejaVu Sans');
+        $options->set('isFontSubsettingEnabled', true);
+        $options->set('chroot', FCPATH); // Add this for local file access
+
         $dompdf = new Dompdf($options);
-        
-        // IMPORTANT: Make sure we use the updated template
-        $html = $this->load->view('purchase_order/pdf_template_final_fixed', $data, true); 
-        
-        // Add timestamp to force cache refresh
-        $html = str_replace('</head>', '<meta name="generated" content="' . date('Y-m-d H:i:s') . '"></head>', $html);
-        
-        $dompdf->loadHtml($html); 
-        $dompdf->setPaper('A4', 'portrait'); 
+        $html = $this->load->view('purchase_order/pdf_template', $data, true);
+        $dompdf->loadHtml($html);
+        $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
-        $filename = "PO_".str_replace(['/','\\'], '-', $header->po_number)."_".date('Ymd_His').".pdf"; 
-        
-        // Add cache-busting headers
-        header('Cache-Control: no-cache, no-store, must-revalidate');
-        header('Pragma: no-cache');
-        header('Expires: 0');
-        
-        $dompdf->stream($filename, ["Attachment" => 0]); 
+        $filename = "PO_".str_replace(['/','\\'], '-', $header->po_number).".pdf";
+        $dompdf->stream($filename, ["Attachment" => 0]);
         exit;
-    }
-
-    // Debug method to see raw HTML
-    public function debug_pdf($id) {
-        if (!check_access('purchase_order', 'view')) { show_error('Izin Ditolak.', 403); }
-        if (empty($id) || !is_numeric($id)) show_404();
-        $header = $this->Po_model->get_po_header_by_id($id);
-        if (!$header) show_404();
-        $details = $this->Po_model->get_po_details_by_id($id);
-        $data = [
-            'header' => $header, 
-            'details' => $details,
-            'translate_to_chinese' => function($text) {
-                $translations = [
-                    'MARKING' => '标记',
-                    'STICKER' => '贴纸',
-                    'CLEANER' => '清洁剂',
-                    'TREATMENT' => '处理',
-                    'PVC' => 'PVC',
-                    'STABILIZER' => '稳定剂',
-                    'PLASTIC' => '塑料',
-                    'RESIN' => '树脂',
-                ];
-                
-                $text_upper = strtoupper(trim($text));
-                foreach($translations as $en => $cn) {
-                    if (stripos($text_upper, $en) !== false) {
-                        return htmlspecialchars($cn);
-                    }
-                }
-                return htmlspecialchars($text);
-            }
-        ];
-
-        // Output raw HTML for debugging
-        echo $this->load->view('purchase_order/pdf_template', $data, true);
     }
     public function export_excel($id) { /* ... kode sama ... */ 
         if (!check_access('purchase_order', 'view')) { show_error('Izin Ditolak.', 403); }
