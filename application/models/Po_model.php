@@ -128,11 +128,11 @@ class Po_model extends CI_Model {
                 WHEN d.item_type = 'inventory' THEN i.nama_barang 
             END as item_name,
             CASE
-                WHEN d.item_type = 'material' THEN m.satuan
-                WHEN d.item_type = 'semifinished' THEN sf.satuan
-                WHEN d.item_type = 'inventory' THEN i.satuan      
-                WHEN d.item_type = 'machine' THEN ''            
-                ELSE ''
+                WHEN d.item_type = 'material' THEN COALESCE(m.satuan, 'pcs')
+                WHEN d.item_type = 'semifinished' THEN COALESCE(sf.satuan, 'pcs')
+                WHEN d.item_type = 'inventory' THEN COALESCE(i.satuan, 'pcs')      
+                WHEN d.item_type = 'machine' THEN COALESCE(mc.satuan, 'Unit')            
+                ELSE 'pcs'
             END as item_unit,
             sc.sc_number
         ";
