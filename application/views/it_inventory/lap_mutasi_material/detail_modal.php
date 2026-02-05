@@ -35,12 +35,13 @@
                     <th class="text-nowrap text-right">Masuk</th>
                     <th class="text-nowrap text-right">Keluar</th>
                     <th class="text-nowrap text-right">Saldo</th>
+                    <th class="text-nowrap">Aksi</th>
                 </tr>
             </thead>
             <tbody>
                 <?php 
                 if (empty($trace)):
-                    echo '<tr><td colspan="11" class="text-center">Tidak ada transaksi gudang ditemukan.</td></tr>';
+                    echo '<tr><td colspan="12" class="text-center">Tidak ada transaksi gudang ditemukan.</td></tr>';
                 else:
                     foreach($trace as $t): 
                         // Reset variabel untuk setiap baris
@@ -92,6 +93,15 @@
                     <td class="text-right text-success font-weight-bold"><?= $t->qty_in > 0 ? (float)$t->qty_in : ''; ?></td>
                     <td class="text-right text-danger font-weight-bold"><?= $t->qty_out > 0 ? (float)$t->qty_out : ''; ?></td>
                     <td class="text-right font-weight-bold" style="background-color: #f8f9fa;"><?= (float)$t->balance; ?></td>
+                    <td class="text-nowrap">
+                        <?php if ($t->transaction_type === 'adjustment' && !empty($t->adjustment_header_id)): ?>
+                            <button class="btn btn-info btn-xs" onclick="viewAdjustmentDocuments(<?= $t->adjustment_header_id; ?>)" title="Lihat Dokumen Adjustment">
+                                <i class="fas fa-file-alt"></i> Docs
+                            </button>
+                        <?php else: ?>
+                            <span class="text-muted">-</span>
+                        <?php endif; ?>
+                    </td>
                 </tr>
                 <?php 
                     endforeach; 

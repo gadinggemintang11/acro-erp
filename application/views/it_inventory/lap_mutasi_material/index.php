@@ -105,6 +105,18 @@
     </div>
 </div>
 
+<!-- Modal untuk Dokumen Adjustment -->
+<div class="modal fade" id="adjustment-documents-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-body text-center py-5">
+                <i class="fas fa-spinner fa-spin fa-3x text-primary"></i>
+                <p class="mt-2 text-muted">Memuat dokumen...</p>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- Datatables -->
 <script src="<?= base_url('assets/vendor/datatables/jquery.dataTables.min.js'); ?>"></script>
 <script src="<?= base_url('assets/vendor/datatables/dataTables.bootstrap4.min.js'); ?>"></script>
@@ -198,6 +210,20 @@ $(function() {
         $(this).find('i').toggleClass('fa-moon fa-sun');
         $(this).find('span').text(isDark ? 'Light Mode' : 'Dark Mode');
     });
+
+    // Function untuk menampilkan dokumen adjustment
+    window.viewAdjustmentDocuments = function(adjustmentId) {
+        $('#adjustment-documents-modal').modal('show').find('.modal-content')
+            .html('<div class="modal-body text-center py-5"><i class="fas fa-spinner fa-spin fa-3x text-primary"></i><p class="mt-2 text-muted">Memuat dokumen...</p></div>')
+            .load(`<?= base_url('LapMutasiMaterial/modal_adjustment_documents/'); ?>${adjustmentId}`);
+    };
+
+    // Function untuk menampilkan dokumen adjustment
+    window.viewAdjustmentDocuments = function(adjustmentId) {
+        $('#adjustment-documents-modal').modal('show').find('.modal-content')
+            .html('<div class="modal-body text-center py-5"><i class="fas fa-spinner fa-spin fa-3x text-primary"></i><p class="mt-2 text-muted">Memuat dokumen...</p></div>')
+            .load(`<?= base_url('LapMutasiMaterial/modal_adjustment_documents/'); ?>${adjustmentId}`);
+    }
 });
 </script>
 

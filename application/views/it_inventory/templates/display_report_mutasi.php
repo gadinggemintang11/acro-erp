@@ -55,22 +55,28 @@
                 <table class="table table-hover table-sm align-middle text-nowrap" id="tableMutasi">
                     <thead class="text-center align-middle">
                         <tr>
-                            <th>No</th>
-                            <th>Kode Scrap</th>
-                            <th>Nama Scrap</th>
-                            <th>Satuan</th>
-                            <th>Saldo Awal</th>
-                            <th>Masuk</th>
-                            <th>Keluar</th>
-                            <th>Adjustment</th>
-                            <th>Saldo Akhir</th>
-                            <th>Aksi</th>
+                            <th rowspan="2">No</th>
+                            <th rowspan="2">Kode Scrap</th>
+                            <th rowspan="2">Nama Scrap</th>
+                            <th rowspan="2">Satuan</th>
+                            <th rowspan="2">Saldo Awal</th>
+                            <th rowspan="2">Masuk</th>
+                            <th rowspan="2">Keluar</th>
+                            <th rowspan="2">Adjustment</th>
+                            <th rowspan="2">Saldo Akhir</th>
+                            <th colspan="2">Stock Opname</th>
+                            <th rowspan="2">Keterangan</th>
+                            <th rowspan="2">Aksi</th>
+                        </tr>
+                        <tr>
+                            <th>Hasil Fisik</th>
+                            <th>Selisih</th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (empty($report_data)): ?>
                             <tr>
-                                <td colspan="10" class="text-center text-muted py-3">
+                                <td colspan="13" class="text-center text-muted py-3">
                                     <i class="fas fa-info-circle me-1"></i> Tidak ada data untuk periode ini.
                                 </td>
                             </tr>
@@ -85,6 +91,28 @@
                                 <td class="text-end text-danger fw-bold"><?= number_format($r['qty_out'],2); ?></td>
                                 <td class="text-end text-info"><?= number_format($r['qty_adj'],2); ?></td>
                                 <td class="text-end fw-bold text-primary"><?= number_format($r['closing_stock'],2); ?></td>
+                                <td class="text-end">
+                                    <?= isset($r['hasil_pencacahan']) && $r['hasil_pencacahan'] !== null ? number_format((float)$r['hasil_pencacahan'], 2) : '<i class="text-muted">(N/A)</i>'; ?>
+                                </td>
+                                <td class="text-end fw-bold">
+                                    <?php if (isset($r['jumlah_selisih']) && $r['jumlah_selisih'] !== null): ?>
+                                        <?php $selisih = (float)$r['jumlah_selisih']; ?>
+                                        <span class="<?= $selisih > 0 ? 'text-danger' : ($selisih < 0 ? 'text-success' : 'text-secondary'); ?>">
+                                            <?= number_format($selisih, 2); ?>
+                                        </span>
+                                    <?php else: ?>
+                                        <i class="text-muted">(N/A)</i>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php if (!isset($r['hasil_pencacahan']) || $r['hasil_pencacahan'] === null): ?>
+                                        -
+                                    <?php elseif (isset($r['jumlah_selisih']) && (float)$r['jumlah_selisih'] == 0): ?>
+                                        Sesuai
+                                    <?php else: ?>
+                                        Selisih: <?= number_format(abs((float)$r['jumlah_selisih']), 2); ?>
+                                    <?php endif; ?>
+                                </td>
                                 <td class="text-center">
                                     <button class="btn btn-outline-primary btn-sm btn-trace shadow-sm"
                                             data-id="<?= $r['item_id']; ?>"
@@ -274,3 +302,24 @@ $(function(){
     height: 2.2rem;
 }
 </style>
+
+<!-- Modal untuk Dokumen Adjustment -->
+<div class="modal fade" id="adjustment-documents-modal" tabindex="-1" role="dialog" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-centered">
+    <div class="modal-content border-0 shadow">
+      <div class="modal-body text-center py-5">
+        <i class="fas fa-spinner fa-spin fa-3x text-primary"></i>
+        <p class="mt-2 text-muted">Memuat dokumen...</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Function untuk menampilkan dokumen adjustment
+window.viewAdjustmentDocuments = function(adjustmentId) {
+    $('#adjustment-documents-modal').modal('show').find('.modal-content')
+        .html('<div class="modal-body text-center py-5"><i class="fas fa-spinner fa-spin fa-3x text-primary"></i><p class="mt-2 text-muted">Memuat dokumen...</p></div>')
+        .load(`<?= base_url('LapMutasiScrap/modal_adjustment_documents/'); ?>${adjustmentId}`);
+};
+</script>

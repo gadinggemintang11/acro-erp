@@ -21,6 +21,7 @@
                             <th>No. Dokumen</th>
                             <th>Tanggal</th>
                             <th>Catatan</th>
+                            <th>Tipe Item</th>
                             <th>Dibuat Oleh</th>
                             <th>Status</th>
                             <th>Aksi</th>
@@ -36,6 +37,28 @@
                             </td>
                             <td><?= date('d-m-Y', strtotime($adj->doc_date)); ?></td>
                             <td><?= $adj->notes; ?></td>
+                            <td>
+                                <?php if (!empty($adj->item_types)): ?>
+                                    <?php $types = explode(', ', $adj->item_types); ?>
+                                    <?php foreach ($types as $type): ?>
+                                        <?php
+                                            $badge_class = 'secondary';
+                                            $display_text = strtoupper($type);
+                                            switch($type) {
+                                                case 'material': $badge_class = 'primary'; $display_text = 'MAT'; break;
+                                                case 'semifinished': $badge_class = 'info'; $display_text = 'SF'; break;
+                                                case 'finished_goods': $badge_class = 'success'; $display_text = 'FG'; break;
+                                                case 'scrap': $badge_class = 'warning'; $display_text = 'SCRAP'; break;
+                                                case 'inventory': $badge_class = 'dark'; $display_text = 'INV'; break;
+                                                case 'machine': $badge_class = 'danger'; $display_text = 'MCH'; break;
+                                            }
+                                        ?>
+                                        <span class="badge badge-<?= $badge_class; ?> mr-1"><?= $display_text; ?></span>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <span class="text-muted">-</span>
+                                <?php endif; ?>
+                            </td>
                             <td><?= $adj->creator_name; ?></td>
                             <td>
                                 <?php

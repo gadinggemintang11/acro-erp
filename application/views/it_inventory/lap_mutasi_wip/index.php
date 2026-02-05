@@ -53,16 +53,21 @@
                 <table class="table table-bordered table-sm table-hover" id="mainTable" width="100%" cellspacing="0" style="font-size: 0.9rem;">
                     <thead class="thead-dark">
                         <tr>
-                            <th>No</th>
-                            <th>Kode Barang</th>
-                            <th>Nama Barang</th>
-                            <th>Satuan</th>
-                            <th>Tipe</th>
-                            <th class="text-right">Saldo Awal</th>
-                            <th class="text-right">Masuk (WIP)</th>
-                            <th class="text-right">Keluar (WIP)</th>
-                            <th class="text-right">Saldo Akhir</th>
-                            <th class="text-center">Aksi</th>
+                            <th rowspan="2">No</th>
+                            <th rowspan="2">Kode Barang</th>
+                            <th rowspan="2">Nama Barang</th>
+                            <th rowspan="2">Satuan</th>
+                            <th rowspan="2">Tipe</th>
+                            <th rowspan="2" class="text-right">Saldo Awal</th>
+                            <th rowspan="2" class="text-right">Masuk (WIP)</th>
+                            <th rowspan="2" class="text-right">Keluar (WIP)</th>
+                            <th rowspan="2" class="text-right">Saldo Akhir</th>
+                            <th colspan="2" class="text-center">Stock Opname</th>
+                            <th rowspan="2" class="text-center">Aksi</th>
+                        </tr>
+                        <tr>
+                            <th class="text-right">Hasil Fisik</th>
+                            <th class="text-right">Selisih</th>
                         </tr>
                     </thead>
                     </table>
@@ -125,6 +130,14 @@ $(document).ready(function() {
             { "data": "total_masuk", "className": "text-right text-success font-weight-bold", "render": $.fn.dataTable.render.number('.', ',', 2) },
             { "data": "total_keluar", "className": "text-right text-danger font-weight-bold", "render": $.fn.dataTable.render.number('.', ',', 2) },
             { "data": "saldo_akhir", "className": "text-right font-weight-bold", "render": $.fn.dataTable.render.number('.', ',', 2) },
+            { "data": "hasil_pencacahan", "className": "text-right", "render": function(data, type, row) { 
+                return data ? $.fn.dataTable.render.number('.', ',', 2).display(data) : '<span class="text-muted small">(N/A)</span>';
+            }},
+            { "data": "jumlah_selisih", "className": "text-right", "render": function(data, type, row) {
+                if (data === null) return '<span class="text-muted small">(N/A)</span>';
+                var className = data > 0 ? 'text-danger font-weight-bold' : (data < 0 ? 'text-success font-weight-bold' : 'text-muted');
+                return '<span class="' + className + '">' + $.fn.dataTable.render.number('.', ',', 2).display(data) + '</span>';
+            }},
             { 
                 "data": null,
                 "className": "text-center text-nowrap",

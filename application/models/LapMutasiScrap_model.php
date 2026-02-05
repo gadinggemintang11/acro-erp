@@ -47,6 +47,23 @@ class LapMutasiScrap_model extends CI_Model {
         $sub_mutation = $this->db->get_compiled_select();
         $this->db->reset_query();
 
+        // Subquery opname: untuk mendapat hasil pencacahan terakhir
+        $this->db->select("item_id, qty_fisik", false)
+                 ->from('opname_details od')
+                 ->join('opname_header oh', 'od.opname_header_id = oh.id', 'inner')
+                 ->where('oh.status', 'Completed')
+                 ->where('od.item_type', 'scrap');
+        if ($start_date) $this->db->where('oh.opname_date >=', $start_date);
+        if ($end_date) $this->db->where('oh.opname_date <=', $end_date);
+        $this->db->where('oh.opname_date = (SELECT MAX(oh_inner.opname_date) 
+                         FROM opname_details od_inner
+                         JOIN opname_header oh_inner ON od_inner.opname_header_id = oh_inner.id
+                         WHERE od_inner.item_id = od.item_id 
+                           AND od_inner.item_type = "scrap"
+                           AND oh_inner.status = "Completed")');
+        $sub_opname = $this->db->get_compiled_select();
+        $this->db->reset_query();
+
         // Main select — closing stock computed by last ledger up to end_date
         $safe_end = $this->db->escape(($end_date ?? date('Y-m-d')) . ' 23:59:59');
         $this->db->select("
@@ -62,11 +79,21 @@ class LapMutasiScrap_model extends CI_Model {
             IFNULL((SELECT sl2.balance FROM {$this->ledger} sl2
                  WHERE sl2.item_id = s.id AND sl2.item_type = 'scrap'
                  AND sl2.transaction_date <= {$safe_end}
-                 ORDER BY sl2.id DESC LIMIT 1), IFNULL(o.opening_stock,0)) AS closing_stock
+                 ORDER BY sl2.id DESC LIMIT 1), IFNULL(o.opening_stock,0)) AS closing_stock,
+            op.qty_fisik AS hasil_pencacahan,
+            CASE 
+                WHEN op.qty_fisik IS NOT NULL THEN 
+                    IFNULL((SELECT sl3.balance FROM {$this->ledger} sl3
+                         WHERE sl3.item_id = s.id AND sl3.item_type = 'scrap'
+                         AND sl3.transaction_date <= {$safe_end}
+                         ORDER BY sl3.id DESC LIMIT 1), IFNULL(o.opening_stock,0)) - op.qty_fisik
+                ELSE NULL
+            END AS jumlah_selisih
         ", false)
         ->from("{$this->master} s")
         ->join("({$sub_opening}) o", 's.id=o.item_id', 'left')
         ->join("({$sub_mutation}) m", 's.id=m.item_id', 'left')
+        ->join("({$sub_opname}) op", 's.id=op.item_id', 'left')
         ->where('s.status','active');
 
         if ($search) {
@@ -379,87 +406,83 @@ class LapMutasiScrap_model extends CI_Model {
 
     /**
      * get_traceability
-     * Mengambil ledger history untuk item scrap tertentu
-     * return array of assoc, ordered asc by date
+     * Mengambil history transaksi untuk item scrap tertentu dari berbagai sumber
+     * return array of assoc, ordered by date
      */
     public function get_traceability($item_id) {
-        $this->db->reset_query();
-
-        // SELECT bersih tanpa komentar SQL
-        $this->db->select("
+        // Query langsung dari stock_ledger untuk mendapatkan saldo yang benar dan urutan yang tepat
+        $sql = "
+        SELECT 
+            sl.id as ledger_id,
             sl.id,
-            sl.transaction_date,
             sl.transaction_type,
+            sl.transaction_date,
             sl.transaction_id,
-            sl.source_doc_type,
-            sl.source_doc_id,
             sl.qty_in,
             sl.qty_out,
             sl.balance,
-            sl.bc_type_code,
-            sl.bc_number,
-            sl.bc_date,
-            po.id AS production_output_id,
-            ph.production_number,
-            ph.id AS production_header_id,
-            woh.wo_number,
-            soh.id AS scrap_out_id,
-            soh.doc_no AS scrap_out_docno,
-            soh.destination AS scrap_out_destination_id,
-            dest.nama_customer AS scrap_out_destination_name,
-            c.nama_customer AS partner_customer,
-            sup.nama_supplier AS partner_supplier
-        ", false);
-
-        $this->db->from($this->ledger . ' sl');
-
-        // JOIN production (IN SCRAP PROD)
-        $this->db->join('production_outputs po', 'sl.source_doc_type IN ("PRODUCTION_OUTPUT","PROD_OUTPUT","IN_SCRAP_PROD") AND po.id = sl.source_doc_id', 'left');
-        $this->db->join('production_header ph', 'po.production_header_id = ph.id', 'left');
-        $this->db->join('wo_header woh', 'ph.wo_header_id = woh.id', 'left');
-
-        // JOIN scrap out (OUT SCRAP)
-        $this->db->join('scrap_out_header soh', 'sl.source_doc_type IN ("SCRAP_OUT","OUT_SCRAP_BC","OUT_SCRAP_SALE") AND soh.id = sl.source_doc_id', 'left');
-        $this->db->join('customers dest', 'soh.destination = dest.id', 'left');
-
-        // Jika ledger simpan doc_no bukan id
-        $this->db->join('scrap_out_header soh_doc', 'sl.source_doc_type IN ("SCRAP_OUT","OUT_SCRAP_BC","OUT_SCRAP_SALE") AND soh_doc.doc_no = sl.source_doc_id', 'left');
-        $this->db->join('customers dest_doc', 'soh_doc.destination = dest_doc.id', 'left');
-
-        // Partner fallback
-        $this->db->join('customers c', 'sl.source_doc_type IN ("SCRAP_OUT") AND c.id = soh.destination', 'left');
-        $this->db->join('suppliers sup', 'sl.source_doc_type IN ("GRN","PO") AND sup.id = sl.source_doc_id', 'left');
-
-        $this->db->where('sl.item_type', 'scrap');
-        $this->db->where('sl.item_id', (int)$item_id);
-        $this->db->order_by('sl.transaction_date', 'ASC');
-        $this->db->order_by('sl.id', 'ASC');
-
-        $q = $this->db->get();
-
-        if (!$q) {
+            CASE 
+                WHEN sl.transaction_type = 'IN_SCRAP_WH' THEN 'SCRAP_IN'
+                WHEN sl.transaction_type LIKE 'OUT_SCRAP%' THEN 'SCRAP_OUT'
+                WHEN sl.transaction_type = 'ADJUSTMENT' THEN 'ADJ'
+                ELSE sl.transaction_type
+            END as source_doc_type,
+            sl.transaction_id as source_doc_id,
+            
+            -- BC Info
+            COALESCE(soh.bc_type_code, NULL) as bc_type_code,
+            COALESCE(soh.bc_number, NULL) as bc_number,
+            COALESCE(soh.bc_date, NULL) as bc_date,
+            
+            -- Production info
+            NULL as production_output_id,
+            NULL as production_header_id,
+            NULL as production_number,
+            
+            -- WO info
+            NULL as work_order_id,
+            COALESCE(wo.wo_number, NULL) as wo_number,
+            
+            -- Scrap OUT info
+            soh.id as scrap_out_id,
+            soh.doc_no as scrap_out_docno,
+            soh.destination as scrap_out_destination_id,
+            CASE 
+                WHEN c.nama_customer IS NOT NULL THEN c.nama_customer
+                WHEN soh.destination IS NOT NULL THEN soh.destination
+                ELSE NULL
+            END as scrap_out_destination_name,
+            
+            -- Partner names (untuk IN dan OUT)
+            CASE 
+                WHEN sl.transaction_type = 'IN_SCRAP_WH' THEN wo.wo_number
+                WHEN sl.transaction_type LIKE 'OUT_SCRAP%' AND c.nama_customer IS NOT NULL THEN c.nama_customer
+                WHEN sl.transaction_type LIKE 'OUT_SCRAP%' THEN soh.destination
+                ELSE NULL
+            END as partner_name,
+            
+            -- Adjustment info
+            ah.id as adjustment_header_id,
+            ah.doc_no as adjustment_doc_no,
+            ah.notes as adjustment_notes
+        FROM stock_ledger sl
+        LEFT JOIN scrap_in_header sih ON sl.transaction_type = 'IN_SCRAP_WH' AND sl.transaction_id = sih.id
+        LEFT JOIN scrap_out_header soh ON sl.transaction_type LIKE 'OUT_SCRAP%' AND sl.transaction_id = soh.id
+        LEFT JOIN customers c ON soh.destination = c.id
+        LEFT JOIN wo_header wo ON sih.work_order_id = wo.id
+        LEFT JOIN adjustment_header ah ON sl.transaction_type = 'ADJUSTMENT' AND sl.transaction_id = ah.id
+        WHERE sl.item_id = ? AND sl.item_type = 'scrap'
+        ORDER BY sl.transaction_date ASC, sl.id ASC
+        ";
+        
+        $query = $this->db->query($sql, [$item_id]);
+        
+        if (!$query) {
             log_message('error', 'LapMutasiScrap_model::get_traceability error: ' . print_r($this->db->error(), true));
             return [];
         }
-
-        $rows = $q->result_array();
-
-        // Normalisasi data partner dan destinasi
-        foreach ($rows as &$r) {
-            $r['partner'] = '';
-            if (!empty($r['partner_customer'])) $r['partner'] = $r['partner_customer'];
-            elseif (!empty($r['partner_supplier'])) $r['partner'] = $r['partner_supplier'];
-
-            if (!empty($r['scrap_out_destination_name'])) {
-                $r['destination_name'] = $r['scrap_out_destination_name'];
-            } elseif (!empty($r['dest_doc.nama_customer'] ?? null)) {
-                $r['destination_name'] = $r['dest_doc.nama_customer'];
-            } else {
-                $r['destination_name'] = $r['partner'] ?: '';
-            }
-        }
-
-        return $rows;
+        
+        return $query->result_array();
     }
 
 

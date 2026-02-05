@@ -24,6 +24,7 @@
                                 <option value="finished_goods">Finished Goods</option>
                                 <option value="material">Material</option>
                                 <option value="semifinished">Semifinished</option>
+                                <option value="scrap">Scrap</option>
                                 <option value="inventory">Inventory</option>
                                 <option value="machine">Machine</option>
                             </select>

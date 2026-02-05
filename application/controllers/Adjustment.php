@@ -6,12 +6,20 @@ class Adjustment extends MY_Controller {
     public function __construct()
     {
         parent::__construct();
-        if (!$this->session->userdata('username')) {
+        
+        // Allow AJAX requests to proceed (they will check session in individual methods)
+        // Only redirect non-AJAX requests without session
+        if (!$this->input->is_ajax_request() && !$this->session->userdata('username')) {
             redirect('auth');
         }
+        
         $this->load->model('Adjustment_model', 'model');
         $this->load->library('form_validation');
         $this->load->helper('form');
+        $this->load->helper('file');
+        
+        // Direktori upload untuk adjustment documents
+        $this->upload_dir = FCPATH . 'uploads/adjustment_documents/';
     }
 
     // Halaman Utama: Daftar Dokumen Adjustment
@@ -214,5 +222,241 @@ class Adjustment extends MY_Controller {
         $item_id = $this->input->get('item_id');
         $batches = $this->model->get_batches_for_item($item_id);
         echo json_encode($batches);
+    }
+
+    /**
+     * Get adjustment details for modal display
+     */
+    public function ajax_get_details()
+    {
+        if (!$this->input->is_ajax_request()) { 
+            show_error('Forbidden', 403); 
+            return; 
+        }
+
+        $adjustment_id = (int)$this->input->get('adjustment_id');
+        if (empty($adjustment_id)) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => FALSE, 'data' => []]);
+            return;
+        }
+
+        $details = $this->model->get_details_by_header_id($adjustment_id);
+        header('Content-Type: application/json');
+        echo json_encode(['success' => TRUE, 'data' => $details]);
+    }
+
+    /**
+     * ===== METODE BARU: AJAX GRN LOOKUP (SELECT2) =====
+     */
+    public function ajax_search_grn()
+    {
+        if (!$this->input->is_ajax_request()) { show_error('Forbidden', 403); return; }
+        
+        $search = $this->input->get('q', TRUE);
+        $results = $this->model->search_grn_for_adjustment($search);
+        
+        $data = [];
+        foreach ($results as $grn) {
+            $data[] = [
+                'id' => $grn->id,
+                'text' => $grn->grn_number . ' (' . $grn->nama_supplier . ')'
+            ];
+        }
+        
+        header('Content-Type: application/json');
+        echo json_encode(['results' => $data]);
+    }
+
+    /**
+     * Ambil detail items dari GRN yang dipilih (untuk ditampilkan di form)
+     */
+    public function ajax_get_grn_details()
+    {
+        if (!$this->input->is_ajax_request()) { show_error('Forbidden', 403); return; }
+        
+        $grn_id = (int)$this->input->get('grn_id');
+        if (empty($grn_id)) {
+            echo json_encode(['success' => FALSE, 'message' => 'GRN ID tidak valid']);
+            return;
+        }
+        
+        $details = $this->model->get_grn_details_for_adjustment($grn_id);
+        echo json_encode(['success' => TRUE, 'data' => $details]);
+    }
+
+    /**
+     * Test AJAX session - for debugging
+     */
+    public function test_session()
+    {
+        header('Content-Type: application/json');
+        echo json_encode([
+            'session_id' => $this->session->session_id,
+            'username' => $this->session->userdata('username'),
+            'user_id' => $this->session->userdata('user_id'),
+            'is_ajax' => $this->input->is_ajax_request()
+        ]);
+    }
+
+    /**
+     * ===== FITUR UPLOAD DOKUMEN =====
+     */
+    public function upload_document($adjustment_id = 0)
+    {
+        // Check if user is logged in (AJAX requests must have valid session)
+        if (!$this->session->userdata('username')) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => FALSE, 'message' => 'Session expired. Please login again.']);
+            return;
+        }
+        
+        if (!$this->input->is_ajax_request()) { 
+            show_error('Forbidden', 403); 
+            return; 
+        }
+        
+        $adjustment_id = (int)$adjustment_id;
+        log_message('DEBUG', 'Upload document called with ID: ' . $adjustment_id);
+        
+        if (empty($adjustment_id)) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => FALSE, 'message' => 'Adjustment ID tidak valid']);
+            return;
+        }
+
+        // Cek apakah adjustment ada
+        $header = $this->model->get_header_by_id($adjustment_id);
+        if (!$header) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => FALSE, 'message' => 'Adjustment tidak ditemukan']);
+            return;
+        }
+
+        // Konfigurasi upload
+        $config = [
+            'upload_path' => $this->upload_dir,
+            'allowed_types' => 'pdf|jpg|jpeg|png|gif|doc|docx|xlsx|xls',
+            'max_size' => 10240, // 10MB
+            'encrypt_name' => TRUE
+        ];
+
+        log_message('DEBUG', 'Upload config: ' . json_encode($config));
+
+        $this->load->library('upload', $config);
+        $this->lang->load('upload', 'english');
+
+        if (!$this->upload->do_upload('document')) {
+            $error = $this->upload->display_errors();
+            log_message('ERROR', 'Upload failed: ' . $error);
+            header('Content-Type: application/json');
+            echo json_encode(['success' => FALSE, 'message' => $error]);
+            return;
+        }
+
+        $upload_data = $this->upload->data();
+        $description = $this->input->post('description', TRUE);
+
+        log_message('DEBUG', 'File uploaded: ' . $upload_data['full_path']);
+
+        // Simpan data dokumen ke database
+        $result = $this->model->save_document(
+            $adjustment_id,
+            $upload_data['orig_name'],
+            $upload_data['full_path'],
+            $upload_data['file_type'],
+            $upload_data['file_size'],
+            $this->session->userdata('user_id'),
+            $description
+        );
+
+        header('Content-Type: application/json');
+        if ($result) {
+            log_message('DEBUG', 'Document saved to DB with ID: ' . $result);
+            echo json_encode(['success' => TRUE, 'message' => 'Dokumen berhasil diupload', 'document_id' => $result]);
+        } else {
+            log_message('ERROR', 'Failed to save document to database');
+            echo json_encode(['success' => FALSE, 'message' => 'Gagal menyimpan data dokumen']);
+        }
+    }
+
+    /**
+     * Tampilkan daftar dokumen yang sudah diupload
+     */
+    public function ajax_get_documents($adjustment_id = 0)
+    {
+        if (!$this->input->is_ajax_request()) { show_error('Forbidden', 403); return; }
+        
+        $adjustment_id = (int)$adjustment_id;
+        if (empty($adjustment_id)) {
+            echo json_encode(['success' => FALSE, 'data' => []]);
+            return;
+        }
+
+        $documents = $this->model->get_adjustment_documents($adjustment_id);
+        echo json_encode(['success' => TRUE, 'data' => $documents]);
+    }
+
+    /**
+     * Download/View dokumen
+     */
+    public function view_document($document_id = 0)
+    {
+        // Check session for document access (but don't redirect, just show 404)
+        if (!$this->session->userdata('username')) {
+            show_404();
+            return;
+        }
+        
+        $document_id = (int)$document_id;
+        if (empty($document_id)) {
+            show_404();
+            return;
+        }
+
+        $document = $this->model->get_document_by_id($document_id);
+        if (!$document || !file_exists($document->file_path)) {
+            show_404();
+            return;
+        }
+
+        // Bypass CodeIgniter output untuk file serving
+        $this->output->set_header('Content-Type: ' . $document->file_type);
+        $this->output->set_header('Content-Disposition: inline; filename="' . $document->file_name . '"');
+        $this->output->set_header('Content-Length: ' . filesize($document->file_path));
+        $this->output->set_output(file_get_contents($document->file_path));
+    }
+
+    /**
+     * Hapus dokumen
+     */
+    public function delete_document($document_id = 0)
+    {
+        if (!$this->input->is_ajax_request()) { show_error('Forbidden', 403); return; }
+        
+        $document_id = (int)$document_id;
+        if (empty($document_id)) {
+            echo json_encode(['success' => FALSE, 'message' => 'Document ID tidak valid']);
+            return;
+        }
+
+        $document = $this->model->get_document_by_id($document_id);
+        if (!$document) {
+            echo json_encode(['success' => FALSE, 'message' => 'Dokumen tidak ditemukan']);
+            return;
+        }
+
+        // Cek permission: hanya user yang upload atau admin yang bisa delete
+        $user_id = $this->session->userdata('user_id');
+        if ($document->uploaded_by != $user_id && !in_array($this->session->userdata('role'), ['admin', 'manager'])) {
+            echo json_encode(['success' => FALSE, 'message' => 'Anda tidak memiliki izin menghapus dokumen ini']);
+            return;
+        }
+
+        if ($this->model->delete_document($document_id)) {
+            echo json_encode(['success' => TRUE, 'message' => 'Dokumen berhasil dihapus']);
+        } else {
+            echo json_encode(['success' => FALSE, 'message' => 'Gagal menghapus dokumen']);
+        }
     }
 }

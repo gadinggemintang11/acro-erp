@@ -123,7 +123,7 @@ class LapMutasiScrap extends MY_Controller {
                 $bc_info = (!empty($r['bc_type_code']) ? $r['bc_type_code'] . '/' . ($r['bc_number'] ?? '-') : '-');
                 $wo = $r['wo_number'] ?? '-';
 
-                $action = '-';
+                $action = '';
 
                 // Deep trace produksi OR WH
                 if (
@@ -132,11 +132,11 @@ class LapMutasiScrap extends MY_Controller {
                 ) {
                     $ledgerId = htmlspecialchars($r['ledger_id'] ?? $r['id'] ?? '');
                     if (strtoupper($type) === 'IN_SCRAP_WH') {
-                        $action = '<button class="btn btn-sm btn-warning btn-deep-trace-wh" data-ledgerid="'.$ledgerId.'" 
+                        $action .= '<button class="btn btn-sm btn-warning btn-deep-trace-wh mr-1" data-ledgerid="'.$ledgerId.'" 
                                     title="Lihat Asal Warehouse"><i class="fas fa-warehouse fa-sm"></i></button>';
                     } else {
                         $prodId = htmlspecialchars($r['production_output_id']);
-                        $action = '<button class="btn btn-sm btn-primary btn-deep-trace" data-prodid="'.$prodId.'" 
+                        $action .= '<button class="btn btn-sm btn-primary btn-deep-trace mr-1" data-prodid="'.$prodId.'" 
                                     title="Deep Trace Produksi"><i class="fas fa-industry fa-sm"></i></button>';
                     }
                 }
@@ -151,8 +151,36 @@ class LapMutasiScrap extends MY_Controller {
                         $row = $this->db->select('id')->where('doc_no', $r['scrap_out_docno'])->get('scrap_out_header')->row();
                         if ($row) $docId = $row->id;
                     }
-                    $action = '<button class="btn btn-sm btn-info btn-show-out" data-docid="'.$docId.'" 
-                               title="Detail Pengeluaran Scrap"><i class="fas fa-truck fa-sm"></i></button>';
+                    if ($docId) {
+                        $action .= '<button class="btn btn-sm btn-info btn-show-out mr-1" data-docid="'.$docId.'" 
+                                   title="Detail Pengeluaran Scrap"><i class="fas fa-truck fa-sm"></i></button>';
+                    }
+                }
+
+                // View Documents untuk adjustment - dengan multiple ways detection
+                $adjustmentId = null;
+                if (strtoupper($type) === 'ADJUSTMENT') {
+                    // Try multiple sources for adjustment_header_id
+                    if (!empty($r['adjustment_header_id'])) {
+                        $adjustmentId = $r['adjustment_header_id'];
+                    } elseif (!empty($r['source_doc_id']) && strtoupper($r['source_doc_type']) === 'ADJ') {
+                        $adjustmentId = $r['source_doc_id'];
+                    } elseif (!empty($r['transaction_id']) && (
+                        stripos($r['source_doc_type'] ?? '', 'adj') !== false || 
+                        stripos($r['transaction_type'] ?? '', 'adjustment') !== false
+                    )) {
+                        $adjustmentId = $r['transaction_id'];
+                    }
+                    
+                    if ($adjustmentId) {
+                        $action .= '<button class="btn btn-sm btn-success mr-1" onclick="viewAdjustmentDocuments('.$adjustmentId.')" 
+                                   title="Lihat Dokumen Adjustment"><i class="fas fa-file-alt fa-sm"></i></button>';
+                    }
+                }
+
+                // Jika tidak ada action, tampilkan default
+                if (empty($action)) {
+                    $action = '-';
                 }
 
                 $html .= '<tr>
@@ -939,6 +967,49 @@ class LapMutasiScrap extends MY_Controller {
         header('Content-Disposition: attachment; filename="'.$filename.'"');
         $writer->save('php://output');
         exit;
+    }
+
+    /**
+     * ===== FITUR BARU: LIHAT DOKUMEN ADJUSTMENT =====
+     */
+    public function ajax_get_adjustment_documents()
+    {
+        if (!$this->input->is_ajax_request()) { show_error('Forbidden', 403); return; }
+        
+        $adjustment_id = (int)$this->input->get('adjustment_id');
+        if (empty($adjustment_id)) {
+            echo json_encode(['success' => FALSE, 'data' => []]);
+            return;
+        }
+
+        $this->load->model('Adjustment_model');
+        $documents = $this->Adjustment_model->get_adjustment_documents($adjustment_id);
+        
+        echo json_encode(['success' => TRUE, 'data' => $documents]);
+    }
+
+    /**
+     * Modal untuk menampilkan dokumen adjustment
+     */
+    public function modal_adjustment_documents($adjustment_id = 0)
+    {
+        $adjustment_id = (int)$adjustment_id;
+        if (empty($adjustment_id)) {
+            show_404();
+            return;
+        }
+
+        $this->load->model('Adjustment_model');
+        $header = $this->Adjustment_model->get_header_by_id($adjustment_id);
+        if (!$header) {
+            show_404();
+            return;
+        }
+
+        $data['header'] = $header;
+        $data['documents'] = $this->Adjustment_model->get_adjustment_documents($adjustment_id);
+        
+        $this->load->view('it_inventory/lap_mutasi_scrap/modal_adjustment_documents', $data);
     }
 
 }

@@ -40,6 +40,28 @@ class LapMutasiMesin_model extends CI_Model {
                 AND item_type = 'machine'
                 AND transaction_type IN ('in', 'wip_in', 'IN_RETURN_WIP', 'out', 'adjustment', 'production_out', 'wip_out')
                 GROUP BY item_id
+            ),
+            opname AS (
+                SELECT 
+                    od.item_id,
+                    od.item_type,
+                    od.qty_fisik
+                FROM opname_details od
+                JOIN opname_header oh ON od.opname_header_id = oh.id
+                WHERE oh.status = 'Completed'
+                    AND oh.opname_date >= '$start_date' 
+                    AND oh.opname_date <= '$end_date'
+                    AND od.item_type = 'machine'
+                    AND oh.opname_date = (
+                        SELECT MAX(oh_inner.opname_date)
+                        FROM opname_details od_inner
+                        JOIN opname_header oh_inner ON od_inner.opname_header_id = oh_inner.id
+                        WHERE od_inner.item_id = od.item_id 
+                          AND od_inner.item_type = od.item_type
+                          AND oh_inner.status = 'Completed'
+                          AND oh_inner.opname_date >= '$start_date'
+                          AND oh_inner.opname_date <= '$end_date'
+                    )
             )
             
             SELECT 
@@ -51,11 +73,18 @@ class LapMutasiMesin_model extends CI_Model {
                 COALESCE(mut.total_masuk, 0) AS total_masuk,
                 COALESCE(mut.total_keluar, 0) AS total_keluar,
                 COALESCE(mut.total_penyesuaian, 0) AS total_penyesuaian,
-                (COALESCE(sa.balance, 0) + COALESCE(mut.total_masuk, 0) - COALESCE(mut.total_keluar, 0) + COALESCE(mut.total_penyesuaian, 0)) AS saldo_akhir
+                (COALESCE(sa.balance, 0) + COALESCE(mut.total_masuk, 0) - COALESCE(mut.total_keluar, 0) + COALESCE(mut.total_penyesuaian, 0)) AS saldo_akhir,
+                op.qty_fisik AS hasil_pencacahan,
+                CASE 
+                    WHEN op.qty_fisik IS NOT NULL THEN 
+                        (COALESCE(sa.balance, 0) + COALESCE(mut.total_masuk, 0) - COALESCE(mut.total_keluar, 0) + COALESCE(mut.total_penyesuaian, 0)) - op.qty_fisik
+                    ELSE NULL
+                END AS jumlah_selisih
                 
             FROM machines m
             LEFT JOIN saldo_awal sa ON m.id = sa.item_id
             LEFT JOIN mutasi mut ON m.id = mut.item_id
+            LEFT JOIN opname op ON m.id = op.item_id AND op.item_type = 'machine'
 
             WHERE m.status = 'Active' 
             $sql_search
@@ -113,7 +142,7 @@ class LapMutasiMesin_model extends CI_Model {
         $this->db->select("
             sl.transaction_date, sl.transaction_type, sl.qty_in, sl.qty_out, sl.balance,
             grn.grn_number,
-            adj.doc_no as adjustment_doc, adj.notes as adjustment_notes,
+            adj.doc_no as adjustment_doc, adj.notes as adjustment_notes, adj.id as adjustment_header_id,
             woh.wo_number
         ");
         

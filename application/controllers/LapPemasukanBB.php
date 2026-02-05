@@ -135,7 +135,8 @@ class LapPemasukanBB extends MY_Controller {
                     
                     $doc_source_text = "PO: " . htmlspecialchars($row['po_number'] ?? $row['source_doc_id']); 
                 } elseif ($row['source_doc_type'] == 'MIR') {
-                    $doc_source_text = "MIR: " . htmlspecialchars($row['mir_number'] ?? $row['source_doc_id']);
+                    // Sekarang menggunakan field mir_number yang terpisah
+                    $doc_source_text = "MIR: " . htmlspecialchars($row['mir_number'] ?? 'ID-'.$row['source_doc_id']);
                 } else {
                     $doc_source_text = htmlspecialchars($row['source_doc_type']).': '.htmlspecialchars($row['source_doc_id']);
                 }

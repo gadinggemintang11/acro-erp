@@ -151,7 +151,9 @@ class LapMutasiFinished_model extends CI_Model {
                 WHEN sl.transaction_type = 'fg_out' THEN CONCAT('Pengiriman ke Customer: ', c.nama_customer)
                 WHEN sl.transaction_type = 'adjustment' THEN adj.notes
                 ELSE 'Transaksi Lainnya' 
-            END AS description"
+            END AS description",
+            
+            'adj.id AS adjustment_header_id'
         ]);
         
         $this->db->from('stock_ledger AS sl');
@@ -223,14 +225,98 @@ class LapMutasiFinished_model extends CI_Model {
             $item_id = $item['item_id'];
             $item['qty_terpakai'] = isset($used_materials[$item_id]) ? $used_materials[$item_id] : 0;
             
-            // Enhanced: Add BC information and GRN details from the last incoming transaction
-            $bc_info = $this->get_material_bc_info($item_id, $prod_header_id);
-            $item = array_merge($item, $bc_info);
+            // Enhanced: Get ALL BC information for this material (tidak hanya 1 record)
+            $bc_records = $this->get_all_material_bc_info($item_id, $prod_header_id);
             
-            $result[] = $item;
+            // Jika ada multiple BC records, buat entry terpisah untuk masing-masing
+            if (!empty($bc_records)) {
+                foreach($bc_records as $bc_info) {
+                    $item_with_bc = array_merge($item, $bc_info);
+                    $result[] = $item_with_bc;
+                }
+            } else {
+                // Jika tidak ada BC info, tetap tampilkan dengan default values
+                $item = array_merge($item, $this->get_default_bc_info());
+                $result[] = $item;
+            }
         }
         
         return $result;
+    }
+
+    /**
+     * Get ALL BC information for a material (tidak hanya 1 record terbaru)
+     * Ini akan menampilkan semua GRN yang pernah ada untuk material ini
+     */
+    public function get_all_material_bc_info($material_id, $production_header_id)
+    {
+        try {
+            // Get production date to find the relevant material receipts
+            $this->db->select('production_date');
+            $this->db->from('production_header');
+            $this->db->where('id', $production_header_id);
+            $prod_header = $this->db->get()->row();
+            
+            if (!$prod_header) {
+                return [$this->get_default_bc_info()];
+            }
+
+            $prod_date = $prod_header->production_date;
+
+            // Enhanced query to get supplier info from GRN details (PO/MIR source)
+            $this->db->select('
+                gh.grn_number,
+                gh.grn_date,
+                gh.bc_type_code,
+                gh.bc_number, 
+                gh.bc_date,
+                COALESCE(s_grn.nama_supplier, s_po.nama_supplier, s_mir.nama_supplier) as nama_supplier,
+                ph.po_number,
+                mh.mir_number,
+                sl.transaction_date as arrival_date,
+                sl.qty_in as batch_qty
+            ');
+            $this->db->from('stock_ledger sl');
+            $this->db->join('grn_header gh', 'sl.transaction_id = gh.id AND sl.transaction_type = "in"', 'inner');
+            $this->db->join('suppliers s_grn', 'gh.supplier_id = s_grn.id', 'left'); // Direct supplier from GRN
+            
+            // Join to get source document info (PO or MIR)
+            $this->db->join('grn_details gd', 'gd.grn_header_id = gh.id AND gd.item_id = sl.item_id AND gd.item_type = sl.item_type', 'left');
+            $this->db->join('po_header ph', 'gd.source_doc_header_id = ph.id AND gd.source_doc_type = "PO"', 'left');
+            $this->db->join('suppliers s_po', 'ph.supplier_id = s_po.id', 'left'); // Supplier from PO
+            $this->db->join('mir_header mh', 'gd.source_doc_header_id = mh.id AND gd.source_doc_type = "MIR"', 'left');
+            $this->db->join('suppliers s_mir', 'mh.supplier_id = s_mir.id', 'left'); // Supplier from MIR
+            
+            $this->db->where('sl.item_id', $material_id);
+            $this->db->where('sl.item_type', 'material');
+            $this->db->where('sl.transaction_type', 'in');
+            $this->db->where('sl.qty_in >', 0);
+            $this->db->where('sl.transaction_date <=', $prod_date . ' 23:59:59');
+            $this->db->order_by('sl.transaction_date', 'DESC');
+            
+            $bc_records = $this->db->get()->result();
+
+            $result = [];
+            foreach ($bc_records as $bc_data) {
+                $result[] = [
+                    'grn_number' => $bc_data->grn_number ?? '-',
+                    'grn_date' => $bc_data->grn_date ?? null,
+                    'bc_type_code' => $bc_data->bc_type_code ?? '-',
+                    'bc_number' => $bc_data->bc_number ?? '-',
+                    'bc_date' => $bc_data->bc_date ?? null,
+                    'po_number' => $bc_data->po_number ?? ($bc_data->mir_number ?? '-'),
+                    'po_date' => null,
+                    'nama_supplier' => $bc_data->nama_supplier ?? '-',
+                    'arrival_date' => $bc_data->arrival_date ?? null,
+                    'batch_qty' => $bc_data->batch_qty ?? 0
+                ];
+            }
+
+            return empty($result) ? [$this->get_default_bc_info()] : $result;
+        } catch (Exception $e) {
+            log_message('error', 'Error in get_all_material_bc_info: ' . $e->getMessage());
+            return [$this->get_default_bc_info()];
+        }
     }
 
     /**
@@ -353,7 +439,7 @@ class LapMutasiFinished_model extends CI_Model {
             'po_date' => null,
             'nama_supplier' => '-',
             'arrival_date' => null,
-            'qty_used_from_this_batch' => 0
+            'batch_qty' => 0
         ];
     }
 

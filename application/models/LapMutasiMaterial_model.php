@@ -165,7 +165,7 @@ class LapMutasiMaterial_model extends CI_Model {
             gh.grn_number, gh.bc_type_code, gh.bc_number, gh.bc_date, ph.po_number,
             mrh.mr_number, mrh.issuance_number,
             prh.prod_return_no,
-            ah.doc_no as adjustment_doc, ah.notes as adjustment_notes, ah.doc_date as adjustment_date
+            ah.doc_no as adjustment_doc, ah.notes as adjustment_notes, ah.doc_date as adjustment_date, ah.id as adjustment_header_id
         ");
         
         $this->db->from('stock_ledger sl');

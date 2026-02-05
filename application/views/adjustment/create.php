@@ -2,31 +2,53 @@
     <h1 class="h3 mb-4 text-gray-800"><?= $title; ?></h1>
     
     <?php $this->load->view('templates/partials/alerts'); ?>
+
+    <!-- Include Select2 CSS & JS -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet" />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
     
-    <form action="<?= base_url('adjustment/store'); ?>" method="POST">
+    <form action="<?= base_url('adjustment/store'); ?>" method="POST" id="adjustment-form">
         <div class="card shadow mb-4">
             <div class="card-header py-3">
                 <h6 class="m-0 font-weight-bold text-primary">Header Dokumen</h6>
             </div>
             <div class="card-body">
                 <div class="row">
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <div class="form-group">
                             <label>No. Dokumen</label>
                             <input type="text" name="doc_no" class="form-control" value="<?= $doc_no; ?>" readonly>
                         </div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-3">
                         <div class="form-group">
                             <label>Tanggal Dokumen *</label>
                             <input type="date" name="doc_date" class="form-control" value="<?= date('Y-m-d'); ?>" required>
                         </div>
                     </div>
-                    <div class="col-md-4">
+                    <div class="col-md-6">
                         <div class="form-group">
                             <label>Catatan (Alasan Penyesuaian) *</label>
                             <input type="text" name="notes" class="form-control" placeholder="cth: Hasil Stock Opname Gudang A" required>
                         </div>
+                    </div>
+                </div>
+
+                <!-- GRN Reference Section -->
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="grn_id">Referensi GRN Penerimaan (Opsional)</label>
+                            <select id="grn_id" name="grn_id" class="form-control select2" style="width: 100%">
+                                <option value="">-- Cari No. GRN --</option>
+                            </select>
+                            <small class="form-text text-muted">Pilih GRN untuk auto-load items dari penerimaan</small>
+                        </div>
+                    </div>
+                    <div class="col-md-6 d-flex align-items-end">
+                        <button type="button" class="btn btn-info w-100" id="btn_load_grn_items">
+                            <i class="fas fa-download"></i> Load Items dari GRN
+                        </button>
                     </div>
                 </div>
             </div>
@@ -64,6 +86,56 @@
             <button type="submit" class="btn btn-primary">Simpan sebagai Draft</button>
         </div>
     </form>
+
+    <!-- Document Upload Section -->
+    <div class="card shadow mt-4" id="upload_section" style="display: none;">
+        <div class="card-header py-3 bg-primary text-white">
+            <h6 class="m-0 font-weight-bold"><i class="fas fa-file-upload"></i> Upload Dokumen Pendukung</h6>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="document">Pilih File</label>
+                        <input type="file" id="document" name="document" class="form-control-file" 
+                               accept=".pdf,.jpg,.jpeg,.png,.gif,.doc,.docx,.xlsx,.xls">
+                        <small class="form-text text-muted">
+                            Format: PDF, JPG, PNG, GIF, DOC, DOCX, XLS, XLSX (Max 10 MB)
+                        </small>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="document_description">Deskripsi (Opsional)</label>
+                        <input type="text" id="document_description" name="document_description" class="form-control" 
+                               placeholder="cth: Bukti penambahan stock dari audit">
+                    </div>
+                </div>
+            </div>
+
+            <button type="button" class="btn btn-success" id="btn_upload_doc">
+                <i class="fas fa-upload"></i> Upload Dokumen
+            </button>
+
+            <div id="upload_progress" style="display: none; margin-top: 15px;">
+                <div class="progress">
+                    <div id="progress_bar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                         role="progressbar" style="width: 0%"></div>
+                </div>
+                <small class="text-muted d-block mt-2">Upload in progress...</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Daftar Dokumen yang Sudah Diupload -->
+    <div id="documents_section" style="display: none;" class="card shadow mt-4">
+        <div class="card-header py-3 bg-success text-white">
+            <h6 class="m-0 font-weight-bold"><i class="fas fa-file-check"></i> Dokumen yang Sudah Diupload</h6>
+        </div>
+        <div class="card-body">
+            <ul id="documents_list" class="list-group"></ul>
+        </div>
+    </div>
 </div>
 
 <template id="row-template">
@@ -76,6 +148,7 @@
                 <option value="finished_goods">Finished Goods</option>
                 <option value="inventory">Inventory</option>
                 <option value="machine">Machine</option>
+                <option value="scrap">Scrap</option>
             </select>
         </td>
         <td>
@@ -117,6 +190,214 @@ document.addEventListener("DOMContentLoaded", function() {
     let rowIndex = 0;
     const detailBody = document.getElementById("detail-body");
     const template = document.getElementById("row-template");
+
+    // ===== SELECT2 INITIALIZATION =====
+    $('#grn_id').select2({
+        placeholder: '-- Cari No. GRN --',
+        allowClear: true,
+        width: '100%',
+        ajax: {
+            url: '<?php echo base_url("adjustment/ajax_search_grn"); ?>',
+            dataType: 'json',
+            delay: 250,
+            data: function(params) {
+                return {
+                    q: params.term || ''
+                };
+            },
+            processResults: function(data) {
+                return {
+                    results: data.results || []
+                };
+            },
+            cache: true
+        }
+    });
+
+    // ===== LOAD ITEMS FROM GRN =====
+    document.getElementById('btn_load_grn_items').addEventListener('click', function() {
+        var grn_id = $('#grn_id').val();
+        if (!grn_id) {
+            alert('Silakan pilih GRN terlebih dahulu');
+            return;
+        }
+
+        $.ajax({
+            url: '<?php echo base_url("adjustment/ajax_get_grn_details"); ?>',
+            type: 'GET',
+            data: { grn_id: grn_id },
+            dataType: 'json',
+            success: function(response) {
+                if (response.success && response.data.length > 0) {
+                    // Clear existing rows
+                    detailBody.innerHTML = '';
+                    rowIndex = 0;
+                    
+                    // Load each item from GRN into rows
+                    response.data.forEach(function(item) {
+                        const newRow = template.content.cloneNode(true);
+                        const tr = newRow.querySelector('tr');
+                        tr.setAttribute('data-row-id', rowIndex);
+                        tr.setAttribute('data-grn-detail-id', item.grn_detail_id);
+                        
+                        newRow.querySelectorAll('input, select').forEach(el => {
+                            el.name = el.name.replace(/details\[0\]/g, `details[${rowIndex}]`);
+                        });
+                        
+                        // Set values from GRN
+                        const itemTypeSelect = newRow.querySelector('.item-type');
+                        const itemIdSelect = newRow.querySelector('.item-id');
+                        
+                        itemTypeSelect.value = item.item_type;
+                        itemIdSelect.value = item.item_id;
+                        itemIdSelect.disabled = false;
+                        itemIdSelect.textContent = '';
+                        
+                        // Add option for the item
+                        const option = document.createElement('option');
+                        option.value = item.item_id;
+                        option.textContent = item.item_code + ' - ' + item.item_name;
+                        itemIdSelect.appendChild(option);
+                        itemIdSelect.value = item.item_id;
+                        
+                        newRow.querySelector('.item-unit').value = item.item_unit;
+                        newRow.querySelector('.unit-value').value = item.unit_value || '';
+                        
+                        detailBody.appendChild(newRow);
+                        rowIndex++;
+                    });
+                    
+                    alert('Items dari GRN berhasil dimuat (' + response.data.length + ' item)');
+                } else {
+                    alert('Tidak ada items ditemukan di GRN ini');
+                }
+            },
+            error: function() {
+                alert('Terjadi error saat memuat items');
+            }
+        });
+    });
+
+    // ===== DOCUMENT UPLOAD FUNCTIONALITY =====
+    let adjustment_id = '<?php echo isset($header) ? $header->id : ""; ?>';
+    
+    // Show upload section when form is saved
+    if (adjustment_id) {
+        document.getElementById('upload_section').style.display = 'block';
+    }
+    
+    if (adjustment_id) {
+        document.getElementById('btn_upload_doc').addEventListener('click', function() {
+            var fileInput = document.getElementById('document');
+            if (!fileInput.files.length) {
+                alert('Silakan pilih file terlebih dahulu');
+                return;
+            }
+
+            var formData = new FormData();
+            formData.append('document', fileInput.files[0]);
+            formData.append('description', document.getElementById('document_description').value);
+
+            document.getElementById('upload_progress').style.display = 'block';
+            document.getElementById('progress_bar').style.width = '0%';
+
+            $.ajax({
+                url: '<?php echo base_url("adjustment/upload_document/"); ?>' + adjustment_id,
+                type: 'POST',
+                data: formData,
+                contentType: false,
+                processData: false,
+                xhr: function() {
+                    var xhr = new window.XMLHttpRequest();
+                    xhr.upload.addEventListener("progress", function(evt) {
+                        if (evt.lengthComputable) {
+                            var percentComplete = (evt.loaded / evt.total) * 100;
+                            document.getElementById('progress_bar').style.width = percentComplete + '%';
+                        }
+                    }, false);
+                    return xhr;
+                },
+                success: function(response) {
+                    if (response.success) {
+                        alert('Dokumen berhasil diupload');
+                        loadDocumentsList(adjustment_id);
+                        fileInput.value = '';
+                        document.getElementById('document_description').value = '';
+                        document.getElementById('upload_progress').style.display = 'none';
+                    } else {
+                        alert('Gagal upload: ' + response.message);
+                        document.getElementById('upload_progress').style.display = 'none';
+                    }
+                },
+                error: function(xhr) {
+                    console.error('Error:', xhr);
+                    alert('Error upload dokumen');
+                    document.getElementById('upload_progress').style.display = 'none';
+                }
+            });
+        });
+
+        // Load list dokumen saat halaman loaded
+        loadDocumentsList(adjustment_id);
+    }
+
+    function loadDocumentsList(adjustment_id) {
+        $.ajax({
+            url: '<?php echo base_url("adjustment/ajax_get_documents/"); ?>' + adjustment_id,
+            type: 'GET',
+            dataType: 'json',
+            success: function(response) {
+                if (response.success && response.data.length > 0) {
+                    var html = '';
+                    response.data.forEach(function(doc) {
+                        var size_kb = (doc.file_size / 1024).toFixed(1);
+                        html += '<li class="list-group-item">';
+                        html += '<div class="d-flex justify-content-between align-items-start">';
+                        html += '<div class="flex-grow-1">';
+                        html += '<a href="' + '<?php echo base_url("adjustment/view_document/"); ?>' + doc.id + '" target="_blank" class="font-weight-bold text-primary">';
+                        html += '<i class="fas fa-file"></i> ' + doc.file_name;
+                        html += '</a>';
+                        if (doc.description) {
+                            html += '<p class="mb-1 text-muted small">' + doc.description + '</p>';
+                        }
+                        html += '<small class="text-muted">Uploaded: ' + doc.uploaded_at + '</small>';
+                        html += '</div>';
+                        html += '<div class="text-right">';
+                        html += '<span class="badge badge-secondary">' + size_kb + ' KB</span> ';
+                        html += '<button type="button" class="btn btn-sm btn-danger" onclick="deleteDoc(' + doc.id + ')">';
+                        html += '<i class="fas fa-trash"></i></button>';
+                        html += '</div>';
+                        html += '</div>';
+                        html += '</li>';
+                    });
+                    document.getElementById('documents_list').innerHTML = html;
+                    document.getElementById('documents_section').style.display = 'block';
+                } else {
+                    document.getElementById('documents_section').style.display = 'none';
+                }
+            }
+        });
+    }
+
+    function deleteDoc(doc_id) {
+        if (confirm('Yakin hapus dokumen ini?')) {
+            $.ajax({
+                url: '<?php echo base_url("adjustment/delete_document/"); ?>' + doc_id,
+                type: 'POST',
+                dataType: 'json',
+                success: function(response) {
+                    if (response.success) {
+                        alert('Dokumen berhasil dihapus');
+                        loadDocumentsList(adjustment_id);
+                    } else {
+                        alert('Gagal hapus dokumen');
+                    }
+                }
+            });
+        }
+    }
+
+    // ===== EXISTING ROW LOGIC (Keep original) =====
 
     function addRow() {
         const newRow = template.content.cloneNode(true);

@@ -7,12 +7,18 @@ class Adjustment_model extends CI_Model {
     // ... (copy dari jawaban saya sebelumnya) ...
     public function get_all_headers()
     {
-        $this->db->select('adj.*, u.fullname as creator_name');
-        $this->db->from('adjustment_header as adj');
-        $this->db->join('users as u', 'adj.created_by = u.id', 'left');
-        $this->db->order_by('adj.doc_date', 'DESC');
-        $this->db->order_by('adj.id', 'DESC');
-        return $this->db->get()->result();
+        $sql = "
+        SELECT 
+            adj.*,
+            u.fullname as creator_name,
+            GROUP_CONCAT(DISTINCT ad.item_type ORDER BY ad.item_type SEPARATOR ', ') as item_types
+        FROM adjustment_header adj
+        LEFT JOIN users u ON adj.created_by = u.id
+        LEFT JOIN adjustment_details ad ON adj.id = ad.adjustment_header_id
+        GROUP BY adj.id
+        ORDER BY adj.doc_date DESC, adj.id DESC
+        ";
+        return $this->db->query($sql)->result();
     }
 
     public function get_header_by_id($id)
@@ -36,6 +42,7 @@ class Adjustment_model extends CI_Model {
                     WHEN ad.item_type = 'finished_goods' THEN fg.nama_barang
                     WHEN ad.item_type = 'inventory' THEN i.nama_barang
                     WHEN ad.item_type = 'machine' THEN mc.nama_mesin
+                    WHEN ad.item_type = 'scrap' THEN ms.scrap_name
                     ELSE 'UNKNOWN'
                 END as item_name,
                 CASE
@@ -43,6 +50,7 @@ class Adjustment_model extends CI_Model {
                     WHEN ad.item_type = 'semifinished' THEN sf.satuan
                     WHEN ad.item_type = 'finished_goods' THEN fg.satuan
                     WHEN ad.item_type = 'inventory' THEN i.satuan
+                    WHEN ad.item_type = 'scrap' THEN ms.unit
                     ELSE 'PCS'
                 END as item_unit,
                 soh.available_qty as batch_qty
@@ -52,6 +60,7 @@ class Adjustment_model extends CI_Model {
             LEFT JOIN finished_goods fg ON ad.item_id = fg.id AND ad.item_type = 'finished_goods'
             LEFT JOIN inventories i ON ad.item_id = i.id AND ad.item_type = 'inventory'
             LEFT JOIN machines mc ON ad.item_id = mc.id AND ad.item_type = 'machine'
+            LEFT JOIN master_scrap ms ON ad.item_id = ms.id AND ad.item_type = 'scrap'
             LEFT JOIN stock_on_hand soh ON ad.stock_on_hand_id = soh.id AND ad.item_type = 'material'
             WHERE ad.adjustment_header_id = ?
         ";
@@ -180,6 +189,12 @@ class Adjustment_model extends CI_Model {
         $date = $header->doc_date . ' ' . date('H:i:s'); 
 
         foreach ($details as $item) {
+            // Handle scrap type khusus - tidak pakai stock_ledger
+            if ($item->item_type === 'scrap') {
+                $this->process_scrap_adjustment($item, $header, $date, $user_id);
+                continue; // Skip stock_ledger processing untuk scrap
+            }
+            
             $qty_in = 0;
             $qty_out = 0;
             $unit_value = 0;
@@ -208,26 +223,31 @@ class Adjustment_model extends CI_Model {
                 
                 if ($item->item_type == 'material') {
                     $stock_on_hand_id = $item->stock_on_hand_id;
-                    if(empty($stock_on_hand_id)) {
-                        $this->db->trans_rollback();
-                        return ['status' => FALSE, 'message' => 'Batch material wajib dipilih untuk ' . $item->item_name];
-                    }
                     
-                    $batch = $this->get_batch_info($stock_on_hand_id);
-                    
-                    if (!$batch) {
-                        $this->db->trans_rollback();
-                        return ['status' => FALSE, 'message' => 'Batch material tidak ditemukan.'];
-                    }
-                    if ($batch->available_qty < $item->qty) {
-                        $this->db->trans_rollback();
-                        return ['status' => FALSE, 'message' => 'Stok batch ' . $item->item_name . ' tidak mencukupi (Tersisa: '.$batch->available_qty.').'];
-                    }
+                    if (!empty($stock_on_hand_id)) {
+                        // Standard case: ada batch yang dipilih
+                        $batch = $this->get_batch_info($stock_on_hand_id);
+                        
+                        if (!$batch) {
+                            $this->db->trans_rollback();
+                            return ['status' => FALSE, 'message' => 'Batch material tidak ditemukan.'];
+                        }
+                        if ($batch->available_qty < $item->qty) {
+                            $this->db->trans_rollback();
+                            return ['status' => FALSE, 'message' => 'Stok batch ' . $item->item_name . ' tidak mencukupi (Tersisa: '.$batch->available_qty.').'];
+                        }
 
-                    $unit_value = $batch->unit_value;
-                    $this->db->where('id', $stock_on_hand_id);
-                    $this->db->set('available_qty', 'available_qty - ' . $item->qty, FALSE);
-                    $this->db->update('stock_on_hand');
+                        $unit_value = $batch->unit_value;
+                        $this->db->where('id', $stock_on_hand_id);
+                        $this->db->set('available_qty', 'available_qty - ' . $item->qty, FALSE);
+                        $this->db->update('stock_on_hand');
+                    } else {
+                        // Special case: Opname adjustment tanpa batch (allow negative stock)
+                        // Cari nilai unit terakhir untuk material
+                        $last_ledger = $this->get_latest_ledger_entry($item->item_id, $item->item_type);
+                        $unit_value = $last_ledger ? $last_ledger->unit_value : 0;
+                        // stock_on_hand_id tetap NULL - tidak update batch
+                    }
                 } else {
                     $last_ledger = $this->get_latest_ledger_entry($item->item_id, $item->item_type);
                     $unit_value = $last_ledger ? $last_ledger->unit_value : 0;
@@ -275,6 +295,64 @@ class Adjustment_model extends CI_Model {
 
 
     /**
+     * Process scrap adjustment - create scrap_in or scrap_out transaction
+     */
+    private function process_scrap_adjustment($item, $header, $date, $user_id)
+    {
+        if ($item->adjustment_type == 'IN') {
+            // Create scrap_in transaction
+            $scrap_in_header = [
+                'doc_no' => 'SIN-ADJ-' . $header->doc_no,
+                'doc_date' => date('Y-m-d', strtotime($date)),
+                'work_order_id' => NULL,
+                'notes' => 'Adjustment IN: ' . $header->notes,
+                'status' => 'Confirmed',
+                'created_by' => $user_id,
+                'confirmed_by' => $user_id,
+                'confirmed_at' => $date
+            ];
+            $this->db->insert('scrap_in_header', $scrap_in_header);
+            $scrap_in_id = $this->db->insert_id();
+            
+            $scrap_in_detail = [
+                'header_id' => $scrap_in_id,
+                'scrap_id' => $item->item_id,
+                'qty' => $item->qty
+            ];
+            $this->db->insert('scrap_in_detail', $scrap_in_detail);
+            
+        } else { // OUT
+            // Create scrap_out transaction
+            $scrap_out_header = [
+                'doc_no' => 'SOUT-ADJ-' . $header->doc_no,
+                'doc_date' => date('Y-m-d', strtotime($date)),
+                'bc_type_code' => NULL,
+                'bc_number' => NULL,
+                'bc_date' => NULL,
+                'destination' => 'Adjustment OUT',
+                'notes' => 'Adjustment OUT: ' . $header->notes,
+                'status' => 'Confirmed',
+                'created_by' => $user_id,
+                'created_at' => $date,
+                'confirmed_by' => $user_id,
+                'confirmed_at' => $date
+            ];
+            $this->db->insert('scrap_out_header', $scrap_out_header);
+            $scrap_out_id = $this->db->insert_id();
+            
+            $scrap_out_detail = [
+                'header_id' => $scrap_out_id,
+                'scrap_id' => $item->item_id,
+                'qty' => $item->qty,
+                'notes' => 'Adjustment OUT from ' . $header->doc_no,
+                'destination' => 'Adjustment OUT',
+                'sales_value_per_unit' => 0
+            ];
+            $this->db->insert('scrap_out_detail', $scrap_out_detail);
+        }
+    }
+
+    /**
      * HELPERS UNTUK AJAX & LOGIC
      */
 
@@ -296,6 +374,9 @@ class Adjustment_model extends CI_Model {
             case 'machine':
                 return $this->db->select('id, kode_mesin as code, nama_mesin as name, "PCS" as unit')
                                 ->where('status', 'Active')->get('machines')->result();
+            case 'scrap':
+                return $this->db->select('id, scrap_code as code, scrap_name as name, unit')
+                                ->where('status', 'active')->get('master_scrap')->result();
             default:
                 return [];
         }
@@ -336,7 +417,169 @@ class Adjustment_model extends CI_Model {
 
     public function get_latest_balance($item_id, $item_type)
     {
+        // Untuk scrap, gunakan perhitungan khusus dari scrap_in dan scrap_out
+        if ($item_type === 'scrap') {
+            $sql = "
+                SELECT (
+                    IFNULL((
+                        SELECT SUM(d_in.qty)
+                        FROM scrap_in_detail d_in
+                        JOIN scrap_in_header h_in ON h_in.id = d_in.header_id
+                        WHERE d_in.scrap_id = ?
+                        AND h_in.status = 'Confirmed'
+                    ), 0)
+                    -
+                    IFNULL((
+                        SELECT SUM(d_out.qty)
+                        FROM scrap_out_detail d_out
+                        JOIN scrap_out_header h_out ON h_out.id = d_out.header_id
+                        WHERE d_out.scrap_id = ?
+                        AND h_out.status = 'Confirmed'
+                    ), 0)
+                ) AS current_balance
+            ";
+            $result = $this->db->query($sql, [$item_id, $item_id])->row();
+            return $result ? (float) $result->current_balance : 0;
+        }
+        
+        // Untuk tipe lainnya, gunakan stock_ledger
         $entry = $this->get_latest_ledger_entry($item_id, $item_type);
         return $entry ? (float) $entry->balance : 0;
+    }
+
+    /**
+     * ===== METODE BARU: GRN LOOKUP & DOCUMENT MANAGEMENT =====
+     */
+
+    /**
+     * Cari GRN berdasarkan pencarian Select2 (filter berdasarkan grn_number, supplier, item)
+     */
+    public function search_grn_for_adjustment($search_term = '')
+    {
+        $this->db->select('
+            grn.id,
+            grn.grn_number,
+            grn.grn_date,
+            s.nama_supplier,
+            GROUP_CONCAT(CONCAT(m.kode_material, " - ", m.nama_material) SEPARATOR ", ") as items_desc
+        ');
+        $this->db->from('grn_header grn');
+        $this->db->join('suppliers s', 'grn.supplier_id = s.id', 'left');
+        $this->db->join('grn_details gd', 'grn.id = gd.grn_header_id', 'left');
+        $this->db->join('materials m', 'gd.item_id = m.id AND gd.item_type = "material"', 'left');
+        
+        // Filter GRN yang sudah confirmed/verified
+        $this->db->where('grn.status', 'Completed');
+        
+        if (!empty($search_term)) {
+            $this->db->group_start();
+            $this->db->like('grn.grn_number', $search_term);
+            $this->db->or_like('s.nama_supplier', $search_term);
+            $this->db->or_like('m.kode_material', $search_term);
+            $this->db->or_like('m.nama_material', $search_term);
+            $this->db->group_end();
+        }
+        
+        $this->db->group_by('grn.id');
+        $this->db->order_by('grn.grn_date', 'DESC');
+        $this->db->limit(20);
+        
+        return $this->db->get()->result();
+    }
+
+    /**
+     * Ambil detail GRN untuk dipilih di form adjustment
+     */
+    public function get_grn_details_for_adjustment($grn_id)
+    {
+        $sql = "
+            SELECT 
+                gd.id as grn_detail_id,
+                gd.item_id,
+                gd.item_type,
+                gd.receive_qty,
+                CASE 
+                    WHEN gd.item_type = 'material' THEN m.kode_material
+                    WHEN gd.item_type = 'semifinished' THEN sf.kode_barang
+                    WHEN gd.item_type = 'machine' THEN mc.kode_mesin
+                    WHEN gd.item_type = 'finished_goods' THEN fg.kode_barang
+                    ELSE 'N/A'
+                END as item_code,
+                CASE 
+                    WHEN gd.item_type = 'material' THEN m.nama_material
+                    WHEN gd.item_type = 'semifinished' THEN sf.nama_barang
+                    WHEN gd.item_type = 'machine' THEN mc.nama_mesin
+                    WHEN gd.item_type = 'finished_goods' THEN fg.nama_barang
+                    ELSE 'Unknown'
+                END as item_name,
+                CASE 
+                    WHEN gd.item_type = 'material' THEN m.satuan
+                    WHEN gd.item_type = 'semifinished' THEN sf.satuan
+                    WHEN gd.item_type = 'machine' THEN mc.satuan
+                    WHEN gd.item_type = 'finished_goods' THEN fg.satuan
+                    ELSE 'PCS'
+                END as item_unit,
+                gd.unit_value
+            FROM grn_details gd
+            LEFT JOIN materials m ON gd.item_id = m.id AND gd.item_type = 'material'
+            LEFT JOIN semifinished_goods sf ON gd.item_id = sf.id AND gd.item_type = 'semifinished'
+            LEFT JOIN machines mc ON gd.item_id = mc.id AND gd.item_type = 'machine'
+            LEFT JOIN finished_goods fg ON gd.item_id = fg.id AND gd.item_type = 'finished_goods'
+            WHERE gd.grn_header_id = ?
+            ORDER BY gd.id ASC
+        ";
+        return $this->db->query($sql, [$grn_id])->result();
+    }
+
+    /**
+     * Simpan dokumen upload
+     */
+    public function save_document($adjustment_id, $file_name, $file_path, $file_type, $file_size, $user_id, $description = '')
+    {
+        $data = [
+            'adjustment_header_id' => $adjustment_id,
+            'file_name' => $file_name,
+            'file_path' => $file_path,
+            'file_type' => $file_type,
+            'file_size' => $file_size,
+            'uploaded_by' => $user_id,
+            'description' => $description,
+            'uploaded_at' => date('Y-m-d H:i:s')
+        ];
+        
+        return $this->db->insert('adjustment_documents', $data) ? $this->db->insert_id() : FALSE;
+    }
+
+    /**
+     * Ambil dokumen-dokumen yang terkait dengan adjustment
+     */
+    public function get_adjustment_documents($adjustment_id)
+    {
+        $this->db->select('ad.*, u.fullname as uploaded_by_name');
+        $this->db->from('adjustment_documents ad');
+        $this->db->join('users u', 'ad.uploaded_by = u.id', 'left');
+        $this->db->where('ad.adjustment_header_id', $adjustment_id);
+        $this->db->order_by('ad.uploaded_at', 'DESC');
+        return $this->db->get()->result();
+    }
+
+    /**
+     * Ambil satu dokumen berdasarkan ID
+     */
+    public function get_document_by_id($document_id)
+    {
+        return $this->db->get_where('adjustment_documents', ['id' => $document_id])->row();
+    }
+
+    /**
+     * Hapus dokumen
+     */
+    public function delete_document($document_id)
+    {
+        $document = $this->get_document_by_id($document_id);
+        if ($document && file_exists($document->file_path)) {
+            unlink($document->file_path);
+        }
+        return $this->db->delete('adjustment_documents', ['id' => $document_id]);
     }
 }

@@ -129,7 +129,193 @@
             <button type="submit" class="btn btn-primary">Update Dokumen Draft</button>
         </div>
     </form>
+
+    <!-- Document Upload Section -->
+    <div class="card shadow mt-4">
+        <div class="card-header py-3 bg-primary text-white">
+            <h6 class="m-0 font-weight-bold"><i class="fas fa-file-upload"></i> Upload Dokumen Pendukung</h6>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="document">Pilih File</label>
+                        <input type="file" id="document" name="document" class="form-control-file" 
+                               accept=".pdf,.jpg,.jpeg,.png,.gif,.doc,.docx,.xlsx,.xls">
+                        <small class="form-text text-muted">
+                            Format: PDF, JPG, PNG, GIF, DOC, DOCX, XLS, XLSX (Max 10 MB)
+                        </small>
+                    </div>
+                </div>
+                <div class="col-md-6">
+                    <div class="form-group">
+                        <label for="document_description">Deskripsi (Opsional)</label>
+                        <input type="text" id="document_description" name="document_description" class="form-control" 
+                               placeholder="cth: Bukti penambahan stock dari audit">
+                    </div>
+                </div>
+            </div>
+
+            <button type="button" class="btn btn-success" id="btn_upload_doc">
+                <i class="fas fa-upload"></i> Upload Dokumen
+            </button>
+
+            <div id="upload_progress" style="display: none; margin-top: 15px;">
+                <div class="progress">
+                    <div id="progress_bar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                         role="progressbar" style="width: 0%"></div>
+                </div>
+                <small class="text-muted d-block mt-2">Upload in progress...</small>
+            </div>
+        </div>
+    </div>
+
+    <!-- Daftar Dokumen yang Sudah Diupload -->
+    <div id="documents_section" style="display: none;" class="card shadow mt-4">
+        <div class="card-header py-3 bg-success text-white">
+            <h6 class="m-0 font-weight-bold"><i class="fas fa-file-check"></i> Dokumen yang Sudah Diupload</h6>
+        </div>
+        <div class="card-body">
+            <ul id="documents_list" class="list-group"></ul>
+        </div>
+    </div>
 </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const adjustment_id = '<?php echo $header->id; ?>';
+    
+    // Load documents list on page load
+    loadDocumentsList(adjustment_id);
+    
+    // Upload button click handler
+    const uploadBtn = document.getElementById('btn_upload_doc');
+    if (uploadBtn) {
+        uploadBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            handleUpload(adjustment_id);
+        });
+    }
+});
+
+function handleUpload(adjustment_id) {
+    var fileInput = document.getElementById('document');
+    var file = fileInput.files[0];
+    
+    if (!file) {
+        alert('Silakan pilih file terlebih dahulu');
+        return;
+    }
+    
+    var formData = new FormData();
+    formData.append('document', file);
+    formData.append('description', document.getElementById('document_description').value);
+    
+    document.getElementById('upload_progress').style.display = 'block';
+    var progressBar = document.getElementById('progress_bar');
+    progressBar.style.width = '0%';
+    
+    $.ajax({
+        url: '<?php echo base_url("adjustment/upload_document/"); ?>' + adjustment_id,
+        type: 'POST',
+        data: formData,
+        contentType: false,
+        processData: false,
+        dataType: 'json',
+        xhrFields: {
+            withCredentials: true
+        },
+        xhr: function() {
+            var xhr = new window.XMLHttpRequest();
+            xhr.upload.addEventListener('progress', function(e) {
+                if (e.lengthComputable) {
+                    var percentComplete = (e.loaded / e.total) * 100;
+                    progressBar.style.width = percentComplete + '%';
+                }
+            }, false);
+            return xhr;
+        },
+        success: function(response) {
+            document.getElementById('upload_progress').style.display = 'none';
+            progressBar.style.width = '0%';
+            
+            console.log('Upload response:', response);
+            
+            if (response && response.success) {
+                alert('Dokumen berhasil diupload');
+                document.getElementById('document').value = '';
+                document.getElementById('document_description').value = '';
+                loadDocumentsList(adjustment_id);
+            } else {
+                alert('Error: ' + (response ? response.message : 'Unknown error'));
+            }
+        },
+        error: function(xhr, status, error) {
+            document.getElementById('upload_progress').style.display = 'none';
+            progressBar.style.width = '0%';
+            console.log('Upload error:', xhr, status, error);
+            alert('Gagal upload dokumen: ' + error + '\n' + xhr.responseText);
+        }
+    });
+}
+
+function loadDocumentsList(adjustment_id) {
+    $.ajax({
+        url: '<?php echo base_url("adjustment/ajax_get_documents/"); ?>' + adjustment_id,
+        type: 'GET',
+        dataType: 'json',
+        success: function(response) {
+            if (response.success && response.data.length > 0) {
+                var html = '';
+                response.data.forEach(function(doc) {
+                    var size_kb = (doc.file_size / 1024).toFixed(1);
+                    html += '<li class="list-group-item">';
+                    html += '<div class="d-flex justify-content-between align-items-start">';
+                    html += '<div class="flex-grow-1">';
+                    html += '<a href="' + '<?php echo base_url("adjustment/view_document/"); ?>' + doc.id + '" target="_blank" class="font-weight-bold text-primary">';
+                    html += '<i class="fas fa-file"></i> ' + doc.file_name;
+                    html += '</a>';
+                    if (doc.description) {
+                        html += '<p class="mb-1 text-muted small">' + doc.description + '</p>';
+                    }
+                    html += '<small class="text-muted">Uploaded: ' + doc.uploaded_at + '</small>';
+                    html += '</div>';
+                    html += '<div class="text-right">';
+                    html += '<span class="badge badge-secondary">' + size_kb + ' KB</span> ';
+                    html += '<button type="button" class="btn btn-sm btn-danger" onclick="deleteDoc(' + doc.id + ')">';
+                    html += '<i class="fas fa-trash"></i></button>';
+                    html += '</div>';
+                    html += '</div>';
+                    html += '</li>';
+                });
+                document.getElementById('documents_list').innerHTML = html;
+                document.getElementById('documents_section').style.display = 'block';
+            } else {
+                document.getElementById('documents_section').style.display = 'none';
+            }
+        }
+    });
+}
+
+window.deleteDoc = function(doc_id) {
+    const adjustment_id = '<?php echo $header->id; ?>';
+    if (confirm('Yakin hapus dokumen ini?')) {
+        $.ajax({
+            url: '<?php echo base_url("adjustment/delete_document/"); ?>' + doc_id,
+            type: 'POST',
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    alert('Dokumen berhasil dihapus');
+                    loadDocumentsList(adjustment_id);
+                } else {
+                    alert('Gagal hapus dokumen');
+                }
+            }
+        });
+    }
+};
+</script>
 
 <template id="row-template">
     <tr>

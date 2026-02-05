@@ -71,6 +71,13 @@
                                             title="Deep Traceability">
                                         <i class="fas fa-search-plus"></i>
                                     </button>
+                                    <?php if ($row->transaction_type === 'adjustment' && !empty($row->adjustment_header_id)): ?>
+                                        <button class="btn btn-warning btn-circle btn-sm ml-1" 
+                                                onclick="viewAdjustmentDocuments(<?= $row->adjustment_header_id; ?>)"
+                                                title="Lihat Dokumen Adjustment">
+                                            <i class="fas fa-file-alt"></i>
+                                        </button>
+                                    <?php endif; ?>
                                 </td>
                             </tr>
                         <?php 
@@ -120,6 +127,18 @@
                 <div id="modal-export-buttons">
                     </div>
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Modal untuk Dokumen Adjustment -->
+<div class="modal fade" id="adjustment-documents-modal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-body text-center py-5">
+                <i class="fas fa-spinner fa-spin fa-3x text-primary"></i>
+                <p class="mt-2 text-muted">Memuat dokumen...</p>
             </div>
         </div>
     </div>
@@ -177,5 +196,12 @@ document.addEventListener("DOMContentLoaded", function() {
             }
         });
     }
+
+    // Function untuk menampilkan dokumen adjustment
+    window.viewAdjustmentDocuments = function(adjustmentId) {
+        $('#adjustment-documents-modal').modal('show').find('.modal-content')
+            .html('<div class="modal-body text-center py-5"><i class="fas fa-spinner fa-spin fa-3x text-primary"></i><p class="mt-2 text-muted">Memuat dokumen...</p></div>')
+            .load(`<?= base_url('LapMutasiFinished/modal_adjustment_documents/'); ?>${adjustmentId}`);
+    };
 });
 </script>

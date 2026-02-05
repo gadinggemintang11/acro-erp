@@ -333,5 +333,48 @@ class LapMutasiWIP extends MY_Controller {
         }
     }
 
+    /**
+     * ===== FITUR BARU: LIHAT DOKUMEN ADJUSTMENT =====
+     */
+    public function ajax_get_adjustment_documents()
+    {
+        if (!$this->input->is_ajax_request()) { show_error('Forbidden', 403); return; }
+        
+        $adjustment_id = (int)$this->input->get('adjustment_id');
+        if (empty($adjustment_id)) {
+            echo json_encode(['success' => FALSE, 'data' => []]);
+            return;
+        }
+
+        $this->load->model('Adjustment_model');
+        $documents = $this->Adjustment_model->get_adjustment_documents($adjustment_id);
+        
+        echo json_encode(['success' => TRUE, 'data' => $documents]);
+    }
+
+    /**
+     * Modal untuk menampilkan dokumen adjustment
+     */
+    public function modal_adjustment_documents($adjustment_id = 0)
+    {
+        $adjustment_id = (int)$adjustment_id;
+        if (empty($adjustment_id)) {
+            show_404();
+            return;
+        }
+
+        $this->load->model('Adjustment_model');
+        $header = $this->Adjustment_model->get_header_by_id($adjustment_id);
+        if (!$header) {
+            show_404();
+            return;
+        }
+
+        $data['header'] = $header;
+        $data['documents'] = $this->Adjustment_model->get_adjustment_documents($adjustment_id);
+        
+        $this->load->view('it_inventory/lap_mutasi_wip/modal_adjustment_documents', $data);
+    }
+
    
 }

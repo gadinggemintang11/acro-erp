@@ -186,7 +186,8 @@ class LapPemasukanBB_model extends CI_Model {
             prh.prod_return_no, prh.return_date, 
             mr_h.mr_number, mr_h.request_date, 
             
-            COALESCE(po.po_number, mir.mir_number) as po_number, 
+            po.po_number,
+            mir.mir_number,
             
             woh.wo_number, 
             po.currency_code, 

@@ -49,16 +49,22 @@
                 <table class="table table-bordered table-sm table-hover" id="mainTable" width="100%" cellspacing="0" style="font-size: 0.9rem;">
                     <thead class="thead-light">
                         <tr>
-                            <th>No</th>
-                            <th>Kode Mesin</th>
-                            <th>Nama Mesin</th>
-                            <th>Satuan</th>
-                            <th class="text-right">Saldo Awal</th>
-                            <th class="text-right">Masuk</th>
-                            <th class="text-right">Keluar</th>
-                            <th class="text-right">Penyesuaian</th>
-                            <th class="text-right">Saldo Akhir</th>
-                            <th class="text-center">Aksi</th>
+                            <th rowspan="2">No</th>
+                            <th rowspan="2">Kode Mesin</th>
+                            <th rowspan="2">Nama Mesin</th>
+                            <th rowspan="2">Satuan</th>
+                            <th rowspan="2" class="text-right">Saldo Awal</th>
+                            <th rowspan="2" class="text-right">Masuk</th>
+                            <th rowspan="2" class="text-right">Keluar</th>
+                            <th rowspan="2" class="text-right">Penyesuaian</th>
+                            <th rowspan="2" class="text-right">Saldo Akhir</th>
+                            <th colspan="2" class="text-center">Stock Opname</th>
+                            <th rowspan="2">Keterangan</th>
+                            <th rowspan="2" class="text-center">Aksi</th>
+                        </tr>
+                        <tr>
+                            <th class="text-right">Hasil Fisik</th>
+                            <th class="text-right">Selisih</th>
                         </tr>
                     </thead>
                     <tbody></tbody>
@@ -71,6 +77,18 @@
 <div class="modal fade" id="mainModal" tabindex="-1" role="dialog" aria-labelledby="mainModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content" id="mainModalContent">
+        </div>
+    </div>
+</div>
+
+<!-- Modal untuk Dokumen Adjustment -->
+<div class="modal fade" id="adjustment-documents-modal" tabindex="-1" role="dialog" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-body text-center py-5">
+                <i class="fas fa-spinner fa-spin fa-3x text-primary"></i>
+                <p class="mt-2 text-muted">Memuat dokumen...</p>
+            </div>
         </div>
     </div>
 </div>
@@ -105,13 +123,24 @@ $(document).ready(function() {
             { "data": "nama_mesin" },
             { "data": "satuan" },
             { "data": "saldo_awal", "className": "text-right", "render": $.fn.dataTable.render.number('.', ',', 2) },
-            // Menambahkan warna hijau untuk Masuk
             { "data": "total_masuk", "className": "text-right text-success font-weight-bold", "render": $.fn.dataTable.render.number('.', ',', 2) },
-            // Menambahkan warna merah untuk Keluar
             { "data": "total_keluar", "className": "text-right text-danger font-weight-bold", "render": $.fn.dataTable.render.number('.', ',', 2) },
-            // Menambahkan warna oranye/merah untuk Penyesuaian
             { "data": "total_penyesuaian", "className": "text-right text-warning font-weight-bold", "render": $.fn.dataTable.render.number('.', ',', 2) },
             { "data": "saldo_akhir", "className": "text-right font-weight-bold", "render": $.fn.dataTable.render.number('.', ',', 2) },
+            { "data": "hasil_pencacahan", "className": "text-right", "render": function(data) {
+                return data !== null ? $.fn.dataTable.render.number('.', ',', 2).display(data) : '<i class="text-muted">(N/A)</i>';
+            }},
+            { "data": "jumlah_selisih", "className": "text-right font-weight-bold", "render": function(data) {
+                if (data === null) return '<i class="text-muted">(N/A)</i>';
+                var val = $.fn.dataTable.render.number('.', ',', 2).display(data);
+                var className = data > 0 ? 'text-danger' : (data < 0 ? 'text-success' : 'text-secondary');
+                return '<span class="' + className + '">' + val + '</span>';
+            }},
+            { "data": null, "className": "text-left", "render": function(data, type, row) {
+                if (row.hasil_pencacahan === null) return '-';
+                if (row.jumlah_selisih == 0) return 'Sesuai';
+                return 'Selisih: ' + $.fn.dataTable.render.number('.', ',', 2).display(Math.abs(row.jumlah_selisih));
+            }},
             { 
                 "data": null,
                 "className": "text-center text-nowrap",
@@ -161,5 +190,12 @@ $(document).ready(function() {
             $('#mainModalContent').html('<div class="modal-body text-center"><p class="text-danger">Gagal memuat data. Silakan coba lagi.</p></div>');
         });
     });
+
+    // Function untuk menampilkan dokumen adjustment
+    window.viewAdjustmentDocuments = function(adjustmentId) {
+        $('#adjustment-documents-modal').modal('show').find('.modal-content')
+            .html('<div class="modal-body text-center py-5"><i class="fas fa-spinner fa-spin fa-3x text-primary"></i><p class="mt-2 text-muted">Memuat dokumen...</p></div>')
+            .load(`<?= base_url('LapMutasiMesin/modal_adjustment_documents/'); ?>${adjustmentId}`);
+    };
 });
 </script>

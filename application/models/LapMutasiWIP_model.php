@@ -79,6 +79,24 @@ class LapMutasiWIP_model extends CI_Model {
                   AND sl.transaction_date <= ?
                   AND sl.transaction_type IN ('wip_in', 'wip_out', 'IN_RETURN_WIP')
                 GROUP BY sl.item_id, sl.item_type
+            ),
+            opname AS (
+                SELECT 
+                    od.item_id,
+                    od.item_type,
+                    od.qty_fisik
+                FROM opname_details od
+                JOIN opname_header oh ON od.opname_header_id = oh.id
+                WHERE oh.status = 'Completed'
+                  AND od.item_type IN ('semifinished', 'finished_goods')
+                  AND oh.opname_date = (
+                      SELECT MAX(oh_inner.opname_date)
+                      FROM opname_details od_inner
+                      JOIN opname_header oh_inner ON od_inner.opname_header_id = oh_inner.id
+                      WHERE od_inner.item_id = od.item_id 
+                        AND od_inner.item_type = od.item_type
+                        AND oh_inner.status = 'Completed'
+                  )
             )
             
             SELECT 
@@ -91,11 +109,18 @@ class LapMutasiWIP_model extends CI_Model {
                 COALESCE(m.total_masuk, 0) AS total_masuk,
                 COALESCE(m.total_keluar, 0) AS total_keluar,
                 (COALESCE(sa.balance, 0) + COALESCE(m.total_masuk, 0) - COALESCE(m.total_keluar, 0)) AS saldo_akhir,
+                op.qty_fisik AS hasil_pencacahan,
+                CASE 
+                    WHEN op.qty_fisik IS NOT NULL THEN 
+                        (COALESCE(sa.balance, 0) + COALESCE(m.total_masuk, 0) - COALESCE(m.total_keluar, 0)) - op.qty_fisik
+                    ELSE NULL
+                END AS jumlah_selisih,
                 COALESCE(sa.has_history, 0) AS has_history
                 
             FROM common_items i
             LEFT JOIN saldo_awal sa ON i.id = sa.item_id AND i.item_type = sa.item_type
             LEFT JOIN mutasi m ON i.id = m.item_id AND i.item_type = m.item_type
+            LEFT JOIN opname op ON i.id = op.item_id AND i.item_type = op.item_type
 
             WHERE 1=1
             $sql_search

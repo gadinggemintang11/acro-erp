@@ -173,3 +173,24 @@ $route['jurnalumum/store'] = 'JurnalUmum/store';
 $route['jurnalumum/import'] = 'JurnalUmum/import';
 $route['jurnalumum/process_import'] = 'JurnalUmum/process_import';
 $route['jurnalumum'] = 'JurnalUmum/index';
+
+// ===== Adjustment Document Management Routes =====
+$route['adjustment/ajax_search_grn'] = 'adjustment/ajax_search_grn';
+$route['adjustment/ajax_get_grn_details'] = 'adjustment/ajax_get_grn_details';
+$route['adjustment/test_session'] = 'adjustment/test_session';
+$route['adjustment/upload_document/(:num)'] = 'adjustment/upload_document/$1';
+$route['adjustment/ajax_get_documents/(:num)'] = 'adjustment/ajax_get_documents/$1';
+$route['adjustment/view_document/(:num)'] = 'adjustment/view_document/$1';
+$route['adjustment/delete_document/(:num)'] = 'adjustment/delete_document/$1';
+
+// Laporan Mutasi Document Viewers
+$route['LapMutasiMaterial/ajax_get_adjustment_documents'] = 'LapMutasiMaterial/ajax_get_adjustment_documents';
+$route['LapMutasiMaterial/modal_adjustment_documents/(:num)'] = 'LapMutasiMaterial/modal_adjustment_documents/$1';
+$route['LapMutasiMesin/ajax_get_adjustment_documents'] = 'LapMutasiMesin/ajax_get_adjustment_documents';
+$route['LapMutasiMesin/modal_adjustment_documents/(:num)'] = 'LapMutasiMesin/modal_adjustment_documents/$1';
+$route['LapMutasiScrap/ajax_get_adjustment_documents'] = 'LapMutasiScrap/ajax_get_adjustment_documents';
+$route['LapMutasiScrap/modal_adjustment_documents/(:num)'] = 'LapMutasiScrap/modal_adjustment_documents/$1';
+$route['LapMutasiWIP/ajax_get_adjustment_documents'] = 'LapMutasiWIP/ajax_get_adjustment_documents';
+$route['LapMutasiWIP/modal_adjustment_documents/(:num)'] = 'LapMutasiWIP/modal_adjustment_documents/$1';
+$route['LapMutasiFinished/ajax_get_adjustment_documents'] = 'LapMutasiFinished/ajax_get_adjustment_documents';
+$route['LapMutasiFinished/modal_adjustment_documents/(:num)'] = 'LapMutasiFinished/modal_adjustment_documents/$1';

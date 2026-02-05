@@ -43,6 +43,7 @@ class StockOpname_model extends CI_Model {
                     WHEN od.item_type = 'finished_goods' THEN fg.nama_barang
                     WHEN od.item_type = 'inventory' THEN i.nama_barang
                     WHEN od.item_type = 'machine' THEN mc.nama_mesin
+                    WHEN od.item_type = 'scrap' THEN sc.scrap_name
                     ELSE 'UNKNOWN'
                 END as item_name,
                 CASE
@@ -50,6 +51,7 @@ class StockOpname_model extends CI_Model {
                     WHEN od.item_type = 'semifinished' THEN sf.satuan
                     WHEN od.item_type = 'finished_goods' THEN fg.satuan
                     WHEN od.item_type = 'inventory' THEN i.satuan
+                    WHEN od.item_type = 'scrap' THEN sc.unit
                     ELSE 'PCS'
                 END as item_unit
             FROM opname_details od
@@ -58,10 +60,60 @@ class StockOpname_model extends CI_Model {
             LEFT JOIN finished_goods fg ON od.item_id = fg.id AND od.item_type = 'finished_goods'
             LEFT JOIN inventories i ON od.item_id = i.id AND od.item_type = 'inventory'
             LEFT JOIN machines mc ON od.item_id = mc.id AND od.item_type = 'machine'
+            LEFT JOIN master_scrap sc ON od.item_id = sc.id AND od.item_type = 'scrap'
             WHERE od.opname_header_id = ?
             ORDER BY item_name ASC
         ";
         return $this->db->query($sql, [$header_id])->result();
+    }
+
+    // Method untuk pagination - mengambil data dengan limit dan offset
+    public function get_details_by_header_id_paginated($header_id, $limit, $start)
+    {
+        $sql = "
+            SELECT 
+                od.*,
+                CASE
+                    WHEN od.item_type = 'material' THEN m.nama_material
+                    WHEN od.item_type = 'semifinished' THEN sf.nama_barang
+                    WHEN od.item_type = 'finished_goods' THEN fg.nama_barang
+                    WHEN od.item_type = 'inventory' THEN i.nama_barang
+                    WHEN od.item_type = 'machine' THEN mc.nama_mesin
+                    WHEN od.item_type = 'scrap' THEN sc.scrap_name
+                    ELSE 'UNKNOWN'
+                END as item_name,
+                CASE
+                    WHEN od.item_type = 'material' THEN m.satuan
+                    WHEN od.item_type = 'semifinished' THEN sf.satuan
+                    WHEN od.item_type = 'finished_goods' THEN fg.satuan
+                    WHEN od.item_type = 'inventory' THEN i.satuan
+                    WHEN od.item_type = 'scrap' THEN sc.unit
+                    ELSE 'PCS'
+                END as item_unit
+            FROM opname_details od
+            LEFT JOIN materials m ON od.item_id = m.id AND od.item_type = 'material'
+            LEFT JOIN semifinished_goods sf ON od.item_id = sf.id AND od.item_type = 'semifinished'
+            LEFT JOIN finished_goods fg ON od.item_id = fg.id AND od.item_type = 'finished_goods'
+            LEFT JOIN inventories i ON od.item_id = i.id AND od.item_type = 'inventory'
+            LEFT JOIN machines mc ON od.item_id = mc.id AND od.item_type = 'machine'
+            LEFT JOIN master_scrap sc ON od.item_id = sc.id AND od.item_type = 'scrap'
+            WHERE od.opname_header_id = ?
+            ORDER BY item_name ASC
+            LIMIT ? OFFSET ?
+        ";
+        return $this->db->query($sql, [$header_id, $limit, $start])->result();
+    }
+
+    // Method untuk mendapatkan total jumlah records
+    public function get_details_count($header_id)
+    {
+        return $this->db->where('opname_header_id', $header_id)->count_all_results('opname_details');
+    }
+
+    // Method untuk mendapatkan semua detail (tanpa pagination) untuk auto-fill
+    public function get_all_details_by_header_id($header_id)
+    {
+        return $this->db->where('opname_header_id', $header_id)->get('opname_details')->result();
     }
 
     public function get_new_doc_number()
@@ -76,7 +128,31 @@ class StockOpname_model extends CI_Model {
         return "OPN/" . date('Ym') . "/" . $kode_max;
     }
 
-    // Buat Sesi Opname dan Generate List Item
+    // Validasi: Cek apakah sudah ada opname aktif untuk item_type dan bulan yang sama
+    public function check_active_opname($item_type, $opname_date)
+    {
+        $year_month = date('Y-m', strtotime($opname_date));
+        
+        $this->db->where('item_type', $item_type);
+        $this->db->where("DATE_FORMAT(opname_date, '%Y-%m') =", $year_month);
+        $this->db->where_in('status', ['Draft', 'Counting']); // Status aktif
+        $existing = $this->db->get('opname_header')->row();
+        
+        return $existing; // Return object jika ada, NULL jika tidak
+    }
+    
+    // Validasi: Hitung berapa opname completed untuk item_type dan bulan yang sama
+    public function count_completed_opname($item_type, $opname_date)
+    {
+        $year_month = date('Y-m', strtotime($opname_date));
+        
+        $this->db->where('item_type', $item_type);
+        $this->db->where("DATE_FORMAT(opname_date, '%Y-%m') =", $year_month);
+        $this->db->where('status', 'Completed');
+        return $this->db->count_all_results('opname_header');
+    }
+
+    // Buat Sesi Opname dan Generate List Item (HANYA yang pernah ada transaksi)
     public function insert_opname_session($header_data, $item_type)
     {
         $this->db->trans_start();
@@ -85,22 +161,19 @@ class StockOpname_model extends CI_Model {
         $this->db->insert('opname_header', $header_data);
         $header_id = $this->db->insert_id();
 
-        // 2. Get Item List based on type
-        $items = $this->Adjustment_model->get_item_list_by_type($item_type);
+        // 2. Get Item List - HANYA yang pernah ada transaksi di stock_ledger
+        $items = $this->get_items_with_transactions($item_type);
 
         // 3. Generate opname_details
         foreach ($items as $item) {
-            // Ambil saldo sistem terakhir
-            $qty_sistem = $this->Adjustment_model->get_latest_balance($item->id, $item_type);
-
             // Masukkan ke detail opname
             $detail_data = [
                 'opname_header_id' => $header_id,
-                'item_id' => $item->id,
+                'item_id' => $item->item_id,
                 'item_type' => $item_type,
-                'qty_sistem' => $qty_sistem,
+                'qty_sistem' => $item->current_balance,
                 'qty_fisik' => NULL, // Kosongkan, tunggu input
-                'selisih' => 0 - $qty_sistem // Asumsi fisik 0 dulu
+                'selisih' => 0
             ];
             $this->db->insert('opname_details', $detail_data);
         }
@@ -108,31 +181,69 @@ class StockOpname_model extends CI_Model {
         $this->db->trans_complete();
         return ($this->db->trans_status() === FALSE) ? FALSE : $header_id;
     }
+    
+    // Method baru: Ambil item yang sudah pernah ada transaksi
+    private function get_items_with_transactions($item_type)
+    {
+        $sql = "
+            SELECT DISTINCT
+                sl.item_id,
+                sl.item_type,
+                -- Ambil balance terakhir
+                (SELECT balance 
+                 FROM stock_ledger sl2 
+                 WHERE sl2.item_id = sl.item_id 
+                   AND sl2.item_type = sl.item_type 
+                 ORDER BY sl2.id DESC 
+                 LIMIT 1) as current_balance
+            FROM stock_ledger sl
+            WHERE sl.item_type = ?
+        ";
+        
+        // Filter berdasarkan jenis item
+        switch($item_type) {
+            case 'material':
+            case 'semifinished':
+                // Exclude WIP internal transactions untuk material/semifinished
+                $sql .= " AND sl.transaction_type NOT IN ('wip_in', 'wip_out', 'wip_out_reversal', 'production_out')";
+                break;
+            case 'scrap':
+                // Untuk scrap, ambil semua transaksi
+                break;
+            case 'finished_goods':
+                // Untuk FG, hanya transaksi fisik
+                $sql .= " AND sl.transaction_type IN ('fg_in', 'fg_out', 'adjustment')";
+                break;
+            case 'machine':
+                // Untuk machine, semua transaksi
+                break;
+        }
+        
+        $sql .= " ORDER BY sl.item_id";
+        
+        return $this->db->query($sql, [$item_type])->result();
+    }
 
     // Simpan hasil hitungan (qty_fisik)
     public function update_counts($header_id, $details_data)
     {
         $this->db->trans_start();
+        
+        // Update hanya item yang ada di details_data (yang memang diinput user)
         foreach ($details_data as $detail_id => $data) {
-            
-            // === PERBAIKAN BUG DI SINI ===
-            // Jika inputan kosong atau NULL, simpan sebagai NULL
-            // Jika diisi (termasuk "0"), simpan sebagai angka.
             $qty_fisik_input = $data['qty_fisik'];
             $qty_fisik = ($qty_fisik_input === NULL || $qty_fisik_input === '') ? NULL : (float)$qty_fisik_input;
-            // === AKHIR PERBAIKAN ===
-            
-            $notes = $data['notes'];
+            $notes = $data['notes'] ?? '';
             
             $detail = $this->db->get_where('opname_details', ['id' => $detail_id])->row();
             if ($detail) {
-                // Hitung selisih HANYA JIKA fisik diisi
                 if ($qty_fisik !== NULL) {
+                    // Jika diisi, hitung selisih normal
                     $selisih = $qty_fisik - $detail->qty_sistem;
                 } else {
-                    // Jika fisik NULL, selisih di-reset (bisa 0 atau -qty_sistem, tergantung kebutuhan)
-                    // Kita set 0 agar tidak bingung
-                    $selisih = 0 - $detail->qty_sistem; // atau biarkan 0
+                    // Jika tidak diisi, set qty_fisik = qty_sistem (tidak ada selisih)
+                    $qty_fisik = $detail->qty_sistem;
+                    $selisih = 0;
                 }
                 
                 $this->db->where('id', $detail_id);
@@ -143,6 +254,16 @@ class StockOpname_model extends CI_Model {
                 ]);
             }
         }
+        
+        // PENTING: Untuk item yang tidak ada di details_data (tidak pernah ditouch user)
+        // Set qty_fisik = qty_sistem dan selisih = 0
+        $this->db->query("
+            UPDATE opname_details 
+            SET qty_fisik = qty_sistem, selisih = 0 
+            WHERE opname_header_id = ? 
+            AND id NOT IN (" . (empty($details_data) ? "0" : implode(',', array_keys($details_data))) . ")
+        ", [$header_id]);
+        
         $this->db->trans_complete();
         return $this->db->trans_status();
     }
@@ -176,8 +297,13 @@ class StockOpname_model extends CI_Model {
         $this->db->trans_start();
         
         $header = $this->get_header_by_id($header_id);
+        
+        // Query yang lebih strict - hanya ambil selisih yang benar-benar tidak 0
         $details = $this->db->where('opname_header_id', $header_id)
-                            ->where('selisih !=', 0)
+                            ->group_start()
+                                ->where('selisih >', 0)
+                                ->or_where('selisih <', 0)
+                            ->group_end()
                             ->get('opname_details')
                             ->result();
         
@@ -185,7 +311,7 @@ class StockOpname_model extends CI_Model {
         if (empty($details)) {
             $this->update_header_status($header_id, 'Completed');
             $this->db->trans_complete();
-            return ['status' => TRUE, 'message' => 'Opname selesai. Tidak ada selisih ditemukan.'];
+            return ['status' => TRUE, 'message' => 'Opname selesai. Tidak ada selisih ditemukan (semua qty fisik = qty sistem).'];
         }
 
         // Jika ADA selisih, buat dokumen Adjustment
@@ -211,17 +337,58 @@ class StockOpname_model extends CI_Model {
             
             } else { // Tipe 'OUT'
                 if ($d->item_type == 'material') {
-                    // Cari batch tertua (FIFO-like) untuk dikurangi
-                    $batch = $this->find_batch_for_opname_out($d->item_id, $qty);
-                    if (!$batch) {
-                        // Jika tidak ada batch yg cukup, transaksi akan gagal (ini bagus)
-                        // Kita coba ambil batch tertua yg ada
-                        $batch = $this->find_batch_for_opname_out($d->item_id, 0); 
-                         if (!$batch) {
-                            throw new Exception("Tidak ada batch stok on hand ditemukan untuk item ID: {$d->item_id}.");
-                         }
+                    // Untuk opname adjustment OUT, kita perlu handle kasus stok tidak cukup
+                    // Opsi 1: Split ke multiple batches jika perlu
+                    // Opsi 2: Allow negative untuk opname correction
+                    
+                    $batches = $this->find_batches_for_opname_out($d->item_id, $qty);
+                    if (empty($batches)) {
+                        // Jika sama sekali tidak ada stok, buat adjustment dengan batch NULL
+                        // Sistem akan create negative entry
+                        $adj_details_data[] = [
+                            'item_id' => $d->item_id,
+                            'item_type' => $d->item_type,
+                            'adjustment_type' => $adj_type,
+                            'qty' => $qty,
+                            'unit_value' => 0,
+                            'stock_on_hand_id' => NULL,
+                            'remarks' => 'Selisih Opname (No Stock): ' . $d->notes
+                        ];
+                        continue; // Skip ke item berikutnya
                     }
-                    $stock_on_hand_id = $batch->id;
+                    
+                    // Jika ada batches, split adjustment sesuai available qty
+                    foreach ($batches as $batch) {
+                        $batch_qty = min($qty, $batch->available_qty);
+                        $adj_details_data[] = [
+                            'item_id' => $d->item_id,
+                            'item_type' => $d->item_type,
+                            'adjustment_type' => $adj_type,
+                            'qty' => $batch_qty,
+                            'unit_value' => 0,
+                            'stock_on_hand_id' => $batch->id,
+                            'remarks' => 'Selisih Opname (Batch): ' . $d->notes
+                        ];
+                        $qty -= $batch_qty;
+                        if ($qty <= 0) break;
+                    }
+                    
+                    // Jika masih ada sisa qty setelah semua batch habis
+                    if ($qty > 0) {
+                        $adj_details_data[] = [
+                            'item_id' => $d->item_id,
+                            'item_type' => $d->item_type,
+                            'adjustment_type' => $adj_type,
+                            'qty' => $qty,
+                            'unit_value' => 0,
+                            'stock_on_hand_id' => NULL,
+                            'remarks' => 'Selisih Opname (Sisa): ' . $d->notes
+                        ];
+                    }
+                    continue; // Skip ke item berikutnya karena sudah diproses
+                } else {
+                    // Untuk non-material (scrap, fg, etc) tidak perlu batch tracking
+                    $stock_on_hand_id = NULL;
                 }
             }
 
@@ -256,7 +423,30 @@ class StockOpname_model extends CI_Model {
         return ['status' => TRUE, 'message' => 'Opname berhasil dikonfirmasi. Dokumen adjustment ' . $adj_header_data['doc_no'] . ' telah dibuat.'];
     }
     
-    // Helper: Cari batch material tertua untuk dikurangi
+    // Helper: Cari multiple batches untuk opname OUT (FIFO approach)
+    private function find_batches_for_opname_out($item_id, $qty_needed)
+    {
+        $batches = [];
+        $remaining_qty = $qty_needed;
+        
+        // Ambil semua batch yang masih ada stok, urutkan FIFO
+        $this->db->where('item_id', $item_id);
+        $this->db->where('available_qty >', 0);
+        $this->db->order_by('id', 'ASC'); // FIFO
+        $query = $this->db->get('stock_on_hand');
+        
+        if ($query->num_rows() > 0) {
+            foreach ($query->result() as $batch) {
+                $batches[] = $batch;
+                $remaining_qty -= $batch->available_qty;
+                if ($remaining_qty <= 0) break; // Sudah cukup
+            }
+        }
+        
+        return $batches;
+    }
+
+    // Helper: Cari batch material tertua untuk dikurangi (legacy method - simplified)
     private function find_batch_for_opname_out($item_id, $qty_needed)
     {
         // Coba cari batch yg cukup
