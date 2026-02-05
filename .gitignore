@@ -37,5 +37,13 @@ apache/logs/*
 .env
 .htaccess
 /Untitled
+# macOS junk
+__MACOSX/
+.DS_Store
+._*
+
+# env & zip
+env
+*.zip
 
 

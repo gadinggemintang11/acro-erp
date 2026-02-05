@@ -116,8 +116,8 @@ class LapPengeluaranBarang_model extends CI_Model {
             " . $this->_build_tx_type_where($filters) . "
             " . $this->_build_search_where($filters) . "
 
-            AND DATE(sl.transaction_date) >= ? 
-            AND DATE(sl.transaction_date) <= ?
+            AND DATE(COALESCE(fdh.bc_date, soh.bc_date, sout.bc_date, sl.transaction_date)) >= ? 
+            AND DATE(COALESCE(fdh.bc_date, soh.bc_date, sout.bc_date, sl.transaction_date)) <= ?
         ";
         
         $params = [
@@ -126,11 +126,11 @@ class LapPengeluaranBarang_model extends CI_Model {
 
         // Tambahkan LIMIT dan OFFSET hanya jika limit > 0
         if ($limit > 0) {
-            $sql .= " ORDER BY sl.transaction_date DESC LIMIT ? OFFSET ?";
+            $sql .= " ORDER BY COALESCE(fdh.bc_date, soh.bc_date, sout.bc_date, sl.transaction_date) DESC LIMIT ? OFFSET ?";
             $params[] = (int)$limit;
             $params[] = (int)$offset;
         } else {
-            $sql .= " ORDER BY sl.transaction_date DESC";
+            $sql .= " ORDER BY COALESCE(fdh.bc_date, soh.bc_date, sout.bc_date, sl.transaction_date) DESC";
         }
 
         return $this->db->query($sql, $params)->result();
@@ -160,6 +160,9 @@ class LapPengeluaranBarang_model extends CI_Model {
     }
     
     public function count_report($filters = []) {
+        $start_date = $filters['start_date'] ?? null;
+        $end_date = $filters['end_date'] ?? null;
+        
         $this->db->from($this->table_ledger . ' sl');
         
         // JOIN untuk filter EXIM verification
@@ -184,6 +187,14 @@ class LapPengeluaranBarang_model extends CI_Model {
             $this->db->or_where('(sl.transaction_type = "production_out" AND sl.source_doc_type = "SUBKON_OUT" AND sout.exim_verified = 1)');
             $this->db->or_where('sl.transaction_type = "ADJ_OUT"');
         $this->db->group_end();
+        
+        // Filter tanggal dokumen BC (bukan tanggal pengeluaran)
+        if ($start_date) {
+            $this->db->where('COALESCE(fdh.bc_date, soh.bc_date, sout.bc_date, sl.transaction_date) >=', $start_date . ' 00:00:00');
+        }
+        if ($end_date) {
+            $this->db->where('COALESCE(fdh.bc_date, soh.bc_date, sout.bc_date, sl.transaction_date) <=', $end_date . ' 23:59:59');
+        }
         
         return $this->db->count_all_results(); 
     }

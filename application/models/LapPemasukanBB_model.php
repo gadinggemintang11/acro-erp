@@ -83,10 +83,10 @@ class LapPemasukanBB_model extends CI_Model {
         $this->db->join('machines mc', 'sl.item_id = mc.id AND sl.item_type = "machine"', 'left');       // <-- JOIN HILANG
         $this->db->join('inventories inv', 'sl.item_id = inv.id AND sl.item_type = "inventory"', 'left'); // FIX 2: Perbaiki item_type inventories
 
-        // ... (Filter tanggal, BC, dan Search sama) ...
+        // Filter berdasarkan tanggal dokumen BC (bukan tanggal penerimaan)
         if (!empty($filters['start_date']) && !empty($filters['end_date'])) {
-            $this->db->where('DATE(sl.transaction_date) >=', $filters['start_date']);
-            $this->db->where('DATE(sl.transaction_date) <=', $filters['end_date']);
+            $this->db->where('DATE(grn.bc_date) >=', $filters['start_date']);
+            $this->db->where('DATE(grn.bc_date) <=', $filters['end_date']);
         }
 
         $this->db->where('grn.bc_type_code IS NOT NULL');
@@ -112,7 +112,7 @@ class LapPemasukanBB_model extends CI_Model {
                     ->group_end();
         }
 
-        $this->db->order_by('sl.transaction_date', 'DESC');
+        $this->db->order_by('grn.bc_date', 'DESC');
         
         if ($limit > 0) {
             $this->db->limit($limit, $offset);
@@ -148,9 +148,9 @@ class LapPemasukanBB_model extends CI_Model {
              $this->db->join('po_header po', 'gd.source_doc_type = "PO" AND gd.source_doc_header_id = po.id', 'left');
         }
 
-        // Terapkan Filter (SAMA seperti get_report)
-        if ($start_date) { $this->db->where('sl.transaction_date >=', $start_date . ' 00:00:00'); }
-        if ($end_date) { $this->db->where('sl.transaction_date <=', $end_date . ' 23:59:59'); }
+        // Terapkan Filter berdasarkan tanggal dokumen BC (bukan tanggal penerimaan)
+        if ($start_date) { $this->db->where('grn.bc_date >=', $start_date . ' 00:00:00'); }
+        if ($end_date) { $this->db->where('grn.bc_date <=', $end_date . ' 23:59:59'); }
         if ($bc_type) { $this->db->where('grn.bc_type_code', $bc_type); }
         
         // Filter: Hanya hitung GRN yang sudah diverifikasi EXIM

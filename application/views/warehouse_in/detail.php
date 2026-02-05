@@ -100,16 +100,20 @@
                                         $is_admin = ($role && stripos($role->role_name, 'admin') !== false);
                                     ?>
                                     <?php if ($header->base_on == 'MIR'): ?>
-                                    <!-- Admin can edit both qty and unit_value, Non-admin can only edit unit_value -->
+                                    <!-- Hanya Admin yang bisa edit dan delete MIR items -->
+                                    <?php if ($is_admin): ?>
                                     <button type="button" class="btn btn-warning btn-xs btn-sm mr-1" data-toggle="modal" data-target="#editMirItemModal" 
                                             data-detail-id="<?= $d->id; ?>" data-receive-qty="<?= $d->receive_qty; ?>" data-unit-value="<?= $d->unit_value; ?>"
-                                            data-item-name="<?= htmlspecialchars($d->item_name); ?>" data-is-admin="<?= $is_admin ? '1' : '0'; ?>">
+                                            data-item-name="<?= htmlspecialchars($d->item_name); ?>" data-is-admin="1">
                                         <i class="fas fa-edit"></i> Edit
                                     </button>
-                                    <!-- Both admin and non-admin can delete MIR items -->
                                     <a href="<?= base_url('warehouse_in/delete_item/'.$d->grn_header_id.'/'.$d->id); ?>" class="btn btn-danger btn-xs btn-delete"> <i class="fas fa-trash"></i> </a>
+                                    <?php else: ?>
+                                    <!-- Non-admin: Tidak ada button -->
+                                    <span class="text-muted">-</span>
+                                    <?php endif; ?>
                                     <?php elseif ($header->base_on != 'MIR'): ?>
-                                    <!-- For non-MIR items, normal access control -->
+                                    <!-- For non-MIR items, normal access control (delete only) -->
                                     <a href="<?= base_url('warehouse_in/delete_item/'.$d->grn_header_id.'/'.$d->id); ?>" class="btn btn-danger btn-xs btn-delete"> <i class="fas fa-trash"></i> </a>
                                     <?php endif; ?>
                                 <?php endif; ?>

@@ -112,6 +112,8 @@
                             <th rowspan="2"><?= lang_line('mir_item_type', 'Tipe'); ?></th>
                             <th rowspan="2"><?= lang_line('mir_sales_contract', 'Sales Contract'); ?></th>
                             <th colspan="3">Quantity</th>
+                            <th rowspan="2">Nilai Satuan (IDR)</th>
+                            <th rowspan="2">Total Harga</th>
                             <th rowspan="2">Remarks</th>
                             <th rowspan="2"><?= lang_line('mir_actions', 'Aksi'); ?></th>
                         </tr>
@@ -146,6 +148,12 @@
                             </td>
                             <td>
                                 <input type="text" id="newItemTotal" class="form-control form-control-sm" readonly style="width: 90px; background: #f8f9fa; font-weight: bold;">
+                            </td>
+                            <td>
+                                <input type="number" id="newItemUnitValue" class="form-control form-control-sm autonumeric-2dec" value="0" min="0" step="any" style="width: 130px;">
+                            </td>
+                            <td>
+                                <input type="text" id="newItemTotalValue" class="form-control form-control-sm" readonly style="width: 130px; background: #f8f9fa; font-weight: bold;">
                             </td>
                             <td>
                                 <input type="text" id="newItemRemarks" class="form-control form-control-sm" placeholder="Remarks (opsional)">
@@ -183,10 +191,23 @@
                              <td class="text-right">
                                  <strong class="text-primary"><?= number_format(($d->qty + ($d->allowance ?? 0)), 2); ?></strong>
                              </td>
+                             <td class="text-right">
+                                 <span class="unit-value-display-<?= $d->id; ?>"><?= number_format((float)($d->unit_value ?? 0), 2, '.', ','); ?></span>
+                                 <?php $can_edit = check_access('mir', 'edit'); ?>
+                                 <?php if ($header->status == 'Draft' && $can_edit): ?>
+                                 <input type="number" step="0.01" class="form-control form-control-sm unit-value-input-<?= $d->id; ?>" value="<?= $d->unit_value ?? 0; ?>" style="display: none; width: 130px;" min="0">
+                                 <?php endif; ?>
+                             </td>
+                             <td class="text-right">
+                                 <strong><span class="total-value-display-<?= $d->id; ?>"><?= number_format((float)(($d->qty + ($d->allowance ?? 0)) * ($d->unit_value ?? 0)), 0, '.', ','); ?></span></strong>
+                                 <?php if ($header->status == 'Draft' && $can_edit): ?>
+                                 <input type="text" class="form-control form-control-sm total-value-input-<?= $d->id; ?>" value="<?= (float)(($d->qty + ($d->allowance ?? 0)) * ($d->unit_value ?? 0)); ?>" style="display: none; width: 130px;" readonly>
+                                 <?php endif; ?>
+                             </td>
                              <td><?= htmlspecialchars($d->remarks); ?></td>
                              <td class="text-center">
-                                 <?php if ($header->status == 'Draft' && check_access('mir', 'edit')): ?>
-                                 <button type="button" class="btn btn-warning btn-xs btn-edit-qty" data-id="<?= $d->id; ?>" title="Edit Qty & Allowance"> <i class="fas fa-edit"></i> </button>
+                                 <?php if ($header->status == 'Draft' && $can_edit): ?>
+                                 <button type="button" class="btn btn-warning btn-xs btn-edit-qty" data-id="<?= $d->id; ?>" title="Edit Qty, Allowance, Nilai Satuan & Total Harga"> <i class="fas fa-edit"></i> </button>
                                  <button type="button" class="btn btn-success btn-xs btn-save-qty" data-id="<?= $d->id; ?>" style="display: none;" title="Simpan"> <i class="fas fa-check"></i> </button>
                                  <button type="button" class="btn btn-secondary btn-xs btn-cancel-qty" data-id="<?= $d->id; ?>" style="display: none;" title="Batal"> <i class="fas fa-times"></i> </button>
                                  <a href="<?= base_url('mir/delete_item/'.$d->mir_header_id.'/'.$d->id); ?>" class="btn btn-danger btn-xs btn-delete" title="Hapus Item"> <i class="fas fa-trash"></i> </a>
@@ -194,7 +215,7 @@
                              </td>
                         </tr>
                         <?php endforeach; else: ?>
-                            <tr id="noDataRow"><td colspan="10" class="text-center text-muted py-5">Belum ada item detail.</td></tr>
+                            <tr id="noDataRow"><td colspan="12" class="text-center text-muted py-5">Belum ada item detail.</td></tr>
                         <?php endif; ?>
                     </tbody>
                 </table>
@@ -459,7 +480,18 @@ $(document).ready(function() {
             $('#newItemTotal').val(total.toFixed(2));
         }
 
-        $('#newItemQty, #newItemAllowance').on('input change', updateTotalQty);
+        function updateTotalValue() {
+            const qty = parseFloat($('#newItemQty').val()) || 0;
+            const allowance = parseFloat($('#newItemAllowance').val()) || 0;
+            const unitValue = parseFloat($('#newItemUnitValue').val()) || 0;
+            const totalValue = (qty + allowance) * unitValue;
+            $('#newItemTotalValue').val(totalValue.toFixed(2));
+        }
+
+        $('#newItemQty, #newItemAllowance, #newItemUnitValue').on('input change', function() {
+            updateTotalQty();
+            updateTotalValue();
+        });
 
         // Show add item row
         $('#btnShowAddItemRow').on('click', function() {
@@ -527,9 +559,10 @@ $(document).ready(function() {
         $('#btnSaveNewItem').on('click', function() {
             const qty = parseFloat($('#newItemQty').val());
             const allowance = parseFloat($('#newItemAllowance').val()) || 0;
+            const unit_value = parseFloat($('#newItemUnitValue').val()) || 0;
             const remarks = $('#newItemRemarks').val();
 
-            console.log('Saving item with:', {qty: qty, allowance: allowance, remarks: remarks});
+            console.log('Saving item with:', {qty: qty, allowance: allowance, unit_value: unit_value, remarks: remarks});
 
             if (!newItemData.item_id) {
                 Swal.fire('Error', 'Pilih item terlebih dahulu', 'error');
@@ -552,6 +585,7 @@ $(document).ready(function() {
                 item_type: newItemData.item_type,
                 qty: qty,
                 allowance: allowance,
+                unit_value: unit_value,
                 remarks: remarks
             };
 
@@ -593,6 +627,8 @@ $(document).ready(function() {
             $('#newItemQty').val('1');
             $('#newItemAllowance').val('0');
             $('#newItemTotal').val('1.00');
+            $('#newItemUnitValue').val('0');
+            $('#newItemTotalValue').val('0.00');
             $('#newItemRemarks').val('');
             newItemData = {};
         }
@@ -605,6 +641,10 @@ $(document).ready(function() {
             $('.qty-input-' + id).show().focus().select();
             $('.allowance-display-' + id).hide();
             $('.allowance-input-' + id).show();
+            $('.unit-value-display-' + id).hide();
+            $('.unit-value-input-' + id).show();
+            $('.total-value-display-' + id).hide();
+            $('.total-value-input-' + id).show();
             $(this).hide();
             $('.btn-save-qty[data-id="' + id + '"]').show();
             $('.btn-cancel-qty[data-id="' + id + '"]').show();
@@ -617,6 +657,10 @@ $(document).ready(function() {
             $('.qty-display-' + id).show();
             $('.allowance-input-' + id).hide();
             $('.allowance-display-' + id).show();
+            $('.unit-value-input-' + id).hide();
+            $('.unit-value-display-' + id).show();
+            $('.total-value-input-' + id).hide();
+            $('.total-value-display-' + id).show();
             $('.btn-edit-qty[data-id="' + id + '"]').show();
             $(this).hide();
             $('.btn-save-qty[data-id="' + id + '"]').hide();
@@ -625,12 +669,13 @@ $(document).ready(function() {
         // Save qty and allowance
         $('.btn-save-qty').on('click', function() {
             const id = $(this).data('id');
-            const newQty = $('.qty-input-' + id).val();
-            const newAllowance = $('.allowance-input-' + id).val();
+            const newQty = parseFloat($('.qty-input-' + id).val());
+            const newAllowance = parseFloat($('.allowance-input-' + id).val()) || 0;
+            const newUnitValue = parseFloat($('.unit-value-input-' + id).val()) || 0;
 
-            console.log('Updating item', id, 'with qty:', newQty, 'allowance:', newAllowance);
+            console.log('Updating item', id, 'with qty:', newQty, 'allowance:', newAllowance, 'unit_value:', newUnitValue);
 
-            if (!newQty || parseFloat(newQty) <= 0) {
+            if (!newQty || newQty <= 0) {
                 Swal.fire('Error', 'Quantity harus lebih dari 0', 'error');
                 return;
             }
@@ -644,7 +689,8 @@ $(document).ready(function() {
             const postData = { 
                 detail_id: id,
                 qty: newQty,
-                allowance: newAllowance || 0
+                allowance: newAllowance || 0,
+                unit_value: newUnitValue || 0
             };
 
             console.log('Update POST data:', postData);
@@ -661,14 +707,14 @@ $(document).ready(function() {
                         Swal.fire({
                             icon: 'success',
                             title: 'Berhasil!',
-                            text: 'Quantity berhasil diupdate',
+                            text: 'Data item berhasil diupdate',
                             timer: 1500,
                             showConfirmButton: false
                         }).then(() => {
                             location.reload();
                         });
                     } else {
-                        Swal.fire('Error', response.message || 'Gagal update quantity', 'error');
+                        Swal.fire('Error', response.message || 'Gagal update data item', 'error');
                     }
                 },
                 error: function(xhr) {

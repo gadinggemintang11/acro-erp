@@ -217,7 +217,7 @@ class Warehouse_in extends MY_Controller {
         // Using mir_details table (same as get_available_items method)
         // Use total_qty which includes allowance (qty + allowance)
         $all_mir_items = $this->db
-            ->select('md.id as mir_detail_id, md.item_id, md.item_type, md.qty, md.allowance, md.total_qty')
+            ->select('md.id as mir_detail_id, md.item_id, md.item_type, md.qty, md.allowance, md.total_qty, md.unit_value')
             ->from('mir_details md')
             ->where('md.mir_header_id', $mir_id)
             ->get()
@@ -273,9 +273,9 @@ class Warehouse_in extends MY_Controller {
         foreach ($mir_details as $md) {
             $receive_qty = $md->remaining_qty;
 
-            // Default unit_value to 0 (will be set manually by user if needed)
-            $unit_value = 0;
-            $total_value = 0;
+            // Get unit_value from MIR
+            $unit_value = (float)($md->unit_value ?? 0);
+            $total_value = $receive_qty * $unit_value;
 
             // Get item name and code based on item_type (same logic as get_available_items)
             $item_code = '';
@@ -325,7 +325,7 @@ class Warehouse_in extends MY_Controller {
         }
 
         if ($success_count > 0) {
-            $this->session->set_flashdata('success', 'Auto-loaded ' . $success_count . ' item(s) dari MIR. Silakan input unit value dan review sebelum konfirmasi.');
+            $this->session->set_flashdata('success', 'Auto-loaded ' . $success_count . ' item(s) dari MIR.');
         } else {
             $this->session->set_flashdata('warning', 'Tidak ada item yang berhasil di-load.');
         }

@@ -323,6 +323,7 @@ class Mir extends MY_Controller {
         $item_type = $this->input->post('item_type');
         $qty = $this->input->post('qty');
         $allowance = $this->input->post('allowance');
+        $unit_value = $this->input->post('unit_value');
         $remarks = $this->input->post('remarks');
 
         // Debug logging
@@ -331,6 +332,7 @@ class Mir extends MY_Controller {
             'item_type' => $item_type,
             'qty' => $qty,
             'allowance' => $allowance,
+            'unit_value' => $unit_value,
             'remarks' => $remarks
         ]));
 
@@ -353,6 +355,7 @@ class Mir extends MY_Controller {
             'sales_contract_id' => NULL,
             'qty'               => $qty,
             'allowance'         => !empty($allowance) ? $allowance : 0,
+            'unit_value'        => !empty($unit_value) ? (float)$unit_value : 0,
             'remarks'           => $remarks ?? ''
         ];
 
@@ -421,6 +424,7 @@ class Mir extends MY_Controller {
         $detail_id = $this->input->post('detail_id');
         $qty = $this->input->post('qty');
         $allowance = $this->input->post('allowance');
+        $unit_value = $this->input->post('unit_value');
 
         if (!$detail_id || !$qty || $qty <= 0) {
             $this->output->set_content_type('application/json')->set_output(json_encode(['success' => false, 'message' => 'Data tidak valid']));
@@ -429,15 +433,16 @@ class Mir extends MY_Controller {
 
         $update_data = [
             'qty' => $qty,
-            'allowance' => $allowance ?? 0
+            'allowance' => $allowance ?? 0,
+            'unit_value' => (float)($unit_value ?? 0)
         ];
 
         $result = $this->Mir_model->update_item($detail_id, $update_data);
 
         if ($result) {
-            $this->output->set_content_type('application/json')->set_output(json_encode(['success' => true, 'message' => 'Quantity berhasil diupdate']));
+            $this->output->set_content_type('application/json')->set_output(json_encode(['success' => true, 'message' => 'Data item berhasil diupdate']));
         } else {
-            $this->output->set_content_type('application/json')->set_output(json_encode(['success' => false, 'message' => 'Gagal update quantity']));
+            $this->output->set_content_type('application/json')->set_output(json_encode(['success' => false, 'message' => 'Gagal update data item']));
         }
     }
 

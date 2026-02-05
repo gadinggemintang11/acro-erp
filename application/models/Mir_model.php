@@ -146,7 +146,7 @@ class Mir_model extends CI_Model {
     public function get_details_by_id($mir_id) {
         $this->db->reset_query(); // Reset
         $select_clause = "
-            d.id, d.mir_header_id, d.qty, d.allowance, d.total_qty, d.remarks, d.item_id, d.item_type, d.sales_contract_id,
+            d.id, d.mir_header_id, d.qty, d.allowance, d.total_qty, d.unit_value, d.remarks, d.item_id, d.item_type, d.sales_contract_id,
             CASE
                 WHEN d.item_type = 'material' THEN m.kode_material
                 WHEN d.item_type = 'machine' THEN mc.kode_mesin
