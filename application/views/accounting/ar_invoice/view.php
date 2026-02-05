@@ -125,7 +125,7 @@
         <div class="col-lg-12">
             <div class="card shadow mb-4">
                 <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-success">Jurnal Entri (Posted) - <?= $journal_header->journal_no; ?></h6>
+                    <h6 class="m-0 font-weight-bold text-success">Jurnal Entri (Posted) - <?= $journal_header->journal_no ?? 'N/A'; ?></h6>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">

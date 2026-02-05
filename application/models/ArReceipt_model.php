@@ -254,7 +254,9 @@ class ArReceipt_model extends CI_Model {
         
         // Ambil akun piutang dan akun kas/bank
         $acc_piutang_id = $SettingAkun_model->get_account_id('akun_piutang_usaha', $header->currency);
-        $acc_kas_bank_id = $header->payment_account_id; 
+        $acc_kas_bank_id = $header->payment_account_id;
+        $acc_exchange_gain_id = $SettingAkun_model->get_account_id('akun_exchange_gain', 'IDR');
+        $acc_exchange_loss_id = $SettingAkun_model->get_account_id('akun_exchange_loss', 'IDR');
 
         if(!$acc_piutang_id) {
             $this->db->trans_complete();
@@ -266,6 +268,12 @@ class ArReceipt_model extends CI_Model {
             throw new Exception("Akun Penerimaan ({$header->currency}) belum di-setting di menu Setting Akun.");
         }
         
+        // Untuk currency non-IDR, validasi akun exchange gain/loss
+        if ($header->currency != 'IDR' && (!$acc_exchange_gain_id || !$acc_exchange_loss_id)) {
+            $this->db->trans_complete();
+            throw new Exception("Akun Exchange Gain/Loss belum di-setting di menu Setting Akun. Diperlukan untuk transaksi mata uang {$header->currency}.");
+        }
+        
         // Validasi akun masih aktif
         $this->db->where_in('id', [$acc_piutang_id, $acc_kas_bank_id]);
         $this->db->where('status', 'active');
@@ -274,35 +282,115 @@ class ArReceipt_model extends CI_Model {
             throw new Exception("Salah satu akun tidak aktif. Periksa Setting Akun.");
         }
         
+        // Hitung total selisih kurs untuk semua invoices
+        // PENTING: Selisih dihitung langsung dalam IDR (local currency)
+        $total_exchange_difference = 0;
+        
+        foreach ($details as $d) {
+            // Ambil data invoice original
+            $invoice = $this->db->where('id', $d->ar_invoice_header_id)->get('ar_invoice_header')->row();
+            if ($invoice) {
+                // PERHITUNGAN EXCHANGE DIFFERENCE LANGSUNG DALAM IDR:
+                // amount_paid = dalam currency asli (misal USD 1,200)
+                // invoice->exchange_rate = kurs saat invoice dibuat (misal 16,000)
+                // header->exchange_rate = kurs saat pembayaran (misal 15,800)
+                // 
+                // Nilai dalam IDR:
+                //   Piutang (saat Invoice): amount_paid × invoice->exchange_rate = 1,200 × 16,000 = 19,200,000 IDR
+                //   Kas (saat Bayar):       amount_paid × header->exchange_rate  = 1,200 × 15,800 = 18,960,000 IDR
+                //   Selisih (IDR):          19,200,000 - 18,960,000 = 240,000 IDR (LOSS jika positif)
+                
+                $amount_at_invoice_rate = $d->amount_paid * $invoice->exchange_rate;
+                $amount_at_receipt_rate = $d->amount_paid * $header->exchange_rate;
+                
+                $difference = $amount_at_invoice_rate - $amount_at_receipt_rate;
+                $total_exchange_difference += $difference; // Sudah dalam IDR!
+            }
+        }
+        
         $journal_no = $this->JurnalUmum_model->get_new_journal_number();
+        
+        // PENTING: Untuk transaksi dengan selisih kurs, kita HARUS menggunakan IDR
+        // karena setiap baris jurnal bisa memiliki equivalent IDR yang berbeda
+        // (Bank pakai kurs payment, Piutang pakai kurs invoice)
+        
+        // Hitung nilai dalam IDR
+        $bank_amount_idr = $header->total_amount * $header->exchange_rate;
+        
+        // Hitung total piutang dalam IDR (pakai kurs invoice original)
+        $piutang_amount_idr = 0;
+        foreach ($details as $d) {
+            $invoice = $this->db->where('id', $d->ar_invoice_header_id)->get('ar_invoice_header')->row();
+            if ($invoice) {
+                $piutang_amount_idr += $d->amount_paid * $invoice->exchange_rate;
+            }
+        }
         
         $journal_details = [
             [
                 'account_id' => $acc_kas_bank_id,
-                'debit' => $header->total_amount,
+                'debit' => $bank_amount_idr, // IDR value dengan kurs payment
                 'kredit' => 0,
                 'description' => 'Penerimaan piutang dari ' . $header->nama_customer
             ],
             [
                 'account_id' => $acc_piutang_id,
                 'debit' => 0,
-                'kredit' => $header->total_amount,
+                'kredit' => $piutang_amount_idr, // IDR value dengan kurs invoice
                 'description' => 'Pelunasan piutang via ' . $header->receipt_no
             ]
         ];
+        
+        // Tambahkan jurnal exchange gain/loss jika ada selisih kurs
+        // Selisih = Bank (IDR) - Piutang (IDR)
+        $exchange_difference_idr = $bank_amount_idr - $piutang_amount_idr;
+        
+        if (abs($exchange_difference_idr) > 0.01) { // tolerance untuk rounding
+            
+            if ($exchange_difference_idr < 0) {
+                // Rugi kurs (exchange loss) - Bank lebih kecil dari Piutang
+                // Kurs turun saat bayar
+                $journal_details[] = [
+                    'account_id' => $acc_exchange_loss_id,
+                    'debit' => abs($exchange_difference_idr), // IDR value
+                    'kredit' => 0,
+                    'description' => 'Rugi selisih kurs ' . $header->receipt_no
+                ];
+            } else {
+                // Untung kurs (exchange gain) - Bank lebih besar dari Piutang
+                // Kurs naik saat bayar
+                // Untung Kurs = Income/Pendapatan, posisi normal KREDIT
+                $journal_details[] = [
+                    'account_id' => $acc_exchange_gain_id,
+                    'debit' => 0,
+                    'kredit' => $exchange_difference_idr, // IDR value
+                    'description' => 'Untung selisih kurs ' . $header->receipt_no
+                ];
+            }
+        }
 
+        
+        // Hitung total debit dan kredit dari journal_details
+        $total_journal_debit = 0;
+        $total_journal_kredit = 0;
+        foreach ($journal_details as $jd) {
+            $total_journal_debit += (float)$jd['debit'];
+            $total_journal_kredit += (float)$jd['kredit'];
+        }
+        
+        // Karena sudah dalam IDR, gunakan currency IDR dengan rate 1
         $journal_header_data = [
             'journal_no' => $journal_no,
             'journal_date' => $header->receipt_date,
             'description' => 'Penerimaan Piutang No: ' . $header->receipt_no,
             'source_module' => 'AR_RECEIPT',
             'source_doc_id' => $header->id,
-            'currency' => $header->currency,
-            'exchange_rate' => $header->exchange_rate,
-            'total_debit' => $header->total_amount,
-            'total_kredit' => $header->total_amount,
-            'total_debit_local' => $header->total_amount_local,
-            'total_kredit_local' => $header->total_amount_local,
+            'currency' => 'IDR', // Gunakan IDR karena setiap baris punya kurs berbeda
+            'exchange_rate' => 1, // Rate 1 karena sudah IDR
+            'total_debit' => $total_journal_debit,
+            'total_kredit' => $total_journal_kredit,
+            'total_debit_local' => $total_journal_debit,
+            'total_kredit_local' => $total_journal_kredit,
             'created_by' => $user_id,
             'status' => 'Draft'
         ];
