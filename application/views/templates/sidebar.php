@@ -594,18 +594,12 @@ document.addEventListener('DOMContentLoaded', function() {
         </a>
         <div id="collapseAccounting" class="collapse <?= $isAccountingActive ? 'show' : ''; ?>" data-parent="#accordionSidebar">
             <div class="py-2 collapse-inner rounded">
-                <h6 class="collapse-header"><?= lang_line('sidebar_general_ledger', 'General Ledger:'); ?></h6>
-                <?php if (check_access('coa', 'view')): ?>
-                    <a class="collapse-item <?= ($current == 'coa') ? 'active' : ''; ?>" href="<?= $base; ?>coa"><?= lang_line('sidebar_coa', 'Chart of Accounts (COA)'); ?></a>
-                <?php endif; ?>
+                <h6 class="collapse-header"><?= lang_line('sidebar_general_ledger', ' Accounting Entry '); ?></h6>
                 <?php if (check_access('jurnalumum', 'view')): ?>
                     <a class="collapse-item <?= ($current == 'jurnalumum') ? 'active' : ''; ?>" href="<?= $base; ?>jurnalumum"><?= lang_line('sidebar_general_journal', 'Jurnal Umum'); ?></a>
                 <?php endif; ?>
                 <?php if (check_access('apinvoice', 'view')): ?>
                     <a class="collapse-item <?= ($current == 'apinvoice') ? 'active' : ''; ?>" href="<?= $base; ?>apinvoice"><?= lang_line('sidebar_account_payable', 'Account Payable'); ?></a>
-                <?php endif; ?>
-                <?php if (check_access('settingakun', 'view')): ?>
-                    <a class="collapse-item <?= ($current == 'settingakun') ? 'active' : ''; ?>" href="<?= $base; ?>settingakun"><?= lang_line('sidebar_account_settings', 'Setting Akun'); ?></a>
                 <?php endif; ?>
                 <?php if (check_access('appayment', 'view')): ?>
                     <a class="collapse-item <?= ($current == 'appayment') ? 'active' : ''; ?>" href="<?= $base; ?>appayment"><?= lang_line('sidebar_payable_payment', 'Pembayaran Hutang'); ?></a>
@@ -631,6 +625,13 @@ document.addEventListener('DOMContentLoaded', function() {
                 <?php endif; ?>
                 <?php if (check_access('cash_flow', 'view')): ?>
                     <a class="collapse-item <?= ($current == 'reports' && $this->uri->segment(2) == 'cash_flow') ? 'active' : ''; ?>" href="<?= $base; ?>reports/cash_flow"><?= lang_line('sidebar_cash_flow', 'Arus Kas'); ?></a>
+                <?php endif; ?>
+                <h6 class="collapse-header"><?=('Setting'); ?></h6>
+                <?php if (check_access('coa', 'view')): ?>
+                    <a class="collapse-item <?= ($current == 'coa') ? 'active' : ''; ?>" href="<?= $base; ?>coa"><?= lang_line('sidebar_coa', 'Chart of Accounts (COA)'); ?></a>
+                <?php endif; ?>
+                <?php if (check_access('settingakun', 'view')): ?>
+                    <a class="collapse-item <?= ($current == 'settingakun') ? 'active' : ''; ?>" href="<?= $base; ?>settingakun"><?= lang_line('sidebar_account_settings', 'Setting Akun'); ?></a>
                 <?php endif; ?>
             </div>
         </div>
