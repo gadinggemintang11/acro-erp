@@ -119,7 +119,7 @@ class Scrap_Out_model extends CI_Model {
                 'bc_type_code'      => $header->bc_type_code,
                 'bc_number'         => $header->bc_number,
                 'bc_date'           => $header->bc_date,
-                'transaction_id'    => $item->id, // ID detail
+                'transaction_id'    => $id, // ✅ FIXED: Gunakan ID HEADER, bukan ID detail
                 'source_doc_type'   => 'SCRAP_OUT',
                 'source_doc_id'     => $id,
                 'qty_in'            => 0,

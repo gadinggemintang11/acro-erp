@@ -15,7 +15,7 @@
   <!-- Mask Icon untuk Safari (bisa set warna) -->
   <link rel="mask-icon" href="<?= base_url('assets/img/logo_mini.png'); ?>" color="#457b9d">
   
-  <title><?= isset($title) ? $title . ' | Neokaber' : 'Neokaber System'; ?></title>
+  <title><?= isset($title) ? $title . ' | ERP' : 'ERP System'; ?></title>
 
   <!-- Google Fonts -->
   <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600&display=swap" rel="stylesheet">

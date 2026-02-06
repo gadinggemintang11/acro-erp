@@ -151,6 +151,59 @@ class LapMutasiWIP_model extends CI_Model {
             sl.qty_in, 
             sl.qty_out, 
             sl.balance,
+            
+            -- BC info: ambil dari GRN terakhir untuk item yang sama (tanpa batasan tanggal)
+            COALESCE(
+                sl.bc_type_code,
+                (SELECT gh.bc_type_code 
+                 FROM stock_ledger sl2 
+                 JOIN grn_header gh ON sl2.transaction_id = gh.id 
+                 WHERE sl2.item_id = sl.item_id 
+                   AND sl2.item_type = sl.item_type 
+                   AND sl2.transaction_type = 'in'
+                   AND gh.bc_type_code IS NOT NULL
+                 ORDER BY sl2.id DESC
+                 LIMIT 1)
+            ) as bc_type_code,
+            
+            COALESCE(
+                sl.bc_number,
+                (SELECT gh.bc_number 
+                 FROM stock_ledger sl2 
+                 JOIN grn_header gh ON sl2.transaction_id = gh.id 
+                 WHERE sl2.item_id = sl.item_id 
+                   AND sl2.item_type = sl.item_type 
+                   AND sl2.transaction_type = 'in'
+                   AND gh.bc_number IS NOT NULL
+                 ORDER BY sl2.id DESC
+                 LIMIT 1)
+            ) as bc_number,
+            
+            COALESCE(
+                sl.bc_date,
+                (SELECT gh.bc_date 
+                 FROM stock_ledger sl2 
+                 JOIN grn_header gh ON sl2.transaction_id = gh.id 
+                 WHERE sl2.item_id = sl.item_id 
+                   AND sl2.item_type = sl.item_type 
+                   AND sl2.transaction_type = 'in'
+                   AND gh.bc_date IS NOT NULL
+                 ORDER BY sl2.id DESC
+                 LIMIT 1)
+            ) as bc_date,
+            
+            COALESCE(
+                grnh.grn_number,
+                (SELECT gh.grn_number 
+                 FROM stock_ledger sl2 
+                 JOIN grn_header gh ON sl2.transaction_id = gh.id 
+                 WHERE sl2.item_id = sl.item_id 
+                   AND sl2.item_type = sl.item_type 
+                   AND sl2.transaction_type = 'in'
+                 ORDER BY sl2.id DESC
+                 LIMIT 1)
+            ) as grn_number,
+            
             mrh.mr_number,
             ph_in.production_number as prod_num_in, 
             po_in.stage_name as stage_in,
@@ -158,7 +211,8 @@ class LapMutasiWIP_model extends CI_Model {
             pi_out.stage_name as stage_out,
             prh.prod_return_no
         FROM stock_ledger sl
-        -- wip_in material: transaction_id = mr_header.id (bukan source_doc_id)
+        
+        LEFT JOIN grn_header grnh ON sl.transaction_id = grnh.id AND sl.transaction_type = 'in'
         LEFT JOIN mr_header mrh ON sl.transaction_id = mrh.id AND sl.transaction_type = 'wip_in' AND sl.item_type = 'material'
         LEFT JOIN production_outputs po_in ON sl.transaction_id = po_in.id AND sl.transaction_type = 'wip_in' AND sl.item_type = 'semifinished'
         LEFT JOIN production_header ph_in ON po_in.production_header_id = ph_in.id

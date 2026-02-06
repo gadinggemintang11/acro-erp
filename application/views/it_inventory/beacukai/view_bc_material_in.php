@@ -1,7 +1,7 @@
 <?php
 /**
- * View: Detail Dokumen BC - Material Masuk (GRN)
- * Menampilkan detail BC dari penerimaan material
+ * View: Detail Dokumen BC - Penerimaan Barang (GRN)
+ * Menampilkan detail BC dari penerimaan material / mesin
  */
 ?>
 
@@ -14,7 +14,7 @@
                     <div class="row align-items-center">
                         <div class="col-md-6">
                             <h5 class="m-0">
-                                <i class="fas fa-file-invoice"></i> Dokumen BC - Material Masuk (GRN)
+                                <i class="fas fa-file-invoice"></i> Dokumen BC - Penerimaan Barang (GRN)
                             </h5>
                         </div>
                         <div class="col-md-6 text-end">
@@ -86,11 +86,11 @@
                 </div>
             </div>
 
-            <!-- Detail Material Table -->
+            <!-- Detail Barang Table -->
             <div class="card shadow-sm">
                 <div class="card-header bg-secondary text-white py-3">
                     <h6 class="m-0">
-                        <i class="fas fa-list"></i> Detail Material yang Diterima
+                        <i class="fas fa-list"></i> Detail Barang yang Diterima
                     </h6>
                 </div>
                 <div class="card-body">
@@ -100,8 +100,8 @@
                                 <thead class="table-light">
                                     <tr>
                                         <th class="text-center" width="5%">No</th>
-                                        <th width="12%">Kode Material</th>
-                                        <th width="35%">Nama Material</th>
+                                        <th width="12%">Kode Barang</th>
+                                        <th width="35%">Nama Barang</th>
                                         <th width="10%">Qty</th>
                                         <th width="10%">Satuan</th>
                                         <th width="15%">No. PO / MIR</th>
@@ -134,7 +134,7 @@
                         </div>
                     <?php else: ?>
                         <div class="alert alert-warning m-0">
-                            <i class="fas fa-info-circle"></i> Tidak ada detail material untuk dokumen BC ini.
+                            <i class="fas fa-info-circle"></i> Tidak ada detail barang untuk dokumen BC ini.
                         </div>
                     <?php endif; ?>
                 </div>
@@ -143,7 +143,7 @@
             <!-- Info Box -->
             <div class="alert alert-info mt-4" role="alert">
                 <i class="fas fa-circle-info"></i>
-                <strong>Informasi:</strong> Halaman ini menampilkan detail material yang diterima dengan BC ini. 
+                <strong>Informasi:</strong> Halaman ini menampilkan detail barang yang diterima dengan BC ini. 
                 Data diambil dari Goods Receipt Note (GRN) yang terkait dengan dokumen BC.
             </div>
         </div>

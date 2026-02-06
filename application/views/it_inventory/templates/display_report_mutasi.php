@@ -236,15 +236,28 @@ $(function(){
     // 🚚 Detail Pengeluaran Scrap
     $(document).on('click','.btn-show-out',function(){
         var docid = $(this).data('docid');
+        console.log('🚚 Detail Pengeluaran - doc_id:', docid); // Debug log
+        
+        if (!docid || docid == '' || docid == 'undefined') {
+            alert('Error: ID dokumen tidak valid');
+            console.error('Invalid doc_id:', docid);
+            return;
+        }
+        
         $('#outTraceModal').modal('show');
         $('#outTraceContent').html('<div class="text-center py-5 text-muted"><div class="spinner-border text-info mb-2" role="status"></div><p class="mb-0">Memuat Data Keluar Scrap...</p></div>');
+        
         $.get('<?= base_url('LapMutasiScrap/ajax_get_out_trace'); ?>', {doc_id: docid}, function(res){
+            console.log('📥 Response:', res); // Debug response
             if(res.success){
                 $('#outTraceContent').html(res.html);
             } else {
-                $('#outTraceContent').html('<div class="alert alert-warning">'+res.message+'</div>');
+                $('#outTraceContent').html('<div class="alert alert-warning"><i class="fas fa-exclamation-triangle"></i> '+res.message+'</div>');
             }
-        }, 'json');
+        }, 'json').fail(function(xhr, status, error) {
+            console.error('❌ AJAX Error:', status, error, xhr.responseText);
+            $('#outTraceContent').html('<div class="alert alert-danger"><i class="fas fa-times-circle"></i> Terjadi kesalahan: '+error+'</div>');
+        });
     });
 
     // 🧩 Fix aria-hidden warning

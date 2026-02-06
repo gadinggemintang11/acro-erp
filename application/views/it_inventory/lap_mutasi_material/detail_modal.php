@@ -98,7 +98,18 @@
                             <button class="btn btn-info btn-xs" onclick="viewAdjustmentDocuments(<?= $t->adjustment_header_id; ?>)" title="Lihat Dokumen Adjustment">
                                 <i class="fas fa-file-alt"></i> Docs
                             </button>
-                        <?php else: ?>
+                        <?php endif; ?>
+                        
+                        <?php if (!empty($bc_num) && !empty($t->grn_number)): ?>
+                            <a href="<?= base_url('BeaCukai/detail/' . base64_encode($t->grn_number)); ?>" 
+                               class="btn btn-primary btn-xs" 
+                               target="_blank" 
+                               title="Lihat Detail BC">
+                                <i class="fas fa-file-invoice"></i> BC
+                            </a>
+                        <?php endif; ?>
+                        
+                        <?php if ($t->transaction_type !== 'adjustment' && empty($bc_num)): ?>
                             <span class="text-muted">-</span>
                         <?php endif; ?>
                     </td>

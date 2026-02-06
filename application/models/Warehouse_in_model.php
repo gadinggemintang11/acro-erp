@@ -220,7 +220,10 @@ class Warehouse_in_model extends CI_Model {
                 'qty_out'           => 0,
                 'unit_value'        => (float)($item->unit_value ?? 0),
                 'balance'           => $new_balance,
-                'stock_on_hand_id'  => $stock_on_hand_id // Akan NULL jika 'machine' atau 'inventory'
+                'stock_on_hand_id'  => $stock_on_hand_id,
+                'bc_type_code'      => $grn_header->bc_type_code ?? null,
+                'bc_number'         => $grn_header->bc_number ?? null,
+                'bc_date'           => $grn_header->bc_date ?? null
             ];
 
             if (!$this->Stock_ledger_model->insert($ledger_data)) {

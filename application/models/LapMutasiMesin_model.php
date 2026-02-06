@@ -141,6 +141,9 @@ class LapMutasiMesin_model extends CI_Model {
     {
         $this->db->select("
             sl.transaction_date, sl.transaction_type, sl.qty_in, sl.qty_out, sl.balance,
+            sl.bc_type_code,
+            sl.bc_number,
+            sl.bc_date,
             grn.grn_number,
             adj.doc_no as adjustment_doc, adj.notes as adjustment_notes, adj.id as adjustment_header_id,
             woh.wo_number

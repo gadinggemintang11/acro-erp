@@ -421,12 +421,23 @@ class LapMutasiScrap_model extends CI_Model {
             sl.qty_in,
             sl.qty_out,
             sl.balance,
+            
+            -- Dokumen Sumber dengan format yang benar
             CASE 
                 WHEN sl.transaction_type = 'IN_SCRAP_WH' THEN 'SCRAP_IN'
                 WHEN sl.transaction_type LIKE 'OUT_SCRAP%' THEN 'SCRAP_OUT'
                 WHEN sl.transaction_type = 'ADJUSTMENT' THEN 'ADJ'
                 ELSE sl.transaction_type
             END as source_doc_type,
+            
+            -- Source Doc Number (bukan ID)
+            CASE 
+                WHEN sl.transaction_type = 'IN_SCRAP_WH' THEN sih.doc_no
+                WHEN sl.transaction_type LIKE 'OUT_SCRAP%' THEN soh.doc_no
+                WHEN sl.transaction_type = 'ADJUSTMENT' THEN ah.doc_no
+                ELSE CAST(sl.transaction_id AS CHAR)
+            END as source_doc_no,
+            
             sl.transaction_id as source_doc_id,
             
             -- BC Info
@@ -434,14 +445,18 @@ class LapMutasiScrap_model extends CI_Model {
             COALESCE(soh.bc_number, NULL) as bc_number,
             COALESCE(soh.bc_date, NULL) as bc_date,
             
-            -- Production info
-            NULL as production_output_id,
-            NULL as production_header_id,
-            NULL as production_number,
+            -- Production info untuk IN_SCRAP_WH
+            po.id as production_output_id,
+            ph.id as production_header_id,
+            ph.production_number,
             
             -- WO info
-            NULL as work_order_id,
-            COALESCE(wo.wo_number, NULL) as wo_number,
+            wo.id as work_order_id,
+            wo.wo_number,
+            
+            -- Scrap IN info
+            sih.id as scrap_in_id,
+            sih.doc_no as scrap_in_docno,
             
             -- Scrap OUT info
             soh.id as scrap_out_id,
@@ -453,11 +468,14 @@ class LapMutasiScrap_model extends CI_Model {
                 ELSE NULL
             END as scrap_out_destination_name,
             
-            -- Partner names (untuk IN dan OUT)
+            -- Partner names (untuk IN dan OUT) - DIPERBAIKI
             CASE 
-                WHEN sl.transaction_type = 'IN_SCRAP_WH' THEN wo.wo_number
-                WHEN sl.transaction_type LIKE 'OUT_SCRAP%' AND c.nama_customer IS NOT NULL THEN c.nama_customer
-                WHEN sl.transaction_type LIKE 'OUT_SCRAP%' THEN soh.destination
+                WHEN sl.transaction_type = 'IN_SCRAP_WH' AND ph.production_number IS NOT NULL 
+                    THEN CONCAT('PROD/', ph.production_number)
+                WHEN sl.transaction_type LIKE 'OUT_SCRAP%' AND c.nama_customer IS NOT NULL 
+                    THEN c.nama_customer
+                WHEN sl.transaction_type LIKE 'OUT_SCRAP%' 
+                    THEN soh.destination
                 ELSE NULL
             END as partner_name,
             
@@ -467,7 +485,13 @@ class LapMutasiScrap_model extends CI_Model {
             ah.notes as adjustment_notes
         FROM stock_ledger sl
         LEFT JOIN scrap_in_header sih ON sl.transaction_type = 'IN_SCRAP_WH' AND sl.transaction_id = sih.id
-        LEFT JOIN scrap_out_header soh ON sl.transaction_type LIKE 'OUT_SCRAP%' AND sl.transaction_id = soh.id
+        LEFT JOIN scrap_in_detail sid ON sih.id = sid.header_id
+        LEFT JOIN scrap_in_detail_sources sids ON sid.id = sids.scrap_in_detail_id
+        LEFT JOIN production_outputs po ON sids.production_output_id = po.id
+        LEFT JOIN production_header ph ON po.production_header_id = ph.id
+        LEFT JOIN scrap_out_header soh ON (
+            sl.transaction_type LIKE 'OUT_SCRAP%' AND sl.transaction_id = soh.id
+        )
         LEFT JOIN customers c ON soh.destination = c.id
         LEFT JOIN wo_header wo ON sih.work_order_id = wo.id
         LEFT JOIN adjustment_header ah ON sl.transaction_type = 'ADJUSTMENT' AND sl.transaction_id = ah.id
@@ -482,7 +506,22 @@ class LapMutasiScrap_model extends CI_Model {
             return [];
         }
         
-        return $query->result_array();
+        $results = $query->result_array();
+        
+        // DEBUG: Log hasil query untuk OUT_SCRAP
+        foreach ($results as $row) {
+            if (stripos($row['transaction_type'], 'OUT_SCRAP') !== false) {
+                log_message('debug', 'get_traceability OUT_SCRAP row: '.json_encode([
+                    'ledger_id' => $row['id'],
+                    'type' => $row['transaction_type'],
+                    'transaction_id' => $row['transaction_id'],
+                    'scrap_out_id' => $row['scrap_out_id'],
+                    'scrap_out_docno' => $row['scrap_out_docno']
+                ]));
+            }
+        }
+        
+        return $results;
     }
 
 

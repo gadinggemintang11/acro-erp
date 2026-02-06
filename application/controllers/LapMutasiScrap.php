@@ -114,9 +114,12 @@ class LapMutasiScrap extends MY_Controller {
             foreach ($rows as $r) {
                 $tgl = !empty($r['transaction_date']) ? date('d/m/Y H:i', strtotime($r['transaction_date'])) : '-';
                 $type = $r['transaction_type'] ?? '-';
-                $src = ($r['source_doc_type'] ?? '-') . ' / ' . ($r['source_doc_id'] ?? '-');
+                
+                // Gunakan source_doc_no yang sudah diformat dari query
+                $src = ($r['source_doc_type'] ?? '-') . ' / ' . ($r['source_doc_no'] ?? $r['source_doc_id'] ?? '-');
+                
                 $ref = $r['transaction_id'] ?? '-';
-                $partner = $r['scrap_out_destination_name'] ?? ($r['partner_name'] ?? '-');
+                $partner = $r['partner_name'] ?? '-';
                 $qty_in = (float)($r['qty_in'] ?? 0);
                 $qty_out = (float)($r['qty_out'] ?? $r['qty'] ?? 0); // fallback qty
                 $bal = (float)($r['balance'] ?? 0);
@@ -144,16 +147,46 @@ class LapMutasiScrap extends MY_Controller {
                 // Detail pengeluaran scrap (deteksi doc id)
                 if (in_array(strtoupper($type), ['OUT_SCRAP_BC','OUT_SCRAP_SALE','OUT_SCRAP'])) {
                     $docId = '';
-                    if (!empty($r['scrap_out_id'])) $docId = $r['scrap_out_id'];
-                    elseif (!empty($r['transaction_id']) && is_numeric($r['transaction_id'])) $docId = (int)$r['transaction_id'];
-                    elseif (!empty($r['source_doc_id']) && is_numeric($r['source_doc_id'])) $docId = (int)$r['source_doc_id'];
+                    
+                    // DEBUG: Log semua kemungkinan ID
+                    log_message('debug', 'OUT_SCRAP Detection - Type: '.$type.' | scrap_out_id: '.($r['scrap_out_id']??'NULL').' | transaction_id: '.($r['transaction_id']??'NULL').' | source_doc_id: '.($r['source_doc_id']??'NULL'));
+                    
+                    // Priority 1: scrap_out_id from query
+                    if (!empty($r['scrap_out_id'])) {
+                        $docId = $r['scrap_out_id'];
+                        log_message('debug', 'OUT_SCRAP: Using scrap_out_id = '.$docId);
+                    } 
+                    // Priority 2: transaction_id (most reliable for OUT_SCRAP transactions)
+                    elseif (!empty($r['transaction_id']) && is_numeric($r['transaction_id'])) {
+                        $docId = (int)$r['transaction_id'];
+                        log_message('debug', 'OUT_SCRAP: Using transaction_id = '.$docId);
+                    }
+                    // Priority 3: source_doc_id
+                    elseif (!empty($r['source_doc_id']) && is_numeric($r['source_doc_id'])) {
+                        $docId = (int)$r['source_doc_id'];
+                        log_message('debug', 'OUT_SCRAP: Using source_doc_id = '.$docId);
+                    }
+                    // Priority 4: lookup by doc_no
                     elseif (!empty($r['scrap_out_docno'])) {
                         $row = $this->db->select('id')->where('doc_no', $r['scrap_out_docno'])->get('scrap_out_header')->row();
-                        if ($row) $docId = $row->id;
+                        if ($row) {
+                            $docId = $row->id;
+                            log_message('debug', 'OUT_SCRAP: Found via doc_no lookup = '.$docId);
+                        }
                     }
+                    
+                    // Verify doc_id exists in scrap_out_header before showing button
                     if ($docId) {
-                        $action .= '<button class="btn btn-sm btn-info btn-show-out mr-1" data-docid="'.$docId.'" 
-                                   title="Detail Pengeluaran Scrap"><i class="fas fa-truck fa-sm"></i></button>';
+                        $verify = $this->db->select('id')->where('id', $docId)->get('scrap_out_header')->row();
+                        if ($verify) {
+                            $action .= '<button class="btn btn-sm btn-info btn-show-out mr-1" data-docid="'.$docId.'" 
+                                       title="Detail Pengeluaran Scrap"><i class="fas fa-truck fa-sm"></i></button>';
+                            log_message('debug', 'OUT_SCRAP: Button created for doc_id='.$docId);
+                        } else {
+                            log_message('error', 'OUT_SCRAP: doc_id='.$docId.' NOT FOUND in scrap_out_header!');
+                        }
+                    } else {
+                        log_message('error', 'OUT_SCRAP: No valid doc_id found for type='.$type);
                     }
                 }
 
@@ -242,7 +275,15 @@ class LapMutasiScrap extends MY_Controller {
         if (!check_access('lap_mutasi_scrap', 'view')) { header('Content-Type: application/json'); echo json_encode(['success'=>false,'message'=>'Akses ditolak']); return; }
 
         $doc_id = (int)$this->input->get('doc_id');
-        if (empty($doc_id)) { header('Content-Type: application/json'); echo json_encode(['success' => false, 'message' => 'Parameter doc_id kosong']); return; }
+        if (empty($doc_id)) { 
+            log_message('error', 'ajax_get_out_trace: doc_id kosong atau invalid');
+            header('Content-Type: application/json'); 
+            echo json_encode(['success' => false, 'message' => 'Parameter doc_id kosong atau tidak valid']); 
+            return; 
+        }
+
+        // Log untuk debugging
+        log_message('debug', 'ajax_get_out_trace: Mencari doc_id = ' . $doc_id);
 
         $q = $this->db->select('
                     h.id, h.doc_no, h.doc_date, h.destination, c.nama_customer AS customer_name,
@@ -257,8 +298,12 @@ class LapMutasiScrap extends MY_Controller {
                 ->get();
 
         if (!$q || $q->num_rows() == 0) {
+            // Log error untuk debugging
+            $db_error = $this->db->error();
+            log_message('error', 'ajax_get_out_trace: Data tidak ditemukan untuk doc_id='.$doc_id.'. DB Error: '.print_r($db_error, true));
+            
             header('Content-Type: application/json');
-            echo json_encode(['success' => false, 'message' => 'Data pengeluaran tidak ditemukan']);
+            echo json_encode(['success' => false, 'message' => 'Data pengeluaran tidak ditemukan untuk ID: '.$doc_id]);
             return;
         }
 
