@@ -1,49 +1,56 @@
-.DS_Store
+##################################
+# 1. IGNORE SEMUA
+##################################
+*
 
+##################################
+# 2. IZINKAN FOLDER YANG DIPAKAI
+##################################
+!application/
+!assets/
+
+
+##################################
+# 3. IZINKAN ISI DI DALAMNYA
+##################################
+!application/**/*
+!assets/**/*
+!vendor/**/*
+
+##################################
+# 4. KHUSUS CODEIGNITER (AMAN)
+##################################
 application/cache/*
 !application/cache/index.html
 
 application/logs/*
 !application/logs/index.html
 
-!application/*/.htaccess
+##################################
+# 5. FILE ROOT YANG DIPERLUKAN
+##################################
+!index.php
 
-composer.lock
-tests/mocks/database/ci_test.sqlite
+!composer.json
+!composer.lock
+!.gitignore
 
-user_guide_src/build/*
-user_guide_src/cilexer/build/*
-user_guide_src/cilexer/dist/*
-user_guide_src/cilexer/pycilexer.egg-info/*
-/vendor/
-
-# IDE Files
-#-------------------------
-/nbproject/
-.idea/*
-
-## Sublime Text cache files
-*.tmlanguage.cache
-*.tmPreferences.cache
-*.stTheme.cache
-*.sublime-workspace
-*.sublime-project
-/tests/tests/
-/tests/results/
-
-
-apache/logs/*
-
+##################################
+# 6. OS / IDE / ENV (TETAP DIABAIKAN)
+##################################
 .env
-.htaccess
-/Untitled
-# macOS junk
-__MACOSX/
 .DS_Store
+__MACOSX/
 ._*
+.idea/
+.vscode/
+nbproject/
 
-# env & zip
-env
+##################################
+# 7. TEST / BUILD / ZIP
+##################################
+tests/
+user_guide_src/
+apache/logs/
+env/
 *.zip
-
-
