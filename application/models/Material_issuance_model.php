@@ -82,19 +82,82 @@ class Material_issuance_model extends CI_Model {
     }
     
     /**
-     * Hitung stok tersedia dari stock_ledger
+     * Hitung stok tersedia - LANGSUNG PAKAI LOGIKA STOCK LEDGER UTAMA
+     * SIMPLE: opening + in + return - out + adjustment = closing
      */
     private function get_stock_from_ledger($item_id, $item_type) {
-        // Hitung WAREHOUSE stock saja (exclude WIP materials yang sedang diproses)
-        $this->db->select('COALESCE(SUM(qty_in), 0) - COALESCE(SUM(qty_out), 0) as balance');
-        $this->db->from('stock_ledger');
-        $this->db->where('item_id', $item_id);
-        $this->db->where('item_type', $item_type);
-        $this->db->where_not_in('transaction_type', ['wip_in', 'wip_out']);
-        $query = $this->db->get();
+        // Periode bulan ini
+        $current_month = date('m');
+        $current_year = date('Y');
+        $start_date = $current_year . '-' . str_pad($current_month, 2, '0', STR_PAD_LEFT) . '-01';
+        $end_date = date('Y-m-t', strtotime($start_date));
+        
+        // Query PERSIS seperti Stock_ledger_model - SIMPLE!
+        $sql = "
+            SELECT 
+                COALESCE(
+                    (SELECT t1.balance 
+                     FROM stock_ledger t1
+                     WHERE t1.item_id = ?
+                       AND t1.item_type = ?
+                       AND t1.transaction_date < ? 
+                       AND t1.transaction_type IN ('in', 'IN_RETURN_WIP', 'ADJ_IN', 'adjustment', 'OUT_ISSUE', 'production_out', 'OUT_SHIPMENT', 'OUT_SCRAP_BC', 'ADJ_OUT', 'IN_SCRAP_WH')
+                     ORDER BY t1.id DESC 
+                     LIMIT 1
+                    ), 0
+                ) +
+                COALESCE(
+                    (SELECT SUM(CASE WHEN transaction_type = 'in' THEN qty_in ELSE 0 END)
+                     FROM stock_ledger
+                     WHERE item_id = ?
+                       AND item_type = ?
+                       AND transaction_date >= ?
+                       AND transaction_date <= ?
+                       AND transaction_type IN ('in', 'IN_RETURN_WIP', 'ADJ_IN', 'adjustment', 'OUT_ISSUE', 'production_out', 'OUT_SHIPMENT', 'OUT_SCRAP_BC', 'ADJ_OUT', 'IN_SCRAP_WH')
+                    ), 0
+                ) +
+                COALESCE(
+                    (SELECT SUM(CASE WHEN transaction_type = 'IN_RETURN_WIP' THEN qty_in ELSE 0 END)
+                     FROM stock_ledger
+                     WHERE item_id = ?
+                       AND item_type = ?
+                       AND transaction_date >= ?
+                       AND transaction_date <= ?
+                       AND transaction_type IN ('in', 'IN_RETURN_WIP', 'ADJ_IN', 'adjustment', 'OUT_ISSUE', 'production_out', 'OUT_SHIPMENT', 'OUT_SCRAP_BC', 'ADJ_OUT', 'IN_SCRAP_WH')
+                    ), 0
+                ) -
+                COALESCE(
+                    (SELECT SUM(CASE WHEN transaction_type IN ('OUT_ISSUE', 'OUT_SHIPMENT', 'ADJ_OUT', 'production_out') THEN qty_out ELSE 0 END)
+                     FROM stock_ledger
+                     WHERE item_id = ?
+                       AND item_type = ?
+                       AND transaction_date >= ?
+                       AND transaction_date <= ?
+                       AND transaction_type IN ('in', 'IN_RETURN_WIP', 'ADJ_IN', 'adjustment', 'OUT_ISSUE', 'production_out', 'OUT_SHIPMENT', 'OUT_SCRAP_BC', 'ADJ_OUT', 'IN_SCRAP_WH')
+                    ), 0
+                ) +
+                COALESCE(
+                    (SELECT SUM(CASE WHEN transaction_type = 'adjustment' THEN (qty_in - qty_out) ELSE 0 END)
+                     FROM stock_ledger
+                     WHERE item_id = ?
+                       AND item_type = ?
+                       AND transaction_date >= ?
+                       AND transaction_date <= ?
+                       AND transaction_type IN ('in', 'IN_RETURN_WIP', 'ADJ_IN', 'adjustment', 'OUT_ISSUE', 'production_out', 'OUT_SHIPMENT', 'OUT_SCRAP_BC', 'ADJ_OUT', 'IN_SCRAP_WH')
+                    ), 0
+                ) as closing_stock
+        ";
+        
+        $query = $this->db->query($sql, [
+            $item_id, $item_type, $start_date . ' 00:00:00',  // opening
+            $item_id, $item_type, $start_date . ' 00:00:00', $end_date . ' 23:59:59',  // in (GRN)
+            $item_id, $item_type, $start_date . ' 00:00:00', $end_date . ' 23:59:59',  // return
+            $item_id, $item_type, $start_date . ' 00:00:00', $end_date . ' 23:59:59',  // out
+            $item_id, $item_type, $start_date . ' 00:00:00', $end_date . ' 23:59:59'   // adjustment (net)
+        ]);
         
         if ($query && $query->num_rows() > 0) {
-            return (float) $query->row()->balance;
+            return (float) $query->row()->closing_stock;
         }
         
         return 0.0;

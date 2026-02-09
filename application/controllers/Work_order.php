@@ -207,6 +207,89 @@ class Work_order extends MY_Controller {
         header('Content-Type: application/json');
         echo json_encode(['results' => $results]);
     }
+
+    /**
+     * ✅ NEW: AJAX untuk preview BOM materials & auto-populate option
+     */
+    public function ajax_get_bom_preview() {
+        $fg_id = $this->input->get('fg_id');
+        $planned_qty = (float)$this->input->get('planned_qty', 0);
+
+        $bom_components = $this->Wo_model->get_bom_components_by_fg($fg_id);
+        
+        if(empty($bom_components)) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Tidak ada BOM aktif untuk Finished Good ini'
+            ]);
+            return;
+        }
+
+        // Hitung kebutuhan material
+        $materials = [];
+        foreach($bom_components as $comp) {
+            $calculated_qty = $planned_qty * $comp->quantity_required;
+            $materials[] = [
+                'item_code' => $comp->item_code,
+                'item_name' => $comp->item_name,
+                'item_type' => $comp->item_type,
+                'qty_per_fg' => number_format($comp->quantity_required, 4),
+                'total_qty' => number_format($calculated_qty, 4),
+                'unit_measure' => $comp->unit_measure
+            ];
+        }
+
+        echo json_encode([
+            'success' => true,
+            'bom_count' => count($bom_components),
+            'materials' => $materials
+        ]);
+    }
+
+    /**
+     * ✅ NEW: AJAX endpoint untuk auto-populate materials dari BOM
+     */
+    public function ajax_auto_populate_materials() {
+        if (!check_access('work_order', 'edit')) { 
+            echo json_encode(['success' => false, 'message' => 'Tidak ada izin.']);
+            return;
+        }
+
+        $wo_id = $this->input->post('wo_id');
+        $header = $this->Wo_model->get_header_by_id($wo_id);
+
+        if(!$header || $header->status != 'Planned') {
+            echo json_encode([
+                'success' => false, 
+                'message' => 'Work Order tidak ditemukan atau status bukan Planned'
+            ]);
+            return;
+        }
+
+        // Cek apakah sudah ada material, jika ada tanya konfirmasi dulu
+        $existing_materials = $this->Wo_model->get_planned_materials($wo_id);
+        if(!empty($existing_materials)) {
+            echo json_encode([
+                'success' => false, 
+                'message' => 'WO sudah memiliki material. Silakan hapus terlebih dahulu sebelum auto-populate.'
+            ]);
+            return;
+        }
+
+        // Auto-populate dari BOM
+        if($this->Wo_model->auto_populate_materials($wo_id, $header->fg_id, $header->planned_qty)) {
+            echo json_encode([
+                'success' => true, 
+                'message' => 'Material berhasil diisi otomatis dari BOM'
+            ]);
+        } else {
+            echo json_encode([
+                'success' => false, 
+                'message' => 'Gagal melakukan auto-populate (pastikan ada BOM aktif untuk FG ini)'
+            ]);
+        }
+    }
+
     public function export_pdf($id) {
         if (!check_access('work_order', 'view')) { show_error('Tidak ada izin.', 403); }
         $header = $this->Wo_model->get_header_by_id($id);

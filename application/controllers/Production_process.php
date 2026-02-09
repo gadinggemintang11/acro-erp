@@ -4,8 +4,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 require FCPATH . 'vendor/autoload.php';
 use PhpOffice\PhpSpreadsheet\Spreadsheet;
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
-use Dompdf\Dompdf;
-use Dompdf\Options;
+use Mpdf\Mpdf;
 
 class Production_process extends MY_Controller {
 
@@ -400,17 +399,25 @@ class Production_process extends MY_Controller {
 
          // Data Siap Disimpan
          $data = [
-             'production_header_id' => $prod_id, 'stage_name' => $current_stage,
-             'item_id' => $item_id, 'item_type' => $item_type,
+             'production_header_id' => $prod_id, 
+             'stage_name' => $current_stage,
+             'item_id' => $item_id, 
+             'item_type' => $item_type,
              'stock_on_hand_id' => NULL, // WIP material tidak punya stock_on_hand_id
              'source_output_id' => NULL,
              'mr_detail_id' => NULL,
              'qty_used' => $qty_used,
              'notes' => strip_tags($this->input->post('notes')),
-             'wo_header_id' => $header->wo_header_id // Pass WO ID for ledger
+             'wo_header_id' => $header->wo_header_id // Pass WO ID for ledger (will be extracted before insert)
          ];
+         
+         // BC info untuk ledger (TIDAK disimpan di production_inputs, hanya di stock_ledger)
+         $data['_bc_type_code'] = !empty($selected_batch->bc_type_code) ? $selected_batch->bc_type_code : NULL;
+         $data['_bc_number'] = !empty($selected_batch->bc_number) ? $selected_batch->bc_number : NULL;
+         $data['_bc_date'] = !empty($selected_batch->bc_date) ? $selected_batch->bc_date : NULL;
 
          // Panggil Model (AKAN buat ledger 'wip_out')
+         log_message('error', 'Controller calling save_material_usage with data: ' . json_encode($data));
          if ($this->Production_model->save_material_usage($data)) {
              // --- LOGGING (UPDATE) ---
              $item_name = $selected_batch->item_name ?? 'Material';
@@ -419,7 +426,14 @@ class Production_process extends MY_Controller {
              // --- END LOG ---
              $response = ['success' => true, 'message' => 'Pemakaian material tambahan dicatat.'];
          } else {
-             $response['message'] = 'Gagal menyimpan pemakaian material tambahan (Database Error).';
+             // Ambil error dari log
+             $db_error = $this->db->error();
+             $error_msg = 'Database Error';
+             if (!empty($db_error['message'])) {
+                 $error_msg .= ': ' . $db_error['message'];
+             }
+             log_message('error', 'Controller: save_material_usage returned FALSE. DB Error: ' . json_encode($db_error));
+             $response['message'] = 'Gagal menyimpan pemakaian material tambahan (' . $error_msg . ')';
              if ($is_ajax) $this->output->set_status_header(500);
          }
          $this->_send_response($response, $is_ajax, $current_stage, $prod_id);
@@ -917,25 +931,60 @@ class Production_process extends MY_Controller {
     // FUNGSI EKSPOR PDF
     // ======================================================
     
-    // Helper function for PDF generation
+    // Helper function for PDF generation (using mPDF)
     private function _generate_pdf($view_path, $data, $filename_prefix) {
         try {
-            $options = new Options(); 
-            $options->set('isHtml5ParserEnabled', true); 
-            $options->set('isRemoteEnabled', true);
-            $options->set('fontDir', FCPATH . 'assets/fonts');
-            $options->set('fontCache', sys_get_temp_dir());
-            $dompdf = new Dompdf($options);
+            // Suppress warnings during PDF generation
+            $old_error = error_reporting();
+            error_reporting(E_ERROR | E_PARSE);
+            
+            // Gunakan writable directory yang aman
+            $temp_dir = FCPATH . 'uploads/temp';
+            if (!is_dir($temp_dir)) {
+                @mkdir($temp_dir, 0777, true);
+            }
+            
+            // Font directory - include mPDF defaults + custom fonts + CJK fonts
+            $font_dirs = [
+                FCPATH . 'vendor/mpdf/mpdf/ttfonts',  // Default mPDF fonts
+                FCPATH . 'assets/fonts'               // Custom fonts
+            ];
+            
+            // mPDF configuration dengan support untuk Chinese characters
+            $mpdf = new Mpdf([
+                'mode' => 'utf-8',
+                'format' => 'A4',
+                'orientation' => 'P',
+                'margin_left' => 12,
+                'margin_right' => 12,
+                'margin_top' => 12,
+                'margin_bottom' => 12,
+                'tempDir' => $temp_dir,
+                'fontDir' => $font_dirs,
+                'default_font' => 'dejavusans',
+                'useOnlyCore' => false
+            ]);
+            
+            // Disable drawing for complex CSS to avoid border errors
+            $mpdf->simpleTables = true;
+            
             $html = $this->load->view($view_path, $data, true);
-            $dompdf->loadHtml($html); 
-            $dompdf->setPaper('A4', 'portrait'); 
-            $dompdf->render();
+            $mpdf->WriteHTML($html);
+            
+            // Restore error reporting
+            error_reporting($old_error);
+            
             $filename = $filename_prefix . ".pdf";
-            $dompdf->stream($filename, ["Attachment" => 0]);
-            exit; // Stop script execution after streaming PDF
+            $mpdf->Output($filename, 'I'); // 'I' for inline preview
+            exit;
+        } catch (\Mpdf\MpdfException $e) {
+            error_reporting($old_error ?? E_ALL);
+            log_message('error', 'mPDF Exception: ' . $e->getMessage());
+            show_error('Gagal membuat file PDF: ' . $e->getMessage());
         } catch (Exception $e) {
-            log_message('error', 'PDF Generation Error: ' . $e->getMessage());
-            show_error('Gagal membuat file PDF. Cek log.');
+            error_reporting($old_error ?? E_ALL);
+            log_message('error', 'PDF Exception: ' . $e->getMessage());
+            show_error('Gagal membuat file PDF: ' . $e->getMessage());
         }
     }
 

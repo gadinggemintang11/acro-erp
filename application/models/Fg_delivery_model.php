@@ -277,6 +277,12 @@ class Fg_delivery_model extends CI_Model {
     public function unship_delivery($id) {
         $h = $this->get_header_by_id($id);
         if (!$h || $h->status != 'Confirmed') return false;
+        
+        // Cegah unship jika sudah diverifikasi di EXIM
+        if ($h->exim_verified) {
+            return false; // Silent fail - akan dicek di controller
+        }
+        
         $details = $this->get_details_by_header_id($id);
         if (empty($details)) return false;
 
@@ -338,17 +344,16 @@ class Fg_delivery_model extends CI_Model {
     /**
      * Get FG ready for a customer (based on receipts & stock_ledger)
      * returns list of items with current_stock, link to receipt_detail id + production/wo info
+     * FIXED: Group by SC + FG, tunjukkan qty available per SC
      */
     public function get_fg_ready_for_customer($customer_id) {
-        // Using the query we tested earlier: join reception details -> headers -> production -> wo -> sc -> finished_goods
         $sql = "
             SELECT 
-                frd.id AS receipt_detail_id,
-                frh.receipt_number,
-                frh.receipt_date,
-                frh.production_header_id,
-                frh.wo_header_id,
-                wo.wo_number,
+                MIN(frd.id) AS receipt_detail_id,
+                GROUP_CONCAT(DISTINCT frh.receipt_number ORDER BY frh.receipt_number SEPARATOR ', ') AS receipt_number,
+                MAX(frh.receipt_date) AS receipt_date,
+                MAX(wo.id) AS wo_id,
+                GROUP_CONCAT(DISTINCT wo.wo_number ORDER BY wo.wo_number SEPARATOR ', ') AS wo_number,
                 sc.id AS sc_id,
                 sc.sc_number,
                 c.nama_customer,
@@ -356,7 +361,13 @@ class Fg_delivery_model extends CI_Model {
                 fg.kode_barang,
                 fg.nama_barang,
                 fg.satuan,
-                IFNULL(sl.balance, 0) AS current_stock
+                NULL AS so_detail_id,
+                -- Total yang diterima dari receipt untuk SC + FG ini
+                SUM(frd.qty_received) AS total_received,
+                -- Total yang sudah dikirim untuk SC + FG ini
+                IFNULL(shipped.total_shipped, 0) AS already_shipped,
+                -- Available untuk SC ini = total_received - already_shipped
+                (SUM(frd.qty_received) - IFNULL(shipped.total_shipped, 0)) AS current_stock
             FROM fg_receipt_details frd
             LEFT JOIN fg_receipt_header frh ON frd.fg_receipt_header_id = frh.id
             LEFT JOIN production_header ph ON frh.production_header_id = ph.id
@@ -364,18 +375,27 @@ class Fg_delivery_model extends CI_Model {
             LEFT JOIN sales_contracts sc ON wo.sales_contract_id = sc.id
             LEFT JOIN customers c ON sc.customer_id = c.id
             LEFT JOIN finished_goods fg ON frd.fg_id = fg.id
+            
+            -- Hitung total yang sudah dikirim untuk kombinasi SC + FG ini
             LEFT JOIN (
-                SELECT item_id, MAX(id) AS max_id
-                FROM {$this->table_stock}
-                WHERE item_type = 'finished_goods'
-                GROUP BY item_id
-            ) AS sq ON sq.item_id = fg.id
-            LEFT JOIN {$this->table_stock} sl ON sl.id = sq.max_id
-            GROUP BY frd.id
-            HAVING current_stock > 0
-            ORDER BY sc.sc_number, wo.wo_number, frh.receipt_number
+                SELECT 
+                    fdd.fg_id,
+                    fdd.sales_contract_id,
+                    SUM(fdd.qty_shipped) AS total_shipped
+                FROM fg_delivery_details fdd
+                JOIN fg_delivery_header fdh ON fdd.fg_delivery_header_id = fdh.id
+                WHERE fdh.status IN ('Draft', 'Confirmed')
+                GROUP BY fdd.fg_id, fdd.sales_contract_id
+            ) AS shipped ON shipped.fg_id = fg.id AND shipped.sales_contract_id = sc.id
+            
+            WHERE frh.status = 'Confirmed'
+              AND sc.customer_id = ?
+            
+            GROUP BY sc.id, fg.id, c.nama_customer
+            HAVING current_stock > 0.001
+            ORDER BY sc.sc_number, fg.kode_barang
         ";
-        $query = $this->db->query($sql);
-        return $query->result();
+        
+        return $this->db->query($sql, [$customer_id])->result();
     }
 }

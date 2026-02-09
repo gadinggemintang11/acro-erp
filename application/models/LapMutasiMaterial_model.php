@@ -47,18 +47,15 @@ class LapMutasiMaterial_model extends CI_Model {
                 $sql_items
             ),
             saldo_awal AS (
-                SELECT sl.item_id, sl.item_type, sl.balance,
+                SELECT sl.item_id, sl.item_type,
+                       SUM(sl.qty_in) - SUM(sl.qty_out) as balance,
                        1 as has_history  -- Penanda: item ini pernah ada transaksi FISIK sebelumnya
                 FROM stock_ledger sl
-                JOIN (
-                    SELECT item_id, item_type, MAX(id) as max_id
-                    FROM stock_ledger
-                    WHERE transaction_date < ?
-                      AND item_type IN ('material', 'semifinished')
-                      -- Hanya hitung transaksi fisik, bukan WIP internal
-                      AND transaction_type NOT IN ('wip_in', 'wip_out', 'wip_out_reversal', 'production_out')
-                    GROUP BY item_id, item_type
-                ) sa_max ON sl.id = sa_max.max_id
+                WHERE sl.transaction_date < ?
+                  AND sl.item_type IN ('material', 'semifinished')
+                  -- Hanya hitung transaksi fisik warehouse, bukan WIP internal
+                  AND sl.transaction_type NOT IN ('wip_in', 'wip_out', 'wip_out_reversal', 'production_out')
+                GROUP BY sl.item_id, sl.item_type
             ),
             mutasi AS (
                 SELECT
@@ -156,12 +153,13 @@ class LapMutasiMaterial_model extends CI_Model {
     /**
      * =========================================================
      * INI FUNGSI YANG ANDA BUTUHKAN: get_item_detail
+     * FIXED: Recalculate running balance dari warehouse transactions saja
      * =========================================================
      */
     public function get_item_detail($item_id, $item_type) 
     {
         $this->db->select("
-            sl.transaction_date, sl.transaction_type, sl.qty_in, sl.qty_out, sl.balance,
+            sl.id, sl.transaction_date, sl.transaction_type, sl.qty_in, sl.qty_out,
             gh.grn_number, gh.bc_type_code, gh.bc_number, gh.bc_date, ph.po_number,
             mrh.mr_number, mrh.issuance_number,
             prh.prod_return_no,
@@ -191,7 +189,16 @@ class LapMutasiMaterial_model extends CI_Model {
         $this->db->order_by('sl.transaction_date', 'ASC');
         $this->db->order_by('sl.id', 'ASC');
         
-        return $this->db->get()->result();
+        $result = $this->db->get()->result();
+        
+        // RECALCULATE running balance dari warehouse transactions saja
+        $running_balance = 0;
+        foreach ($result as $row) {
+            $running_balance += (float)$row->qty_in - (float)$row->qty_out;
+            $row->balance = $running_balance; // Tambahkan property balance yang dihitung ulang
+        }
+        
+        return $result;
     }
 
     public function trace_recursive($item_id, $item_type, $limit = 25) 

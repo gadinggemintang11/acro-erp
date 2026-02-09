@@ -196,6 +196,9 @@ class ArInvoice extends MY_Controller {
     {
         $source_ids = $this->input->post('source_ids');
         $source_type = $this->input->post('source_type');
+        
+        error_log("AJAX get_doc_details - source_ids: " . json_encode($source_ids) . ", source_type: " . $source_type);
+        
         if (empty($source_ids)) {
             echo json_encode(['success' => false, 'message' => 'Tidak ada dokumen dipilih']);
             return;
@@ -208,6 +211,9 @@ class ArInvoice extends MY_Controller {
         } else {
             $details = [];
         }
+        
+        error_log("AJAX get_doc_details - returned " . count($details) . " rows: " . json_encode($details));
+        
         echo json_encode(['success' => true, 'data' => $details]);
     }
 

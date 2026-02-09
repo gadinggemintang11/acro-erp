@@ -247,6 +247,7 @@ class LapMutasiFinished_model extends CI_Model {
     /**
      * Get ALL BC information for a material (tidak hanya 1 record terbaru)
      * Ini akan menampilkan semua GRN yang pernah ada untuk material ini
+     * FIX: Menggunakan DISTINCT untuk menghindari cartesian product dari multiple LEFT JOIN
      */
     public function get_all_material_bc_info($material_id, $production_header_id)
     {
@@ -263,35 +264,28 @@ class LapMutasiFinished_model extends CI_Model {
 
             $prod_date = $prod_header->production_date;
 
-            // Enhanced query to get supplier info from GRN details (PO/MIR source)
-            $this->db->select('
-                gh.grn_number,
-                gh.grn_date,
-                gh.bc_type_code,
-                gh.bc_number, 
-                gh.bc_date,
-                COALESCE(s_grn.nama_supplier, s_po.nama_supplier, s_mir.nama_supplier) as nama_supplier,
-                ph.po_number,
-                mh.mir_number,
-                sl.transaction_date as arrival_date,
-                sl.qty_in as batch_qty
-            ');
+            // Query yang sudah di-distinct untuk menghindari cartesian product
+            $this->db->select('DISTINCT gh.id as grn_id', FALSE);
+            $this->db->select('gh.grn_number, gh.grn_date, gh.bc_type_code, gh.bc_number, gh.bc_date', FALSE);
+            $this->db->select('COALESCE(s_grn.nama_supplier, s_po.nama_supplier, s_mir.nama_supplier) as nama_supplier', FALSE);
+            $this->db->select('ph.po_number, mh.mir_number, sl.transaction_date as arrival_date, sl.qty_in as batch_qty', FALSE);
             $this->db->from('stock_ledger sl');
             $this->db->join('grn_header gh', 'sl.transaction_id = gh.id AND sl.transaction_type = "in"', 'inner');
-            $this->db->join('suppliers s_grn', 'gh.supplier_id = s_grn.id', 'left'); // Direct supplier from GRN
+            $this->db->join('suppliers s_grn', 'gh.supplier_id = s_grn.id', 'left');
             
-            // Join to get source document info (PO or MIR)
+            // Join to get source document info (PO or MIR) - ONLY if GRN has source doc
             $this->db->join('grn_details gd', 'gd.grn_header_id = gh.id AND gd.item_id = sl.item_id AND gd.item_type = sl.item_type', 'left');
             $this->db->join('po_header ph', 'gd.source_doc_header_id = ph.id AND gd.source_doc_type = "PO"', 'left');
-            $this->db->join('suppliers s_po', 'ph.supplier_id = s_po.id', 'left'); // Supplier from PO
+            $this->db->join('suppliers s_po', 'ph.supplier_id = s_po.id', 'left');
             $this->db->join('mir_header mh', 'gd.source_doc_header_id = mh.id AND gd.source_doc_type = "MIR"', 'left');
-            $this->db->join('suppliers s_mir', 'mh.supplier_id = s_mir.id', 'left'); // Supplier from MIR
+            $this->db->join('suppliers s_mir', 'mh.supplier_id = s_mir.id', 'left');
             
             $this->db->where('sl.item_id', $material_id);
             $this->db->where('sl.item_type', 'material');
             $this->db->where('sl.transaction_type', 'in');
             $this->db->where('sl.qty_in >', 0);
             $this->db->where('sl.transaction_date <=', $prod_date . ' 23:59:59');
+            $this->db->group_by('gh.id'); // GROUP BY untuk aggregate dan eliminate duplicates
             $this->db->order_by('sl.transaction_date', 'DESC');
             
             $bc_records = $this->db->get()->result();

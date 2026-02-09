@@ -32,9 +32,9 @@ class ArInvoice_model extends CI_Model {
             fdh.id, 
             fdh.delivery_number, 
             fdh.delivery_date, 
-            sc.sc_number, 
-            sc.currency_code
-        ");
+            GROUP_CONCAT(DISTINCT sc.sc_number ORDER BY sc.sc_number SEPARATOR ', ') as sc_number,
+            MAX(sc.currency_code) as currency_code
+        ", FALSE);
         $this->db->from('fg_delivery_header fdh');
         $this->db->join('fg_delivery_details fdd', 'fdd.fg_delivery_header_id = fdh.id', 'left');
         $this->db->join('sales_contracts sc', 'fdd.sales_contract_id = sc.id', 'left');

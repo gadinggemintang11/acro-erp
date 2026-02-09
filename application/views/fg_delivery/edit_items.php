@@ -44,7 +44,18 @@
                     </thead>
                     <tbody>
                         <?php $no=1; foreach($fg_ready as $f):
-                            $existing_item = $existing_details_map[$f->fg_id] ?? null;
+                            // Unique key per row: sc_id + wo_id + fg_id (bisa ada FG sama dari SC berbeda)
+                            $row_key = $f->sc_id . '_' . $f->wo_id . '_' . $f->fg_id;
+                            
+                            // Check apakah row ini sudah ada di existing details
+                            $existing_item = null;
+                            foreach($existing_details_map as $detail) {
+                                if($detail->fg_id == $f->fg_id && $detail->sales_contract_id == $f->sc_id) {
+                                    $existing_item = $detail;
+                                    break;
+                                }
+                            }
+                            
                             $is_checked = ($existing_item !== null);
                             $qty_val = $is_checked ? $existing_item->qty_shipped : '';
                             $notes_val = $is_checked ? $existing_item->notes : '';
@@ -52,7 +63,7 @@
                         ?>
                         <tr>
                             <td class="text-center">
-                                <input type="checkbox" class="chk" data-fg="<?= $f->fg_id ?>" <?= $is_checked ? 'checked' : '' ?>>
+                                <input type="checkbox" class="chk" data-key="<?= $row_key ?>" <?= $is_checked ? 'checked' : '' ?>>
                             </td>
                             <td class="text-center"><?= $no++ ?></td>
                             <td><?= htmlspecialchars($f->sc_number) ?></td>
@@ -70,12 +81,14 @@
                                 ?>
                             </td>
                             <td>
-                                <input type="hidden" name="details[<?= $f->fg_id ?>][fg_id]" value="<?= $f->fg_id ?>">
-                                <input type="hidden" name="details[<?= $f->fg_id ?>][sales_contract_id]" value="<?= $f->sc_id ?>">
-                                <input type="number" name="details[<?= $f->fg_id ?>][qty_shipped]" value="<?= $qty_val ?>" step="0.01" min="0" max="<?= $stock_display ?>" class="form-control form-control-sm qty" <?= $is_disabled ? 'disabled' : '' ?>>
+                                <input type="hidden" name="details[<?= $row_key ?>][fg_id]" value="<?= $f->fg_id ?>">
+                                <input type="hidden" name="details[<?= $row_key ?>][sales_contract_id]" value="<?= $f->sc_id ?>">
+                                <input type="hidden" name="details[<?= $row_key ?>][so_detail_id]" value="<?= $f->so_detail_id ?>">
+                                <input type="hidden" name="details[<?= $row_key ?>][uom]" value="<?= $f->satuan ?>">
+                                <input type="number" name="details[<?= $row_key ?>][qty_shipped]" value="<?= $qty_val ?>" step="0.01" min="0" max="<?= $stock_display ?>" class="form-control form-control-sm qty" <?= $is_disabled ? 'disabled' : '' ?>>
                             </td>
                             <td class="text-center"><?= htmlspecialchars($f->satuan) ?></td>
-                            <td><input type="text" name="details[<?= $f->fg_id ?>][notes]" value="<?= $notes_val ?>" class="form-control form-control-sm" <?= $is_disabled ? 'disabled' : '' ?>></td>
+                            <td><input type="text" name="details[<?= $row_key ?>][notes]" value="<?= $notes_val ?>" class="form-control form-control-sm" <?= $is_disabled ? 'disabled' : '' ?>></td>
                         </tr>
                         <?php endforeach; ?>
                     </tbody>
@@ -96,9 +109,9 @@
 document.querySelectorAll('.chk').forEach(chk => {
     chk.addEventListener('change', () => {
         const tr = chk.closest('tr');
-        const fg = chk.dataset.fg;
-        const qty = tr.querySelector(`[name="details[${fg}][qty_shipped]"]`);
-        const notes = tr.querySelector(`[name="details[${fg}][notes]"]`);
+        const key = chk.dataset.key;
+        const qty = tr.querySelector(`[name="details[${key}][qty_shipped]"]`);
+        const notes = tr.querySelector(`[name="details[${key}][notes]"]`);
         if (chk.checked) {
             qty.disabled = false;
             notes.disabled = false;

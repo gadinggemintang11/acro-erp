@@ -43,10 +43,13 @@
                         </tr>
                     </thead>
                     <tbody>
-                        <?php $no=1; foreach($fg_ready as $f): ?>
+                        <?php $no=1; foreach($fg_ready as $f): 
+                            // Unique key per row: sc_id + wo_id + fg_id
+                            $row_key = $f->sc_id . '_' . $f->wo_id . '_' . $f->fg_id;
+                        ?>
                         <tr>
                             <td class="text-center">
-                                <input type="checkbox" class="chk" data-fg="<?= $f->fg_id ?>">
+                                <input type="checkbox" class="chk" data-key="<?= $row_key ?>">
                             </td>
                             <td class="text-center"><?= $no++ ?></td>
                             <td><?= htmlspecialchars($f->sc_number) ?></td>
@@ -55,12 +58,14 @@
                             <td><?= htmlspecialchars($f->nama_barang) ?></td>
                             <td class="text-end"><?= number_format($f->current_stock,2) ?></td>
                             <td>
-                                <input type="hidden" name="details[<?= $f->fg_id ?>][fg_id]" value="<?= $f->fg_id ?>">
-                                <input type="hidden" name="details[<?= $f->fg_id ?>][sales_contract_id]" value="<?= $f->sc_id ?>">
-                                <input type="number" name="details[<?= $f->fg_id ?>][qty_shipped]" step="0.01" min="0" max="<?= $f->current_stock ?>" class="form-control form-control-sm qty" disabled>
+                                <input type="hidden" name="details[<?= $row_key ?>][fg_id]" value="<?= $f->fg_id ?>">
+                                <input type="hidden" name="details[<?= $row_key ?>][sales_contract_id]" value="<?= $f->sc_id ?>">
+                                <input type="hidden" name="details[<?= $row_key ?>][so_detail_id]" value="<?= $f->so_detail_id ?>">
+                                <input type="hidden" name="details[<?= $row_key ?>][uom]" value="<?= $f->satuan ?>">
+                                <input type="number" name="details[<?= $row_key ?>][qty_shipped]" step="0.01" min="0" max="<?= $f->current_stock ?>" class="form-control form-control-sm qty" disabled>
                             </td>
                             <td class="text-center"><?= htmlspecialchars($f->satuan) ?></td>
-                            <td><input type="text" name="details[<?= $f->fg_id ?>][notes]" class="form-control form-control-sm" disabled></td>
+                            <td><input type="text" name="details[<?= $row_key ?>][notes]" class="form-control form-control-sm" disabled></td>
                         </tr>
                         <?php endforeach; ?>
                     </tbody>
@@ -81,9 +86,9 @@
 document.querySelectorAll('.chk').forEach(chk=>{
     chk.addEventListener('change', ()=>{
         const tr = chk.closest('tr');
-        const fg = chk.dataset.fg;
-        const qty = tr.querySelector(`[name="details[${fg}][qty_shipped]"]`);
-        const notes = tr.querySelector(`[name="details[${fg}][notes]"]`);
+        const key = chk.dataset.key;
+        const qty = tr.querySelector(`[name="details[${key}][qty_shipped]"]`);
+        const notes = tr.querySelector(`[name="details[${key}][notes]"]`);
         if(chk.checked){
             qty.disabled = false;
             notes.disabled = false;

@@ -59,7 +59,7 @@
             if (function_exists('base_url')) {
                 $company_logo = base_url('assets/img/logo_full_biru.png');
             } else {
-                $fsLogo = 'C:\\xampp\\htdocs\\neokaber\\assets\\img\\logo_full_biru.png';
+                $fsLogo = 'assets\\img\\logo_full_biru.png';
                 if (file_exists($fsLogo)) {
                     $company_logo = 'file:///' . str_replace('\\', '/', $fsLogo);
                 } else {

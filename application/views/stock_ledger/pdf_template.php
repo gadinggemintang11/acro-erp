@@ -35,6 +35,7 @@
                 <th style="width:10%"><?= lang_line('stock_ledger_pdf_in', 'Masuk'); ?></th>
                 <th style="width:10%"><?= lang_line('stock_ledger_pdf_return', 'Return'); ?></th>
                 <th style="width:10%"><?= lang_line('stock_ledger_pdf_out', 'Keluar'); ?></th>
+                <th style="width:10%"><?= lang_line('stock_ledger_pdf_adjustment', 'Adjustment'); ?></th>
                 <th style="width:10%"><?= lang_line('stock_ledger_pdf_closing', 'Stok Akhir'); ?></th>
             </tr>
         </thead>
@@ -49,10 +50,11 @@
                 <td class="text-right"><?= $row->receive_qty > 0 ? number_format($row->receive_qty, 2) : '-'; ?></td>
                 <td class="text-right"><?= $row->return_qty > 0 ? number_format($row->return_qty, 2) : '-'; ?></td>
                 <td class="text-right"><?= $row->out_qty > 0 ? number_format($row->out_qty, 2) : '-'; ?></td>
+                <td class="text-right"><?= $row->adjustment_qty != 0 ? number_format($row->adjustment_qty, 2) : '-'; ?></td>
                 <td class="text-right"><?= number_format($row->closing_stock, 2); ?></td>
             </tr>
             <?php endforeach; else: ?>
-                <tr><td colspan="9" class="text-center" style="padding: 20px;"><?= lang_line('stock_ledger_pdf_no_data', '- Tidak ada data stok ditemukan -'); ?></td></tr>
+                <tr><td colspan="10" class="text-center" style="padding: 20px;"><?= lang_line('stock_ledger_pdf_no_data', '- Tidak ada data stok ditemukan -'); ?></td></tr>
             <?php endif; ?>
         </tbody>
     </table>

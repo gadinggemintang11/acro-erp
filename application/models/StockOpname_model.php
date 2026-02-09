@@ -185,41 +185,34 @@ class StockOpname_model extends CI_Model {
     // Method baru: Ambil item yang sudah pernah ada transaksi
     private function get_items_with_transactions($item_type)
     {
+        // Warehouse transaction types (sesuai get_warehouse_tx_types di Stock_ledger_model)
+        $warehouse_tx_types = [
+            'in', 'IN_RETURN_WIP', 'ADJ_IN', 
+            'OUT_ISSUE', 'production_out', 'OUT_SHIPMENT', 'OUT_SCRAP_BC', 'ADJ_OUT'
+        ];
+        $warehouse_tx_list = "'" . implode("','", $warehouse_tx_types) . "'";
+        
+        // PERBAIKAN: Ambil final balance dari warehouse transaction TERAKHIR
+        // Ini adalah nilai yang SEHARUSNYA ada di stock opname
         $sql = "
-            SELECT DISTINCT
+            SELECT 
                 sl.item_id,
                 sl.item_type,
-                -- Ambil balance terakhir
-                (SELECT balance 
-                 FROM stock_ledger sl2 
+                -- Ambil balance dari warehouse tx terakhir (paling reliable)
+                (SELECT balance
+                 FROM stock_ledger sl2
                  WHERE sl2.item_id = sl.item_id 
-                   AND sl2.item_type = sl.item_type 
-                 ORDER BY sl2.id DESC 
+                   AND sl2.item_type = sl.item_type
+                   AND sl2.transaction_type IN ($warehouse_tx_list)
+                 ORDER BY sl2.id DESC
                  LIMIT 1) as current_balance
-            FROM stock_ledger sl
-            WHERE sl.item_type = ?
+            FROM (
+                SELECT DISTINCT item_id, item_type 
+                FROM stock_ledger 
+                WHERE item_type = ?
+                AND transaction_type IN ($warehouse_tx_list)
+            ) sl
         ";
-        
-        // Filter berdasarkan jenis item
-        switch($item_type) {
-            case 'material':
-            case 'semifinished':
-                // Exclude WIP internal transactions untuk material/semifinished
-                $sql .= " AND sl.transaction_type NOT IN ('wip_in', 'wip_out', 'wip_out_reversal', 'production_out')";
-                break;
-            case 'scrap':
-                // Untuk scrap, ambil semua transaksi
-                break;
-            case 'finished_goods':
-                // Untuk FG, hanya transaksi fisik
-                $sql .= " AND sl.transaction_type IN ('fg_in', 'fg_out', 'adjustment')";
-                break;
-            case 'machine':
-                // Untuk machine, semua transaksi
-                break;
-        }
-        
-        $sql .= " ORDER BY sl.item_id";
         
         return $this->db->query($sql, [$item_type])->result();
     }

@@ -182,6 +182,232 @@ class Warehouse_in extends MY_Controller {
     }
 
     /**
+     * AJAX: Get list of available MIR numbers for selection
+     * Used in Multi-MIR selection modal
+     */
+    public function get_available_mir_numbers() {
+        if (!check_access('warehouse_in', 'edit')) {
+            header('Content-Type: application/json');
+            echo json_encode(['status' => 'error', 'message' => 'Unauthorized']);
+            return;
+        }
+
+        $grn_id = $this->input->get('grn_id');
+        $search_term = $this->input->get('q') ?? '';
+
+        if (empty($grn_id) || !is_numeric($grn_id)) {
+            header('Content-Type: application/json');
+            echo json_encode(['status' => 'error', 'message' => 'Invalid GRN ID']);
+            return;
+        }
+
+        $header = $this->Warehouse_in_model->get_header_by_id($grn_id);
+        if (!$header || $header->base_on != 'MIR') {
+            header('Content-Type: application/json');
+            echo json_encode(['status' => 'error', 'message' => 'GRN is not MIR-based']);
+            return;
+        }
+
+        // Get MIR list with available items
+        $this->db->select('
+            mh.id as mir_id,
+            mh.mir_number,
+            mh.request_date,
+            mh.status as mir_status,
+            COUNT(md.id) as total_items,
+            SUM(CASE WHEN gd.id IS NULL THEN 1 ELSE 0 END) as available_items
+        ')
+        ->from('mir_header mh')
+        ->join('mir_details md', 'md.mir_header_id = mh.id', 'left')
+        ->join('grn_details gd', 'gd.source_doc_detail_id = md.id AND gd.source_doc_type = "MIR"', 'left')
+        ->where('mh.status', 'Approved') // Only approved MIR
+        ->group_by('mh.id');
+
+        // Search filter
+        if (!empty($search_term)) {
+            $this->db->like('mh.mir_number', $search_term);
+        }
+
+        $this->db->order_by('mh.request_date', 'DESC');
+        $mirs = $this->db->get()->result();
+
+        $results = [];
+        foreach ($mirs as $mir) {
+            // Get item details for tooltip
+            $items = $this->db
+                ->select('md.id, md.item_id, md.item_type, md.qty, md.allowance, md.total_qty')
+                ->from('mir_details md')
+                ->join('grn_details gd', 'gd.source_doc_detail_id = md.id AND gd.source_doc_type = "MIR"', 'left')
+                ->where('md.mir_header_id', $mir->mir_id)
+                ->where('gd.id', NULL) // Only items not yet received
+                ->get()
+                ->result();
+
+            $item_count = count($items);
+            if ($item_count > 0) { // Only show MIR with remaining items
+                $results[] = [
+                    'mir_id' => $mir->mir_id,
+                    'mir_number' => $mir->mir_number,
+                    'mir_date' => $mir->request_date,
+                    'total_items' => $mir->total_items,
+                    'available_items' => $item_count,
+                    'items_summary' => $items
+                ];
+            }
+        }
+
+        header('Content-Type: application/json');
+        echo json_encode(['status' => 'success', 'data' => $results]);
+    }
+
+    /**
+     * Auto-load items from MULTIPLE MIR numbers at once
+     * AJAX endpoint for multi-MIR selection feature
+     */
+    public function auto_load_multiple_mir_items() {
+        if (!check_access('warehouse_in', 'edit')) {
+            header('Content-Type: application/json');
+            echo json_encode(['status' => 'error', 'message' => 'Unauthorized']);
+            return;
+        }
+
+        $grn_id = $this->input->post('grn_id');
+        $mir_ids = $this->input->post('mir_ids'); // Array of MIR IDs
+
+        if (empty($grn_id) || !is_numeric($grn_id) || empty($mir_ids) || !is_array($mir_ids)) {
+            header('Content-Type: application/json');
+            echo json_encode(['status' => 'error', 'message' => 'Invalid parameters']);
+            return;
+        }
+
+        $header = $this->Warehouse_in_model->get_header_by_id($grn_id);
+        if (!$header || $header->status != 'Draft' || $header->base_on != 'MIR') {
+            header('Content-Type: application/json');
+            echo json_encode(['status' => 'error', 'message' => 'GRN tidak valid untuk auto-load MIR items']);
+            return;
+        }
+
+        // Start transaction
+        $this->db->trans_start();
+
+        $total_loaded = 0;
+        $error_mirs = [];
+
+        foreach ($mir_ids as $mir_id) {
+            if (!is_numeric($mir_id)) continue;
+
+            $mir_header = $this->Mir_model->get_header_by_id($mir_id);
+            if (!$mir_header) {
+                $error_mirs[] = 'MIR ID ' . $mir_id . ' tidak ditemukan';
+                continue;
+            }
+
+            // Get items from this MIR
+            $all_mir_items = $this->db
+                ->select('md.id as mir_detail_id, md.item_id, md.item_type, md.qty, md.allowance, md.total_qty, md.unit_value')
+                ->from('mir_details md')
+                ->where('md.mir_header_id', $mir_id)
+                ->get()
+                ->result();
+
+            // Filter items that still need to be received
+            $mir_details = [];
+            foreach ($all_mir_items as $item) {
+                $received_result = $this->db->select('SUM(receive_qty) as total_received')
+                                            ->from('grn_details')
+                                            ->where('source_doc_header_id', $mir_id)
+                                            ->where('source_doc_type', 'MIR')
+                                            ->where('source_doc_detail_id', $item->mir_detail_id)
+                                            ->get()
+                                            ->row();
+                
+                $total_received = $received_result->total_received ?? 0;
+                $receive_qty = $item->total_qty - $total_received;
+                
+                if ($receive_qty > 0.001) {
+                    $item->remaining_qty = $receive_qty;
+                    $mir_details[] = $item;
+                }
+            }
+
+            if (empty($mir_details)) continue;
+
+            // Load items from this MIR
+            foreach ($mir_details as $md) {
+                $receive_qty = $md->remaining_qty;
+                $unit_value = (float)($md->unit_value ?? 0);
+                $total_value = $receive_qty * $unit_value;
+
+                // Get item name and code
+                $item_code = '';
+                $item_name = '';
+                if ($md->item_type == 'material') {
+                    $item = $this->db->select('kode_material, nama_material')->from('materials')->where('id', $md->item_id)->get()->row();
+                    if ($item) {
+                        $item_code = $item->kode_material ?? '';
+                        $item_name = $item->nama_material ?? '';
+                    }
+                } else if ($md->item_type == 'semifinished') {
+                    $item = $this->db->select('kode_barang, nama_barang')->from('semifinished_goods')->where('id', $md->item_id)->get()->row();
+                    if ($item) {
+                        $item_code = $item->kode_barang ?? '';
+                        $item_name = $item->nama_barang ?? '';
+                    }
+                } else if ($md->item_type == 'machine') {
+                    $item = $this->db->select('kode_mesin, nama_mesin')->from('machines')->where('id', $md->item_id)->get()->row();
+                    if ($item) {
+                        $item_code = $item->kode_mesin ?? '';
+                        $item_name = $item->nama_mesin ?? '';
+                    }
+                } else if ($md->item_type == 'inventory') {
+                    $item = $this->db->select('kode_barang, nama_barang')->from('inventories')->where('id', $md->item_id)->get()->row();
+                    if ($item) {
+                        $item_code = $item->kode_barang ?? '';
+                        $item_name = $item->nama_barang ?? '';
+                    }
+                }
+
+                $data = [
+                    'grn_header_id' => $grn_id,
+                    'source_doc_header_id' => $mir_id,
+                    'source_doc_detail_id' => $md->mir_detail_id,
+                    'source_doc_type' => 'MIR',
+                    'item_id' => $md->item_id,
+                    'item_type' => $md->item_type,
+                    'receive_qty' => $receive_qty,
+                    'unit_value' => $unit_value,
+                    'total_value' => $total_value,
+                    'bc_type_code' => isset($header->bc_type_code) ? $header->bc_type_code : null,
+                    'bc_number' => isset($header->bc_number) ? $header->bc_number : null,
+                    'bc_date' => isset($header->bc_date) ? $header->bc_date : null
+                ];
+
+                if ($this->Warehouse_in_model->insert_item($data)) {
+                    $total_loaded++;
+                }
+            }
+        }
+
+        $this->db->trans_complete();
+
+        header('Content-Type: application/json');
+        if ($total_loaded > 0) {
+            echo json_encode([
+                'status' => 'success',
+                'message' => 'Berhasil auto-load ' . $total_loaded . ' item(s) dari ' . count($mir_ids) . ' MIR',
+                'total_loaded' => $total_loaded,
+                'error_mirs' => $error_mirs
+            ]);
+        } else {
+            echo json_encode([
+                'status' => 'warning',
+                'message' => 'Tidak ada item yang berhasil di-load',
+                'error_mirs' => $error_mirs
+            ]);
+        }
+    }
+
+    /**
      * Auto-load all items from a MIR when base_on is MIR
      * Called after GRN header is created with base_on = 'MIR'
      */
@@ -315,7 +541,11 @@ class Warehouse_in extends MY_Controller {
                 'item_type' => $md->item_type,
                 'receive_qty' => $receive_qty,
                 'unit_value' => $unit_value,
-                'total_value' => $total_value
+                'total_value' => $total_value,
+                // Tambah BC info dari GRN header
+                'bc_type_code' => isset($header->bc_type_code) ? $header->bc_type_code : null,
+                'bc_number' => isset($header->bc_number) ? $header->bc_number : null,
+                'bc_date' => isset($header->bc_date) ? $header->bc_date : null
             ];
 
             if ($this->Warehouse_in_model->insert_item($data)) {
@@ -514,8 +744,19 @@ class Warehouse_in extends MY_Controller {
             'grn_header_id' => $grn_id, 'source_doc_header_id' => $source_doc_header_id,
             'source_doc_detail_id' => $source_doc_detail_id, 'source_doc_type' => $source_doc_type,
             'item_id' => $item_id, 'item_type' => $item_type, 'receive_qty' => $receive_qty,
-            'unit_value' => $unit_value, 'total_value' => $total_value
+            'unit_value' => $unit_value, 'total_value' => $total_value,
+            // Tambah BC info dari GRN header (dapat di-override per detail jika perlu)
+            'bc_type_code' => isset($header->bc_type_code) ? $header->bc_type_code : null,
+            'bc_number' => isset($header->bc_number) ? $header->bc_number : null,
+            'bc_date' => isset($header->bc_date) ? $header->bc_date : null
         ];
+        
+        // DEBUG: Log BC values  - FORCE WRITE TO FILE
+        $debug_msg = '[ADD_ITEM] GRN=' . $grn_id . 
+                     ' | Header Object: ' . json_encode((array)$header) .
+                     ' | Data Array: ' . json_encode($data);
+        file_put_contents('/tmp/mingbao_debug.log', $debug_msg . "\n", FILE_APPEND);
+        
         if ($this->Warehouse_in_model->insert_item($data)) { $this->session->set_flashdata('success', 'Item diterima.'); }
         else { $this->session->set_flashdata('error', 'Gagal menerima item!'); }
         redirect('warehouse_in/detail/' . $grn_id);

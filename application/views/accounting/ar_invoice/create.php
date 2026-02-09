@@ -67,13 +67,32 @@
                 <h6 class="m-0 font-weight-bold text-primary">Detail Dokumen Sumber</h6>
             </div>
             <div class="card-body">
-                <div class="form-group">
+                <div id="doc-list-container" style="display: none;">
                     <label>Pilih Dokumen (DO / Scrap Out) yang akan ditagih *</label>
-                    <select id="source_ids" name="source_ids[]" class="form-control" multiple>
-                        <option>Pilih Customer dan Sumber Tagihan dulu</option>
-                    </select>
+                    <div class="table-responsive" style="max-height: 300px; overflow-y: auto;">
+                        <table class="table table-bordered table-sm">
+                            <thead class="thead-light sticky-top" style="position: sticky; top: 0; background: #f8f9fa;">
+                                <tr>
+                                    <th style="width: 50px;">
+                                        <input type="checkbox" id="check-all-docs">
+                                    </th>
+                                    <th>No. Dokumen</th>
+                                    <th>Tanggal</th>
+                                    <th>SC Number</th>
+                                    <th>Mata Uang</th>
+                                </tr>
+                            </thead>
+                            <tbody id="doc-list-body">
+                            </tbody>
+                        </table>
+                    </div>
                 </div>
-                <button type="button" id="btn-load-docs" class="btn btn-info">Tarik Item dari Dokumen</button>
+                <div id="doc-placeholder">
+                    <p class="text-muted">Pilih Customer dan Sumber Tagihan terlebih dahulu untuk melihat daftar dokumen.</p>
+                </div>
+                <button type="button" id="btn-load-docs" class="btn btn-info mt-3" style="display: none;">
+                    <i class="fas fa-download"></i> Tarik Item dari Dokumen Terpilih
+                </button>
                 <hr>
                 <div class="table-responsive">
                     <table class="table table-bordered">
@@ -192,17 +211,23 @@ $(document).ready(function() {
     $('#customer_id, #source_type').change(function() {
         loadPendingDocs();
     });
+    
+    // Check all checkbox
+    $(document).on('change', '#check-all-docs', function() {
+        $('.doc-checkbox').prop('checked', this.checked);
+    });
 
     function loadPendingDocs() {
         var customerId = $('#customer_id').val();
         var sourceType = $('#source_type').val();
-        var docSelect = $('#source_ids');
         
-        docSelect.html('<option>Memuat...</option>');
+        $('#doc-list-body').html('');
         $('#detail-body').html(''); 
+        $('#doc-placeholder').show();
+        $('#doc-list-container').hide();
+        $('#btn-load-docs').hide();
         
         if (!customerId || !sourceType) {
-            docSelect.html('<option>Pilih Customer & Sumber Dulu</option>');
             return;
         }
 
@@ -212,32 +237,66 @@ $(document).ready(function() {
             data: { customer_id: customerId, source_type: sourceType },
             dataType: "json",
             success: function(response) {
-                docSelect.html('');
                 if (response.success && response.data.length > 0) {
+                    $('#doc-placeholder').hide();
+                    $('#doc-list-container').show();
+                    $('#btn-load-docs').show();
+                    
+                    var tbody = '';
                     response.data.forEach(function(doc) {
-                        var docRef = doc.sc_number || doc.bc_number || 'N/A';
-                        // Simpan currency di data-attribute
-                        docSelect.append(`<option value="${doc.id}" data-currency="${doc.currency_code}">${doc.delivery_number || doc.doc_no} (Ref: ${docRef})</option>`);
+                        var docNumber = doc.delivery_number || doc.doc_no;
+                        var docDate = doc.delivery_date || doc.doc_date;
+                        var docRef = doc.sc_number || doc.bc_number || '-';
+                        
+                        tbody += `
+                            <tr>
+                                <td class="text-center">
+                                    <input type="checkbox" class="doc-checkbox" value="${doc.id}" 
+                                           data-currency="${doc.currency_code}">
+                                </td>
+                                <td>${docNumber}</td>
+                                <td>${docDate}</td>
+                                <td>${docRef}</td>
+                                <td>${doc.currency_code}</td>
+                            </tr>
+                        `;
                     });
+                    $('#doc-list-body').html(tbody);
                 } else {
-                    docSelect.html('<option>Tidak ada dokumen yang bisa ditagih</option>');
+                    $('#doc-placeholder').html('<p class="text-warning">Tidak ada dokumen yang bisa ditagih untuk customer ini.</p>').show();
                 }
             }
         });
     }
 
     $('#btn-load-docs').click(function() {
-        var source_ids = $('#source_ids').val();
-        var source_type = $('#source_type').val();
+        // Ambil semua checkbox yang dicentang
+        var source_ids = [];
+        var currencies = [];
         
-        if (!source_ids || source_ids.length === 0) {
-            alert('Pilih dokumen terlebih dahulu.');
+        $('.doc-checkbox:checked').each(function() {
+            source_ids.push($(this).val());
+            currencies.push($(this).data('currency'));
+        });
+        
+        if (source_ids.length === 0) {
+            alert('Pilih minimal 1 dokumen terlebih dahulu.');
             return;
         }
         
-        // Ambil currency dari OPSI PERTAMA yang dipilih
-        var firstOptionCurrency = $('#source_ids option:selected').first().data('currency') || 'IDR';
-        updateCurrencyDisplay(firstOptionCurrency);
+        // Validasi: semua dokumen harus punya currency yang sama
+        var firstCurrency = currencies[0];
+        var allSameCurrency = currencies.every(c => c === firstCurrency);
+        
+        if (!allSameCurrency) {
+            alert('Tidak bisa menggabungkan dokumen dengan mata uang berbeda dalam 1 invoice!\nPilih dokumen dengan mata uang yang sama.');
+            return;
+        }
+        
+        // Update currency display
+        updateCurrencyDisplay(firstCurrency);
+        
+        var source_type = $('#source_type').val();
 
         $.ajax({
             url: "<?= base_url('arinvoice/ajax_get_doc_details'); ?>",
@@ -248,10 +307,9 @@ $(document).ready(function() {
                 $('#detail-body').html(''); 
                 if (response.success && response.data.length > 0) {
                     response.data.forEach(function(item, i) {
-                        // Jika currency item tidak cocok dengan header, jangan tambahkan (atau beri warning)
-                        if(item.currency_code != firstOptionCurrency) {
-                            $('#detail-body').append(`<tr><td colspan="4" class="text-danger">Item ${item.description} dilewati karena beda mata uang (${item.currency_code}).</td></tr>`);
-                            return; // skip this item
+                        // Skip item jika currency tidak cocok
+                        if(item.currency_code != firstCurrency) {
+                            return;
                         }
                         
                         var total = item.qty * item.unit_price;
@@ -269,7 +327,7 @@ $(document).ready(function() {
                                 <td><input type="number" name="details[${i}][qty]" class="form-control qty-item" value="${item.qty}" readonly></td>
                                 <td>
                                     <div class="input-group">
-                                        <div class="input-group-prepend"><span class="input-group-text currency-symbol">${getCurrencySymbol(firstOptionCurrency)}</span></div>
+                                        <div class="input-group-prepend"><span class="input-group-text currency-symbol">${getCurrencySymbol(firstCurrency)}</span></div>
                                         <input type="text" name="details[${i}][unit_price]" class="form-control price-item input-currency text-right" value="${item.unit_price}" ${priceReadonly}>
                                     </div>
                                 </td>

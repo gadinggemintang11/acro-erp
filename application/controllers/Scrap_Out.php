@@ -294,17 +294,32 @@ class Scrap_Out extends MY_Controller {
 
         $options = new Options();
         $options->set('isHtml5ParserEnabled', true);
-        $options->set('isRemoteEnabled', true);
+        $options->set('isRemoteEnabled', false);
+        $options->set('isFontSubsettingEnabled', false);
+        $options->set('debugPng', false);
+        $options->set('debugKeepTemp', false);
+        
+        // Use a writable temp directory for font cache
+        $tempDir = sys_get_temp_dir();
+        if (is_writable($tempDir)) {
+            $options->set('tempDir', $tempDir);
+        }
+        
         $dompdf = new Dompdf($options);
 
         $html = $this->load->view('scrap_out/print_pdf', ['header' => $data['header'], 'details' => $data['details']], true);
 
-        $dompdf->loadHtml($html);
-        $dompdf->setPaper('A4', 'portrait');
-        $dompdf->render();
-
-        $filename = 'scrap_out_' . str_replace('/', '-', $data['header']->doc_no) . '.pdf';
-        $dompdf->stream($filename, ['Attachment' => 0]);
+        try {
+            $dompdf->loadHtml($html);
+            $dompdf->setPaper('A4', 'portrait');
+            $dompdf->render();
+            
+            $filename = 'scrap_out_' . str_replace('/', '-', $data['header']->doc_no) . '.pdf';
+            $dompdf->stream($filename, ['Attachment' => 0]);
+        } catch (\Exception $e) {
+            $this->session->set_flashdata('error', 'Error generating PDF: ' . $e->getMessage());
+            redirect('Scrap_Out/view/' . $id);
+        }
     }
     
     // Helper function (asumsi ada di MY_Controller)

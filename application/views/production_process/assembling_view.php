@@ -301,7 +301,7 @@
                                                 <tr class="text-center">
                                                     <td class="text-left"><?= htmlspecialchars($out->item_name); ?></td>
                                                     <td><span class="badge badge-<?= $out->item_type == 'scrap' ? 'warning text-dark' : 'success'; ?>"><?= htmlspecialchars(ucfirst($out->item_type)); ?></span></td>
-                                                    <td class="text-right"><?= number_format($out->item_type == 'scrap' ? $out->qty_scrap : $out->qty_produced, 4); ?></td>
+                                                    <td class="text-right"><?= number_format($out->qty_produced, 4); ?></td>
                                                     <td>
                                                         <?php if($out->qc_checked_by): ?>
                                                             <span class="badge badge-success" title="Checked by <?= htmlspecialchars($out->qc_name ?? 'N/A'); ?> at <?= $out->qc_checked_at ? date('d/m/y H:i', strtotime($out->qc_checked_at)) : '-'; ?>">

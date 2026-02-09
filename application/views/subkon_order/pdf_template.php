@@ -225,7 +225,7 @@
     </table>
 
     <div class="footer-note">
-        Dicetak pada <?= date('d M Y H:i'); ?> | Sistem Neokaber IT Inventory
+        Dicetak pada <?= date('d M Y H:i'); ?> | Sistem IT Inventory
     </div>
 
 </body>

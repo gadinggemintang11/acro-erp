@@ -277,6 +277,131 @@ class Material_request extends MY_Controller {
             ]);
         }
     }
+
+    /**
+     * ✅ NEW: AJAX untuk load planned materials dari WO
+     */
+    public function ajax_get_wo_materials() {
+        header('Content-Type: application/json');
+        
+        $wo_id = $this->input->get('wo_id');
+        if (!$wo_id) {
+            echo json_encode(['success' => false, 'message' => 'WO ID tidak valid']);
+            return;
+        }
+
+        // Load Wo_model dan ambil planned materials
+        $this->load->model('Wo_model');
+        $wo_header = $this->Wo_model->get_header_by_id($wo_id);
+        
+        if (!$wo_header) {
+            echo json_encode(['success' => false, 'message' => 'Work Order tidak ditemukan']);
+            return;
+        }
+
+        $planned_materials = $this->Wo_model->get_planned_materials($wo_id);
+        
+        if (empty($planned_materials)) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Belum ada material yang direncanakan untuk WO ini'
+            ]);
+            return;
+        }
+
+        // Format materials untuk display
+        $materials = [];
+        foreach ($planned_materials as $mat) {
+            $materials[] = [
+                'id' => $mat->item_id,
+                'type' => $mat->item_type,
+                'code' => $mat->item_code,
+                'name' => $mat->item_name,
+                'planned_qty' => (float)$mat->planned_qty,
+                'unit' => $mat->unit_measure
+            ];
+        }
+
+        echo json_encode([
+            'success' => true,
+            'wo_number' => $wo_header->wo_number,
+            'materials' => $materials
+        ]);
+    }
+
+    /**
+     * ✅ NEW: AJAX untuk batch add materials dari WO popup
+     */
+    public function ajax_add_materials_from_wo($mr_id) {
+        header('Content-Type: application/json');
+        
+        if (!check_access('material_request', 'edit')) {
+            echo json_encode(['success' => false, 'message' => 'Tidak ada izin']);
+            return;
+        }
+
+        $header = $this->Mr_model->get_header_by_id($mr_id);
+        if (!$header || $header->status != 'Draft') {
+            echo json_encode(['success' => false, 'message' => 'MR tidak valid atau sudah disubmit']);
+            return;
+        }
+
+        $input = json_decode(file_get_contents('php://input'), true);
+        $wo_id = $input['wo_id'] ?? null;
+        $selected_items = $input['selected_items'] ?? [];
+
+        if (!$wo_id || empty($selected_items)) {
+            echo json_encode(['success' => false, 'message' => 'WO atau materials tidak valid']);
+            return;
+        }
+
+        $inserted_items = [];
+        $success_count = 0;
+        $duplicate_count = 0;
+
+        foreach ($selected_items as $item) {
+            $component_id = $item['id'];
+            $component_type = $item['type'];
+            $requested_qty = (float)($item['qty'] ?? 0);
+
+            if ($requested_qty <= 0) continue;
+
+            $data = [
+                'mr_header_id'        => $mr_id,
+                'wo_header_id'        => $wo_id,
+                'component_item_id'   => $component_id,
+                'component_item_type' => $component_type,
+                'requested_qty'       => $requested_qty,
+                'notes'               => ''
+            ];
+
+            $inserted_id = $this->Mr_model->insert_item($data);
+            if ($inserted_id) {
+                $success_count++;
+                $full_item = $this->Mr_model->get_item_by_id($inserted_id);
+                if ($full_item) {
+                    $inserted_items[] = $full_item;
+                }
+            } else {
+                $duplicate_count++;
+            }
+        }
+
+        if ($success_count > 0) {
+            echo json_encode([
+                'success' => true,
+                'count' => $success_count,
+                'duplicates' => $duplicate_count,
+                'items' => $inserted_items,
+                'message' => "$success_count item berhasil ditambahkan" . ($duplicate_count > 0 ? " ($duplicate_count item sudah ada)" : "")
+            ]);
+        } else {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Gagal menambahkan item (mungkin semua sudah ada)'
+            ]);
+        }
+    }
     
     // AJAX: Delete item
     public function delete_item_ajax() {

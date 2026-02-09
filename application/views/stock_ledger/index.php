@@ -275,22 +275,95 @@
 
         /* Number Formatting */
         .num-positive {
-            color: #28a745;
+            color: #10b981;
             font-weight: 600;
         }
         
         .num-negative {
-            color: #dc3545;
+            color: #ef4444;
             font-weight: 600;
         }
         
         .num-neutral {
-            color: #6c757d;
+            color: #6b7280;
         }
         
         .text-number {
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
             font-feature-settings: "tnum";
+        }
+
+        /* Professional Table Styling */
+        #stockReportTable tbody tr {
+            transition: all 0.2s ease;
+        }
+
+        #stockReportTable tbody tr:hover {
+            background: linear-gradient(to right, #f8f9fc 0%, #eef2ff 100%) !important;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.06);
+            transform: scale(1.002);
+        }
+
+        #stockReportTable tbody tr:hover .btn-detail {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border-color: transparent;
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+            transform: translateY(-2px);
+        }
+
+        #stockReportTable tbody tr:hover .btn-detail i {
+            animation: pulse 1s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { transform: scale(1); }
+            50% { transform: scale(1.1); }
+        }
+
+        /* Button Professional Styling */
+        .btn-detail {
+            border: 2px solid #667eea;
+            color: #667eea;
+            background: white;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .btn-detail:before {
+            content: "";
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            border-radius: 50%;
+            background: rgba(102, 126, 234, 0.1);
+            transform: translate(-50%, -50%);
+            transition: width 0.6s, height 0.6s;
+        }
+
+        .btn-detail:hover:before {
+            width: 300px;
+            height: 300px;
+        }
+
+        /* Tfoot styling */
+        tfoot {
+            background: #f8f9fa;
+            border-top: 2px solid #dee2e6;
+        }
+
+        tfoot input {
+            background: white;
+            border: 1px solid #d1d5db;
+            transition: all 0.2s ease;
+        }
+
+        tfoot input:focus {
+            border-color: #667eea;
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            background: #fafbff;
         }
 
         /* Modal Modern */
@@ -479,20 +552,21 @@
                     </div>
                     <div class="card-body p-0">
                         <div class="table-responsive">
-                            <table class="table table-hover table-striped mb-0 table-sm" id="stockReportTable" width="100%">
-                                <thead class="text-center">
+                            <table class="table table-hover mb-0" id="stockReportTable" width="100%" style="border-collapse: separate; border-spacing: 0;">
+                                <thead class="text-center" style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white; position: sticky; top: 0; z-index: 10; box-shadow: 0 2px 8px rgba(0,0,0,0.15);">
                                     <tr>
-                                        <th style="width: 50px;"><?= lang_line('stock_ledger_no', 'No'); ?></th>
-                                        <th style="width: 110px;"><?= lang_line('stock_ledger_warehouse_col', 'Gudang'); ?></th>
-                                        <th style="width: 120px;"><?= lang_line('stock_ledger_item_code', 'Kode Barang'); ?></th>
-                                        <th style="min-width: 220px;" class="text-left"><?= lang_line('stock_ledger_item_name', 'Nama Barang'); ?></th>
-                                        <th style="width: 80px;"><?= lang_line('stock_ledger_unit', 'Satuan'); ?></th>
-                                        <th style="width: 100px;"><?= lang_line('stock_ledger_opening_stock', 'Stok Awal'); ?></th>
-                                        <th style="width: 100px;"><?= lang_line('stock_ledger_in_grn', 'Masuk (GRN)'); ?></th>
-                                        <th style="width: 100px;"><?= lang_line('stock_ledger_in_return', 'Masuk (Retur)'); ?></th>
-                                        <th style="width: 100px;"><?= lang_line('stock_ledger_out', 'Keluar'); ?></th>
-                                        <th style="width: 110px;"><?= lang_line('stock_ledger_closing_stock', 'Stok Akhir'); ?></th>
-                                        <th style="width: 80px;" class="text-center"><?= lang_line('stock_ledger_actions', 'Aksi'); ?></th>
+                                        <th style="width: 50px; padding: 14px 8px; font-weight: 600; font-size: 13px; border: none; vertical-align: middle; border-right: 1px solid rgba(255,255,255,0.1);"><?= lang_line('stock_ledger_no', 'No'); ?></th>
+                                        <th style="width: 110px; padding: 14px 8px; font-weight: 600; font-size: 13px; border: none; vertical-align: middle; border-right: 1px solid rgba(255,255,255,0.1);"><?= lang_line('stock_ledger_warehouse_col', 'Gudang'); ?></th>
+                                        <th style="width: 120px; padding: 14px 8px; font-weight: 600; font-size: 13px; border: none; vertical-align: middle; border-right: 1px solid rgba(255,255,255,0.1);"><?= lang_line('stock_ledger_item_code', 'Kode Barang'); ?></th>
+                                        <th style="min-width: 220px; padding: 14px 12px; font-weight: 600; font-size: 13px; border: none; vertical-align: middle; border-right: 1px solid rgba(255,255,255,0.1);" class="text-left"><?= lang_line('stock_ledger_item_name', 'Nama Barang'); ?></th>
+                                        <th style="width: 80px; padding: 14px 8px; font-weight: 600; font-size: 13px; border: none; vertical-align: middle; border-right: 1px solid rgba(255,255,255,0.1);"><?= lang_line('stock_ledger_unit', 'Satuan'); ?></th>
+                                        <th style="width: 100px; padding: 14px 8px; font-weight: 600; font-size: 13px; border: none; vertical-align: middle; border-right: 1px solid rgba(255,255,255,0.1);"><?= lang_line('stock_ledger_opening_stock', 'Stok Awal'); ?></th>
+                                        <th style="width: 100px; padding: 14px 8px; font-weight: 600; font-size: 13px; border: none; vertical-align: middle; border-right: 1px solid rgba(255,255,255,0.1);"><?= lang_line('stock_ledger_in_grn', 'Masuk (GRN)'); ?></th>
+                                        <th style="width: 100px; padding: 14px 8px; font-weight: 600; font-size: 13px; border: none; vertical-align: middle; border-right: 1px solid rgba(255,255,255,0.1);"><?= lang_line('stock_ledger_in_return', 'Masuk (Retur)'); ?></th>
+                                        <th style="width: 100px; padding: 14px 8px; font-weight: 600; font-size: 13px; border: none; vertical-align: middle; border-right: 1px solid rgba(255,255,255,0.1);"><?= lang_line('stock_ledger_out', 'Keluar'); ?></th>
+                                        <th style="width: 100px; padding: 14px 8px; font-weight: 600; font-size: 13px; border: none; vertical-align: middle; border-right: 1px solid rgba(255,255,255,0.1);"><?= lang_line('stock_ledger_adjustment', 'Adjustment'); ?></th>
+                                        <th style="width: 110px; padding: 14px 8px; font-weight: 600; font-size: 13px; border: none; vertical-align: middle; border-right: 1px solid rgba(255,255,255,0.1);"><?= lang_line('stock_ledger_closing_stock', 'Stok Akhir'); ?></th>
+                                        <th style="width: 80px; padding: 14px 8px; font-weight: 600; font-size: 13px; border: none; vertical-align: middle;" class="text-center"><?= lang_line('stock_ledger_actions', 'Aksi'); ?></th>
                                     </tr>
                                 </thead>
                                 <tfoot>
@@ -508,30 +582,32 @@
                                         <th></th>
                                         <th></th>
                                         <th></th>
+                                        <th></th>
                                     </tr>
                                 </tfoot>
                                 <tbody>
                                     <?php if (empty($report)): ?>
-                                        <tr><td colspan="11" class="text-center text-muted py-5">
+                                        <tr><td colspan="12" class="text-center text-muted py-5">
                                             <i class="fas fa-inbox fa-3x mb-3 d-block text-muted"></i>
                                             <strong><?= lang_line('stock_ledger_no_data', 'Tidak ada data stok untuk filter yang dipilih.'); ?></strong>
                                         </td></tr>
                                     <?php else: $no = 1; foreach ($report as $row): ?>
-                                        <tr>
-                                            <td class="text-center text-muted"><?= $no++; ?></td>
-                                            <td class="text-center"><span class="badge badge-secondary px-2 py-1"><?= htmlspecialchars($item_types[$row->item_type] ?? ucfirst($row->item_type)); ?></span></td>
-                                            <td class="font-weight-bold text-dark"><?= htmlspecialchars($row->item_code); ?></td>
-                                            <td class="text-left"><?= htmlspecialchars($row->item_name); ?></td>
-                                            <td class="text-center"><?= htmlspecialchars($row->item_unit); ?></td>
-                                            <td class="text-right text-number text-dark"><?= number_format($row->opening_stock, 2, ',', '.'); ?></td>
-                                            <td class="text-right text-number <?= $row->receive_qty > 0 ? 'num-positive' : 'num-neutral'; ?>"><?= number_format($row->receive_qty, 2, ',', '.'); ?></td>
-                                            <td class="text-right text-number <?= $row->return_qty > 0 ? 'num-positive' : 'num-neutral'; ?>"><?= number_format($row->return_qty, 2, ',', '.'); ?></td>
-                                            <td class="text-right text-number <?= $row->out_qty > 0 ? 'num-negative' : 'num-neutral'; ?>"><?= number_format($row->out_qty, 2, ',', '.'); ?></td>
-                                            <td class="text-right text-number font-weight-bold <?= $row->closing_stock > 0 ? 'num-positive' : ($row->closing_stock < 0 ? 'num-negative' : 'num-neutral'); ?>">
+                                        <tr style="border-bottom: 1px solid #e9ecef; transition: all 0.2s ease;">
+                                            <td class="text-center text-muted" style="padding: 12px 8px; font-size: 13px; vertical-align: middle;"><?= $no++; ?></td>
+                                            <td class="text-center" style="padding: 12px 8px; vertical-align: middle;"><span class="badge badge-secondary px-2 py-1" style="font-size: 11px; font-weight: 600;"><?= htmlspecialchars($item_types[$row->item_type] ?? ucfirst($row->item_type)); ?></span></td>
+                                            <td class="font-weight-bold text-dark" style="padding: 12px 8px; font-size: 13px; vertical-align: middle; font-family: 'Courier New', monospace;"><?= htmlspecialchars($row->item_code); ?></td>
+                                            <td class="text-left" style="padding: 12px 12px; font-size: 13px; vertical-align: middle; color: #2c3e50;"><?= htmlspecialchars($row->item_name); ?></td>
+                                            <td class="text-center" style="padding: 12px 8px; font-size: 12px; vertical-align: middle; color: #7f8c8d;"><?= htmlspecialchars($row->item_unit); ?></td>
+                                            <td class="text-right text-number text-dark" style="padding: 12px 8px; font-size: 13px; vertical-align: middle; font-weight: 500;"><?= number_format($row->opening_stock, 2, ',', '.'); ?></td>
+                                            <td class="text-right text-number <?= $row->receive_qty > 0 ? 'num-positive' : 'num-neutral'; ?>" style="padding: 12px 8px; font-size: 13px; vertical-align: middle; font-weight: 500;"><?= number_format($row->receive_qty, 2, ',', '.'); ?></td>
+                                            <td class="text-right text-number <?= $row->return_qty > 0 ? 'num-positive' : 'num-neutral'; ?>" style="padding: 12px 8px; font-size: 13px; vertical-align: middle; font-weight: 500;"><?= number_format($row->return_qty, 2, ',', '.'); ?></td>
+                                            <td class="text-right text-number <?= $row->out_qty > 0 ? 'num-negative' : 'num-neutral'; ?>" style="padding: 12px 8px; font-size: 13px; vertical-align: middle; font-weight: 500;"><?= number_format($row->out_qty, 2, ',', '.'); ?></td>
+                                            <td class="text-right text-number <?= $row->adjustment_qty > 0 ? 'num-positive' : ($row->adjustment_qty < 0 ? 'num-negative' : 'num-neutral'); ?>" style="padding: 12px 8px; font-size: 13px; vertical-align: middle; font-weight: 500;"><?= number_format($row->adjustment_qty, 2, ',', '.'); ?></td>
+                                            <td class="text-right text-number font-weight-bold <?= $row->closing_stock > 0 ? 'num-positive' : ($row->closing_stock < 0 ? 'num-negative' : 'num-neutral'); ?>" style="padding: 12px 8px; font-size: 14px; vertical-align: middle;">
                                                 <?= number_format($row->closing_stock, 2, ',', '.'); ?>
                                             </td>
-                                            <td class="text-center">
-                                                <button class="btn btn-sm btn-outline-primary btn-detail"
+                                            <td class="text-center" style="padding: 12px 8px; vertical-align: middle;">
+                                                <button class="btn btn-sm btn-outline-primary btn-detail" style="padding: 6px 12px; border-radius: 6px; font-size: 12px; font-weight: 500; box-shadow: 0 2px 4px rgba(0,0,0,0.08); transition: all 0.2s ease;"
                                                         data-itemid="<?= $row->item_id; ?>"
                                                         data-itemtype="<?= $row->item_type; ?>"
                                                         data-itemname="<?= htmlspecialchars($row->item_name); ?>"

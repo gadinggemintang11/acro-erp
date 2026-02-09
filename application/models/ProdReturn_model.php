@@ -429,7 +429,20 @@ class ProdReturn_model extends CI_Model {
             $soh_id_to_update = $soh_result['soh_id'];
             $cost = $soh_result['unit_value'];
 
-            // 3. Catat ke Stock Ledger (tanpa 'balance')
+            // 2b. Ambil BC info dari transaksi wip_out terakhir untuk item ini di WO ini
+            $bc_info = $this->db->select('bc_type_code, bc_number, bc_date')
+                                ->from('stock_ledger')
+                                ->where('item_id', $material_id)
+                                ->where('item_type', $item_type)
+                                ->where('source_doc_id', $header['wo_header_id'])
+                                ->where_in('transaction_type', ['wip_in', 'wip_out'])
+                                ->where('bc_type_code IS NOT NULL')
+                                ->order_by('id', 'DESC')
+                                ->limit(1)
+                                ->get()
+                                ->row();
+
+            // 3. Catat ke Stock Ledger dengan BC info
             $ledger_data = [
                 'item_id'           => $material_id,
                 'item_type'         => $item_type,
@@ -441,7 +454,11 @@ class ProdReturn_model extends CI_Model {
                 'qty_in'            => $qty_return,
                 'qty_out'           => 0,
                 'unit_value'        => $cost,
-                'stock_on_hand_id'  => $soh_id_to_update
+                'stock_on_hand_id'  => $soh_id_to_update,
+                // BC info dari transaksi WIP sebelumnya
+                'bc_type_code'      => $bc_info->bc_type_code ?? NULL,
+                'bc_number'         => $bc_info->bc_number ?? NULL,
+                'bc_date'           => $bc_info->bc_date ?? NULL
             ];
 
             if (!$this->Stock_ledger_model->insert($ledger_data)) {

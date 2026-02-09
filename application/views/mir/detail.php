@@ -112,7 +112,7 @@
                             <th rowspan="2"><?= lang_line('mir_item_type', 'Tipe'); ?></th>
                             <th rowspan="2"><?= lang_line('mir_sales_contract', 'Sales Contract'); ?></th>
                             <th colspan="3">Quantity</th>
-                            <th rowspan="2">Nilai Satuan (IDR)</th>
+                            <th rowspan="2">Nilai Satuan</th>
                             <th rowspan="2">Total Harga</th>
                             <th rowspan="2">Remarks</th>
                             <th rowspan="2"><?= lang_line('mir_actions', 'Aksi'); ?></th>

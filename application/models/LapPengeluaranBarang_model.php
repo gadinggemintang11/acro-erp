@@ -28,8 +28,8 @@ class LapPengeluaranBarang_model extends CI_Model {
                 sl.transaction_type AS tx_type_raw,
                 sl.source_doc_type,
                 
-                -- 1. DOKUMEN PABEAN (BC)
-                cc.description AS jenis_bc, 
+                -- 1. DOKUMEN PABEAN (BC) - Ambil dari masing-masing sumber
+                COALESCE(cc_scrap.description, cc_fg.description, cc_sub.description, '-') AS jenis_bc, 
                 COALESCE(fdh.bc_number, soh.bc_number, sout.bc_number, '') AS nomor_bc,
                 COALESCE(fdh.bc_date, soh.bc_date, sout.bc_date, NULL) AS tanggal_bc,
                 
@@ -79,6 +79,7 @@ class LapPengeluaranBarang_model extends CI_Model {
 
             LEFT JOIN scrap_out_detail sod_scrap ON sl.transaction_id = sod_scrap.id AND sl.transaction_type = 'OUT_SCRAP_BC'
             LEFT JOIN scrap_out_header soh ON sod_scrap.header_id = soh.id
+            LEFT JOIN common_code cc_scrap ON cc_scrap.group_code = 'BC_TYPE' AND cc_scrap.code = soh.bc_type_code
             LEFT JOIN master_scrap scr ON sl.item_id = scr.id AND sl.item_type = 'scrap'
             LEFT JOIN suppliers s_scrap ON soh.destination = s_scrap.id 
 
@@ -90,13 +91,11 @@ class LapPengeluaranBarang_model extends CI_Model {
             LEFT JOIN finished_goods fg ON sl.item_id = fg.id AND sl.item_type = 'finished_goods'
             LEFT JOIN machines mc ON sl.item_id = mc.id AND sl.item_type = 'machine'
 
-            -- FIX KRITIS: JOIN COMMON CODE (Menggunakan Raw SQL untuk BC Type)
-            LEFT JOIN common_code cc ON cc.group_code = 'BC_TYPE'
-                AND (
-                    (sl.transaction_type = 'fg_out' AND cc.code = fdh.bc_type_id) 
-                    OR
-                    (sl.transaction_type IN ('OUT_SCRAP_BC', 'production_out') AND cc.code = COALESCE(soh.bc_type_code, sout.bc_type_code))
-                )
+            LEFT JOIN common_code cc_fg ON cc_fg.group_code = 'BC_TYPE' AND cc_fg.id = fdh.bc_type_id
+            LEFT JOIN common_code cc_sub ON cc_sub.group_code = 'BC_TYPE' AND cc_sub.code = sout.bc_type_code
+            
+            -- Combine BC Type dari berbagai sumber
+            LEFT JOIN common_code cc ON cc.id = COALESCE(cc_fg.id, cc_scrap.id, cc_sub.id)
 
 
             -- FILTER UTAMA (Eksternal Out)
@@ -105,12 +104,12 @@ class LapPengeluaranBarang_model extends CI_Model {
                 OR (sl.transaction_type = 'production_out' AND sl.source_doc_type = 'SUBKON_OUT')
             )
             
-            -- Filter EXIM Verification: Hanya tampilkan yang sudah diverifikasi
+            -- Filter EXIM Verification: Tampilkan yang sudah Confirmed DAN sudah diverifikasi EXIM
             AND (
-                (sl.transaction_type = 'fg_out' AND fdh.exim_verified = 1)
-                OR (sl.transaction_type = 'OUT_SCRAP_BC' AND soh.exim_verified = 1)
-                OR (sl.transaction_type = 'production_out' AND sl.source_doc_type = 'SUBKON_OUT' AND sout.exim_verified = 1)
-                OR (sl.transaction_type = 'ADJ_OUT')
+                (sl.transaction_type = 'fg_out' AND fdh.status = 'Confirmed' AND fdh.exim_verified = 1)
+                OR (sl.transaction_type = 'OUT_SCRAP_BC' AND soh.status = 'Confirmed' AND soh.exim_verified = 1)
+                OR (sl.transaction_type = 'production_out' AND sl.source_doc_type = 'SUBKON_OUT' AND sout.status = 'Confirmed' AND sout.exim_verified = 1)
+                OR (sl.transaction_type = 'ADJ_OUT' AND adjh.status = 'Confirmed')
             )
             
             " . $this->_build_tx_type_where($filters) . "
@@ -173,6 +172,9 @@ class LapPengeluaranBarang_model extends CI_Model {
         // JOIN untuk subkon_out verification
         $this->db->join('subkon_out_details sod_sub', 'sl.transaction_id = sod_sub.id AND sl.transaction_type = "production_out" AND sl.source_doc_type = "SUBKON_OUT"', 'left');
         $this->db->join('subkon_out_header sout', 'sod_sub.subkon_out_id = sout.id', 'left');
+        // JOIN untuk adjustment
+        $this->db->join('adjustment_details ad', 'sl.transaction_id = ad.id AND sl.transaction_type = "ADJ_OUT"', 'left');
+        $this->db->join('adjustment_header adjh', 'ad.adjustment_header_id = adjh.id', 'left');
         
         $this->db->where_in('sl.transaction_type', $this->get_outgoing_tx_types());
         $this->db->group_start();
@@ -180,12 +182,12 @@ class LapPengeluaranBarang_model extends CI_Model {
             $this->db->or_where('(sl.transaction_type = "production_out" AND sl.source_doc_type = "SUBKON_OUT")');
         $this->db->group_end();
         
-        // Filter EXIM Verification
+        // Filter EXIM Verification - Tampilkan yang Confirmed (tidak harus verified dulu)
         $this->db->group_start();
-            $this->db->where('(sl.transaction_type = "fg_out" AND fdh.exim_verified = 1)');
-            $this->db->or_where('(sl.transaction_type = "OUT_SCRAP_BC" AND soh.exim_verified = 1)');
-            $this->db->or_where('(sl.transaction_type = "production_out" AND sl.source_doc_type = "SUBKON_OUT" AND sout.exim_verified = 1)');
-            $this->db->or_where('sl.transaction_type = "ADJ_OUT"');
+            $this->db->where('(sl.transaction_type = "fg_out" AND fdh.status = "Confirmed")');
+            $this->db->or_where('(sl.transaction_type = "OUT_SCRAP_BC" AND soh.status = "Confirmed")');
+            $this->db->or_where('(sl.transaction_type = "production_out" AND sl.source_doc_type = "SUBKON_OUT" AND sout.status = "Confirmed")');
+            $this->db->or_where('(sl.transaction_type = "ADJ_OUT" AND adjh.status = "Confirmed")');
         $this->db->group_end();
         
         // Filter tanggal dokumen BC (bukan tanggal pengeluaran)

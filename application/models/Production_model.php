@@ -233,23 +233,34 @@ class Production_model extends CI_Model {
          $this->load->model('Stock_ledger_model'); // Load model di sini
 
          $this->db->reset_query();
-         // 1. Dapatkan semua material yang sudah MASUK ke WIP (wip_in) untuk  ini
+         // 1. Dapatkan semua material yang ada di WIP (wip_in dan IN_RETURN_WIP yang kembali ke WIP)
+         // IN_RETURN_WIP adalah return dari WIP ke warehouse, jadi menambah stock WIP yang available
          $this->db->select("
              CONCAT(sl.item_id, '_', sl.item_type) as batch_id,
              sl.item_id, 
              sl.item_type,
-             SUM(sl.qty_in) as total_issued_to_wip,
+             -- Total yang ada di WIP = wip_in + IN_RETURN_WIP yang belum keluar lagi
+             SUM(CASE 
+                 WHEN sl.transaction_type = 'wip_in' THEN sl.qty_in 
+                 WHEN sl.transaction_type = 'IN_RETURN_WIP' THEN sl.qty_in 
+                 ELSE 0 
+             END) as total_issued_to_wip,
              MAX(sl.unit_value) as cost_from_batch,
              sl.source_doc_id,
              CASE WHEN sl.item_type = 'material' THEN m.kode_material ELSE sf.kode_barang END as item_code,
              CASE WHEN sl.item_type = 'material' THEN m.nama_material ELSE sf.nama_barang END as item_name,
              CASE WHEN sl.item_type = 'material' THEN m.satuan ELSE sf.satuan END as item_unit,
-             'WIP' as grn_number
+             'WIP' as grn_number,
+             -- Ambil BC info (bisa dari wip_in atau IN_RETURN_WIP, prioritas yang terbaru)
+             -- Gunakan MAX dengan filter NOT NULL agar tidak return NULL kalau ada campuran NULL dan value
+             MAX(CASE WHEN sl.bc_type_code IS NOT NULL THEN sl.bc_type_code END) as bc_type_code,
+             MAX(CASE WHEN sl.bc_number IS NOT NULL THEN sl.bc_number END) as bc_number,
+             MAX(CASE WHEN sl.bc_date IS NOT NULL THEN sl.bc_date END) as bc_date
          ", FALSE);
          $this->db->from('stock_ledger sl');
          $this->db->join('materials m', 'sl.item_id = m.id AND sl.item_type = "material"', 'left');
          $this->db->join('semifinished_goods sf', 'sl.item_id = sf.id AND sl.item_type = "semifinished"', 'left');
-         $this->db->where('sl.transaction_type', 'wip_in'); // Material sudah di WIP
+         $this->db->where_in('sl.transaction_type', ['wip_in', 'IN_RETURN_WIP']); // Material yang ada di WIP
          $this->db->where('sl.source_doc_id', $wo_id); // Filter by WO ID
          $this->db->where('sl.item_id IS NOT NULL'); // Ensure item_id is not null
          $this->db->where('sl.item_id != \'\''); // Ensure item_id is not empty
@@ -274,18 +285,14 @@ class Production_model extends CI_Model {
              $usage = $this->db->get('stock_ledger')->row();
              $batch->total_used = $usage ? (float)$usage->total_used : 0;
 
-             // Total retur (IN_RETURN_WIP) untuk item ini di WO ini
-             $this->db->reset_query();
-             $this->db->select_sum('qty_in', 'total_returned');
-             $this->db->where('item_id', $item_id);
-             $this->db->where('item_type', $item_type);
-             $this->db->where('transaction_type', 'IN_RETURN_WIP');
-             $this->db->where('source_doc_id', $wo_id); // Hanya untuk WO ini
-             $return_info = $this->db->get('stock_ledger')->row();
-             $batch->total_returned = $return_info ? (float)$return_info->total_returned : 0;
+             // CATATAN: IN_RETURN_WIP sudah dihitung di total_issued_to_wip (sebagai penambah WIP)
+             // Jadi tidak perlu dikurangi lagi disini, berbeda dengan laporan WIP yang mengurangi
+             // Karena disini kita menghitung "material yang tersedia untuk dipakai di produksi"
+             // IN_RETURN_WIP = material dikembalikan dari warehouse KE WIP = menambah available stock WIP
+             $batch->total_returned = 0; // Tidak perlu tracking terpisah karena sudah di total_issued_to_wip
 
-             // 3. Hitung sisa
-             $batch->remaining_qty = round((float)$batch->total_issued_to_wip - $batch->total_used + $batch->total_returned, 5);
+             // 3. Hitung sisa = total di WIP - yang sudah terpakai
+             $batch->remaining_qty = round((float)$batch->total_issued_to_wip - $batch->total_used, 5);
          }
 
          // 4. Filter sisa > 0
@@ -297,36 +304,86 @@ class Production_model extends CI_Model {
      * Akan memanggil Stock_ledger_model HANYA jika sumbernya dari SOH
      */
     public function save_material_usage($data) {
-        if (empty($data['production_header_id']) || empty($data['item_id']) || empty($data['item_type']) ||
-            !isset($data['qty_used']) || $data['qty_used'] <= 0 || empty($data['stage_name'])) {
-                log_message('error', 'Production: save_material_usage gagal, data tidak lengkap. Data: ' . json_encode($data));
-                return false;
+        try {
+            error_log("=== SAVE_MATERIAL_USAGE START ===");
+            error_log("Data received: " . json_encode($data));
+            
+            if (empty($data['production_header_id']) || empty($data['item_id']) || empty($data['item_type']) ||
+                !isset($data['qty_used']) || $data['qty_used'] <= 0 || empty($data['stage_name'])) {
+                    error_log('Validation failed: data tidak lengkap');
+                    log_message('error', 'Production: save_material_usage gagal, data tidak lengkap. Data: ' . json_encode($data));
+                    return false;
+            }
+        } catch (Exception $e) {
+            error_log("EXCEPTION in validation: " . $e->getMessage());
+            return false;
         }
-        // Validasi sumber: SOH ID, Source Output ID, atau WIP material (keduanya NULL)
-        // WIP material dari gudang produksi tidak memiliki SOH ID
-        // if (empty($data['stock_on_hand_id']) && empty($data['source_output_id'])) {
-        //      log_message('error', 'Production: save_material_usage gagal, tidak ada sumber (SOH ID atau Source Output ID). Data: ' . json_encode($data));
-        //      return false;
-        // }
 
-        // Extract wo_header_id for ledger (will be removed from production_inputs data)
+        error_log("Validation passed");
+
+        // Extract wo_header_id dan BC info untuk ledger (tidak disimpan di production_inputs)
         $wo_header_id = !empty($data['wo_header_id']) ? $data['wo_header_id'] : null;
-        unset($data['mr_detail_id']);
-        unset($data['wo_header_id']); // Remove from production_inputs data
+        $bc_type_code = !empty($data['_bc_type_code']) ? $data['_bc_type_code'] : NULL;
+        $bc_number = !empty($data['_bc_number']) ? $data['_bc_number'] : NULL;
+        $bc_date = !empty($data['_bc_date']) ? $data['_bc_date'] : NULL;
         
+        error_log("Extracted BC - type: $bc_type_code, number: $bc_number, date: $bc_date");
+        error_log("Extracted BC - type: $bc_type_code, number: $bc_number, date: $bc_date");
+        
+        // DEBUG: Log data yang diterima
+        log_message('error', '=== START save_material_usage ===');
+        log_message('error', 'Data sebelum cleanup: ' . json_encode($data));
+        log_message('error', 'BC extracted - type: ' . $bc_type_code . ', number: ' . $bc_number . ', date: ' . $bc_date);
+        
+        error_log("Before cleanup");
+        // Hapus SEMUA field yang tidak ada di tabel production_inputs
+        unset($data['mr_detail_id']);
+        unset($data['wo_header_id']);
+        unset($data['_bc_type_code']);
+        unset($data['_bc_number']);
+        unset($data['_bc_date']);
+        // Hapus juga jika ada yang tanpa underscore (untuk safety)
+        unset($data['bc_type_code']);
+        unset($data['bc_number']);
+        unset($data['bc_date']);
+        
+        error_log("After cleanup - data: " . json_encode($data));
+        
+        // DEBUG: Log data setelah cleanup
+        log_message('error', 'Data setelah cleanup: ' . json_encode($data));
+        
+        error_log("Starting transaction");
         $this->db->trans_start();
+        error_log("Transaction started");
 
-        // 1. Insert production_inputs
-        $insert_input = $this->db->insert($this->table_inputs, $data);
+        // 1. Insert production_inputs (HANYA kolom yang ada di tabel)
+        error_log('Attempting insert to production_inputs...');
+        error_log('Insert data: ' . json_encode($data));
+        
+        try {
+            $insert_input = $this->db->insert($this->table_inputs, $data);
+            error_log('Insert result: ' . ($insert_input ? 'TRUE' : 'FALSE'));
+        } catch (Exception $e) {
+            error_log('EXCEPTION on insert: ' . $e->getMessage());
+            $this->db->trans_rollback();
+            return false;
+        }
+        
         if (!$insert_input) {
-            log_message('error', 'Production: Gagal insert production_inputs! DB Error: ' . print_r($this->db->error(), true) . ' Data: ' . json_encode($data));
+            $db_error = $this->db->error();
+            log_message('error', 'GAGAL insert production_inputs! Error code: ' . $db_error['code'] . ', Message: ' . $db_error['message']);
+            log_message('error', 'Data yang gagal: ' . json_encode($data));
             $this->db->trans_rollback();
             return false;
         }
         $input_id = $this->db->insert_id();
+        log_message('error', 'SUCCESS insert production_inputs, ID: ' . $input_id);
+        error_log('Insert production_inputs SUCCESS, ID: ' . $input_id);
 
         // 2. SELALU Buat ledger 'wip_out'
+        error_log('Loading Stock_ledger_model...');
         $this->load->model('Stock_ledger_model');
+        error_log('Stock_ledger_model loaded');
         
         $ledger_data = [
             'item_id'           => $data['item_id'],
@@ -339,34 +396,66 @@ class Production_model extends CI_Model {
             'qty_in'            => 0,
             'qty_out'           => (float)$data['qty_used'],
             'unit_value'        => 0.00, // Default cost
-            'stock_on_hand_id'  => NULL    // Default NULL
+            'stock_on_hand_id'  => NULL,   // Default NULL
+            // BC info dari parameter yang sudah di-extract (dari get_wip_materials_with_remaining)
+            'bc_type_code'      => $bc_type_code,
+            'bc_number'         => $bc_number,
+            'bc_date'           => $bc_date
         ];
 
-        // 3. Ambil cost HANYA jika sumbernya dari SOH (Material)
+        // 3. Ambil cost dan BC info jika sumbernya dari SOH (Material dari GRN)
         if (!empty($data['stock_on_hand_id']))
         {
-            $soh_cost = $this->db->select('unit_value')->where('id', $data['stock_on_hand_id'])->get('stock_on_hand')->row();
-            if($soh_cost) { 
-                $ledger_data['unit_value'] = (float)$soh_cost->unit_value; 
+            $soh_data = $this->db->select('unit_value, bc_type_code, bc_number, bc_date')
+                                 ->where('id', $data['stock_on_hand_id'])
+                                 ->get('stock_on_hand')
+                                 ->row();
+            if($soh_data) { 
+                $ledger_data['unit_value'] = (float)$soh_data->unit_value;
+                // Override BC info dengan data dari SOH jika ada
+                if (!empty($soh_data->bc_type_code)) {
+                    $ledger_data['bc_type_code'] = $soh_data->bc_type_code;
+                    $ledger_data['bc_number'] = $soh_data->bc_number;
+                    $ledger_data['bc_date'] = $soh_data->bc_date;
+                }
             }
             $ledger_data['stock_on_hand_id'] = $data['stock_on_hand_id'];
         }
-        // Jika sumbernya dari source_output_id (Semifinished),
-        // maka unit_value tetap 0 dan stock_on_hand_id tetap NULL. Ini sudah benar.
+        // Jika sumbernya dari IN_RETURN_WIP (tidak ada SOH ID),
+        // BC info sudah diambil dari data yang dikirim (dari stock_ledger sebelumnya).
+        // unit_value tetap 0 karena sudah pernah di-cost saat pertama kali masuk WIP.
 
         // 4. Masukkan ke ledger
-        if (!$this->Stock_ledger_model->insert($ledger_data)) {
-            log_message('error', 'Production: Gagal insert stock ledger untuk wip_out. Data: ' . json_encode($ledger_data));
+        log_message('error', 'Attempting insert to stock_ledger...');
+        log_message('error', 'Ledger data: ' . json_encode($ledger_data));
+        error_log('Attempting insert to stock_ledger...');
+        error_log('Ledger data: ' . json_encode($ledger_data));
+        
+        try {
+            $ledger_insert = $this->Stock_ledger_model->insert($ledger_data);
+            error_log('Ledger insert result: ' . ($ledger_insert ? 'TRUE' : 'FALSE'));
+        } catch (Exception $e) {
+            error_log('EXCEPTION on ledger insert: ' . $e->getMessage());
+            log_message('error', 'EXCEPTION ledger insert: ' . $e->getMessage());
             $this->db->trans_rollback();
             return false;
         }
+        
+        if (!$ledger_insert) {
+            log_message('error', 'GAGAL insert stock ledger untuk wip_out!');
+            log_message('error', 'Ledger data yang gagal: ' . json_encode($ledger_data));
+            $this->db->trans_rollback();
+            return false;
+        }
+        log_message('error', 'SUCCESS insert stock_ledger');
 
         $this->db->trans_complete();
 
         if ($this->db->trans_status() === FALSE) {
-            log_message('error', 'Production_model->save_material_usage Gagal melakukan transaksi DB.');
+            log_message('error', 'Transaction FAILED on trans_complete!');
             return false;
         }
+        log_message('error', '=== END save_material_usage SUCCESS ===');
         return true;
     }
 
@@ -505,14 +594,7 @@ class Production_model extends CI_Model {
                 WHEN pi.item_type = 'material' THEN m.satuan
                 WHEN pi.item_type = 'semifinished' THEN sf.satuan
                 ELSE NULL
-            END AS item_unit,
-
-       
-            grn.grn_number,
-            grn.bc_type_code,
-            grn.bc_number,
-            grn.bc_date,
-            s.nama_supplier
+            END AS item_unit
         ", false);
 
         $this->db->from($this->table_inputs . ' pi');
@@ -522,9 +604,6 @@ class Production_model extends CI_Model {
         
         // Join ke batch (SOH) untuk traceability
         $this->db->join('stock_on_hand soh', 'pi.stock_on_hand_id = soh.id', 'left');
-        // Join ke GRN & Supplier (dari SOH)
-        $this->db->join('grn_header grn', 'soh.grn_header_id = grn.id', 'left');
-        $this->db->join('suppliers s', 'grn.supplier_id = s.id', 'left');
 
         $this->db->where('pi.production_header_id', $prod_id);
         $this->db->where('pi.stage_name', $stage);
@@ -663,7 +742,13 @@ class Production_model extends CI_Model {
                 WHEN o.item_type = 'semifinished' THEN sf.kode_barang
                 WHEN o.item_type = 'scrap' THEN sc.scrap_code
                 ELSE NULL
-            END AS item_code
+            END AS item_code,
+            CASE 
+                WHEN o.item_type IN ('finished','finished_goods') THEN fg.satuan
+                WHEN o.item_type = 'semifinished' THEN sf.satuan
+                WHEN o.item_type = 'scrap' THEN sc.unit
+                ELSE NULL
+            END AS item_unit
         ");
         $this->db->from('production_outputs o');
         $this->db->join('finished_goods fg', 'fg.id = o.item_id AND o.item_type IN ("finished","finished_goods")', 'left');

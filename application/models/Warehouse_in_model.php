@@ -62,6 +62,13 @@ class Warehouse_in_model extends CI_Model {
         $query = $this->db->get();
         $header = $query ? $query->row() : null;
         
+        // DEBUG: Log header object properties
+        if ($header) {
+            file_put_contents('/tmp/mingbao_debug.log', 
+                '[get_header_by_id] ID=' . $id . ' | Header props: ' . json_encode((array)$header) . "\n", 
+                FILE_APPEND);
+        }
+        
         // Enhance supplier info if null (fallback to PO/MIR)
         if ($header) {
             $header = $this->enhance_supplier_info($header);
@@ -126,6 +133,7 @@ class Warehouse_in_model extends CI_Model {
         $this->db->reset_query();
         $select_clause = "
             d.id, d.grn_header_id, d.receive_qty, d.unit_value, d.total_value, d.source_doc_type, d.source_doc_header_id, d.item_id, d.item_type,
+            d.bc_type_code, d.bc_number, d.bc_date,
             CASE WHEN d.source_doc_type = 'PO' THEN poh.po_number WHEN d.source_doc_type = 'MIR' THEN mirh.mir_number END as source_doc_number,
             CASE WHEN d.item_type = 'material' THEN m.kode_material WHEN d.item_type = 'machine' THEN mc.kode_mesin WHEN d.item_type = 'inventory' THEN i.kode_barang WHEN d.item_type = 'semifinished' THEN sf.kode_barang END as item_code,
             CASE WHEN d.item_type = 'material' THEN m.nama_material WHEN d.item_type = 'machine' THEN mc.nama_mesin WHEN d.item_type = 'inventory' THEN i.nama_barang WHEN d.item_type = 'semifinished' THEN sf.nama_barang END as item_name
@@ -145,7 +153,17 @@ class Warehouse_in_model extends CI_Model {
 
     public function insert_item($data) {
         $this->db->reset_query();
-        return $this->db->insert($this->table_details, $data);
+        
+        // DEBUG: Log what's being inserted
+        log_message('info', '[Warehouse_in_model->insert_item] Inserting data: ' . json_encode($data));
+        
+        $result = $this->db->insert($this->table_details, $data);
+        
+        if (!$result) {
+            log_message('error', '[Warehouse_in_model->insert_item] Insert failed! DB Error: ' . $this->db->error()['message']);
+        }
+        
+        return $result;
     }
 
     public function delete_item($id) {
@@ -192,7 +210,11 @@ class Warehouse_in_model extends CI_Model {
                     'item_type'     => $item->item_type,
                     'initial_qty'   => (float)$item->receive_qty,
                     'available_qty' => (float)$item->receive_qty,
-                    'unit_value'    => (float)($item->unit_value ?? 0)
+                    'unit_value'    => (float)($item->unit_value ?? 0),
+                    // TAMBAH BC INFO DARI DETAIL
+                    'bc_type_code'  => $item->bc_type_code ?? $grn_header->bc_type_code ?? null,
+                    'bc_number'     => $item->bc_number ?? $grn_header->bc_number ?? null,
+                    'bc_date'       => $item->bc_date ?? $grn_header->bc_date ?? null
                 ];
                 $this->db->reset_query();
                 $insert_soh_success = $this->db->insert('stock_on_hand', $batch_data);
@@ -205,8 +227,14 @@ class Warehouse_in_model extends CI_Model {
             }
             
             // 2. Catat di Stock Ledger (Berlaku untuk SEMUA item_type)
+            // FIX: BC info harus dari detail, bukan header (agar per-batch)
             $last_balance = $this->Stock_ledger_model->get_last_balance($item->item_id, $item->item_type);
             $new_balance = $last_balance + (float)$item->receive_qty;
+            
+            // Get BC info from detail (jika ada), atau fallback ke header
+            $bc_type_code = $item->bc_type_code ?? $grn_header->bc_type_code ?? null;
+            $bc_number = $item->bc_number ?? $grn_header->bc_number ?? null;
+            $bc_date = $item->bc_date ?? $grn_header->bc_date ?? null;
             
             $ledger_data = [
                 'item_id'           => $item->item_id,
@@ -221,9 +249,9 @@ class Warehouse_in_model extends CI_Model {
                 'unit_value'        => (float)($item->unit_value ?? 0),
                 'balance'           => $new_balance,
                 'stock_on_hand_id'  => $stock_on_hand_id,
-                'bc_type_code'      => $grn_header->bc_type_code ?? null,
-                'bc_number'         => $grn_header->bc_number ?? null,
-                'bc_date'           => $grn_header->bc_date ?? null
+                'bc_type_code'      => $bc_type_code,
+                'bc_number'         => $bc_number,
+                'bc_date'           => $bc_date
             ];
 
             if (!$this->Stock_ledger_model->insert($ledger_data)) {

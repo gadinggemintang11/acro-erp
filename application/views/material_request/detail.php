@@ -80,6 +80,17 @@
                             </h6>
                         </div>
                         <?php if ($header->status == 'Draft' && check_access('material_request', 'edit')): ?>
+                        <div class="col-md-6 text-right">
+                            <button type="button" class="btn btn-primary btn-sm mr-2" id="btn-load-wo-materials" data-mr-id="<?= $header->id; ?>">
+                                <i class="fas fa-upload"></i> Load from WO Materials
+                            </button>
+                        </div>
+                        <?php endif; ?>
+                    </div>
+                    <?php if ($header->status == 'Draft' && check_access('material_request', 'edit')): ?>
+                    <div class="row align-items-center mt-2">
+                        <div class="col-md-6">
+                        </div>
                         <div class="col-md-6">
                             <div class="input-group input-group-sm">
                                 <div class="input-group-prepend">
@@ -100,8 +111,8 @@
                                 <i class="fas fa-info-circle"></i> Pilih WO sekali, otomatis terisi di baris input baru
                             </small>
                         </div>
-                        <?php endif; ?>
                     </div>
+                    <?php endif; ?>
                 </div>
                 <div class="card-body p-0">
                      <div class="table-responsive">
@@ -321,7 +332,199 @@ $(document).ready(function() {
 }
 </style>
 
+<!-- Modal Load Materials from WO -->
+<div class="modal fade" id="modalLoadWOMaterials" tabindex="-1" role="dialog" aria-labelledby="modalLoadWOMaterialsLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalLoadWOMaterialsLabel">Load Materials from WO</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label><strong>Select Work Order:</strong></label>
+                    <select id="modal_wo_selector" class="form-control" style="width: 100%;">
+                        <option value="">-- Cari No. Work Order --</option>
+                    </select>
+                </div>
+                
+                <div id="modal_materials_list" class="mt-4" style="display: none;">
+                    <h6 class="font-weight-bold mb-3">Planned Materials:</h6>
+                    <div class="table-responsive">
+                        <table class="table table-sm table-bordered">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th width="40" class="text-center">
+                                        <input type="checkbox" id="chk-select-all" title="Select All">
+                                    </th>
+                                    <th>Code</th>
+                                    <th>Material Name</th>
+                                    <th width="100">Planned Qty</th>
+                                    <th width="100">Request Qty</th>
+                                    <th width="70">Unit</th>
+                                </tr>
+                            </thead>
+                            <tbody id="modal_materials_tbody">
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+
+                <div id="modal_no_materials" class="alert alert-info mt-4" style="display: none;">
+                    <i class="fas fa-info-circle mr-2"></i>Select a Work Order to view planned materials.
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="btn-confirm-load-materials">
+                    <i class="fas fa-check"></i> Load Selected Materials
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
     const BASE_URL = '<?= base_url(); ?>';
 </script>
 <script src="<?= base_url('assets/js/mr_inline_input.js'); ?>"></script>
+
+<!-- ✅ NEW: Script untuk Load from WO Materials -->
+<script>
+$(document).ready(function() {
+    // Initialize Select2 untuk modal WO selector
+    $('#modal_wo_selector').select2({
+        placeholder: 'Cari No. Work Order...',
+        width: '100%',
+        ajax: {
+            url: BASE_URL + 'material_request/search_open_wos',
+            dataType: 'json',
+            delay: 250,
+            data: function(params) {
+                return { q: params.term };
+            },
+            processResults: function(data) {
+                return { results: data.results };
+            }
+        }
+    });
+
+    // Load materials ketika WO dipilih
+    $('#modal_wo_selector').on('select2:select', function(e) {
+        var wo_id = e.params.data.id;
+        loadWOMaterials(wo_id);
+    });
+
+    // Select All checkbox
+    $('#chk-select-all').on('change', function() {
+        var is_checked = $(this).is(':checked');
+        $('#modal_materials_tbody input[type="checkbox"]').prop('checked', is_checked);
+    });
+
+    // Button: Load materials
+    $('#btn-load-wo-materials').on('click', function() {
+        // Reset modal state
+        $('#modal_materials_tbody').html('');
+        $('#modal_materials_list').hide();
+        $('#modal_no_materials').html('<i class="fas fa-info-circle mr-2"></i>Select a Work Order to view planned materials.').show();
+        $('#chk-select-all').prop('checked', false);
+        $('#modalLoadWOMaterials').modal('show');
+    });
+
+    // Button: Confirm load materials
+    $('#btn-confirm-load-materials').on('click', function() {
+        confirmLoadMaterials();
+    });
+
+    // Function: Load WO materials
+    function loadWOMaterials(wo_id) {
+        $.ajax({
+            url: BASE_URL + 'material_request/ajax_get_wo_materials?wo_id=' + wo_id,
+            type: 'GET',
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    var html = '';
+                    response.materials.forEach(function(mat) {
+                        html += '<tr>';
+                        html += '<td class="text-center"><input type="checkbox" class="material-checkbox" data-id="' + mat.id + '" data-type="' + mat.type + '" data-planned-qty="' + mat.planned_qty + '"></td>';
+                        html += '<td><small>' + mat.code + '</small></td>';
+                        html += '<td><small>' + mat.name + '</small></td>';
+                        html += '<td class="text-right"><small>' + parseFloat(mat.planned_qty).toFixed(2) + '</small></td>';
+                        html += '<td><input type="number" step="0.01" class="form-control form-control-sm request-qty" value="' + parseFloat(mat.planned_qty).toFixed(2) + '" min="0"></td>';
+                        html += '<td><small>' + mat.unit + '</small></td>';
+                        html += '</tr>';
+                    });
+                    
+                    $('#modal_materials_tbody').html(html);
+                    $('#modal_materials_list').show();
+                    $('#modal_no_materials').hide();
+                    $('#chk-select-all').prop('checked', false);
+                } else {
+                    $('#modal_materials_list').hide();
+                    $('#modal_no_materials').html('<i class="fas fa-exclamation-circle mr-2"></i>' + response.message).show();
+                }
+            },
+            error: function() {
+                $('#modal_materials_list').hide();
+                $('#modal_no_materials').html('<i class="fas fa-exclamation-circle mr-2"></i>Error loading materials').show();
+            }
+        });
+    }
+
+    // Function: Confirm load materials
+    function confirmLoadMaterials() {
+        var mr_id = $('#btn-load-wo-materials').data('mr-id');
+        var wo_id = $('#modal_wo_selector').val();
+        
+        if (!wo_id) {
+            alert('⚠️ Please select a Work Order');
+            return;
+        }
+
+        var selected_items = [];
+        $('#modal_materials_tbody input[type="checkbox"]:checked').each(function() {
+            var row = $(this).closest('tr');
+            var qty = parseFloat(row.find('.request-qty').val()) || 0;
+            
+            if (qty > 0) {
+                selected_items.push({
+                    id: $(this).data('id'),
+                    type: $(this).data('type'),
+                    qty: qty
+                });
+            }
+        });
+
+        if (selected_items.length === 0) {
+            alert('⚠️ Please select at least one material');
+            return;
+        }
+
+        $.ajax({
+            url: BASE_URL + 'material_request/ajax_add_materials_from_wo/' + mr_id,
+            type: 'POST',
+            contentType: 'application/json',
+            data: JSON.stringify({
+                wo_id: wo_id,
+                selected_items: selected_items
+            }),
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    alert('✅ ' + response.message);
+                    $('#modalLoadWOMaterials').modal('hide');
+                    location.reload();
+                } else {
+                    alert('❌ ' + response.message);
+                }
+            },
+            error: function() {
+                alert('❌ Error loading materials');
+            }
+        });
+    }
+});
+</script>

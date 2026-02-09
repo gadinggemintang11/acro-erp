@@ -49,13 +49,10 @@ class LapMutasiWIP_model extends CI_Model {
                 SELECT 
                     sl.item_id, 
                     sl.item_type, 
-                    -- Saldo WIP = Total Masuk - Total Keluar
-                    -- NOTE: Bug fix - wip_in bisa simpan qty di qty_in ATAU qty_out, ambil yang > 0
-                    (SUM(CASE 
-                        WHEN sl.transaction_type IN ('wip_in', 'IN_RETURN_WIP') THEN GREATEST(COALESCE(sl.qty_in, 0), COALESCE(sl.qty_out, 0))
-                        ELSE 0 
-                     END) - 
-                     SUM(CASE WHEN sl.transaction_type = 'wip_out' THEN sl.qty_out ELSE 0 END)) as balance,
+                    -- Saldo WIP = wip_in - wip_out - IN_RETURN_WIP (return mengurangi WIP)
+                    (SUM(CASE WHEN sl.transaction_type = 'wip_in' THEN GREATEST(COALESCE(sl.qty_in, 0), COALESCE(sl.qty_out, 0)) ELSE 0 END) - 
+                     SUM(CASE WHEN sl.transaction_type = 'wip_out' THEN sl.qty_out ELSE 0 END) -
+                     SUM(CASE WHEN sl.transaction_type = 'IN_RETURN_WIP' THEN sl.qty_in ELSE 0 END)) as balance,
                     1 as has_history
                 FROM stock_ledger sl
                 WHERE sl.transaction_date < ?
@@ -66,14 +63,11 @@ class LapMutasiWIP_model extends CI_Model {
                 SELECT
                     sl.item_id, 
                     sl.item_type,
-                    -- MASUK WIP: wip_in + IN_RETURN_WIP
-                    -- NOTE: Bug fix - wip_in bisa simpan qty di qty_in ATAU qty_out, ambil yang > 0
-                    SUM(CASE 
-                        WHEN sl.transaction_type IN ('wip_in', 'IN_RETURN_WIP') THEN GREATEST(COALESCE(sl.qty_in, 0), COALESCE(sl.qty_out, 0))
-                        ELSE 0 
-                    END) as total_masuk,
-                    -- KELUAR WIP: wip_out
-                    SUM(CASE WHEN sl.transaction_type = 'wip_out' THEN sl.qty_out ELSE 0 END) as total_keluar
+                    -- MASUK WIP: wip_in saja
+                    SUM(CASE WHEN sl.transaction_type = 'wip_in' THEN GREATEST(COALESCE(sl.qty_in, 0), COALESCE(sl.qty_out, 0)) ELSE 0 END) as total_masuk,
+                    -- KELUAR WIP: wip_out + IN_RETURN_WIP (keduanya mengurangi WIP)
+                    (SUM(CASE WHEN sl.transaction_type = 'wip_out' THEN sl.qty_out ELSE 0 END) +
+                     SUM(CASE WHEN sl.transaction_type = 'IN_RETURN_WIP' THEN sl.qty_in ELSE 0 END)) as total_keluar
                 FROM stock_ledger sl
                 WHERE sl.transaction_date >= ?
                   AND sl.transaction_date <= ?
@@ -146,73 +140,31 @@ class LapMutasiWIP_model extends CI_Model {
     {
         $sql = "
         SELECT 
+            sl.id,
             sl.transaction_date, 
             sl.transaction_type, 
             sl.qty_in, 
-            sl.qty_out, 
-            sl.balance,
+            sl.qty_out,
             
-            -- BC info: ambil dari GRN terakhir untuk item yang sama (tanpa batasan tanggal)
-            COALESCE(
-                sl.bc_type_code,
-                (SELECT gh.bc_type_code 
-                 FROM stock_ledger sl2 
-                 JOIN grn_header gh ON sl2.transaction_id = gh.id 
-                 WHERE sl2.item_id = sl.item_id 
-                   AND sl2.item_type = sl.item_type 
-                   AND sl2.transaction_type = 'in'
-                   AND gh.bc_type_code IS NOT NULL
-                 ORDER BY sl2.id DESC
-                 LIMIT 1)
-            ) as bc_type_code,
-            
-            COALESCE(
-                sl.bc_number,
-                (SELECT gh.bc_number 
-                 FROM stock_ledger sl2 
-                 JOIN grn_header gh ON sl2.transaction_id = gh.id 
-                 WHERE sl2.item_id = sl.item_id 
-                   AND sl2.item_type = sl.item_type 
-                   AND sl2.transaction_type = 'in'
-                   AND gh.bc_number IS NOT NULL
-                 ORDER BY sl2.id DESC
-                 LIMIT 1)
-            ) as bc_number,
-            
-            COALESCE(
-                sl.bc_date,
-                (SELECT gh.bc_date 
-                 FROM stock_ledger sl2 
-                 JOIN grn_header gh ON sl2.transaction_id = gh.id 
-                 WHERE sl2.item_id = sl.item_id 
-                   AND sl2.item_type = sl.item_type 
-                   AND sl2.transaction_type = 'in'
-                   AND gh.bc_date IS NOT NULL
-                 ORDER BY sl2.id DESC
-                 LIMIT 1)
-            ) as bc_date,
-            
-            COALESCE(
-                grnh.grn_number,
-                (SELECT gh.grn_number 
-                 FROM stock_ledger sl2 
-                 JOIN grn_header gh ON sl2.transaction_id = gh.id 
-                 WHERE sl2.item_id = sl.item_id 
-                   AND sl2.item_type = sl.item_type 
-                   AND sl2.transaction_type = 'in'
-                 ORDER BY sl2.id DESC
-                 LIMIT 1)
-            ) as grn_number,
+            -- BC info directly from stock_ledger (now populated at transaction creation)
+            sl.bc_type_code,
+            sl.bc_number,
+            sl.bc_date,
+            COALESCE(grnh.grn_number, grnh_batch.grn_number) as grn_number,
             
             mrh.mr_number,
             ph_in.production_number as prod_num_in, 
             po_in.stage_name as stage_in,
             ph_out.production_number as prod_num_out, 
             pi_out.stage_name as stage_out,
-            prh.prod_return_no
+            prh.prod_return_no,
+            COALESCE(ph_in.id, ph_out.id) as production_header_id
         FROM stock_ledger sl
         
         LEFT JOIN grn_header grnh ON sl.transaction_id = grnh.id AND sl.transaction_type = 'in'
+        LEFT JOIN stock_on_hand soh ON sl.stock_on_hand_id = soh.id
+        LEFT JOIN grn_details gd ON soh.grn_detail_id = gd.id
+        LEFT JOIN grn_header grnh_batch ON gd.grn_header_id = grnh_batch.id
         LEFT JOIN mr_header mrh ON sl.transaction_id = mrh.id AND sl.transaction_type = 'wip_in' AND sl.item_type = 'material'
         LEFT JOIN production_outputs po_in ON sl.transaction_id = po_in.id AND sl.transaction_type = 'wip_in' AND sl.item_type = 'semifinished'
         LEFT JOIN production_header ph_in ON po_in.production_header_id = ph_in.id
@@ -225,7 +177,28 @@ class LapMutasiWIP_model extends CI_Model {
           AND sl.transaction_type IN ('wip_in', 'wip_out', 'IN_RETURN_WIP')
         ORDER BY sl.transaction_date ASC, sl.id ASC
         ";
-        return $this->db->query($sql, [$item_id, $item_type])->result();
+        
+        $result = $this->db->query($sql, [$item_id, $item_type])->result();
+        
+        // RECALCULATE running balance untuk WIP: wip_in menambah, wip_out DAN IN_RETURN_WIP mengurangi
+        $running_balance = 0;
+        foreach ($result as $row) {
+            if ($row->transaction_type == 'wip_in') {
+                // Masuk WIP: gunakan GREATEST karena kadang ada di qty_in atau qty_out
+                $qty_masuk = max((float)$row->qty_in, (float)$row->qty_out);
+                $running_balance += $qty_masuk;
+            } elseif ($row->transaction_type == 'wip_out') {
+                // Keluar WIP normal
+                $running_balance -= (float)$row->qty_out;
+            } elseif ($row->transaction_type == 'IN_RETURN_WIP') {
+                // Return dari WIP ke warehouse = MENGURANGI WIP
+                // qty_in di stock_ledger adalah qty yang dikembalikan ke warehouse
+                $running_balance -= (float)$row->qty_in;
+            }
+            $row->balance = $running_balance;
+        }
+        
+        return $result;
     }
 
     public function trace_recursive($item_id, $item_type, $limit = 25) 

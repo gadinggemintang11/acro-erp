@@ -119,7 +119,7 @@ class Scrap_Out_model extends CI_Model {
                 'bc_type_code'      => $header->bc_type_code,
                 'bc_number'         => $header->bc_number,
                 'bc_date'           => $header->bc_date,
-                'transaction_id'    => $id, // ✅ FIXED: Gunakan ID HEADER, bukan ID detail
+                'transaction_id'    => $item->id, // ✅ FIXED: Gunakan ID DETAIL (scrap_out_detail.id)
                 'source_doc_type'   => 'SCRAP_OUT',
                 'source_doc_id'     => $id,
                 'qty_in'            => 0,
@@ -159,6 +159,11 @@ class Scrap_Out_model extends CI_Model {
 
         if (!$header || $header->status != 'Confirmed') {
             return ['status' => false, 'message' => 'Hanya dokumen Confirmed yang bisa dibatalkan.'];
+        }
+
+        // Cegah unconfirm jika sudah diverifikasi di EXIM
+        if ($header->exim_verified) {
+            return ['status' => false, 'message' => 'Tidak dapat membatalkan konfirmasi dokumen yang sudah diverifikasi EXIM. Batalkan verifikasi EXIM terlebih dahulu.'];
         }
 
         $details = $this->db->where('header_id', $id)->get('scrap_out_detail')->result();

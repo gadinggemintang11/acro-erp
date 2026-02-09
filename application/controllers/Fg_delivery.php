@@ -399,6 +399,14 @@ class Fg_delivery extends MY_Controller {
         if (!check_access('fg_delivery', 'delete')) { show_error('Tidak ada izin.', 403); }
         if (empty($id) || !is_numeric($id)) show_404();
 
+        // Check if document is exim verified
+        $header = $this->Fg_delivery_model->get_header_by_id($id);
+        if ($header && $header->exim_verified) {
+            $this->session->set_flashdata('error', 'Tidak dapat membatalkan konfirmasi dokumen yang sudah diverifikasi EXIM. Batalkan verifikasi EXIM terlebih dahulu.');
+            redirect('fg_delivery/show/' . $id);
+            return;
+        }
+
         $ok = $this->Fg_delivery_model->unship_delivery($id);
         $this->session->set_flashdata($ok ? 'success' : 'error', $ok ? 'Konfirmasi dibatalkan (stok dikembalikan).' : 'Gagal membatalkan konfirmasi.');
         redirect('fg_delivery/show/' . $id);

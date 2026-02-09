@@ -90,7 +90,7 @@ class Stock_ledger extends MY_Controller {
         
         // PERBAIKAN: Menghapus adj_h.doc_no dan adj_h.notes
         $select_clause = "
-            sl.id as ledger_id, sl.transaction_date, sl.transaction_type, sl.transaction_id,
+            DISTINCT sl.id as ledger_id, sl.transaction_date, sl.transaction_type, sl.transaction_id,
             sl.qty_in, sl.qty_out, sl.balance, sl.unit_value,
             sl.source_doc_type, sl.source_doc_id,
             
@@ -107,7 +107,7 @@ class Stock_ledger extends MY_Controller {
             
             -- Info Scrap In (Pemasukan dari Produksi)
             sih.doc_no as scrap_in_doc_no,
-            po.production_header_id, po.stage_name, 
+            prod_out.production_header_id, prod_out.stage_name, 
             ph.production_number, -- Sumber dari production_header
             wo_prod.wo_number as production_wo_number, 
             
@@ -115,9 +115,11 @@ class Stock_ledger extends MY_Controller {
             soh.doc_no as scrap_out_doc_no,
             soh.bc_type_code as scrap_out_bc_type,
             soh.bc_number as scrap_out_bc_no,
-            soh.bc_date as scrap_out_bc_date
+            soh.bc_date as scrap_out_bc_date,
             
-            -- (Info adjustment dihapus dari sini)
+            -- Info Adjustment
+            ah.doc_no as adjustment_doc,
+            ah.notes as adjustment_notes
         ";
 
         $this->db->select($select_clause, FALSE);
@@ -135,8 +137,8 @@ class Stock_ledger extends MY_Controller {
         $this->db->join('suppliers s', 'grn.supplier_id = s.id', 'left');
         
         // Fallback suppliers from PO/MIR when GRN supplier_id is NULL
-        $this->db->join('po_header po', 'gd.source_doc_type = "PO" AND gd.source_doc_header_id = po.id', 'left');
-        $this->db->join('suppliers s_po', 's_po.id = po.supplier_id', 'left');
+        $this->db->join('po_header poh', 'gd.source_doc_type = "PO" AND gd.source_doc_header_id = poh.id', 'left');
+        $this->db->join('suppliers s_po', 's_po.id = poh.supplier_id', 'left');
         $this->db->join('mir_header mir', 'gd.source_doc_type = "MIR" AND gd.source_doc_header_id = mir.id', 'left');
         $this->db->join('suppliers s_mir', 's_mir.id = mir.supplier_id', 'left');
         
@@ -150,26 +152,42 @@ class Stock_ledger extends MY_Controller {
         $this->db->join('scrap_in_header sih', 'sl.transaction_id = sih.id AND sl.transaction_type = "IN_SCRAP_WH"', 'left');
         $this->db->join('scrap_in_detail sid', 'sid.header_id = sih.id AND sid.scrap_id = sl.item_id', 'left'); 
         $this->db->join('scrap_in_detail_sources sds', 'sds.scrap_in_detail_id = sid.id', 'left');
-        $this->db->join('production_outputs po', 'sds.production_output_id = po.id', 'left');
-        $this->db->join('production_header ph', 'po.production_header_id = ph.id', 'left');
+        $this->db->join('production_outputs prod_out', 'sds.production_output_id = prod_out.id', 'left');
+        $this->db->join('production_header ph', 'prod_out.production_header_id = ph.id', 'left');
         $this->db->join('wo_header wo_prod', 'ph.wo_header_id = wo_prod.id', 'left');
 
         // Pengeluaran Scrap (via Scrap Out)
         $this->db->join('scrap_out_header soh', 'sl.transaction_id = soh.id AND sl.transaction_type = "OUT_SCRAP_BC"', 'left');
         
-        // --- PERBAIKAN: Hapus join ke 'adjustment_header' ---
-        // $this->db->join('adjustment_header adj_h', 'sl.transaction_id = adj_h.id AND sl.transaction_type LIKE "ADJ_%"', 'left');
-        // --- AKHIR PERBAIKAN ---
+        // Adjustment (IN/OUT)
+        $this->db->join('adjustment_details ad', 'sl.transaction_id = ad.id AND sl.transaction_type = "adjustment"', 'left');
+        $this->db->join('adjustment_header ah', 'ad.adjustment_header_id = ah.id', 'left');
         
         // --- FILTER ---
         $this->db->where('sl.item_id', $item_id);
         $this->db->where('sl.item_type', $item_type);
+        
+        // PERBAIKAN KRITIS: Filter warehouse transaction types ONLY (jangan WIP)
+        $warehouse_tx_types = [
+            'in',               // GRN (Barang baru)
+            'IN_RETURN_WIP',    // Retur dari Produksi
+            'ADJ_IN',           // Adjustment Masuk
+            'adjustment',       // Legacy adjustment type (also warehouse)
+            'OUT_ISSUE',        // Issue Material ke Produksi
+            'production_out',   // Issue Material/Semif ke Produksi
+            'OUT_SHIPMENT',     // Kirim Barang Jadi
+            'OUT_SCRAP_BC',     // Scrap Keluar Gudang
+            'ADJ_OUT',          // Adjustment Keluar
+            'IN_SCRAP_WH'       // Scrap Masuk ke Gudang
+        ];
+        $this->db->where_in('sl.transaction_type', $warehouse_tx_types);
+        
         if ($start_date) { $this->db->where('sl.transaction_date >=', $start_date . ' 00:00:00'); }
         if ($end_date) { $this->db->where('sl.transaction_date <=', $end_date . ' 23:59:59'); }
         
-        // Use DISTINCT to handle multiple grn_details rows for single ledger
-        // Only get first detail by limiting with MIN(gd.id) would require GROUP BY
-        // Instead, use raw query approach if needed
+        // FIX: GROUP BY sl.id to eliminate duplicate rows from multiple JOINs (especially grn_details, supplier tables)
+        // DISTINCT sl.id ensures we get one row per ledger entry, not duplicated across suppliers
+        $this->db->group_by('sl.id');
         
         $this->db->order_by('sl.transaction_date', 'ASC');
         $this->db->order_by('sl.id', 'ASC');
@@ -262,7 +280,11 @@ class Stock_ledger extends MY_Controller {
                   </tr></thead><tbody>';
 
         if (!empty($history)) {
-            foreach ($history as $row) {
+            $running_balance = 0; // Hitung ulang balance hanya dari warehouse transactions
+            foreach ($history as &$row) {
+                // Hitung balance hanya dari warehouse transactions (bukan WIP)
+                $running_balance = (float)$running_balance + (float)$row['qty_in'] - (float)$row['qty_out'];
+                $row['balance'] = $running_balance; // Override balance dengan kalkulasi ulang
                 
                 // --- PERBAIKAN: Logika untuk menentukan info baris ---
                 $main_ref = '-';
@@ -291,9 +313,12 @@ class Stock_ledger extends MY_Controller {
                     if ($row['scrap_out_bc_no']) {
                          $bc_info = ($row['scrap_out_bc_type'] ?? '') . '/' . $row['scrap_out_bc_no'] . ' (' . ($row['scrap_out_bc_date'] ? date('d/m/y', strtotime($row['scrap_out_bc_date'])) : '-') . ')';
                     }
+                } elseif ($type == 'adjustment') {
+                    $main_ref = $row['adjustment_doc'] ?? '-';
+                    $partner_info = $row['adjustment_notes'] ?? '-';
                 } elseif (strpos($type, 'ADJ_') === 0) {
-                     $main_ref = $row['adj_doc_no'] ?? 'Adjustment';
-                     $partner_info = $row['adj_notes'] ?? '-';
+                    $main_ref = $row['adjustment_doc'] ?? 'Adjustment';
+                    $partner_info = $row['adjustment_notes'] ?? '-';
                 }
                 // --- AKHIR PERBAIKAN LOGIKA ---
 

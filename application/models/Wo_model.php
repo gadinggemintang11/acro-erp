@@ -139,6 +139,61 @@ class Wo_model extends CI_Model {
         return $this->db->where('id', $id)->delete($this->table_details);
     }
 
+    /**
+     * ✅ NEW: Ambil BOM details dengan satuan dari master material/semifinished
+     */
+    public function get_bom_components_detailed($fg_id) {
+        $bom_header = $this->db->select('id')->where('fg_id', $fg_id)->where('status', 'Active')->get('bom_header')->row();
+        if(!$bom_header) return [];
+        
+        $bom_header_id = $bom_header->id;
+        $select_clause = "
+            bd.component_item_id,
+            bd.component_item_type,
+            bd.quantity_required,
+            CASE WHEN bd.component_item_type = 'material' THEN m.satuan ELSE sf.satuan END as unit_measure,
+            CASE WHEN bd.component_item_type = 'material' THEN m.nama_material ELSE sf.nama_barang END as item_name
+        ";
+        $this->db->select($select_clause, FALSE);
+        $this->db->from('bom_details bd');
+        $this->db->join('materials m', 'bd.component_item_id = m.id AND bd.component_item_type = "material"', 'left');
+        $this->db->join('semifinished_goods sf', 'bd.component_item_id = sf.id AND bd.component_item_type = "semifinished"', 'left');
+        $this->db->where('bd.bom_header_id', $bom_header_id);
+        $this->db->order_by('bd.quantity_required', 'ASC');
+        return $this->db->get()->result();
+    }
+
+    /**
+     * ✅ NEW: Bulk insert wo_details_material dari BOM
+     * Formula: planned_qty_wo × quantity_required_bom
+     */
+    public function auto_populate_materials($wo_header_id, $fg_id, $planned_qty) {
+        $bom_components = $this->get_bom_components_detailed($fg_id);
+        
+        if(empty($bom_components)) {
+            return false; // Tidak ada BOM, tidak bisa auto-populate
+        }
+
+        $this->db->trans_start();
+        
+        foreach($bom_components as $bom) {
+            $calculated_qty = (float)$planned_qty * (float)$bom->quantity_required;
+            
+            $data = [
+                'wo_header_id' => $wo_header_id,
+                'component_item_id' => $bom->component_item_id,
+                'component_item_type' => $bom->component_item_type,
+                'planned_qty' => $calculated_qty,
+                'unit_measure' => $bom->unit_measure ?? 'PCS'
+            ];
+            
+            $this->db->insert($this->table_details, $data);
+        }
+        
+        $this->db->trans_complete();
+        return $this->db->trans_status();
+    }
+
     // === HELPERS ===
     /**
      * ✅ FIX: Menghapus pencarian berdasarkan sc.po_number yang tidak ada
@@ -171,7 +226,8 @@ class Wo_model extends CI_Model {
         if(!$bom_header) return [];
         $bom_header_id = $bom_header->id;
         $select_clause = "
-            bd.quantity_required, bd.unit_measure,
+            bd.quantity_required,
+            CASE WHEN bd.component_item_type = 'material' THEN m.satuan ELSE sf.satuan END as unit_measure,
             CASE WHEN bd.component_item_type = 'material' THEN m.kode_material ELSE sf.kode_barang END as item_code,
             CASE WHEN bd.component_item_type = 'material' THEN m.nama_material ELSE sf.nama_barang END as item_name,
             bd.component_item_type as item_type

@@ -74,7 +74,7 @@
                         </div>
                          <div class="col-md-6 form-group">
                             <label><?= lang_line('mir_supplier', 'Supplier'); ?> (Impor)</label>
-                            <select name="supplier_id" class="form-control" required>
+                            <select name="supplier_id" class="form-control select2-modal-mir" required style="width: 100%;">
                                 <option value=""><?= lang_line('mir_supplier_select', '-- Pilih Supplier --'); ?></option>
                                 <?php foreach($suppliers as $s): ?>
                                     <option value="<?= $s->id; ?>" <?= $header_detail->supplier_id == $s->id ? 'selected' : ''; ?>><?= htmlspecialchars($s->nama_supplier); ?></option>
@@ -115,6 +115,8 @@
 </div>
 <?php endforeach; endif; ?>
 
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 <div class="modal fade" id="addHeaderModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
@@ -132,7 +134,7 @@
                         </div>
                          <div class="col-md-6 form-group">
                             <label><?= lang_line('mir_supplier', 'Supplier'); ?> (Impor)</label>
-                            <select name="supplier_id" class="form-control" required>
+                            <select name="supplier_id" class="form-control select2-modal-mir" required style="width: 100%;">
                                 <option value=""><?= lang_line('mir_supplier_select', '-- Pilih Supplier --'); ?></option>
                                 <?php foreach($suppliers as $s): ?>
                                     <option value="<?= $s->id; ?>"><?= htmlspecialchars($s->nama_supplier); ?></option>
@@ -171,3 +173,47 @@
         </form>
     </div>
 </div>
+
+<script>
+$(document).ready(function() {
+    // Inisialisasi Select2 untuk modal tambah MIR
+    $('.select2-modal-mir').select2({
+        dropdownParent: $('#addHeaderModal'),
+        placeholder: '-- Pilih Supplier --',
+        allowClear: true,
+        width: '100%'
+    });
+
+    // Inisialisasi Select2 untuk setiap modal edit MIR
+    <?php if(!empty($mirs)): foreach($mirs as $mir): ?>
+    $('#editHeaderModal<?= $mir->id; ?>').on('shown.bs.modal', function() {
+        $('#editHeaderModal<?= $mir->id; ?> .select2-modal-mir').select2({
+            dropdownParent: $('#editHeaderModal<?= $mir->id; ?>'),
+            placeholder: '-- Pilih Supplier --',
+            allowClear: true,
+            width: '100%'
+        });
+    });
+    
+    // Destroy Select2 saat modal ditutup untuk mencegah duplikasi
+    $('#editHeaderModal<?= $mir->id; ?>').on('hidden.bs.modal', function() {
+        $('#editHeaderModal<?= $mir->id; ?> .select2-modal-mir').select2('destroy');
+    });
+    <?php endforeach; endif; ?>
+});
+</script>
+
+<style>
+/* Pastikan Select2 di modal tampil benar */
+.select2-container--default .select2-selection--single { 
+    height: calc(1.5em + .75rem + 2px); 
+    padding: .375rem .75rem; 
+    border: 1px solid #d1d3e2; 
+}
+.select2-dropdown { 
+    z-index: 1051 !important; 
+}
+.select2-container { 
+    width: 100% !important; 
+}
+</style>

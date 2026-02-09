@@ -79,8 +79,13 @@
     </div>
 
     <div class="card shadow mb-4">
-        <div class="card-header py-3">
+        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
             <h6 class="m-0 font-weight-bold text-primary">Kebutuhan Material (Rencana WO)</h6>
+            <?php if($header->status == 'Planned' && empty($planned_materials) && !empty($bom_components)): ?>
+            <button type="button" class="btn btn-primary btn-sm" id="btn-load-bom" data-wo-id="<?= $header->id; ?>" data-fg-id="<?= $header->fg_id; ?>" data-planned-qty="<?= $header->planned_qty; ?>">
+                <i class="fas fa-upload"></i> Load from BOM
+            </button>
+            <?php endif; ?>
         </div>
         <div class="card-body">
             
@@ -141,6 +146,29 @@
     </div>
 </div>
 
+<!-- Modal Preview BOM sebelum load material -->
+<div class="modal fade" id="modalBomPreview" tabindex="-1" role="dialog" aria-labelledby="modalBomPreviewLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modalBomPreviewLabel">Load Materials from BOM</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <div id="preview-content"></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-primary" id="btn-confirm-load">
+                    <i class="fas fa-check"></i> Load Material
+                </button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 $(document).ready(function() {
     $('#select-component').select2({
@@ -158,5 +186,76 @@ $(document).ready(function() {
             cache: true
         }
     });
+
+    // ✅ Button: Load Material dari BOM
+    $('#btn-load-bom').on('click', function(e) {
+        e.preventDefault();
+        var woId = $(this).data('wo-id');
+        var fgId = $(this).data('fg-id');
+        var plannedQty = $(this).data('planned-qty');
+
+        $.ajax({
+            url: "<?= base_url('work_order/ajax_get_bom_preview'); ?>",
+            type: 'GET',
+            dataType: 'json',
+            data: {
+                fg_id: fgId,
+                planned_qty: plannedQty
+            },
+            success: function(response) {
+                if(response.success) {
+                    // Buat preview table
+                    var html = '<table class="table table-sm table-bordered">';
+                    html += '<thead><tr><th>Komponen</th><th>Qty/FG</th><th>Total Qty</th><th>Satuan</th></tr></thead><tbody>';
+                    
+                    response.materials.forEach(function(mat) {
+                        html += '<tr>';
+                        html += '<td><strong>' + mat.item_code + '</strong><br>' + mat.item_name + '<br><small class="text-muted">(' + mat.item_type + ')</small></td>';
+                        html += '<td class="text-right">' + mat.qty_per_fg + '</td>';
+                        html += '<td class="text-right"><strong>' + mat.total_qty + '</strong></td>';
+                        html += '<td>' + mat.unit_measure + '</td>';
+                        html += '</tr>';
+                    });
+                    
+                    html += '</tbody></table>';
+                    $('#preview-content').html(html);
+                    
+                    // Simpan WO ID untuk konfirmasi
+                    $('#btn-confirm-load').data('wo-id', woId);
+                    
+                    $('#modalBomPreview').modal('show');
+                } else {
+                    alert('⚠️ ' + response.message);
+                }
+            },
+            error: function() {
+                alert('❌ Gagal mengambil data BOM');
+            }
+        });
+    });
+
+    // ✅ Button: Confirm Load Material
+    $('#btn-confirm-load').on('click', function() {
+        var woId = $(this).data('wo-id');
+        
+        $.ajax({
+            url: "<?= base_url('work_order/ajax_auto_populate_materials'); ?>",
+            type: 'POST',
+            dataType: 'json',
+            data: { wo_id: woId },
+            success: function(response) {
+                if(response.success) {
+                    alert('✅ ' + response.message);
+                    location.reload(); // Refresh halaman
+                } else {
+                    alert('❌ ' + response.message);
+                }
+            },
+            error: function() {
+                alert('❌ Gagal melakukan load material');
+            }
+        });
+    });
 });
 </script>
+```

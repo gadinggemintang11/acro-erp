@@ -6,6 +6,13 @@
         </h3>
         <div>
             <?php if ($header->status == 'Draft' && check_access('warehouse_in', 'edit')): ?>
+                 <!-- TOMBOL PILIH MIR (untuk Base On = MIR) -->
+                 <?php if ($header->base_on == 'MIR'): ?>
+                 <button type="button" class="btn btn-info btn-sm mr-1" data-toggle="modal" data-target="#mirAutoLoadModal" title="Pilih dan load items dari beberapa MIR">
+                     <i class="fas fa-file-import mr-1"></i> Pilih & Load MIR
+                 </button>
+                 <?php endif; ?>
+
                  <a href="<?= base_url('warehouse_in/confirm_grn/'.$header->id); ?>" class="btn btn-primary btn-sm mr-1" onclick="return confirm('<?= lang_line('warehouse_in_confirm_action', 'Yakin konfirmasi GRN? Stok akan ditambahkan.'); ?>')">
                     <i class="fas fa-check-circle fa-sm"></i> <?= lang_line('warehouse_in_confirm', 'Confirm GRN'); ?>
                  </a>
@@ -179,25 +186,69 @@
     </div>
 </div>
 
-<!-- Modal MIR Auto-Load (untuk status Draft dengan base_on = MIR) -->
+<!-- Modal MIR Auto-Load (untuk status Draft dengan base_on = MIR) - NOW SUPPORTS MULTI-MIR -->
 <?php if ($header->base_on == 'MIR' && $header->status == 'Draft' && empty($details)): ?>
 <div class="modal fade" id="mirAutoLoadModal" tabindex="-1" data-backdrop="static" data-keyboard="false" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content border-0 shadow">
             <div class="modal-header bg-info text-white">
-                <h5 class="modal-title"><i class="fas fa-file-import mr-2"></i>Pilih MIR untuk Auto-Load Items</h5>
+                <h5 class="modal-title"><i class="fas fa-file-import mr-2"></i>Pilih MIR untuk Auto-Load Items (Bisa Pilih Beberapa)</h5>
+                <button type="button" class="close text-white" data-dismiss="modal" style="opacity: 1;">&times;</button>
             </div>
             <div class="modal-body">
-                <p>Pilih nomor MIR untuk secara otomatis memuat semua item yang diminta. Anda tinggal mengonfirmasi penerimaan tanpa perlu input manual item satu per satu.</p>
+                <p><strong>Pilih satu atau lebih MIR</strong> untuk secara otomatis memuat semua item yang diminta. Anda tinggal mengonfirmasi penerimaan tanpa perlu input manual item satu per satu.</p>
+                
                 <div class="form-group">
-                    <label><strong>Nomor MIR</strong></label>
-                    <select id="mir_selector" name="mir_id" class="form-control" style="width: 100%;" required>
-                        <option value="">-- Pilih MIR --</option>
-                    </select>
+                    <div class="input-group mb-3">
+                        <input type="text" id="mirSearchInput" class="form-control" placeholder="Cari MIR nomor...">
+                        <div class="input-group-append">
+                            <button class="btn btn-outline-secondary" type="button" id="mirSearchBtn">
+                                <i class="fas fa-search"></i>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group mb-3">
+                    <button type="button" class="btn btn-sm btn-outline-primary" id="mirSelectAllBtn">
+                        <i class="fas fa-check-square"></i> Pilih Semua
+                    </button>
+                    <button type="button" class="btn btn-sm btn-outline-secondary" id="mirDeselectAllBtn">
+                        <i class="fas fa-square"></i> Batal Pilih Semua
+                    </button>
+                </div>
+
+                <!-- MIR Selection Table -->
+                <div class="table-responsive">
+                    <table class="table table-hover table-sm mb-3" id="mirSelectionTable">
+                        <thead class="thead-light">
+                            <tr>
+                                <th width="40"><input type="checkbox" id="mirSelectAllCheckbox" class="form-check-input"></th>
+                                <th>Nomor MIR</th>
+                                <th>Tanggal</th>
+                                <th class="text-center">Item</th>
+                            </tr>
+                        </thead>
+                        <tbody id="mirListBody">
+                            <tr>
+                                <td colspan="4" class="text-center text-muted py-3">
+                                    <i class="fas fa-spinner fa-spin"></i> Memuat data MIR...
+                                </td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+
+                <!-- Selected Summary -->
+                <div class="alert alert-info d-none" id="mirSelectionSummary" role="alert">
+                    <strong>Total dipilih:</strong> <span id="mirSelectedCount">0</span> MIR | 
+                    <span id="mirTotalItemCount">0</span> item
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-info btn-load" id="mirAutoLoadBtn"><i class="fas fa-check mr-1"></i> Load Items</button>
+                <button type="button" class="btn btn-info btn-load" id="mirAutoLoadBtn">
+                    <i class="fas fa-check mr-1"></i> Load Items dari MIR Terpilih
+                </button>
                 <button type="button" class="btn btn-secondary" id="mirSkipBtn">Skip untuk Sekarang</button>
             </div>
         </div>
@@ -322,6 +373,7 @@ $(document).ready(function() {
     const warehouseType = '<?= $header->warehouse_type; ?>';
     const currentStatus = '<?= $header->status; ?>';
     const grn_id = '<?= $header->id; ?>';
+    const grnId = grn_id;  // Alias untuk compatibility
 
     // Show MIR Auto-Load Modal if base_on is MIR and no items yet
     <?php if ($header->base_on == 'MIR' && $header->status == 'Draft' && empty($details)): ?>
@@ -521,6 +573,160 @@ $(document).ready(function() {
                 if(currentVal > maxQty){ $(this).val(maxQty); }
                 else if (currentVal < 0) { $(this).val(0); }
             });
+        }
+
+        // ====== MULTI-MIR SELECTION FEATURE ======
+        if ($('#mirAutoLoadModal').length) {
+            let mirList = []; // Store MIR data
+
+            // Load available MIR numbers
+            function loadMirList(searchTerm = '') {
+                $.ajax({
+                    url: '<?= base_url("warehouse_in/get_available_mir_numbers"); ?>',
+                    type: 'GET',
+                    data: { grn_id: grnId, q: searchTerm },
+                    dataType: 'json',
+                    success: function(response) {
+                        if (response.status === 'success') {
+                            mirList = response.data;
+                            renderMirTable();
+                            if (mirList.length === 0) {
+                                $('#mirListBody').html('<tr><td colspan="4" class="text-center text-muted py-3">Tidak ada MIR yang tersedia</td></tr>');
+                            }
+                        } else {
+                            $('#mirListBody').html('<tr><td colspan="4" class="text-center text-danger">Error: ' + response.message + '</td></tr>');
+                        }
+                    },
+                    error: function() {
+                        $('#mirListBody').html('<tr><td colspan="4" class="text-center text-danger">Gagal memuat data MIR</td></tr>');
+                    }
+                });
+            }
+
+            // Render MIR table
+            function renderMirTable() {
+                let html = '';
+                mirList.forEach(function(mir) {
+                    html += '<tr class="mir-row" data-mir-id="' + mir.mir_id + '">';
+                    html += '<td><input type="checkbox" class="form-check-input mir-checkbox" value="' + mir.mir_id + '"></td>';
+                    html += '<td><strong>' + mir.mir_number + '</strong></td>';
+                    html += '<td>' + new Date(mir.mir_date).toLocaleDateString('id-ID') + '</td>';
+                    html += '<td class="text-center"><span class="badge badge-info">' + mir.available_items + '</span></td>';
+                    html += '</tr>';
+                });
+                $('#mirListBody').html(html);
+                
+                // Attach checkbox handlers
+                $('.mir-checkbox').on('change', updateMirSelection);
+                $('#mirSelectAllCheckbox').off('change').on('change', toggleSelectAllMir);
+            }
+
+            // Update selection summary and buttons state
+            function updateMirSelection() {
+                const selected = $('.mir-checkbox:checked').length;
+                const totalItems = mirList.reduce(function(sum, mir) {
+                    return sum + ($(`.mir-checkbox[value="${mir.mir_id}"]:checked`).length > 0 ? mir.available_items : 0);
+                }, 0);
+
+                if (selected > 0) {
+                    $('#mirSelectionSummary').removeClass('d-none');
+                    $('#mirSelectedCount').text(selected);
+                    $('#mirTotalItemCount').text(totalItems);
+                    $('#mirAutoLoadBtn').prop('disabled', false);
+                } else {
+                    $('#mirSelectionSummary').addClass('d-none');
+                    $('#mirAutoLoadBtn').prop('disabled', true);
+                }
+
+                // Update master checkbox state
+                const allChecked = $('.mir-checkbox').length > 0 && $('.mir-checkbox:checked').length === $('.mir-checkbox').length;
+                $('#mirSelectAllCheckbox').prop('checked', allChecked);
+            }
+
+            // Toggle select all
+            function toggleSelectAllMir() {
+                const isChecked = $('#mirSelectAllCheckbox').is(':checked');
+                $('.mir-checkbox').prop('checked', isChecked);
+                updateMirSelection();
+            }
+
+            // Search MIR
+            $('#mirSearchBtn, #mirSearchInput').on('keypress', function(e) {
+                if (e.type === 'click' || e.keyCode === 13) {
+                    e.preventDefault();
+                    loadMirList($('#mirSearchInput').val());
+                }
+            });
+
+            // Select All / Deselect All buttons
+            $('#mirSelectAllBtn').on('click', function() {
+                $('.mir-checkbox').prop('checked', true);
+                $('#mirSelectAllCheckbox').prop('checked', true);
+                updateMirSelection();
+            });
+
+            $('#mirDeselectAllBtn').on('click', function() {
+                $('.mir-checkbox').prop('checked', false);
+                $('#mirSelectAllCheckbox').prop('checked', false);
+                updateMirSelection();
+            });
+
+            // Load Items from Selected MIR
+            $('#mirAutoLoadBtn').on('click', function() {
+                const selectedMirIds = [];
+                $('.mir-checkbox:checked').each(function() {
+                    selectedMirIds.push($(this).val());
+                });
+
+                if (selectedMirIds.length === 0) {
+                    alert('Silakan pilih minimal 1 MIR');
+                    return;
+                }
+
+                const btn = $(this);
+                btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Loading...');
+
+                $.ajax({
+                    url: '<?= base_url("warehouse_in/auto_load_multiple_mir_items"); ?>',
+                    type: 'POST',
+                    data: { grn_id: grnId, mir_ids: selectedMirIds },
+                    dataType: 'json',
+                    success: function(response) {
+                        if (response.status === 'success') {
+                            alert('Berhasil! ' + response.message);
+                            location.reload();
+                        } else if (response.status === 'warning') {
+                            alert('Warning: ' + response.message);
+                            if (response.error_mirs.length > 0) {
+                                alert('Errors:\n- ' + response.error_mirs.join('\n- '));
+                            }
+                        } else {
+                            alert('Error: ' + response.message);
+                        }
+                    },
+                    error: function() {
+                        alert('Gagal mengirim request ke server');
+                    },
+                    complete: function() {
+                        btn.prop('disabled', false).html('<i class="fas fa-check mr-1"></i> Load Items dari MIR Terpilih');
+                    }
+                });
+            });
+
+            // Skip button
+            $('#mirSkipBtn').on('click', function() {
+                $('#mirAutoLoadModal').modal('hide');
+            });
+
+            // Initialize: Load MIR list when modal is shown
+            $('#mirAutoLoadModal').on('show.bs.modal', function() {
+                if (mirList.length === 0) {
+                    loadMirList();
+                }
+            });
+
+            // Disable load button initially
+            $('#mirAutoLoadBtn').prop('disabled', true);
         }
 
     } // End if currentStatus === 'Draft'

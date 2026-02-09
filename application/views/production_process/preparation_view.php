@@ -196,7 +196,7 @@
                                 <tr>
                                     <td><?= htmlspecialchars($out->item_name); ?></td>
                                     <td><span class="badge badge-<?= $out->item_type == 'scrap' ? 'warning' : 'success'; ?>"><?= ucfirst($out->item_type); ?></span></td>
-                                    <td><?= number_format($out->item_type == 'scrap' ? $out->qty_scrap : $out->qty_produced, 4); ?></td>
+                                    <td><?= number_format($out->qty_produced, 4); ?></td>
                                     <td>
                                         <?php if($out->qc_checked_by): ?>
                                             <span class="badge badge-success"

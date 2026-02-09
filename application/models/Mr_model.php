@@ -354,6 +354,8 @@ class Mr_model extends CI_Model {
         }
 
         // 2. Pindahkan stok ke WIP: catat ke stock_ledger sebagai 'wip_in'
+        // STRATEGY: Use OUT_ISSUE entries (created during issuance) as source for WIP_IN
+        // This ensures batch allocation matches warehouse actual OUT_ISSUE
         // PENTING: Setiap item detail punya wo_header_id sendiri, bukan dari mr_header!
         $items = $this->db->get_where('mr_details', ['mr_header_id' => $mr_id])->result();
         $this->load->model('Stock_ledger_model');
@@ -377,25 +379,94 @@ class Mr_model extends CI_Model {
                 $urow = $this->db->get()->row();
                 if ($urow && isset($urow->unit_value)) $unit_value = (float)$urow->unit_value;
 
-                $ledger_data = [
-                    'item_id'         => $item->component_item_id,
-                    'item_type'       => $item->component_item_type,
-                    'transaction_date'=> date('Y-m-d H:i:s'),
-                    'transaction_type'=> 'wip_in',
-                    'transaction_id'  => $mr_id,
-                    'source_doc_type' => 'MR',
-                    'source_doc_id'   => $item->wo_header_id, // PENTING: Gunakan WO ID dari detail (bukan header)
-                    'qty_in'          => (float)$item->issued_qty,
-                    'qty_out'         => 0,
-                    'unit_value'      => $unit_value,
-                    'stock_on_hand_id'=> NULL // tidak ada SOH link saat issuance MR -> produksi
-                ];
-
-                $ins = $this->Stock_ledger_model->insert($ledger_data);
-                if (!$ins) {
-                    log_message('error', '[MR] process_reception: gagal insert ledger for mr_id=' . $mr_id . ' item_id=' . $item->component_item_id);
-                    $this->db->trans_rollback();
-                    return false;
+                // BETTER APPROACH: Get OUT_ISSUE entries untuk MR ini
+                // These entries sudah pasti allocate dengan SOH_ID yang tepat
+                $this->db->reset_query();
+                $out_issue_entries = $this->db
+                    ->select('stock_on_hand_id, qty_out, transaction_date')
+                    ->from('stock_ledger')
+                    ->where('transaction_id', $mr_id)
+                    ->where('transaction_type', 'OUT_ISSUE')
+                    ->where('item_id', $item->component_item_id)
+                    ->where('item_type', $item->component_item_type)
+                    ->order_by('id', 'ASC')
+                    ->get()->result();
+                
+                // Create WIP_IN entries based on OUT_ISSUE entries (dengan BC dari batch)
+                if (!empty($out_issue_entries)) {
+                    foreach ($out_issue_entries as $out_entry) {
+                        if (empty($out_entry->stock_on_hand_id)) {
+                            // Fallback jika OUT_ISSUE tidak punya SOH_ID (shouldn't happen normally)
+                            continue;
+                        }
+                        
+                        // Get BC info dari SOH
+                        $this->db->reset_query();
+                        $soh_data = $this->db
+                            ->select('bc_type_code, bc_number, bc_date')
+                            ->from('stock_on_hand')
+                            ->where('id', $out_entry->stock_on_hand_id)
+                            ->get()->row();
+                        
+                        $bc_type = $soh_data ? $soh_data->bc_type_code : null;
+                        $bc_number = $soh_data ? $soh_data->bc_number : null;
+                        $bc_date = $soh_data ? $soh_data->bc_date : null;
+                        
+                        // Create WIP_IN ledger entry
+                        $ledger_data = [
+                            'item_id'         => $item->component_item_id,
+                            'item_type'       => $item->component_item_type,
+                            'transaction_date'=> date('Y-m-d H:i:s'),
+                            'transaction_type'=> 'wip_in',
+                            'transaction_id'  => $mr_id,
+                            'source_doc_type' => 'MR',
+                            'source_doc_id'   => $item->wo_header_id,
+                            'qty_in'          => (float)$out_entry->qty_out,
+                            'qty_out'         => 0,
+                            'unit_value'      => $unit_value,
+                            'stock_on_hand_id'=> $out_entry->stock_on_hand_id,  // Link to specific batch
+                            'bc_type_code'    => $bc_type,
+                            'bc_number'       => $bc_number,
+                            'bc_date'         => $bc_date
+                        ];
+                        
+                        if (!$this->Stock_ledger_model->insert($ledger_data)) {
+                            log_message('error', '[MR] process_reception: gagal insert wip_in ledger for mr_id=' . $mr_id . ' item_id=' . $item->component_item_id . ' batch_id=' . $out_entry->stock_on_hand_id);
+                            $this->db->trans_rollback();
+                            return false;
+                        }
+                        
+                        // Decrement available_qty from stock_on_hand
+                        $this->db->where('id', $out_entry->stock_on_hand_id)
+                                 ->set('available_qty', 'available_qty - ' . $out_entry->qty_out, FALSE)
+                                 ->update('stock_on_hand');
+                    }
+                }
+                
+                // If NO OUT_ISSUE entries found (shouldn't happen), create fallback without batch
+                if (empty($out_issue_entries)) {
+                    $ledger_data = [
+                        'item_id'         => $item->component_item_id,
+                        'item_type'       => $item->component_item_type,
+                        'transaction_date'=> date('Y-m-d H:i:s'),
+                        'transaction_type'=> 'wip_in',
+                        'transaction_id'  => $mr_id,
+                        'source_doc_type' => 'MR',
+                        'source_doc_id'   => $item->wo_header_id,
+                        'qty_in'          => (float)$item->issued_qty,
+                        'qty_out'         => 0,
+                        'unit_value'      => $unit_value,
+                        'stock_on_hand_id'=> NULL,  // No batch info available
+                        'bc_type_code'    => NULL,
+                        'bc_number'       => NULL,
+                        'bc_date'         => NULL
+                    ];
+                    
+                    if (!$this->Stock_ledger_model->insert($ledger_data)) {
+                        log_message('error', '[MR] process_reception: gagal insert fallback wip_in ledger for mr_id=' . $mr_id . ' item_id=' . $item->component_item_id);
+                        $this->db->trans_rollback();
+                        return false;
+                    }
                 }
             }
         }

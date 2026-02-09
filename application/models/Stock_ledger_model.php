@@ -19,7 +19,8 @@ class Stock_ledger_model extends CI_Model {
         $types_in = [
             'in',               // GRN (Barang baru)
             'IN_RETURN_WIP',    // Retur dari Produksi
-            'ADJ_IN'            // Adjustment Masuk
+            'ADJ_IN',           // Adjustment Masuk
+            'adjustment'        // Legacy adjustment type
         ];
         
         // Tipe yang MENGURANGI saldo Gudang Utama
@@ -28,7 +29,8 @@ class Stock_ledger_model extends CI_Model {
             'production_out',   // Issue Material/Semif ke Produksi
             'OUT_SHIPMENT',     // Kirim Barang Jadi
             'OUT_SCRAP_BC',     // Scrap Keluar Gudang
-            'ADJ_OUT'           // Adjustment Keluar
+            'ADJ_OUT',          // Adjustment Keluar
+            'IN_SCRAP_WH'       // Scrap Masuk ke Gudang
         ];
 
         return array_merge($types_in, $types_out);
@@ -100,29 +102,24 @@ class Stock_ledger_model extends CI_Model {
         $search_term = $filters['search'] ?? null;
         $allowed_types = ['material', 'semifinished', 'machine', 'inventory'];
 
-        // --- Subquery 1: Hitung Stok Awal (Saldo terakhir SEBELUM tgl mulai) ---
-        $this->db->reset_query(); 
-        $subquery_max_id_sql = $this->db->select("item_id, item_type, MAX(id) as max_id", FALSE)
-                                        ->from($this->table)
-                                        ->where_in('transaction_type', $this->get_warehouse_tx_types())
-                                        ->group_by(['item_id', 'item_type'])
-                                        ->get_compiled_select();
-        $this->db->reset_query();
+        // --- Subquery 1: RECALCULATE opening stock dari warehouse transactions saja ---
+        $warehouse_types_list = "'" . implode("','", $this->get_warehouse_tx_types()) . "'";
         
-        $this->db->select("t1.item_id, t1.item_type, t1.balance as opening_stock", FALSE);
-        $this->db->from($this->table . ' t1');
-        $this->db->join("({$subquery_max_id_sql}) max_ids", 't1.id = max_ids.max_id', 'inner');
-        if ($start_date) { 
-            $this->db->where('t1.transaction_date <', $start_date . ' 00:00:00'); 
-        }
-        $subquery_opening_sql = $this->db->get_compiled_select();
-        $this->db->reset_query(); 
+        $subquery_opening_sql = "
+            SELECT item_id, item_type, 
+                   SUM(qty_in) - SUM(qty_out) as opening_stock
+            FROM {$this->table}
+            WHERE transaction_type IN ({$warehouse_types_list})
+            " . ($start_date ? "AND transaction_date < '{$start_date} 00:00:00'" : "AND transaction_date < NOW()") . "
+            GROUP BY item_id, item_type
+        "; 
 
         // --- Subquery 2: Mutasi di Periode yang Diminta ---
         $this->db->select(" item_id, item_type,
             SUM(CASE WHEN transaction_type = 'in' THEN qty_in ELSE 0 END) as total_receive,
             SUM(CASE WHEN transaction_type = 'IN_RETURN_WIP' THEN qty_in ELSE 0 END) as total_return,
-            SUM(CASE WHEN transaction_type IN ('OUT_ISSUE', 'OUT_SHIPMENT', 'ADJ_OUT', 'production_out') THEN qty_out ELSE 0 END) as total_out
+            SUM(CASE WHEN transaction_type IN ('OUT_ISSUE', 'OUT_SHIPMENT', 'ADJ_OUT', 'production_out') THEN qty_out ELSE 0 END) as total_out,
+            SUM(CASE WHEN transaction_type = 'adjustment' THEN (qty_in - qty_out) ELSE 0 END) as total_adjustment
         ", FALSE);
         $this->db->from($this->table); 
         if ($start_date) { $this->db->where('transaction_date >=', $start_date . ' 00:00:00'); }
@@ -140,10 +137,11 @@ class Stock_ledger_model extends CI_Model {
             IFNULL(opening.opening_stock, 0) as opening_stock,
             IFNULL(mutation.total_receive, 0) as receive_qty,
             IFNULL(mutation.total_return, 0) as return_qty,
-            IFNULL(mutation.total_out, 0) as out_qty
+            IFNULL(mutation.total_out, 0) as out_qty,
+            IFNULL(mutation.total_adjustment, 0) as adjustment_qty
         ");
         
-        $this->db->select("(IFNULL(opening.opening_stock, 0) + IFNULL(mutation.total_receive, 0) + IFNULL(mutation.total_return, 0) - IFNULL(mutation.total_out, 0)) as closing_stock", FALSE);
+        $this->db->select("(IFNULL(opening.opening_stock, 0) + IFNULL(mutation.total_receive, 0) + IFNULL(mutation.total_return, 0) - IFNULL(mutation.total_out, 0) + IFNULL(mutation.total_adjustment, 0)) as closing_stock", FALSE);
 
         $this->db->from("({$all_items_sql}) items");
         
@@ -165,7 +163,8 @@ class Stock_ledger_model extends CI_Model {
             opening.opening_stock IS NOT NULL OR 
             mutation.total_receive IS NOT NULL OR 
             mutation.total_return IS NOT NULL OR 
-            mutation.total_out IS NOT NULL 
+            mutation.total_out IS NOT NULL OR 
+            mutation.total_adjustment IS NOT NULL 
         )');
         
         $this->db->order_by('items.item_name', 'ASC');
@@ -277,9 +276,33 @@ class Stock_ledger_model extends CI_Model {
             if (in_array($data['transaction_type'], $this->get_warehouse_tx_types())) {
                 // Ini transaksi GUDANG
                 $current_balance = $last_balance + $qty_in - $qty_out;
+                
+                // VALIDASI KRITIS: Warehouse OUT tidak boleh melebihi stock
+                if ($qty_out > 0 && $current_balance < 0) {
+                    $this->db->trans_rollback();
+                    log_message('error', 'StockLedger->insert REJECTED: Pengeluaran melebihi stock! Item: ' . $data['item_id'] . 
+                        ', Type: ' . $data['item_type'] . ', TX: ' . $data['transaction_type'] . 
+                        ', Last Balance: ' . $last_balance . ', Out: ' . $qty_out . ', Hasil: ' . $current_balance);
+                    return false;
+                }
             } else if (in_array($data['transaction_type'], ['wip_in', 'wip_out'])) {
                 // Ini transaksi WIP
                 $current_balance = $last_balance + $qty_in - $qty_out;
+                
+                // NOTE: WIP balance dihitung per WO, bukan global
+                // Validasi WIP stock dilakukan di level aplikasi (Production_model->get_wip_materials_with_remaining)
+                // TIDAK perlu validasi balance < 0 di sini karena bisa dari multiple WO
+                
+                // VALIDASI DISABLED: WIP tracking berbeda dengan warehouse
+                // WIP bisa punya balance negative di level global karena tracking per-WO
+                /*
+                if ($qty_out > 0 && $current_balance < 0) {
+                    $this->db->trans_rollback();
+                    log_message('error', 'StockLedger->insert REJECTED: WIP out melebihi stock! Item: ' . $data['item_id'] . 
+                        ', Last Balance: ' . $last_balance . ', Out: ' . $qty_out);
+                    return false;
+                }
+                */
             }
             // Jika tipe lain, saldo tidak berubah (current_balance = last_balance)
 
@@ -408,9 +431,9 @@ class Stock_ledger_model extends CI_Model {
             // Jika ini transaksi Gudang (GRN/ADJ), ambil saldo terakhir Gudang
             $this->db->where_in('transaction_type', $this->get_warehouse_tx_types());
         } else if (in_array($transaction_type, $wip_types)) {
-            // Jika ini transaksi WIP, ambil saldo terakhir (bisa dari gudang atau wip)
-            // PENTING: wip_in pertama harus lanjut dari warehouse balance, bukan 0
-            // Jadi cari saldo TERAKHIR dari SEMUA transaksi (gudang + wip)
+            // Jika ini transaksi WIP, ambil saldo terakhir WIP ONLY (tidak campur dengan warehouse)
+            // WIP balance chain harus terpisah dari warehouse balance
+            $this->db->where_in('transaction_type', $wip_types);
         }
         
         $this->db->order_by('id', 'DESC');
@@ -463,7 +486,7 @@ class Stock_ledger_model extends CI_Model {
     public function get_item_transaction_history($item_id, $item_type, $start_date = null, $end_date = null) {
         $this->db->reset_query();
         
-        // PERBAIKAN: Tambah COALESCE untuk fallback supplier dari PO/MIR jika GRN supplier_id NULL
+        // PERBAIKAN: Tambah COALESCE untuk fallback supplier dari PO/MIR jika GRN supplier_id NULL + Adjustment fields
         $select_clause = "
             sl.id as ledger_id, sl.transaction_date, sl.transaction_type, sl.transaction_id,
             sl.qty_in, sl.qty_out, sl.balance, sl.unit_value,
@@ -475,7 +498,9 @@ class Stock_ledger_model extends CI_Model {
             mr_h.mr_number,
             sih.doc_no as scrap_in_doc_no,
             soh.doc_no as scrap_out_doc_no,
-            soh.bc_type_code as scrap_out_bc_type, soh.bc_number as scrap_out_bc_no, soh.bc_date as scrap_out_bc_date
+            soh.bc_type_code as scrap_out_bc_type, soh.bc_number as scrap_out_bc_no, soh.bc_date as scrap_out_bc_date,
+            ah.doc_no as adjustment_doc,
+            ah.notes as adjustment_notes
         ";
 
         $this->db->select($select_clause, FALSE);
@@ -505,6 +530,10 @@ class Stock_ledger_model extends CI_Model {
         $this->db->join('mr_header mr_h', 'sl.transaction_id = mr_h.id AND sl.transaction_type IN ("OUT_ISSUE", "production_out")', 'left'); 
         $this->db->join('scrap_in_header sih', 'sl.transaction_id = sih.id AND sl.transaction_type = "IN_SCRAP_WH"', 'left');
         $this->db->join('scrap_out_header soh', 'sl.transaction_id = soh.id AND sl.transaction_type = "OUT_SCRAP_BC"', 'left');
+        
+        // Adjustment JOIN
+        $this->db->join('adjustment_details ad', 'sl.transaction_id = ad.id AND sl.transaction_type = "adjustment"', 'left');
+        $this->db->join('adjustment_header ah', 'ad.adjustment_header_id = ah.id', 'left');
         
         // --- FILTER ---
         $this->db->where('sl.item_id', $item_id);
