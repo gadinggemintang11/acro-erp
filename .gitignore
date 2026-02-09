@@ -30,7 +30,6 @@ application/logs/*
 # 5. FILE ROOT YANG DIPERLUKAN
 ##################################
 !index.php
-
 !composer.json
 !composer.lock
 !.gitignore
