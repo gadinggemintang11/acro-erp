@@ -182,6 +182,9 @@ class Purchase_order extends MY_Controller { // Asumsi extends MY_Controller
             return; 
         }
 
+        // --- DEBUG: Log all POST data for troubleshooting ---
+        log_message('debug', '[update_header] POST data received: ' . json_encode($_POST, JSON_UNESCAPED_UNICODE));
+
         // --- Validasi Input ---
         $this->form_validation->set_rules('po_date', 'Tanggal PO', 'required|callback_validate_date', ['validate_date' => 'Format Tanggal PO tidak valid.']);
         $this->form_validation->set_rules('currency_code', 'Mata Uang', 'required');
@@ -191,6 +194,7 @@ class Purchase_order extends MY_Controller { // Asumsi extends MY_Controller
             $_POST['exchange_rate'] = 1;
         }
         if ($this->form_validation->run() == FALSE) {
+             log_message('debug', '[update_header] Validation failed: ' . validation_errors());
              $this->session->set_flashdata('error', validation_errors('<p class="mb-1">', '</p>'));
              redirect('purchase_order/detail/' . $id); return;
         }
@@ -200,9 +204,11 @@ class Purchase_order extends MY_Controller { // Asumsi extends MY_Controller
         $exchange_rate_input = preg_replace('/[^\d.]/', '', $this->input->post('exchange_rate'));
         $exchange_rate = ($currency_code == 'IDR') ? 1 : (float)$exchange_rate_input;
         
-        // DEBUG: Log semua input POST
-        $remarks_input = $this->input->post('remarks');
-        log_message('debug', '[update_header] PO ID: '.$id.' | remarks input: ' . var_export($remarks_input, true));
+        // DEBUG: Capture remarks value before processing
+        $remarks_raw = $this->input->post('remarks');
+        $remarks_final = !empty($remarks_raw) ? trim($remarks_raw) : '';
+        
+        log_message('debug', '[update_header] ID='.$id.' | remarks_raw: ' . var_export($remarks_raw, true) . ' | remarks_final: ' . var_export($remarks_final, true));
         
         $data = [
             'po_date'             => $this->input->post('po_date'),
@@ -211,13 +217,25 @@ class Purchase_order extends MY_Controller { // Asumsi extends MY_Controller
             'currency_code'       => $currency_code,
             'exchange_rate'       => $exchange_rate,
             'has_ppn'             => $this->input->post('has_ppn') ? 1 : 0,
-            'remarks'             => !empty($remarks_input) ? trim($remarks_input) : '',
+            'remarks'             => $remarks_final,
         ];
         
-        // DEBUG: Log data yang akan diupdate
-        log_message('debug', '[update_header] data to update: ' . var_export($data, true));
+        // DEBUG: Enable query logging
+        $this->db->save_queries = TRUE;
+        
+        log_message('debug', '[update_header] Data array before update: ' . json_encode($data, JSON_UNESCAPED_UNICODE));
 
-        if ($this->Po_model->update_header($id, $data)) { 
+        $result = $this->Po_model->update_header($id, $data);
+        
+        // DEBUG: Log the actual SQL that was executed
+        $queries = $this->db->queries;
+        if (!empty($queries)) {
+            log_message('debug', '[update_header] SQL Query executed: ' . end($queries));
+        }
+        
+        log_message('debug', '[update_header] Update result: ' . var_export($result, true) . ' | Affected rows: ' . $this->db->affected_rows());
+
+        if ($result) { 
             $this->session->set_flashdata('success', 'Header PO berhasil diperbarui!');
         } else {
              if ($this->db->affected_rows() == 0) { 

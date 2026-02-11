@@ -84,10 +84,21 @@ class Po_model extends CI_Model {
     }
 
     public function update_header($id, $data) {
+        // DEBUG: Log data array and unsets
+        log_message('debug', '[Po_model::update_header] Data before unset: ' . json_encode($data, JSON_UNESCAPED_UNICODE));
+        
         unset($data['status'], $data['confirmed_by'], $data['confirmed_at'], $data['po_number'], $data['created_by'], $data['supplier_id']);
+        
+        log_message('debug', '[Po_model::update_header] Data after unset: ' . json_encode($data, JSON_UNESCAPED_UNICODE));
+        log_message('debug', '[Po_model::update_header] Updating ID='.$id.' with status check = Draft');
+        
         $this->db->where('id', $id)->where('status', 'Draft');
         $this->db->update($this->table_header, $data);
-        return $this->db->affected_rows() > 0; 
+        
+        $affected = $this->db->affected_rows();
+        log_message('debug', '[Po_model::update_header] Affected rows: ' . $affected);
+        
+        return $affected > 0; 
     }
 
     public function delete_header($id) {
