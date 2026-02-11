@@ -186,7 +186,7 @@ class Purchase_order extends MY_Controller { // Asumsi extends MY_Controller
         log_message('debug', '[update_header] POST data received: ' . json_encode($_POST, JSON_UNESCAPED_UNICODE));
 
         // --- Validasi Input ---
-        $this->form_validation->set_rules('po_date', 'Tanggal PO', 'required|callback_validate_date', ['validate_date' => 'Format Tanggal PO tidak valid.']);
+        $this->form_validation->set_rules('po_date', 'Tanggal PO', 'required', ['required' => 'Tanggal PO wajib diisi.']);
         $this->form_validation->set_rules('currency_code', 'Mata Uang', 'required');
          if ($this->input->post('currency_code') != 'IDR') {
              $this->form_validation->set_rules('exchange_rate', 'Kurs Tukar', 'required|numeric|greater_than[0]',['greater_than' => 'Kurs Tukar harus lebih besar dari 0 jika mata uang bukan IDR.']);
@@ -236,14 +236,17 @@ class Purchase_order extends MY_Controller { // Asumsi extends MY_Controller
         log_message('debug', '[update_header] Update result: ' . var_export($result, true) . ' | Affected rows: ' . $this->db->affected_rows());
 
         if ($result) { 
+            log_message('debug', '[update_header] SUCCESS - Header PO ID '.$id.' updated');
             $this->session->set_flashdata('success', 'Header PO berhasil diperbarui!');
         } else {
+             log_message('debug', '[update_header] FAILED - Affected rows: ' . $this->db->affected_rows());
              if ($this->db->affected_rows() == 0) { 
+                 log_message('debug', '[update_header] No rows affected - data might be identical');
                  $this->session->set_flashdata('warning', 'Tidak ada perubahan data header.');
              } else {
                  $db_error = $this->db->error();
                  log_message('error','Gagal update header PO ID '.$id.': '. print_r($db_error, true));
-                $this->session->set_flashdata('error', 'Gagal memperbarui header PO! Terjadi kesalahan database.');
+                 $this->session->set_flashdata('error', 'Gagal memperbarui header PO! Terjadi kesalahan database: ' . $db_error['message']);
              }
         }
         redirect('purchase_order/detail/' . $id);

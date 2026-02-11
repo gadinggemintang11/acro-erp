@@ -37,6 +37,25 @@
     <?php if ($this->session->flashdata('error')): ?> <div class="alert alert-danger alert-dismissible fade show" role="alert"><?= $this->session->flashdata('error'); ?><button type="button" class="close" data-dismiss="alert">&times;</button></div> <?php endif; ?>
     <?php if ($this->session->flashdata('warning')): ?> <div class="alert alert-warning alert-dismissible fade show" role="alert"><?= $this->session->flashdata('warning'); ?><button type="button" class="close" data-dismiss="alert">&times;</button></div> <?php endif; ?>
 
+    <script>
+        // Display flashdata as SweetAlert
+        const flashSuccess = "<?= addslashes($this->session->flashdata('success') ?? ''); ?>";
+        const flashError = "<?= addslashes($this->session->flashdata('error') ?? ''); ?>";
+        const flashWarning = "<?= addslashes($this->session->flashdata('warning') ?? ''); ?>";
+        
+        if (flashSuccess && typeof Swal !== 'undefined') {
+            Swal.fire({ icon: 'success', title: '<?= lang_line('po_success', 'Berhasil!'); ?>', text: flashSuccess, timer: 2000, showConfirmButton: false });
+        }
+        if (flashError && typeof Swal !== 'undefined') {
+            Swal.fire({ icon: 'error', title: '<?= lang_line('po_failed', 'Gagal!'); ?>', text: flashError });
+        }
+        if (flashWarning && typeof Swal !== 'undefined') {
+            Swal.fire({ icon: 'warning', title: '<?= lang_line('po_warning', 'Peringatan!'); ?>', text: flashWarning });
+        }
+    </script>
+    <?php if ($this->session->flashdata('error')): ?> <div class="alert alert-danger alert-dismissible fade show" role="alert"><?= $this->session->flashdata('error'); ?><button type="button" class="close" data-dismiss="alert">&times;</button></div> <?php endif; ?>
+    <?php if ($this->session->flashdata('warning')): ?> <div class="alert alert-warning alert-dismissible fade show" role="alert"><?= $this->session->flashdata('warning'); ?><button type="button" class="close" data-dismiss="alert">&times;</button></div> <?php endif; ?>
+
     <?php if (isset($header) && $header): ?>
      <div class="card shadow mb-4">
         <div class="card-header py-3"> <h6 class="m-0 font-weight-bold text-primary"><?= lang_line('po_header_info', 'Informasi Purchase Order'); ?></h6> </div>
@@ -291,10 +310,30 @@ $(function() {
                 $editCurrencySelect.on('change', toggleEditKurs); 
                 console.log("[PO Detail] AutoNumeric & Currency Logic for Edit Modal Initialized.");
 
-                // Bootstrap validation for modal form
+                // Bootstrap validation for modal form + AJAX submit
                 $editModal.find('form.needs-validation').on('submit', function(event) {
-                    if (this.checkValidity() === false) { event.preventDefault(); event.stopPropagation(); }
+                    event.preventDefault(); // Prevent default form submission
+                    event.stopPropagation();
+                    
+                    if (this.checkValidity() === false) { 
+                        $(this).addClass('was-validated');
+                        console.warn("[PO Detail] Form validation failed");
+                        return false;
+                    }
+                    
+                    // Form valid, submit via traditional form (since backend handles redirect)
+                    console.log("[PO Detail] Form validation passed, submitting...");
                     $(this).addClass('was-validated');
+                    
+                    // Disable submit button to prevent double submission
+                    const $submitBtn = $(this).find('button[type="submit"]');
+                    const originalHtml = $submitBtn.html();
+                    $submitBtn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i> Menyimpan...');
+                    
+                    // Submit form after short delay
+                    setTimeout(() => {
+                        this.submit();
+                    }, 200);
                 });
            } catch(err) { console.error("[PO Detail] Error initializing AN/Currency for Edit Modal:", err); }
        } else { console.log("[PO Detail] AutoNumeric input not found or AutoNumeric lib not loaded."); }
