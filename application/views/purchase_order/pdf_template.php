@@ -38,7 +38,6 @@
 
         th,
         td {
-            border: 1px solid #ddd;
             padding: 5px;
             text-align: left;
             vertical-align: top;
@@ -47,6 +46,22 @@
         th {
             background-color: #f2f2f2;
             text-align: center;
+            border: 2px solid #000000;
+        }
+
+        .detail-table th,
+        .detail-table td {
+            border: 2px solid #000000;
+        }
+
+        .payment-table th,
+        .payment-table td {
+            border: 2px solid #000000;
+        }
+
+        .signature-table th,
+        .signature-table td {
+            border: 2px solid #000000;
         }
 
         .text-right {
@@ -153,13 +168,12 @@
     </table>
 
 
-    <table>
+    <table class="detail-table">
         <thead>
             <tr>
                 <th style="width:4%">No<br>序号</th>
                 <th style="width:12%">Kode<br>代码</th>
                 <th style="width:20%">Nama Barang<br>产品名称</th>
-                <th style="width:15%">商品</th>
                 <th style="width:8%">Qty<br>数量</th>
                 <th style="width:8%">Satuan<br>单位</th>
                 <th style="width:12%">Harga Satuan(<?= $header->currency_code; ?>)<br>单价</th>
@@ -188,12 +202,6 @@
                             <br><small><i>(Ref: <?= htmlspecialchars($d->sc_number); ?>)</i></small>
                         <?php endif; ?>
                     </td>
-                    <td class="text-center" style="font-size: 9px;">
-                        <?php 
-                            $chinese_name = translate_to_chinese($d->item_name ?? '');
-                            echo htmlspecialchars($chinese_name);
-                        ?>
-                    </td>
                     <td class="text-right"><?= number_format((float)($d->qty ?? 0), 4, '.', ','); ?></td>
                     <td class="text-center"><?= htmlspecialchars($d->item_unit ?? '-'); ?></td>
                     <td class="text-right"><?= number_format((float)($d->base_price ?? 0), 2, '.', ','); ?></td>
@@ -203,8 +211,8 @@
         </tbody>
         <tfoot>
             <tr>
-                <td colspan="6" class="text-right no-border" style="border-bottom: 1px solid #ddd !important;"><strong>Subtotal 税前及折扣前总额(<?= $header->currency_code; ?>)</strong></td>
-                <td class="text-right" style="border-bottom: 1px solid #ddd !important;"><strong><?= number_format($grand_total_base, 2, '.', ','); ?></strong></td>
+                <td colspan="6" class="text-right"><strong>Subtotal 税前及折扣前总额(<?= $header->currency_code; ?>)</strong></td>
+                <td class="text-right"><strong><?= number_format($grand_total_base, 2, '.', ','); ?></strong></td>
             </tr>
             <?php
             $ppn_amount = $header->has_ppn ? $grand_total_base * 0.11 : 0;
@@ -212,11 +220,11 @@
             ?>
             <?php if ($header->has_ppn): ?>
                 <tr>
-                    <td colspan="6" class="text-right no-border">PPN 11% 增值税</td>
+                    <td colspan="6" class="text-right">PPN 11% 增值税</td>
                     <td class="text-right"><?= number_format($ppn_amount, 2, '.', ','); ?></td>
                 </tr>
                 <tr>
-                    <td colspan="6" class="text-right no-border"><strong>Grand Total 总计 (<?= $header->currency_code; ?>)</strong></td>
+                    <td colspan="6" class="text-right"><strong>Grand Total 总计 (<?= $header->currency_code; ?>)</strong></td>
                     <td class="text-right"><strong><?= number_format($total_after_ppn_base, 2, '.', ','); ?></strong></td>
                 </tr>
             <?php endif; ?>
@@ -227,17 +235,17 @@
                 $grand_total_final_local = $grand_total_local * ($header->has_ppn ? 1.11 : 1);
                 ?>
                 <tr>
-                    <td colspan="6" class="text-right no-border" style="background-color: #f2f2f2;"><strong>Estimasi Grand Total (IDR)</strong></td>
-                    <td class="text-right" style="background-color: #f2f2f2;"><strong><?= number_format($grand_total_final_local, 2, '.', ','); ?></strong></td>
+                    <td colspan="6" class="text-right"><strong>Estimasi Grand Total (IDR)</strong></td>
+                    <td class="text-right"><strong><?= number_format($grand_total_final_local, 2, '.', ','); ?></strong></td>
                 </tr>
             <?php endif; ?>
         </tfoot>
     </table>
 
     <?php if (!empty($header->remarks)): ?>
-        <table style="margin-top: 15px; margin-bottom: 0; border: 1px solid #ddd;">
+        <table class="detail-table" style="margin-top: 15px; margin-bottom: 0;">
             <tr>
-                <td style="padding: 10px; border-bottom: 1px solid #ddd;">
+                <td style="padding: 10px;">
                     <strong>Catatan / 备注:</strong>
                 </td>
             </tr>
@@ -250,17 +258,17 @@
     <?php endif; ?>
 
     <!-- Payment and Delivery Info -->
-    <table style="margin-top: 10px; margin-bottom: 0; border: 1px solid #ddd;">
+    <table class="payment-table" style="margin-top: 10px; margin-bottom: 0;">
         <tr>
-            <td style="width: 50%; padding: 10px; border-right: 1px solid #ddd; border-bottom: 1px solid #ddd;">
+            <td style="width: 50%; padding: 10px;">
                 <strong>Pembayaran / 付款条款:</strong>
             </td>
-            <td style="width: 50%; padding: 10px; border-bottom: 1px solid #ddd;">
+            <td style="width: 50%; padding: 10px;">
                 <strong>Pengiriman / 交货:</strong>
             </td>
         </tr>
         <tr>
-            <td style="width: 50%; padding: 10px; border-right: 1px solid #ddd;">
+            <td style="width: 50%; padding: 10px;">
                 <?= htmlspecialchars($header->payment_mode_desc ?? '-'); ?>
             </td>
             <td style="width: 50%; padding: 10px;">
@@ -270,15 +278,15 @@
     </table>
 
     <!-- Signature Table -->
-    <table style="margin-top: 15px; border: 1px solid #ddd;">
+    <table class="signature-table" style="margin-top: 15px;">
         <tr>
-            <td style="width: 25%; text-align: center; padding: 10px; border-right: 1px solid #ddd; border-bottom: 1px solid #ddd;">
+            <td style="width: 25%; text-align: center; padding: 10px;">
                 <strong>Disetujui<br>批准</strong>
             </td>
-            <td style="width: 25%; text-align: center; padding: 10px; border-right: 1px solid #ddd; border-bottom: 1px solid #ddd;">
+            <td style="width: 25%; text-align: center; padding: 10px;">
                 <strong>Kepala Bagian<br>行政主管</strong>
             </td>
-            <td style="width: 25%; text-align: center; padding: 10px; border-right: 1px solid #ddd; border-bottom: 1px solid #ddd;">
+            <td style="width: 25%; text-align: center; padding: 10px;">
                 <strong>Kepala Akuntan<br>会计主管</strong>
             </td>
             <td style="width: 25%; text-align: center; padding: 10px;">
@@ -286,13 +294,13 @@
             </td>
         </tr>
         <tr>
-            <td style="width: 25%; text-align: center; padding: 40px 10px; border-right: 1px solid #ddd;">
+            <td style="width: 25%; text-align: center; padding: 40px 10px;">
                 &nbsp;
             </td>
-            <td style="width: 25%; text-align: center; padding: 40px 10px; border-right: 1px solid #ddd;">
+            <td style="width: 25%; text-align: center; padding: 40px 10px;">
                 &nbsp;
             </td>
-            <td style="width: 25%; text-align: center; padding: 40px 10px; border-right: 1px solid #ddd;">
+            <td style="width: 25%; text-align: center; padding: 40px 10px;">
                 &nbsp;
             </td>
             <td style="width: 25%; text-align: center; padding: 40px 10px;">
@@ -300,13 +308,13 @@
             </td>
         </tr>
         <tr>
-            <td style="width: 25%; text-align: center; padding: 10px; border-right: 1px solid #ddd; font-size: 9px;">
+            <td style="width: 25%; text-align: center; padding: 10px; font-size: 9px;">
                 Tanda Tangan / 签名
             </td>
-            <td style="width: 25%; text-align: center; padding: 10px; border-right: 1px solid #ddd; font-size: 9px;">
+            <td style="width: 25%; text-align: center; padding: 10px; font-size: 9px;">
                 Tanda Tangan / 签名
             </td>
-            <td style="width: 25%; text-align: center; padding: 10px; border-right: 1px solid #ddd; font-size: 9px;">
+            <td style="width: 25%; text-align: center; padding: 10px; font-size: 9px;">
                 Tanda Tangan / 签名
             </td>
             <td style="width: 25%; text-align: center; padding: 10px; font-size: 9px;">

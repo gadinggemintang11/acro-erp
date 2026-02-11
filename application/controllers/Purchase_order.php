@@ -129,6 +129,10 @@ class Purchase_order extends MY_Controller { // Asumsi extends MY_Controller
         
         // Get PO number - either manual input or auto-generate
         $po_number = trim($this->input->post('po_number'));
+        
+        // DEBUG: Log semua input POST untuk melihat apakah remarks diterima
+        $remarks_input = $this->input->post('remarks');
+        log_message('debug', '[add_header] remarks input: ' . var_export($remarks_input, true));
 
         $data = [
             'po_number'           => $po_number, // Pass empty string or manual PO number to model
@@ -139,10 +143,13 @@ class Purchase_order extends MY_Controller { // Asumsi extends MY_Controller
             'currency_code'       => $currency_code,
             'exchange_rate'       => $exchange_rate,
             'has_ppn'             => $this->input->post('has_ppn') ? 1 : 0,
-            'remarks'             => trim($this->input->post('remarks')),
+            'remarks'             => !empty($remarks_input) ? trim($remarks_input) : '',
             'status'              => 'Draft', 
             'created_by'          => $this->session->userdata('user_id') ?? null
         ];
+        
+        // DEBUG: Log data yang akan disimpan
+        log_message('debug', '[add_header] data to insert: ' . var_export($data, true));
 
         $new_po_id = $this->Po_model->insert_header($data); 
         if ($new_po_id) {
@@ -193,6 +200,10 @@ class Purchase_order extends MY_Controller { // Asumsi extends MY_Controller
         $exchange_rate_input = preg_replace('/[^\d.]/', '', $this->input->post('exchange_rate'));
         $exchange_rate = ($currency_code == 'IDR') ? 1 : (float)$exchange_rate_input;
         
+        // DEBUG: Log semua input POST
+        $remarks_input = $this->input->post('remarks');
+        log_message('debug', '[update_header] PO ID: '.$id.' | remarks input: ' . var_export($remarks_input, true));
+        
         $data = [
             'po_date'             => $this->input->post('po_date'),
             'shipping_mode_code'  => $this->input->post('shipping_mode_code') ?: NULL,
@@ -200,8 +211,11 @@ class Purchase_order extends MY_Controller { // Asumsi extends MY_Controller
             'currency_code'       => $currency_code,
             'exchange_rate'       => $exchange_rate,
             'has_ppn'             => $this->input->post('has_ppn') ? 1 : 0,
-            'remarks'             => trim($this->input->post('remarks')),
+            'remarks'             => !empty($remarks_input) ? trim($remarks_input) : '',
         ];
+        
+        // DEBUG: Log data yang akan diupdate
+        log_message('debug', '[update_header] data to update: ' . var_export($data, true));
 
         if ($this->Po_model->update_header($id, $data)) { 
             $this->session->set_flashdata('success', 'Header PO berhasil diperbarui!');
@@ -681,5 +695,34 @@ class Purchase_order extends MY_Controller { // Asumsi extends MY_Controller
         $writer->save('php://output');
         exit;
     }
+
+    /**
+     * DIAGNOSTIK: Debug remarks field
+     */
+    public function debug_remarks() {
+        // Hanya untuk development/debugging
+        if (!check_access('purchase_order', 'view')) { show_error('Izin Ditolak.', 403); }
+        
+        $output = [
+            'php_version'           => phpversion(),
+            'max_input_vars'        => ini_get('max_input_vars'),
+            'post_max_size'         => ini_get('post_max_size'),
+            'upload_max_filesize'   => ini_get('upload_max_filesize'),
+            'memory_limit'          => ini_get('memory_limit'),
+            'php_sapi_name'         => php_sapi_name(),
+            'os'                    => php_uname(),
+            'post_keys'             => array_keys($_POST),
+            'post_count'            => count($_POST),
+            'remarks_exists'        => isset($_POST['remarks']),
+            'remarks_value'         => $_POST['remarks'] ?? 'NOT SET',
+            'remarks_length'        => strlen($_POST['remarks'] ?? ''),
+            'db_last_error'         => $this->db->error(),
+        ];
+        
+        $this->output->set_content_type('application/json')
+                     ->set_output(json_encode($output, JSON_PRETTY_PRINT | JSON_UNESCAPED_UNICODE));
+    }
+
+    // --- END DIAGNOSTIK ---
 
 } // End Class
