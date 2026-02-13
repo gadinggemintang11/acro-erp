@@ -37,7 +37,7 @@
                             </td>
                             <td><?= date('d-m-Y', strtotime($p->payment_date)); ?></td>
                             <td><?= $p->nama_supplier; ?></td>
-                            <td><?= $p->payment_account_name; ?></td>
+                            <td><?= $p->payment_account_name ?: '<span class="text-muted">-</span>'; ?></td>
                             <td class="text-right"><?= number_format($p->total_amount, 2); ?></td>
                             <td>
                                 <span class="badge badge-<?= $p->status == 'Posted' ? 'success' : 'secondary'; ?>">

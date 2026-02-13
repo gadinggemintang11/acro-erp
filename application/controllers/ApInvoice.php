@@ -46,6 +46,12 @@ class ApInvoice extends MY_Controller {
         $data['title'] = lang_line('ap_invoice_create', 'Buat Faktur Supplier Baru');
         $data['suppliers'] = $this->model->get_suppliers();
         $data['accounts'] = $this->model->get_postable_accounts_for_expense();
+        // ✨ NEW: Ambil list akun untuk pilihan debet dan kredit
+        $data['debet_accounts'] = $this->model->get_debet_accounts();
+        $data['kredit_accounts'] = $this->model->get_kredit_accounts();
+        // ✨ NEW: Ambil list akun untuk pilihan pajak (PPN & PPh)
+        $data['ppn_accounts'] = $this->model->get_ppn_accounts();
+        $data['pph_accounts'] = $this->model->get_pph_accounts();
         
         $this->load->view('templates/header', $data);
         $this->load->view('templates/sidebar', $data);
@@ -99,6 +105,22 @@ class ApInvoice extends MY_Controller {
         if (empty($details)) {
             $this->session->set_flashdata('error', 'Detail faktur tidak boleh kosong.');
             redirect('apinvoice/create');
+        }
+
+        // ✨ NEW: Validasi akun debet dan kredit untuk GRN_BASED
+        if ($invoice_type === 'GRN_BASED') {
+            foreach ($details as $idx => $detail) {
+                if (empty($detail['debet_account_id'])) {
+                    $this->session->set_flashdata('error', 'Silakan pilih Akun DEBET untuk semua item.');
+                    redirect('apinvoice/create');
+                    return;
+                }
+                if (empty($detail['kredit_account_id'])) {
+                    $this->session->set_flashdata('error', 'Silakan pilih Akun KREDIT untuk semua item.');
+                    redirect('apinvoice/create');
+                    return;
+                }
+            }
         }
 
         try {
@@ -287,5 +309,27 @@ class ApInvoice extends MY_Controller {
         return $this->output
             ->set_content_type('application/json')
             ->set_output(json_encode(['success' => true, 'data' => $details]));
+    }
+
+    /**
+     * ✨ NEW: AJAX: Ambil daftar akun persediaan (untuk pilihan debet)
+     */
+    public function ajax_get_debet_accounts()
+    {
+        $accounts = $this->model->get_debet_accounts();
+        return $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode(['success' => true, 'data' => $accounts]));
+    }
+
+    /**
+     * ✨ NEW: AJAX: Ambil daftar akun utang (untuk pilihan kredit)
+     */
+    public function ajax_get_kredit_accounts()
+    {
+        $accounts = $this->model->get_kredit_accounts();
+        return $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode(['success' => true, 'data' => $accounts]));
     }
 }

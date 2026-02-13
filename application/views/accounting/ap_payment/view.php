@@ -58,6 +58,53 @@
                             <?= $header->journal_header_id ? $journal_header->journal_no : 'N/A'; ?>
                         </div>
                     </div>
+                    <hr>
+                    <!-- ✨ NEW: Tampilkan header-level account mapping -->
+                    <div class="row">
+                        <div class="col-md-6">
+                            <strong>📊 Akun DEBET (Hutang Berkurang):</strong><br>
+                            <?php if($header->debet_account_id): ?>
+                                <span class="badge badge-primary">ID: <?= $header->debet_account_id; ?></span>
+                            <?php else: ?>
+                                <span class="text-muted">Tidak dipilih (akan gunakan dari Setting)</span>
+                            <?php endif; ?>
+                        </div>
+                        <div class="col-md-6">
+                            <strong>📊 Akun KREDIT (Kas/Bank Berkurang):</strong><br>
+                            <?php if($header->kredit_account_id): ?>
+                                <span class="badge badge-info">ID: <?= $header->kredit_account_id; ?></span>
+                            <?php else: ?>
+                                <span class="text-muted">Tidak dipilih (akan gunakan dari Setting)</span>
+                            <?php endif; ?>
+                        </div>
+                    </div>
+                    
+                    <!-- ✨ NEW: Tampilkan PPh Withholding Tax Information -->
+                    <?php if($header->pph_rate > 0 || $header->pph_amount > 0): ?>
+                    <hr>
+                    <div class="row bg-light p-3 rounded">
+                        <div class="col-md-3">
+                            <strong>💰 Tarif PPh 23:</strong><br>
+                            <h5 class="text-warning"><?= $header->pph_rate; ?>%</h5>
+                        </div>
+                        <div class="col-md-3">
+                            <strong>💰 Jumlah PPh:</strong><br>
+                            <h5 class="text-warning"><?= number_format($header->pph_amount, 2); ?></h5>
+                        </div>
+                        <div class="col-md-3">
+                            <strong>💰 Akun Hutang PPh:</strong><br>
+                            <?php if($header->pph_account_id): ?>
+                                <span class="badge badge-warning">ID: <?= $header->pph_account_id; ?></span>
+                            <?php else: ?>
+                                <span class="text-muted">-</span>
+                            <?php endif; ?>
+                        </div>
+                        <div class="col-md-3">
+                            <strong>💰 Pembayaran Netto:</strong><br>
+                            <h5 class="text-success"><?= number_format($header->total_amount - $header->pph_amount, 2); ?></h5>
+                        </div>
+                    </div>
+                    <?php endif; ?>
                 </div>
             </div>
         </div>

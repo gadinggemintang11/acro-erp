@@ -70,6 +70,7 @@
         <div class="card shadow mb-4" id="detail-grn-card" style="display: none;">
             <div class="card-header py-3">
                 <h6 class="m-0 font-weight-bold text-primary">Detail GRN</h6>
+                <small class="text-muted d-block mt-2">⭐ Pilih akun DEBET (Persediaan/Aset) dan KREDIT (Utang) untuk setiap item</small>
             </div>
             <div class="card-body">
                 <div class="form-group">
@@ -79,13 +80,15 @@
                 <button type="button" id="btn-load-grn" class="btn btn-info">Tarik Item dari GRN</button>
                 <hr>
                 <div class="table-responsive">
-                    <table class="table table-bordered">
+                    <table class="table table-bordered table-sm">
                         <thead class="thead-light">
                             <tr>
                                 <th>Deskripsi (Item)</th>
-                                <th style="width: 15%;">Qty</th>
-                                <th style="width: 20%;">Harga Satuan</th>
-                                <th style="width: 20%;">Total</th>
+                                <th style="width: 12%;">Qty</th>
+                                <th style="width: 18%;">Harga Satuan</th>
+                                <th style="width: 18%;">Total</th>
+                                <th style="width: 18%;">Akun DEBET *</th>
+                                <th style="width: 18%;">Akun KREDIT *</th>
                             </tr>
                         </thead>
                         <tbody id="detail-body-grn"></tbody>
@@ -179,6 +182,10 @@
 <script>
 $(function() {
     let jasaRowIndex = 0;
+    
+    // ✨ NEW: Store account options dari PHP ke JS
+    let debetAccounts = <?= json_encode($debet_accounts); ?>;
+    let kreditAccounts = <?= json_encode($kredit_accounts); ?>;
 
     $('#invoice_type').change(function() {
         const type = $(this).val();
@@ -228,6 +235,23 @@ $(function() {
             if (res && res.success && res.data && res.data.length) {
                 res.data.forEach((i, idx) => {
                     const total = i.qty * i.unit_price;
+                    
+                    // ✨ NEW: Build dropdown untuk debet account
+                    let debetDropdown = '<select name="details[' + idx + '][debet_account_id]" class="form-control form-control-sm debet-account" required>\n';
+                    debetDropdown += '  <option value="">-- Pilih --</option>\n';
+                    debetAccounts.forEach(function(acc) {
+                        debetDropdown += '  <option value="' + acc.id + '">' + acc.account_code + ' - ' + acc.account_name + '</option>\n';
+                    });
+                    debetDropdown += '</select>';
+                    
+                    // ✨ NEW: Build dropdown untuk kredit account
+                    let kreditDropdown = '<select name="details[' + idx + '][kredit_account_id]" class="form-control form-control-sm kredit-account" required>\n';
+                    kreditDropdown += '  <option value="">-- Pilih --</option>\n';
+                    kreditAccounts.forEach(function(acc) {
+                        kreditDropdown += '  <option value="' + acc.id + '">' + acc.account_code + ' - ' + acc.account_name + '</option>\n';
+                    });
+                    kreditDropdown += '</select>';
+                    
                     $('#detail-body-grn').append(`
                         <tr>
                             <td>${i.description}
@@ -239,6 +263,8 @@ $(function() {
                             <td><input type="number" name="details[${idx}][qty]" class="form-control" value="${i.qty}" readonly></td>
                             <td><input type="number" name="details[${idx}][unit_price]" class="form-control" value="${i.unit_price}" readonly></td>
                             <td><input type="text" class="form-control text-right" value="${total.toFixed(2)}" readonly></td>
+                            <td>${debetDropdown}</td>
+                            <td>${kreditDropdown}</td>
                         </tr>`);
                 });
                 calculateTotal();

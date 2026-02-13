@@ -51,6 +51,62 @@ class ApInvoice_model extends CI_Model {
         $this->db->order_by('account_code', 'ASC');
         return $this->db->get('chart_of_accounts')->result();
     }
+
+    /**
+     * ✨ NEW: Ambil list akun persediaan untuk pilihan debet saat pembuatan invoice
+     * Filter hanya akun dengan kode yang dimulai dengan 1.105 (Persediaan)
+     */
+    public function get_debet_accounts()
+    {
+        $this->db->select('id, account_code, account_name');
+        $this->db->where('is_header', 0);
+        $this->db->where('status', 'active');
+        $this->db->like('account_code', '1.105', 'after'); // Filter akun persediaan
+        $this->db->order_by('account_code', 'ASC');
+        return $this->db->get('chart_of_accounts')->result();
+    }
+
+    /**
+     * ✨ NEW: Ambil list akun utang untuk pilihan kredit saat pembuatan invoice
+     * Filter hanya akun dengan kode yang dimulai dengan 2.1 (Utang)
+     */
+    public function get_kredit_accounts()
+    {
+        $this->db->select('id, account_code, account_name');
+        $this->db->where('is_header', 0);
+        $this->db->where('status', 'active');
+        $this->db->like('account_code', '2.1', 'after'); // Filter akun hutang
+        $this->db->order_by('account_code', 'ASC');
+        return $this->db->get('chart_of_accounts')->result();
+    }
+
+    /**
+     * ✨ NEW: Ambil list akun PPN Masukan (pajak input) untuk pilihan pajak
+     * Filter hanya akun dengan kode yang dimulai dengan 1.118 (PPN Masukan)
+     */
+    public function get_ppn_accounts()
+    {
+        $this->db->select('id, account_code, account_name');
+        $this->db->where('is_header', 0);
+        $this->db->where('status', 'active');
+        $this->db->like('account_code', '1.118', 'after'); // Filter akun PPN Masukan
+        $this->db->order_by('account_code', 'ASC');
+        return $this->db->get('chart_of_accounts')->result();
+    }
+
+    /**
+     * ✨ NEW: Ambil list akun PPh Ditanggung (pajak withholding) untuk pilihan pajak
+     * Filter hanya akun dengan kode yang dimulai dengan 1.119 (PPh Ditanggung)
+     */
+    public function get_pph_accounts()
+    {
+        $this->db->select('id, account_code, account_name');
+        $this->db->where('is_header', 0);
+        $this->db->where('status', 'active');
+        $this->db->like('account_code', '1.119', 'after'); // Filter akun PPh Ditanggung
+        $this->db->order_by('account_code', 'ASC');
+        return $this->db->get('chart_of_accounts')->result();
+    }
     
     public function get_pending_grn($supplier_id)
     {
@@ -93,12 +149,16 @@ class ApInvoice_model extends CI_Model {
             gd.total_value as total_price,
             CASE 
                 WHEN gd.item_type = 'material' THEN m.nama_material
+                WHEN gd.item_type = 'machine' THEN mc.nama_mesin
+                WHEN gd.item_type = 'inventory' THEN inv.nama_barang
                 ELSE 'Unknown Item' 
             END as description";
         // Pass FALSE to avoid Query Builder escaping the CASE expression as an identifier
         $this->db->select($select, FALSE);
         $this->db->from('grn_details gd');
         $this->db->join('materials m', "gd.item_id = m.id AND gd.item_type = 'material'", 'left');
+        $this->db->join('machines mc', "gd.item_id = mc.id AND gd.item_type = 'machine'", 'left');
+        $this->db->join('inventories inv', "gd.item_id = inv.id AND gd.item_type = 'inventory'", 'left');
         $this->db->where_in('gd.grn_header_id', $grn_ids);
         return $this->db->get()->result();
     }
@@ -130,8 +190,14 @@ class ApInvoice_model extends CI_Model {
                 $detail_data['grn_detail_id'] = $d['grn_detail_id'];
                 $detail_data['item_id'] = $d['item_id'];
                 $detail_data['item_type'] = $d['item_type'];
+                // ✨ NEW: Simpan akun yang dipilih user untuk GRN_BASED
+                $detail_data['debet_account_id'] = isset($d['debet_account_id']) ? $d['debet_account_id'] : null;
+                $detail_data['kredit_account_id'] = isset($d['kredit_account_id']) ? $d['kredit_account_id'] : null;
             } else {
                 $detail_data['account_id'] = $d['account_id'];
+                // ✨ NEW: Simpan akun yang dipilih user untuk NON_GRN_BASED
+                $detail_data['debet_account_id'] = isset($d['debet_account_id']) ? $d['debet_account_id'] : null;
+                $detail_data['kredit_account_id'] = isset($d['kredit_account_id']) ? $d['kredit_account_id'] : null;
             }
 
             $detail_batch[] = $detail_data;
@@ -240,17 +306,24 @@ class ApInvoice_model extends CI_Model {
         $total_kredit = 0;
 
         if ($header->invoice_type == 'GRN_BASED') {
-            $journal_details[] = [
-                'account_id' => $acc_clearing_id,
-                'debit' => $header->subtotal,
-                'kredit' => 0,
-                'description' => 'Pencatatan faktur ' . $header->invoice_no
-            ];
-            $total_debit += $header->subtotal;
+            // ✨ NEW: Gunakan akun yang dipilih user (dari debet_account_id), bukan clearing account
+            foreach ($details as $d) {
+                // Gunakan akun yang dipilih user, atau fallback ke clearing account
+                $debet_acc = $d->debet_account_id ? $d->debet_account_id : $acc_clearing_id;
+                $journal_details[] = [
+                    'account_id' => $debet_acc,
+                    'debit' => $d->total_price,
+                    'kredit' => 0,
+                    'description' => 'Pencatatan faktur ' . $header->invoice_no . ' - ' . $d->description
+                ];
+                $total_debit += $d->total_price;
+            }
         } else {
             foreach ($details as $d) {
+                // ✨ NEW: Gunakan akun yang dipilih user (dari debet_account_id)
+                $debet_acc = $d->debet_account_id ? $d->debet_account_id : $d->account_id;
                 $journal_details[] = [
-                    'account_id' => $d->account_id,
+                    'account_id' => $debet_acc,
                     'debit' => $d->total_price,
                     'kredit' => 0,
                     'description' => $d->description

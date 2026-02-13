@@ -43,6 +43,11 @@ class ApPayment extends MY_Controller {
         $data['payment_no'] = $this->model->get_new_payment_number();
         $data['suppliers'] = $this->ApInvoice_model->get_suppliers(); // Ambil dari model AP Invoice
         $data['payment_accounts'] = $this->model->get_payment_accounts(); // Ambil Akun Kas/Bank
+        // ✨ NEW: Ambil list akun untuk pilihan debet dan kredit
+        $data['debet_accounts'] = $this->model->get_debet_accounts();
+        $data['kredit_accounts'] = $this->model->get_kredit_accounts();
+        // ✨ NEW: Ambil list akun Hutang PPh untuk pilihan potong pajak
+        $data['pph_payable_accounts'] = $this->model->get_pph_payable_accounts();
         
         $this->load->view('templates/header', $data);
         $this->load->view('templates/sidebar', $data);
@@ -78,7 +83,13 @@ class ApPayment extends MY_Controller {
     {
         $this->form_validation->set_rules('supplier_id', 'Supplier', 'required');
         $this->form_validation->set_rules('payment_date', 'Tgl. Bayar', 'required');
-        $this->form_validation->set_rules('payment_account_id', 'Akun Pembayaran', 'required');
+        // ✨ NEW: Validasi akun debet dan kredit yang dipilih user
+        $this->form_validation->set_rules('debet_account_id', 'Akun DEBET (Hutang)', 'required');
+        $this->form_validation->set_rules('kredit_account_id', 'Akun KREDIT (Kas/Bank)', 'required');
+        // ✨ NEW: Validasi PPh (tarif dan akun) - opsional jika tidak ada potong pajak
+        if (!empty($this->input->post('pph_rate')) && $this->input->post('pph_rate') > 0) {
+            $this->form_validation->set_rules('pph_account_id', 'Akun Hutang PPh', 'required');
+        }
         // $this->form_validation->set_rules('details', 'Detail Faktur', 'required'); // Validasi manual di bawah
 
         if ($this->form_validation->run() == FALSE) {
@@ -235,5 +246,39 @@ class ApPayment extends MY_Controller {
         $supplier_id = $this->input->get('supplier_id');
         $invoices = $this->model->get_unpaid_invoices($supplier_id);
         echo json_encode(['success' => true, 'data' => $invoices]);
+    }
+
+    /**
+     * ✨ NEW: AJAX: Ambil daftar akun persediaan (untuk pilihan debet)
+     */
+    public function ajax_get_debet_accounts()
+    {
+        $accounts = $this->model->get_debet_accounts();
+        return $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode(['success' => true, 'data' => $accounts]));
+    }
+
+    /**
+     * ✨ NEW: AJAX: Ambil daftar akun utang (untuk pilihan kredit)
+     */
+    public function ajax_get_kredit_accounts()
+    {
+        $accounts = $this->model->get_kredit_accounts();
+        return $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode(['success' => true, 'data' => $accounts]));
+    }
+
+    /**
+     * ✨ NEW: AJAX: Ambil detail invoice untuk ditampilkan di pembayaran
+     */
+    public function ajax_get_invoice_details()
+    {
+        $invoice_id = $this->input->get('invoice_id');
+        $details = $this->model->get_invoice_details_for_payment($invoice_id);
+        return $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode(['success' => true, 'data' => $details]));
     }
 }

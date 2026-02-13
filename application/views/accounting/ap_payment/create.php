@@ -34,21 +34,71 @@
                     </div>
                     <div class="col-md-3">
                         <div class="form-group">
-                            <label>Bayar Dari Akun (Kas/Bank) *</label>
-                            <select name="payment_account_id" class="form-control" required>
-                                <option value="">-- Pilih Akun --</option>
-                                <?php foreach($payment_accounts as $acc): ?>
-                                    <option value="<?= $acc->id; ?>"><?= $acc->account_code; ?> - <?= $acc->account_name; ?></option>
-                                <?php endforeach; ?>
-                            </select>
+                            <label>Catatan</label>
+                            <input type="text" name="notes" class="form-control" placeholder="No. Cek / BG / Transfer Ref">
                         </div>
                     </div>
                 </div>
+                
+                <!-- ✨ NEW: Header-level account selection -->
+                <hr class="my-3">
+                <p class="font-weight-bold mb-3">📊 Akun untuk Pembayaran (Pilih 1 set untuk seluruh batch):</p>
                 <div class="row">
-                    <div class="col-md-12">
+                    <div class="col-md-6">
                         <div class="form-group">
-                            <label>Catatan</label>
-                            <input type="text" name="notes" class="form-control" placeholder="No. Cek / BG / Transfer Ref">
+                            <label>Akun DEBET (Hutang Berkurang) *</label>
+                            <select id="debet_account_id" name="debet_account_id" class="form-control" required>
+                                <option value="">-- Pilih Akun Hutang --</option>
+                                <?php foreach($debet_accounts as $acc): ?>
+                                    <option value="<?= $acc->id; ?>"><?= $acc->account_code; ?> - <?= $acc->account_name; ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <small class="form-text text-muted">Filter: Akun 2.1.x (Hutang Usaha)</small>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>Akun KREDIT (Kas/Bank Berkurang) *</label>
+                            <select id="kredit_account_id" name="kredit_account_id" class="form-control" required>
+                                <option value="">-- Pilih Akun Kas/Bank --</option>
+                                <?php foreach($kredit_accounts as $acc): ?>
+                                    <option value="<?= $acc->id; ?>"><?= $acc->account_code; ?> - <?= $acc->account_name; ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <small class="form-text text-muted">Filter: Akun 1.101.x (Kas) atau 1.102.x (Bank)</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- ✨ NEW: PPh Withholding Tax Section -->
+                <hr class="my-3">
+                <p class="font-weight-bold mb-3">💰 PPh 23 Potong Pajak (Opsional):</p>
+                <div class="row">
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label>Tarif PPh 23 (%)</label>
+                            <input type="number" id="pph_rate" name="pph_rate" class="form-control" 
+                                   value="0" min="0" max="100" step="0.01" placeholder="0">
+                            <small class="form-text text-muted">Contoh: 2, 2.5, 3, 5 (kosongkan jika tidak ada)</small>
+                        </div>
+                    </div>
+                    <div class="col-md-3">
+                        <div class="form-group">
+                            <label>Jumlah PPh</label>
+                            <input type="text" id="pph_amount" class="form-control text-right" readonly>
+                            <small class="form-text text-muted">Otomatis: Total × (Tarif / 100)</small>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>Akun Hutang PPh (2.302.x)</label>
+                            <select id="pph_account_id" name="pph_account_id" class="form-control">
+                                <option value="">-- Pilih Akun (jika ada PPh) --</option>
+                                <?php foreach($pph_payable_accounts as $acc): ?>
+                                    <option value="<?= $acc->id; ?>"><?= $acc->account_code; ?> - <?= $acc->account_name; ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <small class="form-text text-muted">Hanya jika ada tarif PPh di atas</small>
                         </div>
                     </div>
                 </div>
@@ -58,6 +108,7 @@
         <div class="card shadow mb-4">
             <div class="card-header py-3">
                 <h6 class="m-0 font-weight-bold text-primary">Detail Faktur (Hanya faktur yang sudah di-Posting)</h6>
+                <small class="text-muted d-block mt-2">✅ Masukkan jumlah pembayaran untuk setiap faktur. Akun mapping di atas akan diterapkan ke semua faktur.</small>
             </div>
             <div class="card-body">
                 <div class="table-responsive">
@@ -69,7 +120,7 @@
                                 <th class="text-right">Total Utang</th>
                                 <th class="text-right">Sudah Dibayar</th>
                                 <th class="text-right">Sisa Utang</th>
-                                <th style="width: 25%;">Jumlah Bayar *</th>
+                                <th style="width: 20%;">Jumlah Bayar *</th>
                             </tr>
                         </thead>
                         <tbody id="detail-body">
@@ -122,6 +173,7 @@ $(document).ready(function() {
                 if (response.success && response.data.length > 0) {
                     response.data.forEach(function(inv) {
                         var sisaUtang = parseFloat(inv.sisa_utang).toFixed(2);
+                        
                         var row = `
                             <tr>
                                 <td>${inv.invoice_no}</td>
@@ -133,9 +185,9 @@ $(document).ready(function() {
                                     <div class="input-group input-group-sm">
                                         <input type="number" name="details[${inv.id}][amount_paid]" 
                                                class="form-control text-right payment-amount" 
-                                               value="0" min="0" max="${sisaUtang}" step="0.01">
+                                               value="0" min="0" max="${sisaUtang}" step="0.01" required>
                                         <div class="input-group-append">
-                                            <button type="button" class="btn btn-primary btn-pay-full" data-amount="${sisaUtang}">Full</button>
+                                            <button type="button" class="btn btn-primary btn-sm btn-pay-full" data-amount="${sisaUtang}">Full</button>
                                         </div>
                                     </div>
                                 </td>
@@ -147,12 +199,18 @@ $(document).ready(function() {
                     tbody.html('<tr><td colspan="6" class="text-center">Tidak ada faktur yang belum lunas untuk supplier ini.</td></tr>');
                 }
                 calculateTotal();
+            },
+            error: function() {
+                tbody.html('<tr><td colspan="6" class="text-center text-danger">Error memuat data.</td></tr>');
             }
         });
     });
 
     // Kalkulasi total
     $('#detail-body').on('input', '.payment-amount', calculateTotal);
+
+    // ✨ NEW: Kalkulasi PPh amount saat tarif berubah
+    $('#pph_rate').on('change', calculatePPh);
 
     // Tombol "Full"
     $('#detail-body').on('click', '.btn-pay-full', function() {
@@ -166,6 +224,22 @@ $(document).ready(function() {
             total += parseFloat($(this).val()) || 0;
         });
         $('#total_payment').val(total.toFixed(2));
+        calculatePPh(); // ✨ NEW: Hitung PPh ulang saat total berubah
+    }
+    
+    // ✨ NEW: Fungsi hitung PPh
+    function calculatePPh() {
+        var total = parseFloat($('#total_payment').val()) || 0;
+        var pph_rate = parseFloat($('#pph_rate').val()) || 0;
+        var pph_amount = total * (pph_rate / 100);
+        $('#pph_amount').val(pph_amount.toFixed(2));
+        
+        // Tampilkan/sembunyikan akun PPh berdasarkan ada tidaknya tarif
+        if (pph_rate > 0) {
+            $('#pph_account_id').prop('disabled', false).prop('required', true);
+        } else {
+            $('#pph_account_id').prop('disabled', true).prop('required', false).val('');
+        }
     }
 });
 </script>
