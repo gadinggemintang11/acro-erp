@@ -595,7 +595,14 @@ class Warehouse_in extends MY_Controller {
             }
         } else {
             // Model add_stock... return false (kemungkinan DB error)
-            $this->session->set_flashdata('error', 'Gagal menambahkan stok batch/ledger! Transaksi dibatalkan.');
+            // Cek log error untuk detail masalah
+            $db_error = $this->db->error();
+            $error_msg = 'Gagal menambahkan stok batch/ledger! Transaksi dibatalkan.';
+            if (!empty($db_error['message'])) {
+                $error_msg .= ' (DB: ' . $db_error['message'] . ')';
+                log_message('error', 'GRN Confirm Error - DB Error: ' . print_r($db_error, true));
+            }
+            $this->session->set_flashdata('error', $error_msg);
         }
         redirect('warehouse_in/detail/' . $id);
     }

@@ -258,6 +258,16 @@ class Stock_ledger_model extends CI_Model {
             return false;
         }
 
+        // PERBAIKAN: Hapus kolom BC jika tidak ada di tabel
+        // Ini untuk backward compatibility dengan database lama
+        $allowed_columns = $this->db->list_fields($this->table);
+        foreach ($data as $key => $value) {
+            if (!in_array($key, $allowed_columns)) {
+                unset($data[$key]);
+                log_message('debug', "Stock_ledger->insert: Kolom '{$key}' tidak ada di tabel, dihapus dari INSERT.");
+            }
+        }
+
         $this->db->trans_start(); 
 
         // Hitung Saldo BARU

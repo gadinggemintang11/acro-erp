@@ -210,16 +210,32 @@ class Warehouse_in_model extends CI_Model {
                     'item_type'     => $item->item_type,
                     'initial_qty'   => (float)$item->receive_qty,
                     'available_qty' => (float)$item->receive_qty,
-                    'unit_value'    => (float)($item->unit_value ?? 0),
-                    // TAMBAH BC INFO DARI DETAIL
-                    'bc_type_code'  => $item->bc_type_code ?? $grn_header->bc_type_code ?? null,
-                    'bc_number'     => $item->bc_number ?? $grn_header->bc_number ?? null,
-                    'bc_date'       => $item->bc_date ?? $grn_header->bc_date ?? null
+                    'unit_value'    => (float)($item->unit_value ?? 0)
                 ];
+                
+                // Hanya tambah BC info jika kolom exists di database
+                // Untuk mencegah error jika kolom belum ditambah
+                if ($grn_header->bc_type_code || $grn_header->bc_number || $grn_header->bc_date) {
+                    $batch_data['bc_type_code'] = $grn_header->bc_type_code ?? null;
+                    $batch_data['bc_number'] = $grn_header->bc_number ?? null;
+                    $batch_data['bc_date'] = $grn_header->bc_date ?? null;
+                }
+                
                 $this->db->reset_query();
+                
+                // PERBAIKAN: Filter columns yang benar-benar ada di tabel
+                $allowed_soh_columns = $this->db->list_fields('stock_on_hand');
+                foreach ($batch_data as $key => $value) {
+                    if (!in_array($key, $allowed_soh_columns)) {
+                        unset($batch_data[$key]);
+                        log_message('debug', "Warehouse_in: Kolom SOH '{$key}' tidak ada, dihapus dari INSERT.");
+                    }
+                }
+                
                 $insert_soh_success = $this->db->insert('stock_on_hand', $batch_data);
                 if (!$insert_soh_success) {
-                    log_message('error', "Gagal insert SOH untuk GRN $grn_id");
+                    $db_error = $this->db->error();
+                    log_message('error', "Gagal insert SOH untuk GRN $grn_id. DB Error: " . json_encode($db_error) . " Data: " . json_encode($batch_data));
                     $this->db->trans_rollback();
                     return false;
                 }
@@ -248,14 +264,19 @@ class Warehouse_in_model extends CI_Model {
                 'qty_out'           => 0,
                 'unit_value'        => (float)($item->unit_value ?? 0),
                 'balance'           => $new_balance,
-                'stock_on_hand_id'  => $stock_on_hand_id,
-                'bc_type_code'      => $bc_type_code,
-                'bc_number'         => $bc_number,
-                'bc_date'           => $bc_date
+                'stock_on_hand_id'  => $stock_on_hand_id
             ];
 
+            // Hanya tambah BC info jika kolom exists
+            if ($bc_type_code || $bc_number || $bc_date) {
+                $ledger_data['bc_type_code'] = $bc_type_code;
+                $ledger_data['bc_number'] = $bc_number;
+                $ledger_data['bc_date'] = $bc_date;
+            }
+
             if (!$this->Stock_ledger_model->insert($ledger_data)) {
-                 log_message('error', "Gagal insert Stock Ledger untuk GRN $grn_id");
+                 $db_error = $this->db->error();
+                 log_message('error', "Gagal insert Stock Ledger untuk GRN $grn_id. DB Error: " . json_encode($db_error));
                  $this->db->trans_rollback();
                  return false;
             }
@@ -263,7 +284,7 @@ class Warehouse_in_model extends CI_Model {
         
         $this->db->trans_complete();
         if ($this->db->trans_status() === FALSE) {
-             log_message('error', "Gagal transaksi DB untuk GRN $grn_id");
+             log_message('error', "Gagal transaksi DB untuk GRN $grn_id. Trans Status: " . $this->db->trans_status());
              return false;
         }
         return true;
