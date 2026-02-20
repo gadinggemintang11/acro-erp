@@ -243,6 +243,101 @@ class JurnalUmum extends MY_Controller {
         }
         redirect('jurnalumum/view/' . $id);
     }
+
+    /**
+     * ✅ BATCH POST - Post multiple draft journals at once
+     */
+    public function batch_post()
+    {
+        // Get journal IDs from POST
+        $journal_ids = $this->input->post('journal_ids');
+        
+        if (empty($journal_ids) || !is_array($journal_ids)) {
+            return $this->output
+                ->set_content_type('application/json')
+                ->set_output(json_encode([
+                    'status' => FALSE,
+                    'message' => 'Tidak ada jurnal yang dipilih.'
+                ]));
+        }
+
+        $user_id = $this->session->userdata('user_id');
+        $success_count = 0;
+        $failed_count = 0;
+        $failed_journals = [];
+
+        foreach ($journal_ids as $id) {
+            $header = $this->model->get_header_by_id($id);
+            
+            // Validasi: Hanya Draft yang bisa di-posting
+            if (!$header || $header->status != 'Draft') {
+                $failed_count++;
+                $failed_journals[] = [
+                    'id' => $id,
+                    'journal_no' => $header ? $header->journal_no : 'Unknown',
+                    'reason' => 'Status bukan Draft'
+                ];
+                continue;
+            }
+
+            // Validasi: Jurnal harus seimbang
+            if ($header->total_debit != $header->total_kredit) {
+                $failed_count++;
+                $failed_journals[] = [
+                    'id' => $id,
+                    'journal_no' => $header->journal_no,
+                    'reason' => 'Jurnal tidak seimbang (Debit: ' . $header->total_debit . ', Kredit: ' . $header->total_kredit . ')'
+                ];
+                continue;
+            }
+
+            // Post the journal
+            try {
+                $result = $this->model->post_journal($id, $user_id);
+                if ($result) {
+                    $success_count++;
+                } else {
+                    $failed_count++;
+                    $failed_journals[] = [
+                        'id' => $id,
+                        'journal_no' => $header->journal_no,
+                        'reason' => 'Gagal proses database'
+                    ];
+                }
+            } catch (Exception $e) {
+                $failed_count++;
+                $failed_journals[] = [
+                    'id' => $id,
+                    'journal_no' => $header->journal_no,
+                    'reason' => $e->getMessage()
+                ];
+            }
+        }
+
+        // Prepare response
+        $message = "Posting Selesai:<br>";
+        $message .= "✓ Berhasil: <strong>{$success_count}</strong> jurnal<br>";
+        if ($failed_count > 0) {
+            $message .= "✗ Gagal: <strong>{$failed_count}</strong> jurnal";
+            if (count($failed_journals) > 0) {
+                $message .= "<ul style='margin-top: 10px; font-size: 0.9em;'>";
+                foreach ($failed_journals as $fj) {
+                    $message .= "<li><strong>{$fj['journal_no']}</strong>: {$fj['reason']}</li>";
+                }
+                $message .= "</ul>";
+            }
+        }
+
+        return $this->output
+            ->set_content_type('application/json')
+            ->set_output(json_encode([
+                'status' => TRUE,
+                'success_count' => $success_count,
+                'failed_count' => $failed_count,
+                'message' => $message,
+                'failed_journals' => $failed_journals
+            ]));
+    }
     
     public function delete($id)
     {

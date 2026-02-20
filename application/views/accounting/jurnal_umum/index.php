@@ -15,6 +15,25 @@
 
     <?php $this->load->view('templates/partials/alerts'); ?>
 
+    <!-- Batch Actions Area -->
+    <div id="batchActionArea" class="card shadow mb-4" style="display: none; background-color: #f0f7ff; border-left: 4px solid #0066cc;">
+        <div class="card-body py-2">
+            <div class="row align-items-center">
+                <div class="col-md-6">
+                    <p class="mb-0"><strong>Jurnal Terpilih: <span id="selectedCount">0</span></strong></p>
+                </div>
+                <div class="col-md-6 text-right">
+                    <button type="button" id="clearSelectionBtn" class="btn btn-sm btn-warning mr-2">
+                        <i class="fas fa-times"></i> Batal Pilihan
+                    </button>
+                    <button type="button" id="batchPostBtn" class="btn btn-sm btn-success">
+                        <i class="fas fa-check"></i> Posting Jurnal Terpilih
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <div class="card shadow mb-4">
         <div class="card-header py-3">
             <h6 class="m-0 font-weight-bold text-primary">Filter & Pencarian</h6>
@@ -55,7 +74,13 @@
                 <table class="table table-bordered table-hover" id="journalTable" width="100%" cellspacing="0">
                     <thead class="thead-light">
                         <tr>
-                            <th width="15%">No. Jurnal</th>
+                            <th width="5%">
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" class="custom-control-input" id="selectAll" title="Pilih Semua">
+                                    <label class="custom-control-label" for="selectAll"></label>
+                                </div>
+                            </th>
+                            <th width="12%">No. Jurnal</th>
                             <th width="12%">Tanggal</th>
                             <th width="30%">Keterangan</th>
                             <th width="12%" class="text-right">Mata Uang</th>
@@ -67,6 +92,14 @@
                     <tbody>
                         <?php foreach ($journals as $j): ?>
                         <tr>
+                            <td class="text-center">
+                                <?php if($j->status == 'Draft'): ?>
+                                <div class="custom-control custom-checkbox">
+                                    <input type="checkbox" class="custom-control-input journal-checkbox" id="checkbox_<?= $j->id; ?>" value="<?= $j->id; ?>" title="Pilih jurnal ini">
+                                    <label class="custom-control-label" for="checkbox_<?= $j->id; ?>"></label>
+                                </div>
+                                <?php endif; ?>
+                            </td>
                             <td>
                                 <a href="<?= base_url('jurnalumum/view/' . $j->id); ?>" class="text-primary font-weight-bold">
                                     <?= $j->journal_no; ?>
@@ -218,5 +251,124 @@ $(document).ready(function() {
             $('#filterBtn').click();
         }
     });
+
+    // ============================================
+    // BATCH POST FUNCTIONALITY
+    // ============================================
+    
+    // Toggle batch action area visibility
+    function updateBatchActionArea() {
+        var checkedCount = $('.journal-checkbox:checked').length;
+        $('#selectedCount').text(checkedCount);
+        
+        if (checkedCount > 0) {
+            $('#batchActionArea').slideDown(200);
+        } else {
+            $('#batchActionArea').slideUp(200);
+        }
+    }
+
+    // Handle Select All checkbox
+    $('#selectAll').on('change', function() {
+        var isChecked = $(this).is(':checked');
+        $('.journal-checkbox').prop('checked', isChecked);
+        updateBatchActionArea();
+    });
+
+    // Handle individual checkboxes
+    $(document).on('change', '.journal-checkbox', function() {
+        // Update Select All checkbox state
+        var totalCheckboxes = $('.journal-checkbox').length;
+        var checkedCheckboxes = $('.journal-checkbox:checked').length;
+        
+        if (totalCheckboxes > 0 && checkedCheckboxes === totalCheckboxes) {
+            $('#selectAll').prop('checked', true);
+        } else {
+            $('#selectAll').prop('checked', false);
+        }
+        
+        updateBatchActionArea();
+    });
+
+    // Clear Selection Button
+    $('#clearSelectionBtn').on('click', function() {
+        $('.journal-checkbox').prop('checked', false);
+        $('#selectAll').prop('checked', false);
+        updateBatchActionArea();
+    });
+
+    // Batch Post Button
+    $('#batchPostBtn').on('click', function() {
+        var selectedIds = [];
+        $('.journal-checkbox:checked').each(function() {
+            selectedIds.push($(this).val());
+        });
+
+        if (selectedIds.length === 0) {
+            Swal.fire('Perhatian', 'Tidak ada jurnal yang dipilih.', 'warning');
+            return;
+        }
+
+        // Show confirmation dialog
+        Swal.fire({
+            title: 'Konfirmasi Posting',
+            html: '<p>Anda akan memposting <strong>' + selectedIds.length + ' jurnal</strong>.</p>' +
+                  '<p>Proses ini tidak dapat dibatalkan setelah dikonfirmasi.</p>',
+            icon: 'warning',
+            showCancelButton: true,
+            confirmButtonColor: '#28a745',
+            cancelButtonColor: '#dc3545',
+            confirmButtonText: 'Ya, Posting Sekarang',
+            cancelButtonText: 'Batal'
+        }).then((result) => {
+            if (result.isConfirmed) {
+                executeBatchPost(selectedIds);
+            }
+        });
+    });
+
+    // Execute batch post via AJAX
+    function executeBatchPost(journalIds) {
+        // Show loading
+        Swal.fire({
+            title: 'Sedang Memproses',
+            html: 'Posting jurnal sedang diproses...',
+            icon: 'info',
+            allowOutsideClick: false,
+            allowEscapeKey: false,
+            didOpen: () => {
+                Swal.showLoading();
+            }
+        });
+
+        $.ajax({
+            url: '<?= base_url('jurnalumum/batch_post'); ?>',
+            type: 'POST',
+            dataType: 'json',
+            data: {
+                journal_ids: journalIds
+            },
+            success: function(response) {
+                if (response.status) {
+                    // Success
+                    Swal.fire({
+                        title: response.success_count > 0 ? 'Posting Selesai!' : 'Proses Selesai',
+                        html: response.message,
+                        icon: response.success_count > 0 ? 'success' : 'info',
+                        confirmButtonText: 'Tutup'
+                    }).then(() => {
+                        // Reload page
+                        location.reload();
+                    });
+                } else {
+                    // Error
+                    Swal.fire('Gagal', response.message, 'error');
+                }
+            },
+            error: function(xhr, status, error) {
+                Swal.fire('Kesalahan', 'Terjadi kesalahan server: ' + error, 'error');
+            }
+        });
+    }
 });
 </script>
