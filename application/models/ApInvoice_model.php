@@ -54,14 +54,20 @@ class ApInvoice_model extends CI_Model {
 
     /**
      * ✨ NEW: Ambil list akun persediaan untuk pilihan debet saat pembuatan invoice
-     * Filter hanya akun dengan kode yang dimulai dengan 1.105 (Persediaan)
+     * Filter akun dengan kode: 1.105, 1.106, 1.107, 1.108, 1.109 (Persediaan)
      */
     public function get_debet_accounts()
     {
         $this->db->select('id, account_code, account_name');
         $this->db->where('is_header', 0);
         $this->db->where('status', 'active');
-        $this->db->like('account_code', '1.105', 'after'); // Filter akun persediaan
+        $this->db->group_start();
+        $this->db->like('account_code', '1.105', 'after');
+        $this->db->or_like('account_code', '1.106', 'after');
+        $this->db->or_like('account_code', '1.107', 'after');
+        $this->db->or_like('account_code', '1.108', 'after');
+        $this->db->or_like('account_code', '1.109', 'after');
+        $this->db->group_end();
         $this->db->order_by('account_code', 'ASC');
         return $this->db->get('chart_of_accounts')->result();
     }
