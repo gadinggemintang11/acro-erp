@@ -400,17 +400,30 @@ class Mr_model extends CI_Model {
                             continue;
                         }
                         
-                        // Get BC info dari SOH
-                        $this->db->reset_query();
-                        $soh_data = $this->db
-                            ->select('bc_type_code, bc_number, bc_date')
-                            ->from('stock_on_hand')
-                            ->where('id', $out_entry->stock_on_hand_id)
-                            ->get()->row();
+                        // Get BC info dari SOH (dengan defensive column check)
+                        $bc_type = null;
+                        $bc_number = null;
+                        $bc_date = null;
                         
-                        $bc_type = $soh_data ? $soh_data->bc_type_code : null;
-                        $bc_number = $soh_data ? $soh_data->bc_number : null;
-                        $bc_date = $soh_data ? $soh_data->bc_date : null;
+                        // Cek apakah kolom BC ada di tabel stock_on_hand
+                        $soh_columns = $this->db->list_fields('stock_on_hand');
+                        if (in_array('bc_type_code', $soh_columns) || 
+                            in_array('bc_number', $soh_columns) || 
+                            in_array('bc_date', $soh_columns)) {
+                            
+                            $this->db->reset_query();
+                            $soh_data = $this->db
+                                ->select('bc_type_code, bc_number, bc_date')
+                                ->from('stock_on_hand')
+                                ->where('id', $out_entry->stock_on_hand_id)
+                                ->get()->row();
+                            
+                            if ($soh_data) {
+                                $bc_type = $soh_data->bc_type_code ?? null;
+                                $bc_number = $soh_data->bc_number ?? null;
+                                $bc_date = $soh_data->bc_date ?? null;
+                            }
+                        }
                         
                         // Create WIP_IN ledger entry
                         $ledger_data = [
@@ -424,11 +437,15 @@ class Mr_model extends CI_Model {
                             'qty_in'          => (float)$out_entry->qty_out,
                             'qty_out'         => 0,
                             'unit_value'      => $unit_value,
-                            'stock_on_hand_id'=> $out_entry->stock_on_hand_id,  // Link to specific batch
-                            'bc_type_code'    => $bc_type,
-                            'bc_number'       => $bc_number,
-                            'bc_date'         => $bc_date
+                            'stock_on_hand_id'=> $out_entry->stock_on_hand_id  // Link to specific batch
                         ];
+                        
+                        // Hanya tambah BC fields jika ada
+                        if ($bc_type || $bc_number || $bc_date) {
+                            $ledger_data['bc_type_code'] = $bc_type;
+                            $ledger_data['bc_number'] = $bc_number;
+                            $ledger_data['bc_date'] = $bc_date;
+                        }
                         
                         if (!$this->Stock_ledger_model->insert($ledger_data)) {
                             log_message('error', '[MR] process_reception: gagal insert wip_in ledger for mr_id=' . $mr_id . ' item_id=' . $item->component_item_id . ' batch_id=' . $out_entry->stock_on_hand_id);
