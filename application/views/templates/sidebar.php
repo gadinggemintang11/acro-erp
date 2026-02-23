@@ -8,7 +8,7 @@ $current = strtolower($this->uri->segment(1));
 // 1. Core Operations
 $order_items = ['sales_contract'];
 $purchase_items = ['purchase_order', 'mir', 'po_report'];
-$inventory_items = ['warehouse_in','subkon_order','subkon_out', 'subkon_in','scrap_in', 'scrap_out', 'scrap_stock',  'stock_ledger', 'adjustment', 'stockopname','material_issuance', 'prodreturn']; 
+$inventory_items = ['warehouse_in','subkon_order','subkon_out', 'subkon_in','scrap_in', 'scrap_out', 'scrap_stock',  'stock_ledger', 'adjustment', 'stockopname','material_issuance', 'prodreturn', 'consumable_out']; 
 $production_items = ['work_order', 'material_request', 'production_receive', 'production_process'];
 $fg_items = ['fg_receipt', 'fg_stock', 'fg_delivery'];
 $exim_items = ['exim_verification'];
@@ -37,7 +37,7 @@ $isSystemActive = in_array($current, $system_items);
 $canViewDashboard = check_access('dashboard', 'view');
 $canViewOrder = check_access('sales_contract', 'view');
 $canViewPurchase = check_access('purchase_order', 'view') || check_access('mir', 'view');
-$canViewInventory = check_access('warehouse_in', 'view') || check_access('stock_ledger', 'view') || check_access('material_issuance', 'view') || check_access('adjustment', 'view') || check_access('stockopname', 'view') || check_access('prodreturn', 'view') || check_access('subkon_order', 'view') || check_access('subkon_out', 'view') || check_access('subkon_in', 'view') || check_access('scrap_in', 'view') || check_access('scrap_out', 'view') || check_access('scrap_stock', 'view');
+$canViewInventory = check_access('warehouse_in', 'view') || check_access('stock_ledger', 'view') || check_access('material_issuance', 'view') || check_access('adjustment', 'view') || check_access('stockopname', 'view') || check_access('prodreturn', 'view') || check_access('subkon_order', 'view') || check_access('subkon_out', 'view') || check_access('subkon_in', 'view') || check_access('scrap_in', 'view') || check_access('scrap_out', 'view') || check_access('scrap_stock', 'view') || check_access('consumable_out', 'view');
 $canViewExim = check_access('exim_verification', 'view');
 $canViewItInventory = check_access('Lap_Pemasukan_BB', 'view') || check_access('lap_pengeluaran_barang', 'view') || check_access('lap_mutasi_scrap', 'view') || check_access('lapmutasimaterial', 'view') || check_access('lapmutasimesin', 'view') || check_access('lapmutasiwip', 'view') || check_access('lapmutasifinished', 'view'); 
 $canViewProduction = check_access('work_order', 'view') || check_access('material_request', 'view') || check_access('production_receive', 'view') || check_access('production_process', 'view');
@@ -430,6 +430,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 <?php endif; ?>
                 <?php if (check_access('prodreturn', 'view')): ?>
                     <a class="collapse-item <?= ($current == 'prodreturn') ? 'active' : ''; ?>" href="<?= $base; ?>ProdReturn"><?= lang_line('sidebar_material_return', 'Retur Material (WIP)'); ?></a>
+                <?php endif; ?>
+                <?php if (check_access('consumable_out', 'view')): ?>
+                    <a class="collapse-item <?= ($current == 'consumable_out') ? 'active' : ''; ?>" href="<?= $base; ?>consumable_out">Pengeluaran Barang Habis Pakai</a>
                 <?php endif; ?>
                 <h6 class="collapse-header"><?= lang_line('sidebar_subcon', 'Subkon'); ?></h6>
                 <?php if (check_access('subkon_order', 'view')): ?>
