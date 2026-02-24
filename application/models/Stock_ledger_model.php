@@ -30,7 +30,8 @@ class Stock_ledger_model extends CI_Model {
             'OUT_SHIPMENT',     // Kirim Barang Jadi
             'OUT_SCRAP_BC',     // Scrap Keluar Gudang
             'ADJ_OUT',          // Adjustment Keluar
-            'IN_SCRAP_WH'       // Scrap Masuk ke Gudang
+            'IN_SCRAP_WH',       // Scrap Masuk ke Gudang
+            'OUT_CONSUMABLE'    // Pengeluaran Barang Habis Pakai
         ];
 
         return array_merge($types_in, $types_out);
@@ -118,7 +119,7 @@ class Stock_ledger_model extends CI_Model {
         $this->db->select(" item_id, item_type,
             SUM(CASE WHEN transaction_type = 'in' THEN qty_in ELSE 0 END) as total_receive,
             SUM(CASE WHEN transaction_type = 'IN_RETURN_WIP' THEN qty_in ELSE 0 END) as total_return,
-            SUM(CASE WHEN transaction_type IN ('OUT_ISSUE', 'OUT_SHIPMENT', 'ADJ_OUT', 'production_out') THEN qty_out ELSE 0 END) as total_out,
+            SUM(CASE WHEN transaction_type IN ('OUT_ISSUE', 'OUT_SHIPMENT', 'ADJ_OUT', 'production_out', 'OUT_CONSUMABLE', 'out_consumable') THEN qty_out ELSE 0 END) as total_out,
             SUM(CASE WHEN transaction_type = 'adjustment' THEN (qty_in - qty_out) ELSE 0 END) as total_adjustment
         ", FALSE);
         $this->db->from($this->table); 
@@ -510,7 +511,8 @@ class Stock_ledger_model extends CI_Model {
             soh.doc_no as scrap_out_doc_no,
             soh.bc_type_code as scrap_out_bc_type, soh.bc_number as scrap_out_bc_no, soh.bc_date as scrap_out_bc_date,
             ah.doc_no as adjustment_doc,
-            ah.notes as adjustment_notes
+            ah.notes as adjustment_notes,
+            coh.doc_number as consumable_out_doc_no
         ";
 
         $this->db->select($select_clause, FALSE);
@@ -519,6 +521,9 @@ class Stock_ledger_model extends CI_Model {
         // --- JOIN BERDASARKAN TIPE TRANSAKSI ---
         // GRN Header
         $this->db->join('grn_header grn', 'sl.transaction_id = grn.id AND sl.transaction_type = "in"', 'left');
+
+        // Consumableout
+        $this->db->join('consumable_out_header coh', 'sl.transaction_id = coh.id AND sl.transaction_type = "OUT_CONSUMABLE"', 'left');
         
         // GRN Details untuk mendapat source document (PO atau MIR)
         $this->db->join('grn_details gd', 'grn.id = gd.grn_header_id AND gd.item_id = sl.item_id', 'left');

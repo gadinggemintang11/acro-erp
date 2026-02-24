@@ -86,7 +86,7 @@
     <!-- Tanda Tangan -->
     <table class="signature-table">
         <tr>
-            <td class="sig-label">Disiapkan Oleh</td>
+            <td class="sig-label">Dikonfirmasi Oleh</td>
             <td class="sig-label">Diterima Oleh</td>
             <td class="sig-label">Disetujui Oleh</td>
         </tr>
@@ -97,9 +97,9 @@
         </tr>
         <tr>
             <td>
-                <div class="sig-name"><?= htmlspecialchars($header->issued_by_name ?? '.....................'); ?></div>
-                <?php if ($header->issued_at): ?>
-                <div style="font-size:8pt;color:#666;"><?= date('d M Y', strtotime($header->issued_at)); ?></div>
+                <div class="sig-name"><?= htmlspecialchars($header->confirmed_by_name ?? '.....................'); ?></div>
+                <?php if ($header->confirmed_at): ?>
+                <div style="font-size:8pt;color:#666;"><?= date('d M Y', strtotime($header->confirmed_at)); ?></div>
                 <?php endif; ?>
             </td>
             <td>

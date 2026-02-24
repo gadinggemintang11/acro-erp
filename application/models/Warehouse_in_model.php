@@ -200,7 +200,7 @@ class Warehouse_in_model extends CI_Model {
             // Hanya 'material' dan 'semifinished' yang masuk SOH (Batch)
             // 'machine' dan 'inventory' tidak perlu SOH, tapi tetap masuk ledger
             // =======================================================
-            if ($item->item_type == 'material' || $item->item_type == 'semifinished' || $item->item_type == 'inventory') {
+            if ($item->item_type == 'material' || $item->item_type == 'semifinished' || $item->item_type == 'inventory')
             {
                 // 1. Catat di Stock on Hand (Batch)
                 $batch_data = [

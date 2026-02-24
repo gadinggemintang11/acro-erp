@@ -5,11 +5,27 @@
             <span class="badge badge-primary ml-2"><?= htmlspecialchars($header->doc_number); ?></span>
         </h3>
         <div>
+            <?php if ($header->status == 'Created' && check_access('consumable_out', 'edit')): ?>
+            <a href="<?= base_url('consumable_out/confirm/' . $header->id); ?>"
+               class="btn btn-success btn-sm mr-1"
+               onclick="return confirm('Konfirmasi pengeluaran ini? Stok akan langsung dipotong.');">
+                <i class="fas fa-check-circle fa-sm mr-1"></i> Konfirmasi
+            </a>
+            <?php endif; ?>
+            <?php if (in_array($header->status, ['Created','Confirmed']) && check_access('consumable_out', 'edit')):
+                $cancel_msg = 'Batalkan dokumen ini?' . ($header->status == 'Confirmed' ? '\nStok yang sudah dipotong akan dikembalikan.' : '');
+            ?>
+            <a href="<?= base_url('consumable_out/cancel/' . $header->id); ?>"
+               class="btn btn-warning btn-sm mr-1"
+               onclick="return confirm('<?= $cancel_msg; ?>');">
+                <i class="fas fa-ban fa-sm mr-1"></i> Batalkan
+            </a>
+            <?php endif; ?>
             <a href="<?= base_url('consumable_out/export_pdf/' . $header->id); ?>"
                class="btn btn-info btn-sm mr-1" target="_blank">
                 <i class="fas fa-file-pdf fa-sm mr-1"></i> Export PDF
             </a>
-            <?php if (check_access('consumable_out', 'delete')): ?>
+            <?php if ($header->status == 'Created' && check_access('consumable_out', 'delete')): ?>
             <a href="<?= base_url('consumable_out/delete/' . $header->id); ?>"
                class="btn btn-danger btn-sm mr-1"
                onclick="return confirm('Hapus dokumen ini?');">
@@ -51,9 +67,9 @@
                     <strong>Status:</strong><br>
                     <?php
                         $badge = 'secondary';
-                        if ($header->status == 'Issued')    $badge = 'success';
+                        if ($header->status == 'Created')   $badge = 'warning';
+                        if ($header->status == 'Confirmed') $badge = 'success';
                         if ($header->status == 'Cancelled') $badge = 'danger';
-                        if ($header->status == 'Draft')     $badge = 'warning';
                     ?>
                     <span class="badge badge-<?= $badge; ?>"><?= $header->status; ?></span>
                 </div>
@@ -76,8 +92,11 @@
                     <?= htmlspecialchars($header->recipient ?? '-'); ?>
                 </div>
                 <div class="col-md-4">
-                    <strong>Disiapkan Oleh:</strong>
-                    <?= htmlspecialchars($header->issued_by_name ?? '-'); ?>
+                    <strong>Dikonfirmasi Oleh:</strong>
+                    <?= htmlspecialchars($header->confirmed_by_name ?? '-'); ?>
+                    <?php if ($header->confirmed_at): ?>
+                        <br><small class="text-muted"><?= date('d M Y H:i', strtotime($header->confirmed_at)); ?></small>
+                    <?php endif; ?>
                 </div>
             </div>
             <?php if (!empty($header->purpose)): ?>

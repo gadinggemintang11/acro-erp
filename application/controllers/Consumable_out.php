@@ -113,22 +113,81 @@ class Consumable_out extends MY_Controller {
             'recipient'     => $recipient,
             'purpose'       => $purpose,
             'notes'         => $notes,
-            'status'        => 'Issued',
+            'status'        => 'Created',
             'created_by'    => $user_id,
             'created_at'    => date('Y-m-d H:i:s'),
-            'issued_by'     => $user_id,
-            'issued_at'     => date('Y-m-d H:i:s'),
         ];
 
         $result = $this->Consumable_out_model->create($header_data, $valid_items);
 
         if ($result['success']) {
-            $this->session->set_flashdata('success', 'Pengeluaran barang berhasil disimpan. No. Dok: ' . $result['doc_number']);
+            $this->session->set_flashdata('success', 'Dokumen berhasil dibuat. No. Dok: ' . $result['doc_number'] . '. Silakan konfirmasi untuk memproses stok.');
             redirect('consumable_out/detail/' . $result['id']);
         } else {
             $this->session->set_flashdata('error', 'Gagal menyimpan: ' . ($result['message'] ?? 'Terjadi kesalahan.'));
             redirect('consumable_out/add');
         }
+    }
+
+    // -------------------------------------------------------
+    // Konfirmasi dokumen → proses stok (FIFO) → status: Confirmed
+    // -------------------------------------------------------
+    public function confirm($id) {
+        if (!check_access('consumable_out', 'edit')) {
+            show_error('Anda tidak memiliki izin.', 403);
+            return;
+        }
+
+        if (empty($id) || !is_numeric($id)) { show_404(); }
+
+        $header = $this->Consumable_out_model->get_header($id);
+        if (!$header || $header->status !== 'Created') {
+            $this->session->set_flashdata('error', 'Hanya dokumen berstatus Created yang bisa dikonfirmasi.');
+            redirect('consumable_out/detail/' . $id);
+            return;
+        }
+
+        $user_id = $this->session->userdata('user_id');
+        $result  = $this->Consumable_out_model->process_confirm($id, $user_id);
+
+        if ($result['success']) {
+            $this->session->set_flashdata('success', 'Dokumen berhasil dikonfirmasi dan stok telah dipotong.');
+        } else {
+            $this->session->set_flashdata('error', 'Konfirmasi gagal: ' . ($result['message'] ?? 'Terjadi kesalahan.'));
+        }
+        redirect('consumable_out/detail/' . $id);
+    }
+
+    // -------------------------------------------------------
+    // Batalkan dokumen → reverse stok → status: Cancelled
+    // -------------------------------------------------------
+    public function cancel($id) {
+        if (!check_access('consumable_out', 'edit')) {
+            show_error('Anda tidak memiliki izin.', 403);
+            return;
+        }
+
+        if (empty($id) || !is_numeric($id)) { show_404(); }
+
+        $header = $this->Consumable_out_model->get_header($id);
+        if (!$header || !in_array($header->status, ['Created', 'Confirmed'])) {
+            $this->session->set_flashdata('error', 'Dokumen tidak dapat dibatalkan.');
+            redirect('consumable_out/detail/' . $id);
+            return;
+        }
+
+        $user_id = $this->session->userdata('user_id');
+        $result  = $this->Consumable_out_model->process_cancel($id, $user_id);
+
+        if ($result['success']) {
+            $msg = $header->status === 'Confirmed'
+                ? 'Dokumen dibatalkan dan stok telah dikembalikan.'
+                : 'Dokumen berhasil dibatalkan.';
+            $this->session->set_flashdata('success', $msg);
+        } else {
+            $this->session->set_flashdata('error', 'Pembatalan gagal: ' . ($result['message'] ?? 'Terjadi kesalahan.'));
+        }
+        redirect('consumable_out/detail/' . $id);
     }
 
     // -------------------------------------------------------
@@ -172,8 +231,8 @@ class Consumable_out extends MY_Controller {
         $header = $this->Consumable_out_model->get_header($id);
         if (!$header) { show_404(); }
 
-        if ($header->status !== 'Draft') {
-            $this->session->set_flashdata('error', 'Hanya dokumen Draft yang bisa dihapus.');
+        if ($header->status !== 'Created') {
+            $this->session->set_flashdata('error', 'Hanya dokumen berstatus Created yang bisa dihapus.');
             redirect('consumable_out');
             return;
         }

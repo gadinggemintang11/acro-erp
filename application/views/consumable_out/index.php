@@ -35,8 +35,8 @@
                 <div class="form-group mr-2 mb-2">
                     <select name="status" class="form-control form-control-sm">
                         <option value="">-- Semua Status --</option>
-                        <option value="Draft"     <?= ($filters['status'] ?? '') == 'Draft'     ? 'selected' : ''; ?>>Draft</option>
-                        <option value="Issued"    <?= ($filters['status'] ?? '') == 'Issued'    ? 'selected' : ''; ?>>Issued</option>
+                        <option value="Created"   <?= ($filters['status'] ?? '') == 'Created'   ? 'selected' : ''; ?>>Created</option>
+                        <option value="Confirmed" <?= ($filters['status'] ?? '') == 'Confirmed' ? 'selected' : ''; ?>>Confirmed</option>
                         <option value="Cancelled" <?= ($filters['status'] ?? '') == 'Cancelled' ? 'selected' : ''; ?>>Cancelled</option>
                     </select>
                 </div>
@@ -89,9 +89,9 @@
                             <td>
                                 <?php
                                     $badge = 'secondary';
-                                    if ($r->status == 'Issued')    $badge = 'success';
+                                    if ($r->status == 'Created')   $badge = 'warning';
+                                    if ($r->status == 'Confirmed') $badge = 'success';
                                     if ($r->status == 'Cancelled') $badge = 'danger';
-                                    if ($r->status == 'Draft')     $badge = 'warning';
                                 ?>
                                 <span class="badge badge-<?= $badge; ?>"><?= $r->status; ?></span>
                             </td>
@@ -105,7 +105,7 @@
                                    class="btn btn-sm btn-secondary" target="_blank" title="PDF">
                                     <i class="fas fa-file-pdf"></i>
                                 </a>
-                                <?php if ($r->status == 'Draft' && check_access('consumable_out', 'delete')): ?>
+                                <?php if ($r->status == 'Created' && check_access('consumable_out', 'delete')): ?>
                                 <a href="<?= base_url('consumable_out/delete/' . $r->id); ?>"
                                    class="btn btn-sm btn-danger"
                                    onclick="return confirm('Hapus dokumen ini?');" title="Hapus">

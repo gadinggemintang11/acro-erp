@@ -146,6 +146,7 @@ class Stock_ledger extends MY_Controller {
         $this->db->join('prod_return_header prh', 'sl.transaction_id = prh.id AND sl.transaction_type = "IN_RETURN_WIP"', 'left');
         
         // Pengeluaran Issue Material (ke Produksi)
+        $report_data = $this->Stock_ledger_model->get_stock_summary_report($filters, 0, 0);
         $this->db->join('mr_header mr_h', 'sl.transaction_id = mr_h.id AND sl.transaction_type IN ("OUT_ISSUE", "production_out")', 'left'); 
 
         // Pemasukan Scrap (dari Produksi via Scrap In)
@@ -178,7 +179,8 @@ class Stock_ledger extends MY_Controller {
             'OUT_SHIPMENT',     // Kirim Barang Jadi
             'OUT_SCRAP_BC',     // Scrap Keluar Gudang
             'ADJ_OUT',          // Adjustment Keluar
-            'IN_SCRAP_WH'       // Scrap Masuk ke Gudang
+            'IN_SCRAP_WH',       // Scrap Masuk ke Gudang
+            'OUT_CONSUMABLE'    // Pengeluaran Barang Habis Pakai
         ];
         $this->db->where_in('sl.transaction_type', $warehouse_tx_types);
         
@@ -319,6 +321,9 @@ class Stock_ledger extends MY_Controller {
                 } elseif (strpos($type, 'ADJ_') === 0) {
                     $main_ref = $row['adjustment_doc'] ?? 'Adjustment';
                     $partner_info = $row['adjustment_notes'] ?? '-';
+                } else if ($type == 'OUT_CONSUMABLE') {
+                    $main_ref = $row['consumable_out_doc_no'] ?? '-';
+                    $partner_info = '-';
                 }
                 // --- AKHIR PERBAIKAN LOGIKA ---
 
