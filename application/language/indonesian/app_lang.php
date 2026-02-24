@@ -694,7 +694,7 @@ $lang['sidebar_exim_verification'] = 'Verifikasi EXIM';
 $lang['sidebar_customs_verification'] = 'Verifikasi Bea Cukai:';
 $lang['sidebar_goods_incoming'] = 'Pemasukan Barang';
 $lang['sidebar_goods_outgoing'] = 'Pengeluaran Barang';
-$lang['sidebar_it_inventory'] = 'Inventaris IT (BC)';
+$lang['sidebar_it_inventory'] = 'IT Inventory (BC)';
 $lang['sidebar_customs_reports'] = 'Laporan Bea Cukai:';
 $lang['sidebar_goods_incoming_report'] = 'Lap Pemasukan Barang';
 $lang['sidebar_goods_outgoing_report'] = 'Lap Pengeluaran Barang';
@@ -1085,9 +1085,9 @@ $lang['stock_summary_title'] = 'Ringkasan Stok Scrap';
 $lang['stock_traceability_title'] = 'Detail Traceability Scrap';
 
 // Finished Goods Mutation
-$lang['fg_mutation_title'] = 'Laporan Pertanggung Jawaban Mutasi Barang Jadi';
+$lang['fg_mutation_title'] = 'Laporan Mutasi Barang Jadi';
 $lang['fg_mutation_detail'] = 'Detail Mutasi';
-$lang['fg_recap_title'] = 'LAPORAN PERTANGGUNG JAWABAN MUTASI BARANG JADI';
+$lang['fg_recap_title'] = 'LAPORAN MUTASI BARANG JADI';
 $lang['fg_receipt_proof'] = 'Bukti Terima Barang Jadi';
 $lang['fg_delivery_note'] = 'Surat Jalan';
 
