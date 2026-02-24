@@ -557,4 +557,3 @@ class LapMutasiFinished extends MY_Controller {
         $this->load->view('it_inventory/lap_mutasi_finished/modal_adjustment_documents', $data);
     }
 }
-}
