@@ -21,7 +21,7 @@
                             <th>Kode Barang</th>
                             <th>Nama Barang</th>
                             <th>Kategori</th>
-                            <th>Asal</th>
+                            <th>Buyer</th>
                             <th>Satuan</th>
                             <th>Status</th>
                             <th width="180">Aksi</th>
@@ -81,7 +81,7 @@
                                                 </select>
                                             </div>
                                             <div class="form-group">
-                                                <label>Asal</label>
+                                                <label>Buyer</label>
                                                 <select name="asal" class="form-control" required>
                                                     <?php foreach($asal_list as $a): ?>
                                                         <option value="<?= $a->code; ?>" <?= $row->asal == $a->code ? 'selected' : ''; ?>>
@@ -146,9 +146,9 @@
                         </select>
                     </div>
                     <div class="form-group">
-                        <label>Asal</label>
+                        <label>Buyer</label>
                         <select name="asal" class="form-control" required>
-                            <option value="">-- Pilih Asal --</option>
+                            <option value="">-- Buyer --</option>
                             <?php foreach($asal_list as $a): ?>
                                 <option value="<?= $a->code; ?>"><?= htmlspecialchars($a->description); ?></option>
                             <?php endforeach; ?>

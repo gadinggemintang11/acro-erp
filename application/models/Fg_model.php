@@ -41,7 +41,7 @@ class Fg_model extends CI_Model {
     {
         $prefix = 'FG';
         $kat = strtoupper(substr($kategori, 0, 3));
-        $asl = strtoupper(substr($asal, 0, 3)); // Menggunakan 3 huruf asal (LOK / IMP)
+        $asl = strtoupper(substr($asal, 0, 6)); // Menggunakan 3 huruf asal (LOK / IMP)
 
         $this->db->like('kode_barang', "{$prefix}-{$kat}-{$asl}-", 'after');
         $this->db->order_by('id', 'DESC');

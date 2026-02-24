@@ -24,7 +24,7 @@ class Master_fg extends MY_Controller {
             'satuan_list'   => $this->Commoncode_model->get_by_group('SATUAN'),
             'kategori_list' => $this->Commoncode_model->get_by_group('FINISHED_CATEGORY'),
             // ✅ DINAMIS: Mengambil data asal dari common code
-            'asal_list'     => $this->Commoncode_model->get_by_group('ITEM_ORIGIN')
+            'asal_list'     => $this->Commoncode_model->get_by_group('BUYER')
         ];
 
         $this->load->view('templates/header', $data);
