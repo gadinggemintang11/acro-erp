@@ -9,7 +9,7 @@ use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 class LapMutasiScrap extends MY_Controller {
 
-    private $report_title = 'Laporan Pertanggung Jawaban Mutasi Scrap / Sisa Produksi';
+    private $report_title = 'Laporan Mutasi Scrap / Sisa Produksi';
 
     public function __construct() {
         parent::__construct();

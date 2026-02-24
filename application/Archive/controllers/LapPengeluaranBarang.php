@@ -38,7 +38,7 @@ class LapPengeluaranBarang extends MY_Controller {
         $offset = ($page > 0) ? ($page - 1) * $config['per_page'] : 0;
         
         $data = [
-            'title'      => 'Laporan Pertanggung Jawaban Pengeluaran Barang',
+            'title'      => 'Laporan Pengeluaran Barang',
             'filters'    => $filters,
             'report_data'=> $this->LapPengeluaranBarang_model->get_report($filters, $config['per_page'], $offset),
             'pagination' => $this->pagination->create_links(),

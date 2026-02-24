@@ -27,7 +27,7 @@ class LapMutasiFinished extends CI_Controller {
      */
     public function index()
     {
-        $data['title'] = 'Laporan Pertanggung Jawaban Mutasi Barang Jadi';
+        $data['title'] = 'Laporan Mutasi Barang Jadi';
         
         $data['start_date'] = $this->input->get('start_date') ?: date('Y-m-01');
         $data['end_date'] = $this->input->get('end_date') ?: date('Y-m-t');
@@ -140,7 +140,7 @@ class LapMutasiFinished extends CI_Controller {
         $sheet = $spreadsheet->getActiveSheet();
         $sheet->setTitle('Rekapitulasi Stok FG');
         
-        $sheet->mergeCells('A1:L1')->setCellValue('A1', 'Laporan PERTANGGUNG JAWABAN MUTASI Barang Jadi');
+        $sheet->mergeCells('A1:L1')->setCellValue('A1', 'Laporan  MUTASI Barang Jadi');
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(16);
         
         $sheet->mergeCells('A2:L2')->setCellValue('A2', 'Periode: ' . date('d M Y', strtotime($start_date)) . ' s/d ' . date('d M Y', strtotime($end_date)));
@@ -204,7 +204,7 @@ class LapMutasiFinished extends CI_Controller {
         $data['start_date'] = $this->input->get('start_date') ?: date('Y-m-01');
         $data['end_date'] = $this->input->get('end_date') ?: date('Y-m-t');
         $data['rekap_data'] = $this->model->get_stock_summary($data['start_date'], $data['end_date']);
-        $data['title'] = 'LAPORAN PERTANGGUNG JAWABAN MUTASI BARANG JADI';
+        $data['title'] = 'LAPORAN  MUTASI BARANG JADI';
 
         $html = $this->load->view('it_inventory/lap_mutasi_finished/pdf/rekap_pdf', $data, true);
         $this->generate_pdf($html, 'rekap_stok_fg.pdf', 'A3', 'landscape');

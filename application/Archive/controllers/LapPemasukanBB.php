@@ -11,7 +11,7 @@ use Dompdf\Options;
 class LapPemasukanBB extends MY_Controller {
 
     private $report_code = 'pemasukan_bb'; // Kode unik laporan ini
-    private $report_title = 'Laporan Pertanggung Jawaban Pemasukan Barang'; // Judul Laporan
+    private $report_title = 'Laporan  Pemasukan Barang'; // Judul Laporan
 
     public function __construct() {
         parent::__construct();

@@ -38,7 +38,7 @@ class LapPengeluaranBarang extends MY_Controller {
         $offset = ($page > 0) ? ($page - 1) * $config['per_page'] : 0;
         
         $data = [
-            'title'      => 'Laporan Pertanggung Jawaban Pengeluaran Barang',
+            'title'      => 'LaporanPengeluaran Barang',
             'filters'    => $filters,
             'report_data'=> $this->LapPengeluaranBarang_model->get_report($filters, $config['per_page'], $offset),
             'pagination' => $this->pagination->create_links(),
@@ -170,7 +170,7 @@ class LapPengeluaranBarang extends MY_Controller {
         $bc_codes = array_column($this->Commoncode_model->get_by_group('BC_TYPE'), 'description', 'code');
 
         // --- Header Laporan ---
-        $sheet->setCellValue('A1', 'LAPORAN PERTANGGUNG JAWABAN PENGELUARAN BARANG');
+        $sheet->setCellValue('A1', 'LAPORAN PENGELUARAN BARANG');
         $sheet->mergeCells('A1:M1'); 
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
         $sheet->getStyle('A1')->getAlignment()->setHorizontal('center');

@@ -27,7 +27,7 @@ class LapMutasiFinished extends MY_Controller {
      */
     public function index()
     {
-        $data['title'] = lang_line('fg_mutation_title', 'Laporan Pertanggung Jawaban Mutasi Barang Jadi');
+        $data['title'] = lang_line('fg_mutation_title', 'Laporan Mutasi Barang Jadi');
         
         $data['start_date'] = $this->input->get('start_date') ?: date('Y-m-01');
         $data['end_date'] = $this->input->get('end_date') ?: date('Y-m-t');
@@ -176,7 +176,7 @@ class LapMutasiFinished extends MY_Controller {
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(11);
         $sheet->getStyle('A1')->getAlignment()->setHorizontal('center');
         
-        $sheet->setCellValue('A2', 'LAPORAN PERTANGGUNG JAWABAN MUTASI BARANG JADI');
+        $sheet->setCellValue('A2', 'LAPORAN MUTASI BARANG JADI');
         $sheet->mergeCells('A2:L2');
         $sheet->getStyle('A2')->getFont()->setBold(true)->setSize(12);
         $sheet->getStyle('A2')->getAlignment()->setHorizontal('center');
@@ -257,7 +257,7 @@ class LapMutasiFinished extends MY_Controller {
         $data['start_date'] = $this->input->get('start_date') ?: date('Y-m-01');
         $data['end_date'] = $this->input->get('end_date') ?: date('Y-m-t');
         $data['rekap_data'] = $this->model->get_stock_summary($data['start_date'], $data['end_date']);
-        $data['title'] = 'LAPORAN PERTANGGUNG JAWABAN MUTASI BARANG JADI';
+        $data['title'] = 'LAPORAN MUTASI BARANG JADI';
 
         $html = $this->load->view('it_inventory/lap_mutasi_finished/pdf/rekap_pdf', $data, true);
         $this->generate_pdf($html, 'rekap_stok_fg.pdf', 'A3', 'landscape');
@@ -556,4 +556,5 @@ class LapMutasiFinished extends MY_Controller {
         
         $this->load->view('it_inventory/lap_mutasi_finished/modal_adjustment_documents', $data);
     }
+}
 }

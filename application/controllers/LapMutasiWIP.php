@@ -17,7 +17,7 @@ class LapMutasiWIP extends MY_Controller {
     
     public function index() {
         $data = [
-            'page_title' => 'Laporan Pertanggung Jawaban Mutasi WIP (Work In Progress)', 
+            'page_title' => 'Laporan Mutasi WIP (Work In Progress)', 
             'start'      => date('Y-m-01'),
             'end'        => date('Y-m-t')
         ];

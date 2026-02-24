@@ -237,11 +237,7 @@ class Reports extends MY_Controller {
             return;
         }
 
-        // (Untuk traceability, kita panggil fungsi General Ledger saja,
-        //  tapi ini cara yang lebih canggih di masa depan)
-        //
-        // Untuk sekarang, kita redirect saja ke General Ledger untuk akun "lawan"
-        // Ini adalah cara traceability yang cepat dan efisien
+    
         $queryString = "?start_date={$startDate}&end_date={$endDate}";
         redirect('reports/general_ledger/' . $offset_account_id . $queryString);
     }
@@ -307,17 +303,13 @@ class Reports extends MY_Controller {
         }
     }
 
-    /**
-     * [FUNGSI SELANJUTNYA ADA DI SINI]
-     * public function balance_sheet() { ... }
-     * public function general_ledger($account_id) { ... }
-     */
+
 
     private function _export_laba_rugi_excel($sheet, $data)
     {
-        $row = 4; // Start after title and period
+        $row = 4;
 
-        // Define headers
+        
         $headers = ['Deskripsi', 'Jumlah'];
         $sheet->fromArray($headers, NULL, 'A' . $row);
         $sheet->getStyle('A' . $row . ':B' . $row)->getFont()->setBold(true);
@@ -336,7 +328,7 @@ class Reports extends MY_Controller {
 
         $startRow = $row;
 
-        // Helper function to write a row
+        
         $writeRow = function($description, $amount, $isBold = false, $isSubtotal = false) use ($sheet, &$row) {
             $sheet->setCellValue('A' . $row, $description);
             $sheet->setCellValue('B' . $row, $amount);

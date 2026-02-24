@@ -19,7 +19,7 @@ class LapMutasiMaterial extends MY_Controller {
         $end = $this->input->get('end') ?: date('Y-m-t');
         
         $data = [
-            'page_title' => 'Laporan Pertanggung Jawaban Mutasi Bahan Baku dan Bahan Penolong',
+            'page_title' => 'Laporan Mutasi Bahan Baku dan Bahan Penolong',
             'start'      => $start,
             'end'        => $end
         ];
