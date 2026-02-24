@@ -28,6 +28,7 @@
                             <th>Kode</th>
                             <th>Nama Material</th>
                             <th>Kategori</th>
+                            <th>Material Kategori</th>
                             <th>Asal</th>
                             <th>Satuan</th>
                             <th>Status</th>
@@ -41,9 +42,10 @@
                             <td><?= $no++; ?></td>
                             <td><span class="font-weight-bold text-primary"><?= htmlspecialchars($m->kode_material); ?></span></td>
                             <td class="text-left"><?= htmlspecialchars($m->nama_material); ?></td>
-                            <td><?= htmlspecialchars($m->kategori); ?></td>
-                            <td><?= htmlspecialchars($m->asal); ?></td>
-                            <td><?= htmlspecialchars($m->satuan); ?></td>
+                            <td><?= htmlspecialchars($m->kategori ?? ''); ?></td>
+                            <td><?= htmlspecialchars($m->kategorirm ?? ''); ?></td>
+                            <td><?= htmlspecialchars($m->asal ?? ''); ?></td>
+                            <td><?= htmlspecialchars($m->satuan ?? ''); ?></td>
                             <td>
                                 <span class="badge badge-<?= $m->status=='active'?'success':'secondary'; ?> px-3 py-1">
                                     <?= ucfirst($m->status); ?>
@@ -88,6 +90,17 @@
                                                     <?php endforeach; ?>
                                                 </select>
                                             </div>
+                                            <div class="form-group">
+                                                <label>Material Kategori</label>
+                                                <select name="kategorirm" class="form-control">
+                                                    <?php foreach($kategorirm_list as $kr): ?>
+                                                        <option value="<?= $kr->code; ?>" <?= $kr->code == ($m->kategorirm ?? '') ? 'selected' : ''; ?>>
+                                                            <?= htmlspecialchars($kr->description); ?>
+                                                        </option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                            </div>
+
 
                                             <div class="form-group">
                                                 <label>Asal</label>
@@ -160,6 +173,15 @@
                             <option value="">-- Pilih Kategori --</option>
                             <?php foreach($kategori_list as $k): ?>
                                 <option value="<?= $k->code; ?>"><?= htmlspecialchars($k->description); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>Material Kategori</label>
+                        <select name="kategorirm" class="form-control" required>
+                            <option value="">-- Pilih Material Kategori --</option>
+                            <?php foreach($kategorirm_list as $kr): ?>
+                                <option value="<?= $kr->code; ?>"><?= htmlspecialchars($kr->description); ?></option>
                             <?php endforeach; ?>
                         </select>
                     </div>

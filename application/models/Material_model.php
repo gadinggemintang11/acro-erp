@@ -18,6 +18,7 @@ class Material_model extends CI_Model {
                 ->like('kode_material', $keyword)
                 ->or_like('nama_material', $keyword)
                 ->or_like('kategori', $keyword)
+                ->or_like('kategorirm', $keyword)
                 ->or_like('asal', $keyword)
                 ->or_like('satuan', $keyword)
             ->group_end();
@@ -37,6 +38,7 @@ class Material_model extends CI_Model {
                 ->like('kode_material', $keyword)
                 ->or_like('nama_material', $keyword)
                 ->or_like('kategori', $keyword)
+                ->or_like('kategorirm', $keyword)
                 ->or_like('asal', $keyword)
                 ->or_like('satuan', $keyword)
             ->group_end();
@@ -56,6 +58,12 @@ class Material_model extends CI_Model {
     }
 
     // ✅ FUNGSI BARU: Mengambil daftar kategori dinamis
+    public function get_kategorirm_list() {
+        return $this->db->get_where('common_code', [
+            'group_code' => 'RM_CATEGORY', // Pastikan nama grup ini ada di db
+            'status' => 'active'
+        ])->result();
+    }
     public function get_kategori_list() {
         return $this->db->get_where('common_code', [
             'group_code' => 'MATERIAL_CATEGORY', // Pastikan nama grup ini ada di db
@@ -79,14 +87,16 @@ class Material_model extends CI_Model {
         return $this->db->update($this->table, ['status' => 'inactive']);
     }
 
-    public function generate_kode($kategori, $asal)
+    public function generate_kode($kategori, $asal, $kategorirm = '')
     {
-        // Tentukan prefix kategori
+        // Tentukan prefix kategori (2 huruf)
         $prefixKategori = strtoupper(substr($kategori, 0, 2));
-        // Prefix asal
-        $prefixAsal = strtoupper(substr($asal, 0, 1));
+        $prefixasal = strtoupper(substr($asal, 0, 1)); // Menggunakan 3 huruf asal (LOK / IMP)
+        // Prefix kategorirm (2 huruf)
+        $prefixRm = strtoupper(substr($kategorirm, 0, 2));
 
-        $prefix = $prefixKategori . $prefixAsal;
+        // Format: kategori-kategorirm-nomor (contoh: ACL-RM-0001)
+        $prefix = $prefixKategori . $prefixasal . '-' . $prefixRm;
 
         $this->db->like('kode_material', $prefix, 'after');
         $this->db->order_by('id', 'DESC');

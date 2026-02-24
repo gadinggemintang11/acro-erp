@@ -62,6 +62,7 @@ class Master_material extends MY_Controller {
         // ✅ DINAMIS: Menggunakan Commoncode_model yang lebih umum
         $data['satuan_list'] = $this->Commoncode_model->get_by_group('SATUAN');
         $data['kategori_list'] = $this->Commoncode_model->get_by_group('MATERIAL_CATEGORY');
+        $data['kategorirm_list'] = $this->Commoncode_model->get_by_group('RM_CATEGORY');
         $data['asal_list'] = $this->Commoncode_model->get_by_group('ITEM_ORIGIN'); // Asumsi 'Lokal'/'Impor'
 
         $this->load->view('templates/header', $data);
@@ -79,6 +80,7 @@ class Master_material extends MY_Controller {
 
         $nama_material = $this->input->post('nama_material');
         $kategori = $this->input->post('kategori');
+        $kategorirm = $this->input->post('kategorirm');
         $asal = $this->input->post('asal');
         $satuan = $this->input->post('satuan');
 
@@ -88,9 +90,10 @@ class Master_material extends MY_Controller {
         }
 
         $data = [
-            'kode_material' => $this->Material_model->generate_kode($kategori, $asal),
+            'kode_material' => $this->Material_model->generate_kode($kategori, $asal, $kategorirm),
             'nama_material' => $nama_material,
             'kategori'      => $kategori,
+            'kategorirm'    => $kategorirm,
             'asal'          => $asal,
             'satuan'        => $satuan,
             'status'        => 'active'
@@ -121,6 +124,7 @@ class Master_material extends MY_Controller {
         $data = [
             'nama_material' => $this->input->post('nama_material'),
             'kategori'      => $this->input->post('kategori'),
+            'kategorirm'    => $this->input->post('kategorirm'),
             'asal'          => $this->input->post('asal'),
             'satuan'        => $this->input->post('satuan'),
             'status'        => $this->input->post('status')
