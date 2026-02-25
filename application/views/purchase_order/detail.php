@@ -49,21 +49,6 @@
         if (flashError && typeof Swal !== 'undefined') {
             Swal.fire({ icon: 'error', title: '<?= lang_line('po_failed', 'Gagal!'); ?>', text: flashError });
         }
-
-                // Inisialisasi Select2 untuk dropdown di Edit Modal (shipping/payment)
-                try {
-                    const $selectModalElements = $editModal.find('.select2-modal');
-                    if ($selectModalElements.length && typeof $.fn.select2 === 'function') {
-                        $selectModalElements.each(function() {
-                            // destroy existing instance if any
-                            if ($(this).data('select2')) $(this).select2('destroy');
-                            $(this).select2({ dropdownParent: $editModal, theme: 'bootstrap4', width: '100%' });
-                        });
-                        console.log('[PO Detail] Select2 initialized for edit modal fields.');
-                    } else {
-                        console.log('[PO Detail] Select2 not found or no elements to init in edit modal.');
-                    }
-                } catch (e) { console.warn('[PO Detail] Error initializing Select2 in edit modal', e); }
         if (flashWarning && typeof Swal !== 'undefined') {
             Swal.fire({ icon: 'warning', title: '<?= lang_line('po_warning', 'Peringatan!'); ?>', text: flashWarning });
         }
@@ -334,6 +319,20 @@ $(function() {
                 toggleEditKurs(); 
                 $editCurrencySelect.on('change', toggleEditKurs); 
                 console.log("[PO Detail] AutoNumeric & Currency Logic for Edit Modal Initialized.");
+
+                    // Inisialisasi Select2 untuk dropdown di Edit Modal (shipping/payment)
+                    try {
+                        const $selectModalElements = $editModal.find('.select2-modal');
+                        if ($selectModalElements.length && typeof $.fn.select2 === 'function') {
+                            $selectModalElements.each(function() {
+                                if ($(this).data('select2')) $(this).select2('destroy');
+                                $(this).select2({ dropdownParent: $editModal, theme: 'bootstrap4', width: '100%' });
+                            });
+                            console.log('[PO Detail] Select2 initialized for edit modal fields.');
+                        } else {
+                            console.log('[PO Detail] Select2 not found or no elements to init in edit modal.');
+                        }
+                    } catch (e) { console.warn('[PO Detail] Error initializing Select2 in edit modal', e); }
 
                 // Bootstrap validation for modal form + AJAX submit
                 $editModal.find('form.needs-validation').on('submit', function(event) {

@@ -136,7 +136,8 @@ class Warehouse_in_model extends CI_Model {
             d.bc_type_code, d.bc_number, d.bc_date,
             CASE WHEN d.source_doc_type = 'PO' THEN poh.po_number WHEN d.source_doc_type = 'MIR' THEN mirh.mir_number END as source_doc_number,
             CASE WHEN d.item_type = 'material' THEN m.kode_material WHEN d.item_type = 'machine' THEN mc.kode_mesin WHEN d.item_type = 'inventory' THEN i.kode_barang WHEN d.item_type = 'semifinished' THEN sf.kode_barang END as item_code,
-            CASE WHEN d.item_type = 'material' THEN m.nama_material WHEN d.item_type = 'machine' THEN mc.nama_mesin WHEN d.item_type = 'inventory' THEN i.nama_barang WHEN d.item_type = 'semifinished' THEN sf.nama_barang END as item_name
+            CASE WHEN d.item_type = 'material' THEN m.nama_material WHEN d.item_type = 'machine' THEN mc.nama_mesin WHEN d.item_type = 'inventory' THEN i.nama_barang WHEN d.item_type = 'semifinished' THEN sf.nama_barang END as item_name,
+            CASE WHEN d.item_type = 'material' THEN m.satuan WHEN d.item_type = 'machine' THEN mc.satuan WHEN d.item_type = 'inventory' THEN i.satuan WHEN d.item_type = 'semifinished' THEN sf.satuan END as satuan
         ";
         $this->db->select($select_clause, FALSE);
         $this->db->from($this->table_details . ' d');
