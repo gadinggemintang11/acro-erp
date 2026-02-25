@@ -49,6 +49,21 @@
         if (flashError && typeof Swal !== 'undefined') {
             Swal.fire({ icon: 'error', title: '<?= lang_line('po_failed', 'Gagal!'); ?>', text: flashError });
         }
+
+                // Inisialisasi Select2 untuk dropdown di Edit Modal (shipping/payment)
+                try {
+                    const $selectModalElements = $editModal.find('.select2-modal');
+                    if ($selectModalElements.length && typeof $.fn.select2 === 'function') {
+                        $selectModalElements.each(function() {
+                            // destroy existing instance if any
+                            if ($(this).data('select2')) $(this).select2('destroy');
+                            $(this).select2({ dropdownParent: $editModal, theme: 'bootstrap4', width: '100%' });
+                        });
+                        console.log('[PO Detail] Select2 initialized for edit modal fields.');
+                    } else {
+                        console.log('[PO Detail] Select2 not found or no elements to init in edit modal.');
+                    }
+                } catch (e) { console.warn('[PO Detail] Error initializing Select2 in edit modal', e); }
         if (flashWarning && typeof Swal !== 'undefined') {
             Swal.fire({ icon: 'warning', title: '<?= lang_line('po_warning', 'Peringatan!'); ?>', text: flashWarning });
         }
@@ -190,18 +205,28 @@
                          </div>
                      </div>
                      <div class="row">
-                         <div class="col-md-6">
-                             <div class="form-group">
-                                 <label for="edit_shipping_mode"><?= lang_line('po_shipping_mode', 'Mode Pengiriman'); ?> <span class="text-danger">*</span></label>
-                                 <input type="text" class="form-control form-control-sm" id="edit_shipping_mode" name="shipping_mode" value="<?= htmlspecialchars($header->shipping_mode_desc ?? ''); ?>" required placeholder="<?= lang_line('po_enter_shipping', 'Contoh: TRUCK, CARGO, DHL'); ?>">
-                             </div>
-                         </div>
-                         <div class="col-md-6">
-                             <div class="form-group">
-                                 <label for="edit_payment_mode"><?= lang_line('po_payment_mode', 'Mode Pembayaran'); ?> <span class="text-danger">*</span></label>
-                                 <input type="text" class="form-control form-control-sm" id="edit_payment_mode" name="payment_mode" value="<?= htmlspecialchars($header->payment_mode_desc ?? ''); ?>" required placeholder="<?= lang_line('po_enter_payment', 'Contoh: CASH, TRANSFER, CREDIT'); ?>">
-                             </div>
-                         </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="edit_shipping_mode"><?= lang_line('po_shipping_mode', 'Mode Pengiriman'); ?> <span class="text-danger">*</span></label>
+                                <select name="shipping_mode_code" id="edit_shipping_mode" class="form-control form-control-sm select2-modal" required style="width: 100%;">
+                                    <option value=""><?= lang_line('po_shipping_mode_select', '-- Pilih Mode --'); ?></option>
+                                    <?php foreach(($shipping_modes ?? []) as $mode): ?>
+                                        <option value="<?= $mode->code; ?>" <?= (isset($header->shipping_mode_code) && $header->shipping_mode_code == $mode->code) ? 'selected' : ''; ?>><?= htmlspecialchars($mode->description); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label for="edit_payment_mode"><?= lang_line('po_payment_mode', 'Mode Pembayaran'); ?> <span class="text-danger">*</span></label>
+                                <select name="payment_mode_code" id="edit_payment_mode" class="form-control form-control-sm select2-modal" required style="width: 100%;">
+                                    <option value=""><?= lang_line('po_payment_mode_select', '-- Pilih Mode --'); ?></option>
+                                    <?php foreach(($payment_modes ?? []) as $mode): ?>
+                                        <option value="<?= $mode->code; ?>" <?= (isset($header->payment_mode_code) && $header->payment_mode_code == $mode->code) ? 'selected' : ''; ?>><?= htmlspecialchars($mode->description); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                        </div>
                      </div>
                      <div class="row">
                          <div class="col-md-6">

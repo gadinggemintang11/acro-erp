@@ -80,7 +80,7 @@
                     <thead class="thead-light text-center">
                         <tr>
                             <th><?= lang_line('no', 'No'); ?></th> <th><?= lang_line('warehouse_in_source_doc', 'No. Sumber'); ?></th> <th><?= lang_line('warehouse_in_item_code', 'Kode Item'); ?></th> <th><?= lang_line('warehouse_in_item_name', 'Nama Item'); ?></th>
-                            <th><?= lang_line('warehouse_in_receive_qty', 'Qty Terima'); ?></th> <th><?= lang_line('warehouse_in_unit_value', 'Nilai Satuan (IDR)'); ?></th> <th><?= lang_line('warehouse_in_total_value', 'Total Nilai (IDR)'); ?></th> <th><?= lang_line('warehouse_in_actions', 'Aksi'); ?></th>
+                            <th><?= lang_line('warehouse_in_unit', 'Satuan'); ?></th> <th><?= lang_line('warehouse_in_receive_qty', 'Qty Terima'); ?></th> <th><?= lang_line('warehouse_in_unit_value', 'Nilai Satuan (IDR)'); ?></th> <th><?= lang_line('warehouse_in_total_value', 'Total Nilai (IDR)'); ?></th> <th><?= lang_line('warehouse_in_actions', 'Aksi'); ?></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -90,6 +90,7 @@
                             <td><?= htmlspecialchars($d->source_doc_number); ?></td>
                             <td><?= htmlspecialchars($d->item_code); ?></td>
                             <td><?= htmlspecialchars($d->item_name); ?></td>
+                            <td><?= htmlspecialchars($d->satuan ?? '-'); ?></td>
                             <td class="text-right"><?= number_format($d->receive_qty, 2); ?></td>
                             <td class="text-right"><?= number_format($d->unit_value ?? 0, 2); ?></td>
                             <td class="text-right"><?= number_format($d->total_value ?? 0, 2); ?></td>
@@ -128,10 +129,10 @@
                         </tr>
                         <?php $grand_total_value += ($d->total_value ?? 0); endforeach; ?>
                          <tr class="bg-light font-weight-bold">
-                            <td colspan="6" class="text-right"><?= lang_line('warehouse_in_grand_total', 'Grand Total Nilai (IDR)'); ?></td>
+                            <td colspan="7" class="text-right"><?= lang_line('warehouse_in_grand_total', 'Grand Total Nilai (IDR)'); ?></td>
                             <td class="text-right"><?= number_format($grand_total_value, 2); ?></td> <td></td>
                         </tr>
-                        <?php else: ?> <tr><td colspan="8" class="text-center text-muted py-5"><?= lang_line('warehouse_in_no_items', 'Belum ada item yang diterima'); ?></td></tr>
+                        <?php else: ?> <tr><td colspan="9" class="text-center text-muted py-5"><?= lang_line('warehouse_in_no_items', 'Belum ada item yang diterima'); ?></td></tr>
                         <?php endif; ?>
                     </tbody>
                 </table>
