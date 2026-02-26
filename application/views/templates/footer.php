@@ -13,6 +13,23 @@
     </footer>
 </div> <!-- End of Content Wrapper -->
 
+<script>
+  // Safety: if footer ended up outside #content-wrapper (due to a view accidentally closing wrappers),
+  // move it back under #content-wrapper so layout (sticky footer) works consistently.
+  (function(){
+    try {
+      var footer = document.querySelector('footer.sticky-footer');
+      var cw = document.getElementById('content-wrapper');
+      if (footer && cw && !cw.contains(footer)) {
+        cw.appendChild(footer);
+      }
+    } catch (e) {
+      // silently ignore
+      console && console.warn && console.warn('Footer relocation failed', e);
+    }
+  })();
+</script>
+
 <!-- Scroll to Top Button -->
 <a class="scroll-to-top rounded" href="#page-top">
   <i class="fas fa-angle-up"></i>

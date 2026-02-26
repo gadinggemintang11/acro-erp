@@ -89,23 +89,47 @@ class LapPengeluaranBarang extends MY_Controller {
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
 
         // --- Data Key-Value ---
+        // Build key-value rows and write cells individually so we can write real Excel dates
         $dataRows = [
             ['Jenis Transaksi', $trace->transaction_type ?? '-'],
-            ['Tanggal Transaksi', $trace->transaction_date ? date('d M Y H:i', strtotime($trace->transaction_date)) : '-'],
+            ['Tanggal Transaksi', $trace->transaction_date ?? null],
             ['Dokumen Sumber', ($trace->source_doc_type ?? '-') . ' / ' . ($trace->source_doc_no ?? $trace->source_doc_id ?? '-')],
             ['Partner', $trace->partner_name ?? '-'],
             ['Kode Barang', $trace->item_code ?? '-'],
             ['Nama Barang', $trace->item_name ?? '-'],
-            ['Jumlah Keluar', (float)($trace->jumlah ?? 0)],
+            ['Jumlah Keluar', isset($trace->jumlah) ? (float)$trace->jumlah : 0],
             ['Satuan', $trace->item_unit ?? '-'],
-            ['Nilai Barang (IDR)', (float)($trace->nilai_barang_idr ?? 0)],
+            ['Nilai Barang (IDR)', isset($trace->nilai_barang_idr) ? (float)$trace->nilai_barang_idr : 0],
             ['Jenis BC', $trace->jenis_bc_desc ?? '-'],
             ['Nomor BC', $trace->nomor_bc_ref ?? '-'],
-            ['Tanggal BC', $trace->tanggal_bc_ref ? date('d M Y', strtotime($trace->tanggal_bc_ref)) : '-'],
+            ['Tanggal BC', $trace->tanggal_bc_ref ?? null],
             ['Sales Contract', $trace->sales_contract_ref ?? '-'],
         ];
 
-        $sheet->fromArray($dataRows, NULL, 'A3');
+        $rowStart = 3;
+        foreach ($dataRows as $i => $pair) {
+            $r = $rowStart + $i;
+            $label = $pair[0];
+            $value = $pair[1];
+            $sheet->setCellValue('A' . $r, $label);
+            // Write dates as Excel-native date values (date-only, no time)
+            if ($label === 'Tanggal Transaksi' || $label === 'Tanggal BC') {
+                if (!empty($value)) {
+                    try {
+                        $dt = new \DateTime($value);
+                        $excelDate = \PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel($dt);
+                        $sheet->setCellValue('B' . $r, $excelDate);
+                        $sheet->getStyle('B' . $r)->getNumberFormat()->setFormatCode('dd-MMM-yyyy');
+                    } catch (Exception $e) {
+                        $sheet->setCellValue('B' . $r, '-');
+                    }
+                } else {
+                    $sheet->setCellValue('B' . $r, '-');
+                }
+            } else {
+                $sheet->setCellValue('B' . $r, $value !== null ? $value : '-');
+            }
+        }
         $sheet->getStyle('A3:A15')->getFont()->setBold(true); // Kolom A bold
 
         // Auto-size columns
@@ -218,27 +242,50 @@ class LapPengeluaranBarang extends MY_Controller {
             $nilai_barang_display = ($row['mata_uang'] != 'IDR' && $row['nilai_barang_fc'] > 0) ? $row['nilai_barang_fc'] : $row['nilai_barang_idr'];
             $bc_desc_display = $bc_codes[$row['jenis_bc']] ?? $row['jenis_bc']; // Handle jika BC Code masih string
 
-            $sheet->fromArray([
-                $no++,
-                $bc_desc_display,
-                $row['nomor_bc'],
-                $row['tanggal_bc'] ? date('d M Y', strtotime($row['tanggal_bc'])) : '',
-                $row['nomor_pengeluaran'],
-                $row['tanggal_pengeluaran'] ? date('d M Y', strtotime($row['tanggal_pengeluaran'])) : '',
-                $row['partner_name'],
-                $row['item_code'],
-                $row['item_name'],
-                $row['jumlah'],
-                $row['item_unit'],
-                $row['mata_uang'],
-                $nilai_barang_display
-            ], NULL, 'A'.$rowNum);
-            
+            // Write cells individually so dates become Excel-native values
+            $sheet->setCellValue('A' . $rowNum, $no++);
+            $sheet->setCellValue('B' . $rowNum, $bc_desc_display);
+            $sheet->setCellValue('C' . $rowNum, $row['nomor_bc'] ?? '-');
+
+            // tanggal_bc -> Excel date (date-only)
+            if (!empty($row['tanggal_bc'])) {
+                try {
+                    $d = new \DateTime($row['tanggal_bc']);
+                    $sheet->setCellValue('D' . $rowNum, \PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel($d));
+                    $sheet->getStyle('D' . $rowNum)->getNumberFormat()->setFormatCode('dd-MMM-yyyy');
+                } catch (Exception $e) {
+                    $sheet->setCellValue('D' . $rowNum, '');
+                }
+            } else {
+                $sheet->setCellValue('D' . $rowNum, '');
+            }
+
+            $sheet->setCellValue('E' . $rowNum, $row['nomor_pengeluaran'] ?? '-');
+
+            // tanggal_pengeluaran -> Excel date (date-only)
+            if (!empty($row['tanggal_pengeluaran'])) {
+                try {
+                    $d2 = new \DateTime($row['tanggal_pengeluaran']);
+                    $sheet->setCellValue('F' . $rowNum, \PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel($d2));
+                    $sheet->getStyle('F' . $rowNum)->getNumberFormat()->setFormatCode('dd-MMM-yyyy');
+                } catch (Exception $e) {
+                    $sheet->setCellValue('F' . $rowNum, '');
+                }
+            } else {
+                $sheet->setCellValue('F' . $rowNum, '');
+            }
+
+            $sheet->setCellValue('G' . $rowNum, $row['partner_name'] ?? '-');
+            $sheet->setCellValue('H' . $rowNum, $row['item_code'] ?? '-');
+            $sheet->setCellValue('I' . $rowNum, $row['item_name'] ?? '-');
+            $sheet->setCellValue('J' . $rowNum, isset($row['jumlah']) ? (float)$row['jumlah'] : 0);
+            $sheet->setCellValue('K' . $rowNum, $row['item_unit'] ?? '-');
+            $sheet->setCellValue('L' . $rowNum, $row['mata_uang'] ?? 'IDR');
+            $sheet->setCellValue('M' . $rowNum, (float)$nilai_barang_display);
+
             // Formatting
-            $sheet->getStyle('D'.$rowNum)->getNumberFormat()->setFormatCode('yyyy-mm-dd');
-            $sheet->getStyle('F'.$rowNum)->getNumberFormat()->setFormatCode('yyyy-mm-dd');
-            $sheet->getStyle('J'.$rowNum)->getNumberFormat()->setFormatCode('#,##0.00'); // Jumlah
-            $sheet->getStyle('M'.$rowNum)->getNumberFormat()->setFormatCode('#,##0.00'); // Nilai Barang
+            $sheet->getStyle('J' . $rowNum)->getNumberFormat()->setFormatCode('#,##0.00'); // Jumlah
+            $sheet->getStyle('M' . $rowNum)->getNumberFormat()->setFormatCode('#,##0.00'); // Nilai Barang
             $rowNum++;
         }
 

@@ -271,21 +271,44 @@ class LapPemasukanBB extends MY_Controller {
                     $bc_code = isset($row['bc_type_code']) ? $row['bc_type_code'] : '';
                     $bc_desc = isset($bc_types_map[$bc_code]) ? $bc_types_map[$bc_code] : $bc_code;
                     
-                    // Format tanggal untuk display
-                    $bc_date_display = isset($row['bc_date']) && !empty($row['bc_date']) 
-                        ? date('d M Y', strtotime($row['bc_date'])) 
-                        : '-';
-                    $grn_date_display = isset($row['grn_date']) && !empty($row['grn_date']) 
-                        ? date('d M Y', strtotime($row['grn_date'])) 
-                        : '-';
+                    // Prepare tanggal sebagai Excel-native dates (date-only, no time)
+                    $bc_date_excel = null;
+                    if (isset($row['bc_date']) && !empty($row['bc_date'])) {
+                        try {
+                            $dt = new \DateTime($row['bc_date']);
+                            $bc_date_excel = \PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel($dt);
+                        } catch (Exception $e) {
+                            $bc_date_excel = null;
+                        }
+                    }
+
+                    $grn_date_excel = null;
+                    if (isset($row['grn_date']) && !empty($row['grn_date'])) {
+                        try {
+                            $dt2 = new \DateTime($row['grn_date']);
+                            $grn_date_excel = \PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel($dt2);
+                        } catch (Exception $e) {
+                            $grn_date_excel = null;
+                        }
+                    }
                     
                     // Tulis setiap cell untuk menghindari issue dengan data type
                     $sheet->setCellValue('A'.$rowNum, $no++);
                     $sheet->setCellValue('B'.$rowNum, $bc_desc ? $bc_desc : '-');
                     $sheet->setCellValue('C'.$rowNum, isset($row['bc_number']) ? $row['bc_number'] : '-');
-                    $sheet->setCellValue('D'.$rowNum, $bc_date_display);
+                    if ($bc_date_excel !== null) {
+                        $sheet->setCellValue('D'.$rowNum, $bc_date_excel);
+                        $sheet->getStyle('D'.$rowNum)->getNumberFormat()->setFormatCode('dd-MMM-yyyy');
+                    } else {
+                        $sheet->setCellValue('D'.$rowNum, '-');
+                    }
                     $sheet->setCellValue('E'.$rowNum, isset($row['grn_number']) ? $row['grn_number'] : '-');
-                    $sheet->setCellValue('F'.$rowNum, $grn_date_display);
+                    if ($grn_date_excel !== null) {
+                        $sheet->setCellValue('F'.$rowNum, $grn_date_excel);
+                        $sheet->getStyle('F'.$rowNum)->getNumberFormat()->setFormatCode('dd-MMM-yyyy');
+                    } else {
+                        $sheet->setCellValue('F'.$rowNum, '-');
+                    }
                     $sheet->setCellValue('G'.$rowNum, isset($row['nama_supplier']) ? $row['nama_supplier'] : '-');
                     $sheet->setCellValue('H'.$rowNum, isset($row['item_code']) ? $row['item_code'] : '-');
                     $sheet->setCellValue('I'.$rowNum, isset($row['item_name']) ? $row['item_name'] : '-');

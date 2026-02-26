@@ -55,6 +55,11 @@ class Reports extends MY_Controller {
         // Ambil data dari "otak" (Report_model)
         $data['report_data'] = $this->Report_model->get_profit_loss($startDate, $endDate);
 
+        // Optional debug: dump report data to PHP error log if requested
+        if ($this->input->get('debug')) {
+            error_log("REPORT_DEBUG profit_loss for {$startDate} - {$endDate}: " . print_r($data['report_data'], true));
+        }
+
         // Kirim data filter kembali ke view untuk ditampilkan di form
         $data['start_date'] = $startDate;
         $data['end_date'] = $endDate;
@@ -343,45 +348,92 @@ class Reports extends MY_Controller {
             $row++;
         };
 
-        // Pendapatan
-        $writeRow('Pendapatan', null, true);
-        if (!empty($data['pendapatan']) && (is_array($data['pendapatan']) || $data['pendapatan'] instanceof Traversable)) {
-            foreach ($data['pendapatan'] as $item) {
-                $amt = isset($item['total']) ? $item['total'] : 0;
-                $name = isset($item['account_name']) ? $item['account_name'] : '-';
+        // Recursive node writer: handle tree nodes produced by Report_model
+        $write_node = function($node) use (&$write_node, $writeRow) {
+            $name = isset($node['account_name']) ? $node['account_name'] : (isset($node['group_name']) ? $node['group_name'] : '-');
+            if (isset($node['is_header']) && $node['is_header']) {
+                $writeRow($name, null, true);
+                if (!empty($node['children']) && (is_array($node['children']) || $node['children'] instanceof Traversable)) {
+                    foreach ($node['children'] as $child) {
+                        $write_node($child);
+                    }
+                }
+            } else {
+                $amt = isset($node['balance']) ? $this->_parse_amount($node['balance']) : $this->_get_item_amount($node, ['total','amount','balance','value']);
                 $writeRow($name, $amt);
             }
+        };
+
+        // Normalize keys: older model uses 'biaya' for both HPP and Beban operasional.
+        $pendapatan_nodes = !empty($data['pendapatan']) && (is_array($data['pendapatan']) || $data['pendapatan'] instanceof Traversable) ? $data['pendapatan'] : [];
+        $biaya_nodes = !empty($data['biaya']) && (is_array($data['biaya']) || $data['biaya'] instanceof Traversable) ? $data['biaya'] : [];
+
+        // Split biaya into HPP and Beban (operasional) by inspecting top-level node account_type when possible.
+        $hpp_nodes = [];
+        $beban_nodes = [];
+        foreach ($biaya_nodes as $n) {
+            $type = isset($n['account_type']) ? $n['account_type'] : (isset($n['type']) ? $n['type'] : null);
+            if ($type === 'HPP') {
+                $hpp_nodes[] = $n;
+            } else {
+                $beban_nodes[] = $n;
+            }
         }
-        $writeRow('Total Pendapatan', isset($data['total_pendapatan']) ? $data['total_pendapatan'] : 0, true, true);
+
+        // Helper sums for totals (fallback to provided totals when available)
+        $total_pendapatan = isset($data['total_pendapatan']) ? $this->_parse_amount($data['total_pendapatan']) : null;
+        $total_biaya = isset($data['total_biaya']) ? $this->_parse_amount($data['total_biaya']) : null;
+
+        // Pendapatan
+        $writeRow('Pendapatan', null, true);
+        if (!empty($pendapatan_nodes)) {
+            foreach ($pendapatan_nodes as $item) {
+                $write_node($item);
+            }
+        }
+        $writeRow('Total Pendapatan', $total_pendapatan !== null ? $total_pendapatan : 0, true, true);
 
         // Beban Pokok Penjualan (HPP)
         $writeRow('Beban Pokok Penjualan', null, true);
-        if (!empty($data['hpp']) && (is_array($data['hpp']) || $data['hpp'] instanceof Traversable)) {
-            foreach ($data['hpp'] as $item) {
-                $amt = isset($item['total']) ? $item['total'] : 0;
-                $name = isset($item['account_name']) ? $item['account_name'] : '-';
-                $writeRow($name, $amt);
+        if (!empty($hpp_nodes)) {
+            foreach ($hpp_nodes as $item) {
+                $write_node($item);
             }
         }
-        $writeRow('Total Beban Pokok Penjualan', isset($data['total_hpp']) ? $data['total_hpp'] : 0, true, true);
+        // compute total hpp from nodes if not provided
+        $total_hpp = isset($data['total_hpp']) ? $this->_parse_amount($data['total_hpp']) : null;
+        if ($total_hpp === null) {
+            $s = 0;
+            foreach ($hpp_nodes as $n) { $s += isset($n['balance']) ? $this->_parse_amount($n['balance']) : 0; }
+            $total_hpp = $s;
+        }
+        $writeRow('Total Beban Pokok Penjualan', $total_hpp, true, true);
 
         // Laba Kotor
-        $writeRow('Laba Kotor', isset($data['laba_kotor']) ? $data['laba_kotor'] : 0, true, true);
+        $writeRow('Laba Kotor', isset($data['laba_kotor']) ? $this->_parse_amount($data['laba_kotor']) : 0, true, true);
         $row++; // Add a blank row
 
         // Beban Operasional
         $writeRow('Beban Operasional', null, true);
-        if (!empty($data['beban']) && (is_array($data['beban']) || $data['beban'] instanceof Traversable)) {
-            foreach ($data['beban'] as $item) {
-                $amt = isset($item['total']) ? $item['total'] : 0;
-                $name = isset($item['account_name']) ? $item['account_name'] : '-';
-                $writeRow($name, $amt);
+        if (!empty($beban_nodes)) {
+            foreach ($beban_nodes as $item) {
+                $write_node($item);
             }
         }
-        $writeRow('Total Beban Operasional', isset($data['total_beban']) ? $data['total_beban'] : 0, true, true);
+        // compute total beban operasional if not provided
+        $total_beban_operasional = isset($data['total_beban']) ? $this->_parse_amount($data['total_beban']) : null;
+        if ($total_beban_operasional === null) {
+            if ($total_biaya !== null && $total_hpp !== null) {
+                $total_beban_operasional = $total_biaya - $total_hpp;
+            } else {
+                $s = 0; foreach ($beban_nodes as $n) { $s += isset($n['balance']) ? $this->_parse_amount($n['balance']) : 0; };
+                $total_beban_operasional = $s;
+            }
+        }
+        $writeRow('Total Beban Operasional', $total_beban_operasional, true, true);
 
         // Laba Bersih
-        $writeRow('Laba Bersih', isset($data['laba_bersih']) ? $data['laba_bersih'] : 0, true, true);
+        $writeRow('Laba Bersih', isset($data['laba_bersih']) ? $this->_parse_amount($data['laba_bersih']) : 0, true, true);
         $sheet->getStyle('A' . ($row - 1) . ':B' . ($row - 1))->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setARGB('FFD9EAD3');
 
 
@@ -424,25 +476,33 @@ class Reports extends MY_Controller {
             $row++;
         };
 
+        // Shared recursive node writer for balance sheet sections
+        $write_node = function($node) use (&$write_node, $writeRow) {
+            $name = isset($node['account_name']) ? $node['account_name'] : (isset($node['group_name']) ? $node['group_name'] : '-');
+            if (isset($node['is_header']) && $node['is_header']) {
+                $writeRow($name, null, true);
+                if (!empty($node['children']) && (is_array($node['children']) || $node['children'] instanceof Traversable)) {
+                    foreach ($node['children'] as $child) {
+                        $write_node($child);
+                    }
+                }
+                $total = isset($node['balance']) ? $this->_parse_amount($node['balance']) : 0;
+                $writeRow('Total ' . $name, $total, true, true);
+            } else {
+                $amt = isset($node['balance']) ? $this->_parse_amount($node['balance']) : $this->_get_item_amount($node, ['balance','total','amount','value']);
+                $writeRow(' ' . $name, $amt);
+            }
+        };
+
         // ASET
         $startAset = $row;
         $writeRow('ASET', null, true);
         if (!empty($data['aset']) && (is_array($data['aset']) || $data['aset'] instanceof Traversable)) {
-            foreach ($data['aset'] as $group => $items) {
-                $group_name = isset($items['group_name']) ? $items['group_name'] : '-';
-                $writeRow($group_name, null, true);
-                if (!empty($items['accounts']) && (is_array($items['accounts']) || $items['accounts'] instanceof Traversable)) {
-                    foreach ($items['accounts'] as $item) {
-                        $acct_name = isset($item['account_name']) ? $item['account_name'] : '-';
-                        $acct_balance = isset($item['balance']) ? $item['balance'] : 0;
-                        $writeRow(' ' . $acct_name, $acct_balance);
-                    }
-                }
-                $total_balance = isset($items['total_balance']) ? $items['total_balance'] : 0;
-                $writeRow('Total ' . $group_name, $total_balance, true, true);
+            foreach ($data['aset'] as $node) {
+                $write_node($node);
             }
         }
-        $writeRow('TOTAL ASET', isset($data['total_aset']) ? $data['total_aset'] : 0, true, true);
+        $writeRow('TOTAL ASET', isset($data['total_aset']) ? $this->_parse_amount($data['total_aset']) : 0, true, true);
         $sheet->getStyle('A' . ($row - 1) . ':B' . ($row - 1))->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setARGB('FFD9EAD3');
         $sheet->getStyle('A' . $startAset . ':B' . ($row - 1))->applyFromArray($styleArray);
         
@@ -451,51 +511,41 @@ class Reports extends MY_Controller {
         // KEWAJIBAN DAN EKUITAS
         $startLiabilitas = $row;
         $writeRow('KEWAJIBAN DAN EKUITAS', null, true);
-        
-        // Kewajiban
+
+        // Kewajiban (model uses key 'liabilitas') - support both keys for backward compatibility
+        $liabilities_nodes = [];
+        if (!empty($data['liabilitas']) && (is_array($data['liabilitas']) || $data['liabilitas'] instanceof Traversable)) {
+            $liabilities_nodes = $data['liabilitas'];
+        } elseif (!empty($data['kewajiban']) && (is_array($data['kewajiban']) || $data['kewajiban'] instanceof Traversable)) {
+            $liabilities_nodes = $data['kewajiban'];
+        }
+
         $writeRow('Kewajiban', null, true);
-        if (!empty($data['kewajiban']) && (is_array($data['kewajiban']) || $data['kewajiban'] instanceof Traversable)) {
-            foreach ($data['kewajiban'] as $group => $items) {
-                $group_name = isset($items['group_name']) ? $items['group_name'] : '-';
-                $writeRow($group_name, null, true);
-                if (!empty($items['accounts']) && (is_array($items['accounts']) || $items['accounts'] instanceof Traversable)) {
-                    foreach ($items['accounts'] as $item) {
-                        $acct_name = isset($item['account_name']) ? $item['account_name'] : '-';
-                        $acct_balance = isset($item['balance']) ? $item['balance'] : 0;
-                        $writeRow(' ' . $acct_name, $acct_balance);
-                    }
-                }
-                $total_balance = isset($items['total_balance']) ? $items['total_balance'] : 0;
-                $writeRow('Total ' . $group_name, $total_balance, true, true);
+        if (!empty($liabilities_nodes)) {
+            foreach ($liabilities_nodes as $node) {
+                $write_node($node);
             }
         }
-        $writeRow('Total Kewajiban', isset($data['total_kewajiban']) ? $data['total_kewajiban'] : 0, true, true);
-        
+        $total_liabilitas = isset($data['total_liabilitas']) ? $this->_parse_amount($data['total_liabilitas']) : (isset($data['total_kewajiban']) ? $this->_parse_amount($data['total_kewajiban']) : 0);
+        $writeRow('Total Kewajiban', $total_liabilitas, true, true);
+
         $row++; // Blank row
 
         // Ekuitas
         $writeRow('Ekuitas', null, true);
         if (!empty($data['ekuitas']) && (is_array($data['ekuitas']) || $data['ekuitas'] instanceof Traversable)) {
-            foreach ($data['ekuitas'] as $group => $items) {
-                $group_name = isset($items['group_name']) ? $items['group_name'] : '-';
-                $writeRow($group_name, null, true);
-                if (!empty($items['accounts']) && (is_array($items['accounts']) || $items['accounts'] instanceof Traversable)) {
-                    foreach ($items['accounts'] as $item) {
-                        $acct_name = isset($item['account_name']) ? $item['account_name'] : '-';
-                        $acct_balance = isset($item['balance']) ? $item['balance'] : 0;
-                        $writeRow(' ' . $acct_name, $acct_balance);
-                    }
-                }
-                $total_balance = isset($items['total_balance']) ? $items['total_balance'] : 0;
-                $writeRow('Total ' . $group_name, $total_balance, true, true);
+            foreach ($data['ekuitas'] as $node) {
+                $write_node($node);
             }
         }
-        $writeRow('Total Ekuitas', isset($data['total_ekuitas']) ? $data['total_ekuitas'] : 0, true, true);
+        $total_ekuitas = isset($data['total_ekuitas']) ? $this->_parse_amount($data['total_ekuitas']) : 0;
+        $writeRow('Total Ekuitas', $total_ekuitas, true, true);
 
         $row++; // Blank row
 
-        // Total Kewajiban dan Ekuitas
-    $writeRow('TOTAL KEWAJIBAN DAN EKUITAS', isset($data['total_kewajiban_ekuitas']) ? $data['total_kewajiban_ekuitas'] : 0, true, true);
+        // Total Kewajiban dan Ekuitas (compute if missing)
+        $total_kewajiban_ekuitas = isset($data['total_kewajiban_ekuitas']) ? $this->_parse_amount($data['total_kewajiban_ekuitas']) : ($total_liabilitas + $total_ekuitas);
+        $writeRow('TOTAL KEWAJIBAN DAN EKUITAS', $total_kewajiban_ekuitas, true, true);
         $sheet->getStyle('A' . ($row - 1) . ':B' . ($row - 1))->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setARGB('FFD9EAD3');
         $sheet->getStyle('A' . $startLiabilitas . ':B' . ($row - 1))->applyFromArray($styleArray);
 
@@ -528,17 +578,29 @@ class Reports extends MY_Controller {
 
         $startRow = $row;
 
-        // Data rows: be defensive about missing keys to avoid PHP warnings
+        // Data rows: support both forms:
+        // - $data is an associative array with key 'accounts' => [...]
+        // - or $data is itself the numeric-indexed array of accounts returned by the model
         $accounts = [];
-        if (!empty($data['accounts']) && (is_array($data['accounts']) || $data['accounts'] instanceof Traversable)) {
-            $accounts = $data['accounts'];
+        if (!empty($data) && (is_array($data) || $data instanceof Traversable)) {
+            if (isset($data['accounts']) && (is_array($data['accounts']) || $data['accounts'] instanceof Traversable)) {
+                $accounts = $data['accounts'];
+            } else {
+                // Maybe $data is already the accounts list (numeric-indexed)
+                $first = reset($data);
+                if (is_array($first) && (isset($first['account_code']) || isset($first['account_name']))) {
+                    $accounts = $data;
+                }
+            }
         }
 
+        $sum_debit = 0;
+        $sum_kredit = 0;
         foreach ($accounts as $item) {
             $acct_code = isset($item['account_code']) ? $item['account_code'] : '-';
             $acct_name = isset($item['account_name']) ? $item['account_name'] : '-';
-            $debit = isset($item['debit']) ? $item['debit'] : 0;
-            $kredit = isset($item['kredit']) ? $item['kredit'] : 0;
+            $debit = $this->_get_item_amount($item, ['debit', 'debit_amount', 'amount', 'total']);
+            $kredit = $this->_get_item_amount($item, ['kredit', 'credit', 'kredit_amount', 'total']);
 
             $sheet->setCellValue('A' . $row, $acct_code);
             $sheet->setCellValue('B' . $row, $acct_name);
@@ -546,11 +608,14 @@ class Reports extends MY_Controller {
             $sheet->setCellValue('D' . $row, $kredit);
             $sheet->getStyle('C' . $row . ':D' . $row)->getNumberFormat()->setFormatCode('_("Rp"* #,##0.00_);_("Rp"* (#,##0.00);_("Rp"* "-"??_);_(@_)');
             $row++;
+
+            $sum_debit += floatval($debit);
+            $sum_kredit += floatval($kredit);
         }
 
-        // Total row: use defaults if missing
-        $total_debit = isset($data['total_debit']) ? $data['total_debit'] : 0;
-        $total_kredit = isset($data['total_kredit']) ? $data['total_kredit'] : 0;
+        // Total row: prefer explicit totals if provided, otherwise use computed sums
+        $total_debit = isset($data['total_debit']) ? $this->_parse_amount($data['total_debit']) : $sum_debit;
+        $total_kredit = isset($data['total_kredit']) ? $this->_parse_amount($data['total_kredit']) : $sum_kredit;
 
         $sheet->setCellValue('B' . $row, 'Total');
         $sheet->setCellValue('C' . $row, $total_debit);
@@ -609,48 +674,76 @@ class Reports extends MY_Controller {
         };
 
         // Arus Kas dari Aktivitas Operasi
+        // Support two shapes: new model returns 'cfo'/'total_cfo' and 'saldo_awal_kas',
+        // earlier code expected 'operating' => ['details'=>..., 'total'=>...]
         $writeRow('Arus Kas dari Aktivitas Operasi', null, true);
+        $operating_details = [];
+        $operating_total = null;
         if (!empty($data['operating']) && isset($data['operating']['details']) && (is_array($data['operating']['details']) || $data['operating']['details'] instanceof Traversable)) {
-            foreach ($data['operating']['details'] as $item) {
-                $desc = isset($item['description']) ? $item['description'] : '-';
-                $amt = isset($item['amount']) ? $item['amount'] : 0;
-                $writeRow($desc, $amt);
-            }
+            $operating_details = $data['operating']['details'];
+            $operating_total = isset($data['operating']['total']) ? $this->_parse_amount($data['operating']['total']) : null;
+        } elseif (!empty($data['cfo']) && (is_array($data['cfo']) || $data['cfo'] instanceof Traversable)) {
+            $operating_details = $data['cfo'];
+            $operating_total = isset($data['total_cfo']) ? $this->_parse_amount($data['total_cfo']) : null;
         }
-        $operating_total = isset($data['operating']['total']) ? $data['operating']['total'] : 0;
+        foreach ($operating_details as $item) {
+            $desc = isset($item['description']) ? $item['description'] : (isset($item['account_name']) ? $item['account_name'] : '-');
+            $amt = $this->_get_item_amount($item, ['cash_impact','amount', 'total', 'value']);
+            $writeRow($desc, $amt);
+        }
+        if ($operating_total === null) $operating_total = 0;
         $writeRow('Arus Kas Bersih dari Aktivitas Operasi', $operating_total, true, true);
         $row++;
 
         // Arus Kas dari Aktivitas Investasi
         $writeRow('Arus Kas dari Aktivitas Investasi', null, true);
+        $investing_details = [];
+        $investing_total = null;
         if (!empty($data['investing']) && isset($data['investing']['details']) && (is_array($data['investing']['details']) || $data['investing']['details'] instanceof Traversable)) {
-            foreach ($data['investing']['details'] as $item) {
-                $desc = isset($item['description']) ? $item['description'] : '-';
-                $amt = isset($item['amount']) ? $item['amount'] : 0;
-                $writeRow($desc, $amt);
-            }
+            $investing_details = $data['investing']['details'];
+            $investing_total = isset($data['investing']['total']) ? $this->_parse_amount($data['investing']['total']) : null;
+        } elseif (!empty($data['cfi']) && (is_array($data['cfi']) || $data['cfi'] instanceof Traversable)) {
+            $investing_details = $data['cfi'];
+            $investing_total = isset($data['total_cfi']) ? $this->_parse_amount($data['total_cfi']) : null;
         }
-        $investing_total = isset($data['investing']['total']) ? $data['investing']['total'] : 0;
+        foreach ($investing_details as $item) {
+            $desc = isset($item['description']) ? $item['description'] : (isset($item['account_name']) ? $item['account_name'] : '-');
+            $amt = $this->_get_item_amount($item, ['cash_impact','amount', 'total', 'value']);
+            $writeRow($desc, $amt);
+        }
+        if ($investing_total === null) $investing_total = 0;
         $writeRow('Arus Kas Bersih dari Aktivitas Investasi', $investing_total, true, true);
         $row++;
 
         // Arus Kas dari Aktivitas Pendanaan
         $writeRow('Arus Kas dari Aktivitas Pendanaan', null, true);
+        $financing_details = [];
+        $financing_total = null;
         if (!empty($data['financing']) && isset($data['financing']['details']) && (is_array($data['financing']['details']) || $data['financing']['details'] instanceof Traversable)) {
-            foreach ($data['financing']['details'] as $item) {
-                $desc = isset($item['description']) ? $item['description'] : '-';
-                $amt = isset($item['amount']) ? $item['amount'] : 0;
-                $writeRow($desc, $amt);
-            }
+            $financing_details = $data['financing']['details'];
+            $financing_total = isset($data['financing']['total']) ? $this->_parse_amount($data['financing']['total']) : null;
+        } elseif (!empty($data['cff']) && (is_array($data['cff']) || $data['cff'] instanceof Traversable)) {
+            $financing_details = $data['cff'];
+            $financing_total = isset($data['total_cff']) ? $this->_parse_amount($data['total_cff']) : null;
         }
-        $financing_total = isset($data['financing']['total']) ? $data['financing']['total'] : 0;
+        foreach ($financing_details as $item) {
+            $desc = isset($item['description']) ? $item['description'] : (isset($item['account_name']) ? $item['account_name'] : '-');
+            $amt = $this->_get_item_amount($item, ['cash_impact','amount', 'total', 'value']);
+            $writeRow($desc, $amt);
+        }
+        if ($financing_total === null) $financing_total = 0;
         $writeRow('Arus Kas Bersih dari Aktivitas Pendanaan', $financing_total, true, true);
         $row++;
 
         // Ringkasan (summary)
-        $writeRow('Kenaikan (Penurunan) Bersih Kas', isset($data['net_cash_increase']) ? $data['net_cash_increase'] : 0, true, true);
-        $writeRow('Kas dan Setara Kas Awal Periode', isset($data['beginning_cash_balance']) ? $data['beginning_cash_balance'] : 0, true, true);
-        $writeRow('Kas dan Setara Kas Akhir Periode', isset($data['ending_cash_balance']) ? $data['ending_cash_balance'] : 0, true, true);
+        // Map model keys: 'peningkatan_kas' -> net increase, 'saldo_awal_kas' -> beginning, 'saldo_akhir_kas' -> ending
+        $net_increase = isset($data['net_cash_increase']) ? $this->_parse_amount($data['net_cash_increase']) : (isset($data['peningkatan_kas']) ? $this->_parse_amount($data['peningkatan_kas']) : 0);
+        $beginning_cash = isset($data['beginning_cash_balance']) ? $this->_parse_amount($data['beginning_cash_balance']) : (isset($data['saldo_awal_kas']) ? $this->_parse_amount($data['saldo_awal_kas']) : 0);
+        $ending_cash = isset($data['ending_cash_balance']) ? $this->_parse_amount($data['ending_cash_balance']) : (isset($data['saldo_akhir_kas']) ? $this->_parse_amount($data['saldo_akhir_kas']) : 0);
+
+        $writeRow('Kenaikan (Penurunan) Bersih Kas', $net_increase, true, true);
+        $writeRow('Kas dan Setara Kas Awal Periode', $beginning_cash, true, true);
+        $writeRow('Kas dan Setara Kas Akhir Periode', $ending_cash, true, true);
         $sheet->getStyle('A' . ($row - 1) . ':B' . ($row - 1))->getFill()->setFillType(\PhpOffice\PhpSpreadsheet\Style\Fill::FILL_SOLID)->getStartColor()->setARGB('FFD9EAD3');
 
         // Apply borders to the entire table
@@ -660,5 +753,86 @@ class Reports extends MY_Controller {
         // Auto size columns
         $sheet->getColumnDimension('A')->setAutoSize(true);
         $sheet->getColumnDimension('B')->setAutoSize(true);
+    }
+
+    /**
+     * Parse a possibly-formatted amount into a numeric (float) value.
+     * Handles numbers like "1.000.000,00", "-1.000.000,00", "(1.000.000,00)", or plain numeric values.
+     */
+    private function _parse_amount($val)
+    {
+        if ($val === null || $val === '') {
+            return 0;
+        }
+
+        if (is_numeric($val)) {
+            return $val + 0;
+        }
+
+        $s = (string) $val;
+        $negative = false;
+
+        // Detect parentheses (accounting negative format)
+        if (preg_match('/^\s*\(.+\)\s*$/', $s)) {
+            $negative = true;
+            $s = trim($s);
+            $s = trim($s, '()');
+        }
+
+        // Remove any currency symbols and spaces, keep digits, separators, minus and dot/comma
+        $s = preg_replace('/[^0-9,\.\-]/u', '', $s);
+
+        // If both dot and comma exist assume dot thousands and comma decimal: 1.234.567,89
+        if (strpos($s, ',') !== false && strpos($s, '.') !== false) {
+            $s = str_replace('.', '', $s);
+            $s = str_replace(',', '.', $s);
+        } elseif (strpos($s, ',') !== false && strpos($s, '.') === false) {
+            // only comma present, likely decimal separator
+            $s = str_replace(',', '.', $s);
+        } else {
+            // no comma or only dot present: remove any commas (safety)
+            $s = str_replace(',', '', $s);
+        }
+
+        if ($s === '' || $s === null) {
+            return 0;
+        }
+
+        $num = floatval($s);
+        return $negative ? -$num : $num;
+    }
+
+    /**
+     * Try several possible keys on an item and return the first numeric value parsed.
+     * Keys should be provided in order of preference.
+     */
+    private function _get_item_amount($item, $keys = [])
+    {
+        if (!is_array($item) && !is_object($item)) {
+            return $this->_parse_amount($item);
+        }
+
+        foreach ($keys as $k) {
+            if (is_array($item) && array_key_exists($k, $item)) {
+                $v = $item[$k];
+                if ($v !== null && $v !== '') {
+                    $num = $this->_parse_amount($v);
+                    if ($num != 0 || $v === "0" || $v === 0) {
+                        return $num;
+                    }
+                }
+            }
+            if (is_object($item) && property_exists($item, $k)) {
+                $v = $item->$k;
+                if ($v !== null && $v !== '') {
+                    $num = $this->_parse_amount($v);
+                    if ($num != 0 || $v === "0" || $v === 0) {
+                        return $num;
+                    }
+                }
+            }
+        }
+
+        return 0;
     }
 }

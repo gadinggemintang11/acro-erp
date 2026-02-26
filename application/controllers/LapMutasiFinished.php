@@ -448,14 +448,38 @@ class LapMutasiFinished extends MY_Controller {
             $sheet->setCellValue('E' . $row, $material['qty_terpakai']);
             $sheet->setCellValue('F' . $row, $material['satuan']);
             $sheet->setCellValue('G' . $row, $material['grn_number']);
-            $sheet->setCellValue('H' . $row, $material['grn_date'] ? date('d-M-Y', strtotime($material['grn_date'])) : '');
+            if (!empty($material['grn_date'])) {
+                $excelDate = \PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel(strtotime($material['grn_date']));
+                $sheet->setCellValue('H' . $row, $excelDate);
+                $sheet->getStyle('H' . $row)->getNumberFormat()->setFormatCode('dd-MMM-yyyy');
+            } else {
+                $sheet->setCellValue('H' . $row, '');
+            }
             $sheet->setCellValue('I' . $row, $material['po_number']);
-            $sheet->setCellValue('J' . $row, $material['po_date'] ? date('d-M-Y', strtotime($material['po_date'])) : '');
+            if (!empty($material['po_date'])) {
+                $excelDate = \PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel(strtotime($material['po_date']));
+                $sheet->setCellValue('J' . $row, $excelDate);
+                $sheet->getStyle('J' . $row)->getNumberFormat()->setFormatCode('dd-MMM-yyyy');
+            } else {
+                $sheet->setCellValue('J' . $row, '');
+            }
             $sheet->setCellValue('K' . $row, $material['nama_supplier']);
             $sheet->setCellValue('L' . $row, $material['bc_type_code']);
             $sheet->setCellValue('M' . $row, $material['bc_number']);
-            $sheet->setCellValue('N' . $row, $material['bc_date'] ? date('d-M-Y', strtotime($material['bc_date'])) : '');
-            $sheet->setCellValue('O' . $row, $material['arrival_date'] ? date('d-M-Y', strtotime($material['arrival_date'])) : '');
+            if (!empty($material['bc_date'])) {
+                $excelDate = \PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel(strtotime($material['bc_date']));
+                $sheet->setCellValue('N' . $row, $excelDate);
+                $sheet->getStyle('N' . $row)->getNumberFormat()->setFormatCode('dd-MMM-yyyy');
+            } else {
+                $sheet->setCellValue('N' . $row, '');
+            }
+            if (!empty($material['arrival_date'])) {
+                $excelDate = \PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel(strtotime($material['arrival_date']));
+                $sheet->setCellValue('O' . $row, $excelDate);
+                $sheet->getStyle('O' . $row)->getNumberFormat()->setFormatCode('dd-MMM-yyyy');
+            } else {
+                $sheet->setCellValue('O' . $row, '');
+            }
             
             $row++;
         }

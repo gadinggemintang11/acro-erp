@@ -113,10 +113,20 @@ class LapMutasiWIP extends MY_Controller {
                 case 'wip_out': $doc_info = "Prod. No: {$t->prod_num_out} (Stage: {$t->stage_out})"; break;
                 case 'IN_RETURN_WIP': $doc_info = "Return No: {$t->prod_return_no}"; break;
             }
+            // write row with placeholder date then set Excel-native date (date-only)
             $sheet->fromArray([
-                date('Y-m-d H:i', strtotime($t->transaction_date)), $t->transaction_type, $doc_info,
+                '', $t->transaction_type, $doc_info,
                 (float)$t->qty_in, (float)$t->qty_out, (float)$t->balance
             ], NULL, 'A'.$rowNum);
+
+            if (!empty($t->transaction_date)) {
+                $ts = strtotime($t->transaction_date);
+                if ($ts !== false) {
+                    $excelDate = \PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel($ts);
+                    $sheet->setCellValue('A' . $rowNum, $excelDate);
+                    $sheet->getStyle('A' . $rowNum)->getNumberFormat()->setFormatCode('dd-MMM-yyyy');
+                }
+            }
             $sheet->getStyle('D'.$rowNum.':F'.$rowNum)->getNumberFormat()->setFormatCode('#,##0.00');
             $rowNum++;
         }
@@ -168,11 +178,21 @@ class LapMutasiWIP extends MY_Controller {
 
         $rowNum = 4;
         foreach ($trace_data as $t) {
+            // write row and put Excel-native date (date-only) into column A
             $sheet->fromArray([
-                date('Y-m-d', strtotime($t->transaction_date)), $t->production_number, $t->wo_number,
+                '', $t->production_number, $t->wo_number,
                 ($t->direction == 'input' ? 'DIBUAT DARI' : 'DIPAKAI UNTUK'),
                 $t->related_item_name, (float)$t->related_qty, $t->related_satuan
-            ], NULL, 'A'.$rowNum++);
+            ], NULL, 'A'.$rowNum);
+            if (!empty($t->transaction_date)) {
+                $ts = strtotime($t->transaction_date);
+                if ($ts !== false) {
+                    $excelDate = \PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel($ts);
+                    $sheet->setCellValue('A' . $rowNum, $excelDate);
+                    $sheet->getStyle('A' . $rowNum)->getNumberFormat()->setFormatCode('dd-MMM-yyyy');
+                }
+            }
+            $rowNum++;
         }
 
         foreach(range('A','G') as $col) { $sheet->getColumnDimension($col)->setAutoSize(true); }

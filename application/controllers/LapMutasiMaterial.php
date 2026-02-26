@@ -108,9 +108,34 @@ class LapMutasiMaterial extends MY_Controller {
                 case 'adjustment': $doc_num = $t->adjustment_doc; $notes = $t->adjustment_notes; break;
             }
             $sheet->fromArray([
-                date('Y-m-d H:i', strtotime($t->transaction_date)), $t->transaction_type, $doc_num, $doc_ref, $bc_type, $bc_num, $bc_date_formatted, $notes,
+                // placeholder for date; will overwrite with Excel date below
+                '', $t->transaction_type, $doc_num, $doc_ref, $bc_type, $bc_num, '', $notes,
                 (float)$t->qty_in, (float)$t->qty_out, (float)$t->balance
             ], NULL, 'A'.$rowNum);
+
+            // Write Excel-native transaction datetime in column A
+            if (!empty($t->transaction_date)) {
+                $ts = strtotime($t->transaction_date);
+                if ($ts !== false) {
+                    $excelDate = \PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel($ts);
+                    $sheet->setCellValue('A' . $rowNum, $excelDate);
+                    $sheet->getStyle('A' . $rowNum)->getNumberFormat()->setFormatCode('dd-MMM-yyyy ');
+                } else {
+                    $sheet->setCellValue('A' . $rowNum, '');
+                }
+            }
+
+            // Write Excel-native BC date in column G if exists
+            if (!empty($t->bc_date)) {
+                $ts2 = strtotime($t->bc_date);
+                if ($ts2 !== false) {
+                    $excelDate2 = \PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel($ts2);
+                    $sheet->setCellValue('G' . $rowNum, $excelDate2);
+                    $sheet->getStyle('G' . $rowNum)->getNumberFormat()->setFormatCode('dd-MMM-yyyy');
+                } else {
+                    $sheet->setCellValue('G' . $rowNum, '');
+                }
+            }
             $sheet->getStyle('I'.$rowNum.':K'.$rowNum)->getNumberFormat()->setFormatCode('#,##0.00');
             $rowNum++;
         }
@@ -159,11 +184,21 @@ class LapMutasiMaterial extends MY_Controller {
 
         $rowNum = 4;
         foreach ($trace_data as $t) {
+            // write row, but write Excel-native date into column A
             $sheet->fromArray([
-                date('Y-m-d', strtotime($t->transaction_date)), $t->production_number, $t->wo_number,
+                '', $t->production_number, $t->wo_number,
                 ($t->direction == 'input' ? 'DIBUAT DARI' : 'DIPAKAI UNTUK'),
                 $t->related_item_name, (float)$t->related_qty, $t->related_satuan
-            ], NULL, 'A'.$rowNum++);
+            ], NULL, 'A'.$rowNum);
+            if (!empty($t->transaction_date)) {
+                $ts = strtotime($t->transaction_date);
+                if ($ts !== false) {
+                    $excelDate = \PhpOffice\PhpSpreadsheet\Shared\Date::PHPToExcel($ts);
+                    $sheet->setCellValue('A' . $rowNum, $excelDate);
+                    $sheet->getStyle('A' . $rowNum)->getNumberFormat()->setFormatCode('dd-MMM-yyyy');
+                }
+            }
+            $rowNum++;
         }
 
         foreach(range('A','G') as $col) { $sheet->getColumnDimension($col)->setAutoSize(true); }
