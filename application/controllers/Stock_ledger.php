@@ -298,7 +298,10 @@ class Stock_ledger extends MY_Controller {
                 if ($type == 'in') {
                     $main_ref = $row['grn_number'] ?? '-';
                     $partner_info = $row['nama_supplier'] ?? '-';
-                    if ($row['grn_bc_no']) {
+                    // Prefer BC info coming from the ledger row itself if present
+                    if (!empty($row['sl_bc_no'])) {
+                        $bc_info = ($row['sl_bc_type'] ?? '') . '/' . $row['sl_bc_no'] . ' (' . ($row['sl_bc_date'] ? date('d/m/y', strtotime($row['sl_bc_date'])) : '-') . ')';
+                    } elseif (!empty($row['grn_bc_no'])) {
                         $bc_info = ($row['grn_bc_type'] ?? '') . '/' . $row['grn_bc_no'] . ' (' . ($row['grn_bc_date'] ? date('d/m/y', strtotime($row['grn_bc_date'])) : '-') . ')';
                     }
                 } elseif ($type == 'IN_RETURN_WIP') {
@@ -324,6 +327,19 @@ class Stock_ledger extends MY_Controller {
                 } else if ($type == 'OUT_CONSUMABLE') {
                     $main_ref = $row['consumable_out_doc_no'] ?? '-';
                     $partner_info = '-';
+                } else if ($type == 'RTN_SUPPLIER') {
+                    $main_ref = $row['rtn_out_number'] ?? ($row['grn_number'] ?? '-');
+                    // Partner: try ledger supplier (from GRN source), then fallback to other joins
+                    $partner_info = $row['nama_supplier'] ?? '-';
+                    // Prefer BC info stored on the ledger row (sl_bc_*) then GRN or RTN header
+                    if (!empty($row['sl_bc_no'])) {
+                        $bc_info = ($row['sl_bc_type'] ?? '') . '/' . $row['sl_bc_no'] . ' (' . ($row['sl_bc_date'] ? date('d/m/y', strtotime($row['sl_bc_date'])) : '-') . ')';
+                    } elseif (!empty($row['grn_bc_no'])) {
+                        $bc_info = ($row['grn_bc_type'] ?? '') . '/' . $row['grn_bc_no'] . ' (' . ($row['grn_bc_date'] ? date('d/m/y', strtotime($row['grn_bc_date'])) : '-') . ')';
+                    } elseif (!empty($row['nomor_bc_ref'])) {
+                        $bc_info = ($row['jenis_bc_desc'] ?? '') . '/' . ($row['nomor_bc_ref'] ?? '') . ' (' . ($row['tanggal_bc_ref'] ? date('d/m/y', strtotime($row['tanggal_bc_ref'])) : '-') . ')';
+                    }
+                    
                 }
                 // --- AKHIR PERBAIKAN LOGIKA ---
 

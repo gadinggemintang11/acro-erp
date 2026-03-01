@@ -1,0 +1,339 @@
+<?php defined('BASEPATH') OR exit('No direct script access allowed'); ?>
+
+<style>
+    .form-section-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 1rem;
+        border-radius: 0.5rem 0.5rem 0 0;
+        margin: -1rem -1rem 1.5rem -1rem;
+    }
+    
+    .form-card {
+        background: #f8f9fa;
+        border-radius: 0.5rem;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        border-left: 4px solid #667eea;
+    }
+    
+    .required-badge {
+        background: #dc3545;
+        color: white;
+        padding: 0.2rem 0.6rem;
+        border-radius: 0.25rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+    }
+    
+    .select2-container--default.select2-container--focus .select2-selection--single {
+        border-color: #667eea !important;
+        box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.25) !important;
+    }
+    
+    .form-label {
+        font-weight: 600;
+        color: #2c3e50;
+        margin-bottom: 0.5rem;
+    }
+    
+    .form-control:focus, .form-select:focus {
+        border-color: #667eea !important;
+        box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.15) !important;
+    }
+</style>
+
+<div class="container-fluid">
+    <!-- PAGE HEADER -->
+    <div class="row mb-4 mt-3">
+        <div class="col-12">
+            <h1 class="h3 mb-1 text-gray-800">
+                <i class="fas fa-plus-circle text-primary"></i> Buat Pengeluaran Barang Baru
+            </h1>
+            <p class="text-muted small mb-0">Proses penciptaan dokumen pengeluaran barang dari gudang dengan approval workflow</p>
+        </div>
+    </div>
+
+    <!-- MAIN FORM CARD -->
+    <div class="card shadow border-0">
+        <div class="card-body p-0">
+            <form method="POST" action="<?php echo base_url('warehouse_out/add_header'); ?>" id="formWO">
+                
+                <!-- SECTION 1: TIPE PENGELUARAN -->
+                <div class="form-card">
+                    <div class="form-section-header">
+                        <i class="fas fa-inbox me-2"></i> <strong>Tipe & Tanggal Pengeluaran</strong>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                <i class="fas fa-tasks text-danger"></i> Tipe Pengeluaran
+                                <span class="required-badge">WAJIB</span>
+                            </label>
+                            <select name="wo_type" class="form-select form-select-lg" id="woType" required onchange="updateFieldRequirement()">
+                                <option value="">-- Pilih Tipe Pengeluaran --</option>
+                                <option value="OUT_WH_RETUR">Retur Barang ke Supplier</option>
+                                <option value="OUT_WH_SALES">Penjualan Barang/Mesin</option>
+                                <option value="OUT_WH_SAMPLE">Sample</option>
+                            </select>
+                            <small class="form-text text-muted d-block mt-2">
+                                💡 Pilih jenis pengeluaran sesuai dengan tujuan barang keluar
+                            </small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                <i class="fas fa-calendar text-danger"></i> Tanggal Pengeluaran
+                                <span class="required-badge">WAJIB</span>
+                            </label>
+                            <input type="date" name="wo_date" class="form-control form-control-lg" value="<?php echo date('Y-m-d'); ?>" required>
+                            <small class="form-text text-muted d-block mt-2">
+                                📅 Tanggal barang keluar dari gudang
+                            </small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECTION 2: LOKASI GUDANG -->
+                <div class="form-card">
+                    <div class="form-section-header">
+                        <i class="fas fa-warehouse me-2"></i> <strong>Lokasi & Sumber Pengeluaran</strong>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                <i class="fas fa-layer-group text-danger"></i> Jenis Gudang
+                                <span class="required-badge">WAJIB</span>
+                            </label>
+                            <select name="warehouse_type" class="form-select form-select-lg" required>
+                                <option value="">-- Pilih Jenis Gudang --</option>
+                                <option value="Raw Material">Raw Material</option>
+                                <option value="Finished Goods">Finished Goods</option>
+                                <option value="Work In Progress">Work In Progress</option>
+                            </select>
+                            <small class="form-text text-muted d-block mt-2">
+                                🏭 Pilih dari mana barang akan dikeluarkan
+                            </small>
+                        </div>
+                        <div class="col-md-6">
+                            <label class="form-label">
+                                <i class="fas fa-file text-info"></i> Sumber dari GRN (Opsional)
+                            </label>
+                            <select name="grn_id" class="form-select form-select-lg select2-grn" id="grnSelect">
+                                <option value="">-- Pilih GRN untuk link --</option>
+                            </select>
+                            <small class="form-text text-muted d-block mt-2">
+                                📦 Pilih GRN jika barang ini berasal dari penerimaan barang tertentu
+                            </small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECTION 3: SUPPLIER / PARTNER -->
+                <div class="form-card">
+                    <div class="form-section-header">
+                        <i class="fas fa-user-tie me-2"></i> <strong>Penerima / Tujuan Pengeluaran</strong>
+                    </div>
+                    <div class="row">
+                        <!-- SUPPLIER (untuk RETUR) -->
+                        <div class="col-md-12" id="supplierField" style="display: none;">
+                            <label class="form-label">
+                                <i class="fas fa-industry text-success"></i> Supplier
+                            </label>
+                            <select name="supplier_id" class="form-select form-select-lg select2-supplier" id="supplierSelect">
+                                <option value="">-- Cari Supplier --</option>
+                            </select>
+                            <small class="form-text text-muted d-block mt-2">
+                                🔍 Ketik nama supplier untuk mencari
+                            </small>
+                        </div>
+
+                        <!-- PARTNER / CUSTOMER (untuk SALES / SAMPLE) -->
+                        <div class="col-md-12" id="partnerField" style="display: none;">
+                            <label class="form-label">
+                                <i class="fas fa-handshake text-info"></i> Partner / Customer
+                            </label>
+                            <input type="text" name="partner_name" class="form-control form-control-lg" placeholder="Ketik nama partner atau customer...">
+                            <small class="form-text text-muted d-block mt-2">
+                                👥 Nama penerima barang untuk penjualan atau sample
+                            </small>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECTION 4: DATA BC (BKPS) -->
+                <div class="form-card">
+                    <div class="form-section-header">
+                        <i class="fas fa-file-contract me-2"></i> <strong>Data BC / BKPS (Opsional)</strong>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <label class="form-label">
+                                <i class="fas fa-folder-open text-warning"></i> Jenis BC
+                            </label>
+                            <select name="bc_type_code" class="form-select form-select-lg">
+                                <option value="">-- Pilih BC Type --</option>
+                                <?php if (!empty($bc_types)): ?>
+                                    <?php foreach ($bc_types as $bc): ?>
+                                        <option value="<?php echo $bc->code; ?>">
+                                            <?php echo $bc->code . ' - ' . $bc->description; ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <option value="">Tidak ada data BC Type</option>
+                                <?php endif; ?>
+                            </select>
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">
+                                <i class="fas fa-barcode text-warning"></i> Nomor BC
+                            </label>
+                            <input type="text" name="bc_number" class="form-control form-control-lg" placeholder="Contoh: BC.30/2026/00001">
+                        </div>
+                        <div class="col-md-4">
+                            <label class="form-label">
+                                <i class="fas fa-calendar-alt text-warning"></i> Tanggal BC
+                            </label>
+                            <input type="date" name="bc_date" class="form-control form-control-lg">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- SECTION 5: CATATAN -->
+                <div class="form-card">
+                    <div class="form-section-header">
+                        <i class="fas fa-pen-fancy me-2"></i> <strong>Catatan & Keterangan Tambahan</strong>
+                    </div>
+                    <div class="row">
+                        <div class="col-12">
+                            <label class="form-label">
+                                <i class="fas fa-comment-dots text-secondary"></i> Catatan
+                            </label>
+                            <textarea name="notes" class="form-control" rows="3" placeholder="Tuliskan catatan penting tentang pengeluaran barang ini (opsional)..."></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ACTION BUTTONS -->
+                <div class="card-footer bg-light border-top py-3">
+                    <div class="d-flex gap-2">
+                        <button type="submit" class="btn btn-primary btn-lg">
+                            <i class="fas fa-check-circle"></i> Buat Pengeluaran
+                        </button>
+                        <button type="reset" class="btn btn-outline-secondary btn-lg">
+                            <i class="fas fa-redo"></i> Reset
+                        </button>
+                        <a href="<?php echo base_url('warehouse_out'); ?>" class="btn btn-outline-danger btn-lg">
+                            <i class="fas fa-times"></i> Batal
+                        </a>
+                    </div>
+                </div>
+
+            </form>
+        </div>
+    </div>
+</div>
+
+<!-- LOAD SELECT2 & SCRIPTS -->
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    // Initialize Supplier Select2 with AJAX
+    $('#supplierSelect').select2({
+        placeholder: '-- Cari Supplier --',
+        allowClear: true,
+        width: '100%',
+        minimumInputLength: 0,
+        ajax: {
+            url: '<?php echo base_url('warehouse_out/ajax_get_suppliers'); ?>',
+            dataType: 'json',
+            delay: 250,
+            data: function (params) {
+                return {
+                    search: params.term || ''
+                };
+            },
+            processResults: function (data) {
+                return {
+                    results: data
+                };
+            }
+        }
+    });
+
+    // Initialize GRN Select2 with AJAX
+    $('#grnSelect').select2({
+        placeholder: '-- Pilih GRN untuk link --',
+        allowClear: true,
+        width: '100%',
+        minimumInputLength: 0,
+        ajax: {
+            url: '<?php echo base_url('warehouse_out/ajax_get_grn'); ?>',
+            dataType: 'json',
+            delay: 250,
+            data: function (params) {
+                return {
+                    search: params.term || ''
+                };
+            },
+            processResults: function (data) {
+                return {
+                    results: data
+                };
+            }
+        }
+    });
+
+    // Event: Saat GRN dipilih, auto-fill supplier
+    $('#grnSelect').on('change', function() {
+        const grn_id = $(this).val();
+        const woType = $('#woType').val();
+        
+        if (!grn_id || woType !== 'OUT_WH_RETUR') {
+            return;
+        }
+
+        // Call AJAX to get supplier info dari GRN
+        $.ajax({
+            url: '<?php echo base_url('warehouse_out/ajax_get_grn_supplier/'); ?>' + grn_id,
+            type: 'GET',
+            dataType: 'json',
+            success: function(response) {
+                if (response.success && response.supplier_id) {
+                    // Set supplier value di Select2
+                    $('#supplierSelect').val(response.supplier_id).trigger('change');
+                    
+                    // Highlight supplier field untuk user
+                    $('#supplierSelect').closest('.col-md-12').find('.form-select').focus();
+                    
+                    console.log('✅ Supplier auto-filled: ' + response.supplier_name);
+                }
+            },
+            error: function(err) {
+                console.error('Error fetching GRN supplier:', err);
+            }
+        });
+    });
+
+    // Update field visibility based on WO type
+    updateFieldRequirement();
+});
+
+function updateFieldRequirement() {
+    const woType = $('#woType').val();
+    const supplierField = $('#supplierField');
+    const partnerField = $('#partnerField');
+    
+    // Reset both fields
+    supplierField.hide().find('select').prop('required', false).val('').trigger('change');
+    partnerField.hide().find('input').prop('required', false).val('');
+    
+    // Show appropriate field based on type
+    if (woType === 'OUT_WH_RETUR') {
+        supplierField.show().find('select').prop('required', true);
+    } else if (woType === 'OUT_WH_SALES' || woType === 'OUT_WH_SAMPLE') {
+        partnerField.show().find('input').prop('required', true);
+    }
+}
+</script>

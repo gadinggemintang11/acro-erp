@@ -59,6 +59,10 @@ if (!function_exists('check_access')) {
             case 'add': return $permission->can_add == 1;
             case 'edit': return $permission->can_edit == 1;
             case 'delete': return $permission->can_delete == 1;
+            // Common aliases: allow 'approve' and 'submit' to use the edit permission
+            case 'approve':
+            case 'submit':
+                return $permission->can_edit == 1;
             default: return false;
         }
     }

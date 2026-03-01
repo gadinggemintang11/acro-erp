@@ -238,6 +238,61 @@ class Exim_verification_model extends CI_Model {
             $results = array_merge($results, $subkon_results);
         }
 
+        // Get RTN Supplier (warehouse_out) if not filtered or explicitly requested
+        if (empty($filters['doc_type']) || $filters['doc_type'] === 'RTN_SUPPLIER') {
+            $this->db->select(
+                'wh.id, '
+                . 'wh.out_number as doc_number, '
+                . 'wh.out_date as doc_date, '
+                . 'wh.bc_type_code as bc_type_id, '
+                . 'cc.description as bc_type_description, '
+                . 'wh.bc_number, '
+                . 'wh.bc_date, '
+                . 'wh.status, '
+                . 'wh.exim_verified, '
+                . 'wh.exim_verified_at, '
+                . 'COALESCE(sup.nama_supplier, wh.nama_supplier, sup_gh.nama_supplier, "") as customer_name, '
+                . 'u.fullname as verified_by_name, '
+                . '"RTN_SUPPLIER" as doc_type, '
+                . 'COUNT(DISTINCT wod.id) as num_items, '
+                . 'SUM(wod.qty_return) as total_qty'
+            , FALSE);
+
+            $this->db->from('warehouse_out_header wh');
+            $this->db->join('warehouse_out_details wod', 'wh.id = wod.header_id', 'left');
+            // supplier lookup from header
+            $this->db->join('suppliers sup', 'wh.supplier_id = sup.id', 'left');
+            // join grn header from details as fallback for supplier
+            $this->db->join('grn_header gh', 'wod.grn_id = gh.id', 'left');
+            $this->db->join('suppliers sup_gh', 'gh.supplier_id = sup_gh.id', 'left');
+            $this->db->join('common_code cc', 'cc.group_code = "BC_TYPE" AND cc.code = wh.bc_type_code', 'left');
+            $this->db->join('users u', 'wh.exim_verified_by = u.id', 'left');
+
+            if (!empty($filters['date_from'])) {
+                $this->db->where('wh.out_date >=', $filters['date_from']);
+            }
+            if (!empty($filters['date_to'])) {
+                $this->db->where('wh.out_date <=', $filters['date_to'] . ' 23:59:59');
+            }
+            if (!empty($filters['bc_type'])) {
+                $this->db->where('wh.bc_type_code', $filters['bc_type']);
+            }
+            if (isset($filters['verified_status'])) {
+                if ($filters['verified_status'] === 'verified') {
+                    $this->db->where('wh.exim_verified', 1);
+                } elseif ($filters['verified_status'] === 'unverified') {
+                    $this->db->where('wh.exim_verified', 0);
+                }
+            }
+
+            // Consider Confirmed statuses as eligible
+            $this->db->where_in('wh.status', ['Posted', 'Completed', 'Confirmed']);
+            $this->db->group_by('wh.id');
+
+            $rtn_results = $this->db->get()->result();
+            $results = array_merge($results, $rtn_results);
+        }
+
         // Sort by date descending
         usort($results, function($a, $b) {
             return strtotime($b->doc_date) - strtotime($a->doc_date);
@@ -290,6 +345,9 @@ class Exim_verification_model extends CI_Model {
         } elseif ($doc_type === 'SCRAP_OUT') {
             $this->db->where('id', $doc_id);
             return $this->db->update('scrap_out_header', $data);
+        } elseif ($doc_type === 'RTN_SUPPLIER') {
+            $this->db->where('id', $doc_id);
+            return $this->db->update('warehouse_out_header', $data);
         }
 
         return false;
@@ -311,6 +369,9 @@ class Exim_verification_model extends CI_Model {
         } elseif ($doc_type === 'SCRAP_OUT') {
             $this->db->where('id', $doc_id);
             return $this->db->update('scrap_out_header', $data);
+        } elseif ($doc_type === 'RTN_SUPPLIER') {
+            $this->db->where('id', $doc_id);
+            return $this->db->update('warehouse_out_header', $data);
         }
 
         return false;
@@ -590,7 +651,8 @@ class Exim_verification_model extends CI_Model {
         $doc_types = [
             'FG_OUT' => ['table' => 'fg_delivery_header', 'date_field' => 'delivery_date'],
             'SCRAP_OUT' => ['table' => 'scrap_out_header', 'date_field' => 'doc_date'],
-            'SUBKON_OUT' => ['table' => 'subkon_out_header', 'date_field' => 'shipping_date']
+            'SUBKON_OUT' => ['table' => 'subkon_out_header', 'date_field' => 'shipping_date'],
+            'RTN_SUPPLIER' => ['table' => 'warehouse_out_header', 'date_field' => 'out_date']
         ];
 
         foreach ($doc_types as $type => $config) {

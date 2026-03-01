@@ -30,6 +30,7 @@ class Stock_ledger_model extends CI_Model {
             'OUT_SHIPMENT',     // Kirim Barang Jadi
             'OUT_SCRAP_BC',     // Scrap Keluar Gudang
             'ADJ_OUT',          // Adjustment Keluar
+            'RTN_SUPPLIER',     // Retur ke Supplier (mengurangi stock)
             'IN_SCRAP_WH',       // Scrap Masuk ke Gudang
             'OUT_CONSUMABLE'    // Pengeluaran Barang Habis Pakai
         ];
@@ -119,7 +120,7 @@ class Stock_ledger_model extends CI_Model {
         $this->db->select(" item_id, item_type,
             SUM(CASE WHEN transaction_type = 'in' THEN qty_in ELSE 0 END) as total_receive,
             SUM(CASE WHEN transaction_type = 'IN_RETURN_WIP' THEN qty_in ELSE 0 END) as total_return,
-            SUM(CASE WHEN transaction_type IN ('OUT_ISSUE', 'OUT_SHIPMENT', 'ADJ_OUT', 'production_out', 'OUT_CONSUMABLE', 'out_consumable') THEN qty_out ELSE 0 END) as total_out,
+            SUM(CASE WHEN transaction_type IN ('OUT_ISSUE', 'OUT_SHIPMENT', 'ADJ_OUT', 'production_out', 'OUT_CONSUMABLE', 'out_consumable', 'RTN_SUPPLIER') THEN qty_out ELSE 0 END) as total_out,
             SUM(CASE WHEN transaction_type = 'adjustment' THEN (qty_in - qty_out) ELSE 0 END) as total_adjustment
         ", FALSE);
         $this->db->from($this->table); 
@@ -207,7 +208,7 @@ class Stock_ledger_model extends CI_Model {
         $this->db->select("item_id, item_type,
             SUM(CASE WHEN transaction_type = 'in' THEN 1 ELSE 0 END) as total_receive,
             SUM(CASE WHEN transaction_type = 'IN_RETURN_WIP' THEN 1 ELSE 0 END) as total_return,
-            SUM(CASE WHEN transaction_type IN ('OUT_ISSUE', 'OUT_SHIPMENT', 'ADJ_OUT', 'production_out') THEN 1 ELSE 0 END) as total_out
+            SUM(CASE WHEN transaction_type IN ('OUT_ISSUE', 'OUT_SHIPMENT', 'ADJ_OUT', 'production_out', 'RTN_SUPPLIER') THEN 1 ELSE 0 END) as total_out
         ");
         $this->db->from($this->table);
         if ($start_date) { $this->db->where('transaction_date >=', $start_date . ' 00:00:00'); }
@@ -373,14 +374,16 @@ class Stock_ledger_model extends CI_Model {
                     ELSE NULL 
                 END AS nilai_barang_fc,
                
-                COALESCE(fdh.delivery_number, sout.subkon_out_no, soh.doc_no, adjh.doc_no, gh.grn_number) AS source_doc_no,
-                COALESCE(fdh.delivery_date, sout.shipping_date, soh.doc_date, adjh.doc_date, gh.grn_date) AS source_doc_date,
-                COALESCE(c_fg.nama_customer, s_sub.nama_supplier, c_scrap.nama_customer, s_grn.nama_supplier, 'N/A') AS partner_name,
                 
                 
                 cc.description AS jenis_bc_desc,
-                COALESCE(fdh.bc_number, soh.bc_number, sout.bc_number) AS nomor_bc_ref,
-                COALESCE(fdh.bc_date, soh.bc_date, sout.bc_date) AS tanggal_bc_ref,
+                COALESCE(fdh.delivery_number, sout.subkon_out_no, soh.doc_no, adjh.doc_no, wh.out_number, gh.grn_number, grn_src.grn_number) AS source_doc_no,
+                COALESCE(fdh.delivery_date, sout.shipping_date, soh.doc_date, adjh.doc_date, wh.out_date, gh.grn_date, grn_src.grn_date) AS source_doc_date,
+                COALESCE(c_fg.nama_customer, s_sub.nama_supplier, c_scrap.nama_customer, s_grn_src.nama_supplier, s_grn.nama_supplier, 'N/A') AS partner_name,
+                
+                            -- include BC from possible GRN source used by RTN
+                            COALESCE(fdh.bc_number, soh.bc_number, sout.bc_number, wh.bc_number, gh.bc_number, grn_src.bc_number) AS nomor_bc_ref,
+                            COALESCE(fdh.bc_date, soh.bc_date, sout.bc_date, wh.bc_date, gh.bc_date, grn_src.bc_date) AS tanggal_bc_ref,
                
                 COALESCE(sc.sc_number, sc_h.sc_number) AS sales_contract_ref,
                 COALESCE(fdd.sales_contract_id, fdh.sales_contract_id) AS sales_contract_id
@@ -412,6 +415,12 @@ class Stock_ledger_model extends CI_Model {
             LEFT JOIN grn_header gh ON sl.transaction_id = gh.id AND sl.transaction_type = 'in'
             LEFT JOIN suppliers s_grn ON gh.supplier_id = s_grn.id
 
+            -- Retur Supplier (RTN)
+            LEFT JOIN warehouse_out_header wh ON sl.transaction_id = wh.id AND sl.transaction_type = 'RTN_SUPPLIER'
+            -- If ledger row references a source GRN (sl.source_doc_type = 'GRN'), join it to obtain supplier info
+            LEFT JOIN grn_header grn_src ON sl.source_doc_type = 'GRN' AND sl.source_doc_id = grn_src.id
+            LEFT JOIN suppliers s_grn_src ON grn_src.supplier_id = s_grn_src.id
+
             
             LEFT JOIN materials m ON sl.item_id = m.id AND sl.item_type = 'material'
             LEFT JOIN semifinished_goods sf ON sl.item_id = sf.id AND sl.item_type = 'semifinished'
@@ -421,7 +430,8 @@ class Stock_ledger_model extends CI_Model {
             LEFT JOIN common_code cc ON cc.group_code = 'BC_TYPE'
                 AND (
                     (sl.transaction_type = 'fg_out' AND cc.id = fdh.bc_type_id) OR
-                    (sl.transaction_type IN ('OUT_SCRAP_BC', 'production_out') AND cc.code = COALESCE(soh.bc_type_code, sout.bc_type_code))
+                    (sl.transaction_type IN ('OUT_SCRAP_BC', 'production_out') AND cc.code = COALESCE(soh.bc_type_code, sout.bc_type_code)) OR
+                    (sl.transaction_type = 'RTN_SUPPLIER' AND cc.code = wh.bc_type_code)
                 )
 
             WHERE sl.id = ?
@@ -502,8 +512,10 @@ class Stock_ledger_model extends CI_Model {
             sl.id as ledger_id, sl.transaction_date, sl.transaction_type, sl.transaction_id,
             sl.qty_in, sl.qty_out, sl.balance, sl.unit_value,
             sl.source_doc_type, sl.source_doc_id,
-            grn.grn_number, 
-            COALESCE(NULLIF(s.nama_supplier, ''), NULLIF(s_po.nama_supplier, ''), NULLIF(s_mir.nama_supplier, '')) as nama_supplier,
+            sl.bc_type_code as sl_bc_type, sl.bc_number as sl_bc_no, sl.bc_date as sl_bc_date,
+            grn.grn_number,
+            wh.out_number as rtn_out_number,
+            COALESCE(NULLIF(s.nama_supplier, ''), NULLIF(s_po.nama_supplier, ''), NULLIF(s_mir.nama_supplier, ''), NULLIF(s_grn_src.nama_supplier, ''), NULLIF(s_wh.nama_supplier, ''), NULLIF(wh.nama_supplier, '')) as nama_supplier,
             grn.bc_type_code as grn_bc_type, grn.bc_number as grn_bc_no, grn.bc_date as grn_bc_date,
             prh.prod_return_no,
             mr_h.mr_number,
@@ -538,6 +550,17 @@ class Stock_ledger_model extends CI_Model {
         // Fallback supplier dari MIR jika GRN supplier_id NULL dan source adalah MIR
         $this->db->join('mir_header mir', 'gd.source_doc_type = "MIR" AND gd.source_doc_header_id = mir.id', 'left');
         $this->db->join('suppliers s_mir', 's_mir.id = mir.supplier_id', 'left');
+
+        // Retur Supplier (RTN)
+        $this->db->join('warehouse_out_header wh', 'sl.transaction_id = wh.id AND sl.transaction_type = "RTN_SUPPLIER"', 'left');
+        // Supplier for RTN header
+        $this->db->join('suppliers s_wh', 'wh.supplier_id = s_wh.id', 'left');
+
+        // If a ledger row stores a source GRN (sl.source_doc_type = 'GRN'),
+        // join that GRN so we can obtain the supplier for RTN rows which
+        // reference a GRN as their source document.
+        $this->db->join('grn_header grn_src', 'sl.source_doc_type = "GRN" AND sl.source_doc_id = grn_src.id', 'left');
+        $this->db->join('suppliers s_grn_src', 's_grn_src.id = grn_src.supplier_id', 'left');
         
         // Join lainnya
         $this->db->join('prod_return_detail prd', 'sl.transaction_id = prd.id AND sl.transaction_type = "IN_RETURN_WIP"', 'left');

@@ -406,6 +406,111 @@ class Warehouse_in_model extends CI_Model {
     }
 
     /**
+     * Get GRN list filtered by date range
+     */
+    public function get_grn_list($filters = []) {
+        $start = $filters['start_date'] ?? null;
+        $end = $filters['end_date'] ?? null;
+        $base_on = $filters['base_on'] ?? null; // expected values: 'PO' or 'MIR' or null
+        $supplier_id = $filters['supplier_id'] ?? null;
+
+        // Try to provide supplier name fallback from PO / MIR if header.supplier_id is null
+        $first_detail_subquery = "(
+            SELECT grn_header_id, MIN(id) as first_detail_id
+            FROM grn_details
+            GROUP BY grn_header_id
+        ) gd_first";
+
+        $this->db->reset_query();
+        $this->db->select('h.id, h.grn_number, h.grn_date, h.supplier_id, COALESCE(s.nama_supplier, s_po.nama_supplier, s_mir.nama_supplier, "-") as supplier_name, "" as notes, h.base_on');
+        $this->db->from($this->table_header . ' h');
+        $this->db->join('suppliers s', 'h.supplier_id = s.id', 'left');
+        $this->db->join($first_detail_subquery, 'h.id = gd_first.grn_header_id', 'left');
+        $this->db->join('grn_details gd', 'gd_first.first_detail_id = gd.id', 'left');
+        $this->db->join('po_header po', 'gd.source_doc_type = "PO" AND gd.source_doc_header_id = po.id', 'left');
+        $this->db->join('suppliers s_po', 's_po.id = po.supplier_id', 'left');
+        $this->db->join('mir_header mir', 'gd.source_doc_type = "MIR" AND gd.source_doc_header_id = mir.id', 'left');
+        $this->db->join('suppliers s_mir', 's_mir.id = mir.supplier_id', 'left');
+
+        if ($start) { $this->db->where('h.grn_date >=', $start); }
+        if ($end) { $this->db->where('h.grn_date <=', $end); }
+
+        if (!empty($base_on)) {
+            // Prefer explicit source_doc_type check on first detail when base_on provided
+            $this->db->where('h.base_on', $base_on);
+            $this->db->where('gd.source_doc_type', $base_on);
+        }
+
+        if (!empty($supplier_id)) {
+            // match either header supplier or supplier discovered from PO/MIR fallback
+            $this->db->group_start();
+            $this->db->where('h.supplier_id', $supplier_id);
+            $this->db->or_where('po.supplier_id', $supplier_id);
+            $this->db->or_where('mir.supplier_id', $supplier_id);
+            $this->db->group_end();
+        }
+
+        $this->db->where_in('h.status', ['Confirmed', 'Completed', 'Partially Received', 'Approved']);
+        $this->db->order_by('h.grn_date', 'DESC');
+        return $this->db->get()->result();
+    }
+
+    /**
+     * Return array of items (details) for given GRN ids
+     * Expected to return fields: id (grn_detail_id), grn_header_id, item_id, item_type, item_code, item_name, unit, receive_qty, source_doc_type, source_doc_header_id
+     */
+    public function get_grn_items_by_ids($grn_ids = []) {
+        if (empty($grn_ids) || !is_array($grn_ids)) return [];
+        $this->db->reset_query();
+        $this->db->select('d.id as grn_detail_id, d.grn_header_id, d.receive_qty, d.unit_value, d.total_value, d.source_doc_type, d.source_doc_header_id, d.source_doc_detail_id, d.item_id, d.item_type, d.bc_type_code, d.bc_number, d.bc_date, pd.qty as po_qty, md.total_qty as mir_total_qty, pd.qty as qty, md.total_qty as total_qty', FALSE);
+        $this->db->select('CASE WHEN d.item_type = "material" THEN m.kode_material WHEN d.item_type = "machine" THEN mc.kode_mesin WHEN d.item_type = "inventory" THEN i.kode_barang WHEN d.item_type = "semifinished" THEN sf.kode_barang END as item_code', FALSE);
+        $this->db->select('CASE WHEN d.item_type = "material" THEN m.nama_material WHEN d.item_type = "machine" THEN mc.nama_mesin WHEN d.item_type = "inventory" THEN i.nama_barang WHEN d.item_type = "semifinished" THEN sf.nama_barang END as item_name', FALSE);
+        $this->db->select('CASE WHEN d.item_type = "material" THEN m.satuan WHEN d.item_type = "machine" THEN mc.satuan WHEN d.item_type = "inventory" THEN i.satuan WHEN d.item_type = "semifinished" THEN sf.satuan END as unit', FALSE);
+        $this->db->from($this->table_details . ' d');
+        $this->db->join('materials m', 'd.item_id = m.id AND d.item_type = "material"', 'left');
+        $this->db->join('machines mc', 'd.item_id = mc.id AND d.item_type = "machine"', 'left');
+        $this->db->join('inventories i', 'd.item_id = i.id AND d.item_type = "inventory"', 'left');
+        $this->db->join('semifinished_goods sf', 'd.item_id = sf.id AND d.item_type = "semifinished"', 'left');
+        // Join to source detail tables to obtain original PO/MIR qty
+        $this->db->join('po_details pd', 'd.source_doc_type = "PO" AND d.source_doc_detail_id = pd.id', 'left');
+        $this->db->join('mir_details md', 'd.source_doc_type = "MIR" AND d.source_doc_detail_id = md.id', 'left');
+
+        $this->db->where_in('d.grn_header_id', $grn_ids);
+        $this->db->order_by('d.grn_header_id','asc');
+        $rows = $this->db->get()->result();
+
+        // Normalize fields for frontend: id, item_code, item_name, unit, qty_received, qty_po, grn_id, grn_detail_id
+        foreach ($rows as $r) {
+            $r->id = $r->grn_detail_id;
+            $r->qty_received = isset($r->receive_qty) ? (float)$r->receive_qty : 0.0;
+            // source qty: prefer PO qty (pd.qty) or MIR total_qty (md.total_qty)
+            $r->qty_po = isset($r->qty) ? (float)$r->qty : (isset($r->total_qty) ? (float)$r->total_qty : 0.0);
+            $r->grn_id = $r->grn_header_id;
+            // expose unit_value and total_value normalized
+            $r->unit_value = isset($r->unit_value) ? (float)$r->unit_value : 0.0;
+            $r->total_value = isset($r->total_value) ? (float)$r->total_value : ($r->unit_value * $r->qty_received);
+        }
+
+        // Also fetch how much has been returned already per grn_detail_id
+        $ids = array_map(function($r){ return $r->grn_detail_id; }, $rows);
+        if (!empty($ids)) {
+            $this->db->reset_query();
+            $this->db->select('grn_detail_id, SUM(qty_return) as total_returned');
+            $this->db->from('warehouse_out_details d');
+            $this->db->join('warehouse_out_header h', 'd.header_id = h.id', 'left');
+            $this->db->where_in('d.grn_detail_id', $ids);
+            $this->db->where('h.status', 'Confirmed');
+            $this->db->group_by('d.grn_detail_id');
+            $sums = $this->db->get()->result();
+            $map = [];
+            foreach ($sums as $s) { $map[$s->grn_detail_id] = (float)$s->total_returned; }
+            foreach ($rows as $r) { $r->already_returned = $map[$r->grn_detail_id] ?? 0.0; }
+        }
+
+        return $rows;
+    }
+
+    /**
      * Enhance GRN header with supplier info fallback
      * If supplier_id is null, get from first detail's PO or MIR
      */

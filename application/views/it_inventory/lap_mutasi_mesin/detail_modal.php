@@ -44,6 +44,10 @@
                                 $badge = 'warning';
                                 $doc_info = "ADJ No: <strong>{$t->adjustment_doc}</strong><br><small>Ket: {$t->adjustment_notes}</small>";
                                 break;
+                            case 'RTN_SUPPLIER':
+                                $badge = 'secondary';
+                                $doc_info = "RTN No: <strong>" . (!empty($t->rtn_number) ? htmlspecialchars($t->rtn_number) : '-') . "</strong>";
+                                break;
                         }
                         
                         // Format BC info
@@ -61,10 +65,14 @@
                     <td class="text-right text-success font-weight-bold"><?= $t->qty_in > 0 ? (float)$t->qty_in : ''; ?></td>
                     <td class="text-right text-danger font-weight-bold"><?= $t->qty_out > 0 ? (float)$t->qty_out : ''; ?></td>
                     <td class="text-right font-weight-bold" style="background-color: #f8f9fa;"><?= (float)$balance; ?></td>
-                    <td class="text-nowrap">
-                        <?php if (!empty($t->bc_number) && !empty($t->grn_number)): ?>
-                            <a href="<?= base_url('BeaCukai/detail/' . base64_encode($t->grn_number)); ?>" class="btn btn-primary btn-xs" target="_blank" title="Lihat Dokumen BC: <?= $t->bc_number; ?>">
+                        <td class="text-nowrap">
+                        <?php if (!empty($t->bc_number)): ?>
+                            <a href="<?= base_url('BeaCukai/detail/' . urlencode($t->bc_number)); ?>" class="btn btn-primary btn-xs" target="_blank" title="Lihat Dokumen BC: <?= htmlspecialchars($t->bc_number); ?>">
                                 <i class="fas fa-file-invoice"></i> BC
+                            </a>
+                        <?php elseif (!empty($t->grn_number)): ?>
+                            <a href="<?= base_url('BeaCukai/detail/' . base64_encode($t->grn_number)); ?>" class="btn btn-primary btn-xs" target="_blank" title="Lihat Dokumen GRN: <?= htmlspecialchars($t->grn_number); ?>">
+                                <i class="fas fa-file-invoice"></i> GRN
                             </a>
                         <?php elseif ($t->transaction_type === 'adjustment' && !empty($t->adjustment_header_id)): ?>
                             <button class="btn btn-info btn-xs" onclick="viewAdjustmentDocuments(<?= $t->adjustment_header_id; ?>)" title="Lihat Dokumen Adjustment">

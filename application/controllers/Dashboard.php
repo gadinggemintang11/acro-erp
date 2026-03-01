@@ -361,15 +361,23 @@ class Dashboard extends MY_Controller {
             ->where('bc_type_code IS NOT NULL')
             ->count_all_results('scrap_out_header');
 
-        $data['bc_out_count'] = $subkon_out + $fg_delivery + $scrap_out_count;
+        // Include RTN (Return Supplier) in outgoing BC count
+        $rtn_out_count = $this->db
+            ->where('MONTH(out_date)', date('m'))
+            ->where('YEAR(out_date)', date('Y'))
+            ->where('bc_type_code IS NOT NULL')
+            ->count_all_results('warehouse_out_header');
+
+        $data['bc_out_count'] = $subkon_out + $fg_delivery + $scrap_out_count + $rtn_out_count;
 
         // 3. Total Dokumen BC (All Time)
         $grn_total = $this->db->where('bc_type_code IS NOT NULL')->count_all_results('grn_header');
         $subkon_total = $this->db->where('bc_type_code IS NOT NULL')->count_all_results('subkon_out_header');
         $fg_total = $this->db->where('bc_type_id IS NOT NULL')->count_all_results('fg_delivery_header');
         $scrap_total = $this->db->where('bc_type_code IS NOT NULL')->count_all_results('scrap_out_header');
+        $rtn_total = $this->db->where('bc_type_code IS NOT NULL')->count_all_results('warehouse_out_header');
 
-        $data['total_bc_documents'] = $grn_total + $subkon_total + $fg_total + $scrap_total;
+        $data['total_bc_documents'] = $grn_total + $subkon_total + $fg_total + $scrap_total + $rtn_total;
 
         // 4. Pending Verification (Status Draft/Pending)
         $data['pending_verification'] = $this->db
@@ -380,17 +388,28 @@ class Dashboard extends MY_Controller {
         // ====================================================================
         // RECENT BC INCOMING DOCUMENTS (Barang Masuk dengan BC)
         // ====================================================================
-        $data['recent_bc_incoming'] = $this->db
-            ->select('grn.id, grn.grn_number, grn.grn_date, grn.bc_type_code, grn.bc_number, 
-                      grn.bc_date, grn.status, s.nama_supplier, cc.description as bc_type_name')
-            ->from('grn_header grn')
-            ->join('suppliers s', 's.id = grn.supplier_id', 'left')
-            ->join('common_code cc', "cc.code = grn.bc_type_code AND cc.group_code = 'BC_TYPE'", 'left')
-            ->where('grn.bc_type_code IS NOT NULL')
-            ->order_by('grn.grn_date', 'DESC')
-            ->limit(10)
-            ->get()
-            ->result();
+                // Recent BC incoming: show supplier from header, or fallback to supplier from PO/MIR referenced in grn_details
+                $detail_supplier_sub = "(
+                        SELECT gd.grn_header_id, COALESCE(sp.nama_supplier, sm.nama_supplier, '') AS detail_supplier
+                        FROM grn_details gd
+                        LEFT JOIN po_header p ON p.id = gd.source_doc_header_id AND gd.source_doc_type = 'PO'
+                        LEFT JOIN suppliers sp ON sp.id = p.supplier_id
+                        LEFT JOIN mir_header m ON m.id = gd.source_doc_header_id AND gd.source_doc_type = 'MIR'
+                        LEFT JOIN suppliers sm ON sm.id = m.supplier_id
+                        GROUP BY gd.grn_header_id
+                ) AS src_sup";
+
+                $data['recent_bc_incoming'] = $this->db
+                        ->select('grn.id, grn.grn_number, grn.grn_date, grn.bc_type_code, grn.bc_number, grn.bc_date, grn.status, COALESCE(s.nama_supplier, src_sup.detail_supplier, "") as nama_supplier, cc.description as bc_type_name', false)
+                        ->from('grn_header grn')
+                        ->join('suppliers s', 's.id = grn.supplier_id', 'left')
+                        ->join($detail_supplier_sub, 'src_sup.grn_header_id = grn.id', 'left', false)
+                        ->join('common_code cc', "cc.code = grn.bc_type_code AND cc.group_code = 'BC_TYPE'", 'left')
+                        ->where('grn.bc_type_code IS NOT NULL')
+                        ->order_by('grn.grn_date', 'DESC')
+                        ->limit(10)
+                        ->get()
+                        ->result();
 
         // ====================================================================
         // RECENT BC OUTGOING DOCUMENTS (Barang Keluar dengan BC)
@@ -437,8 +456,20 @@ class Dashboard extends MY_Controller {
             ->get()
             ->result();
 
+        // Return Supplier (RTN) - keluar dengan BC (warehouse_out_header)
+        $rtn_out = $this->db
+            ->select('h.id, h.out_number as doc_number, h.out_date as doc_date, h.bc_type_code, h.bc_number, h.bc_date, h.status, COALESCE(s.nama_supplier, h.nama_supplier) as nama_supplier, cc.description as bc_type_name, "RTN_SUPPLIER" as doc_type')
+            ->from('warehouse_out_header h')
+            ->join('suppliers s', 's.id = h.supplier_id', 'left')
+            ->join('common_code cc', "cc.code = h.bc_type_code AND cc.group_code = 'BC_TYPE'", 'left')
+            ->where('h.bc_type_code IS NOT NULL')
+            ->order_by('h.out_date', 'DESC')
+            ->limit(5)
+            ->get()
+            ->result();
+
         // Merge dan sort by date (termasuk scrap_out)
-        $data['recent_bc_outgoing'] = array_merge($subkon, $fg_del, $scrap_out);
+        $data['recent_bc_outgoing'] = array_merge($subkon, $fg_del, $scrap_out, $rtn_out);
         usort($data['recent_bc_outgoing'], function($a, $b) {
             return strtotime($b->doc_date) - strtotime($a->doc_date);
         });
@@ -463,11 +494,13 @@ class Dashboard extends MY_Controller {
             $this->db->where_in('bc_type_id', [$type->code, $type->id]);
             $outgoing_fg = $this->db->count_all_results('fg_delivery_header');
             $outgoing_scrap = $this->db->where('bc_type_code', $type->code)->count_all_results('scrap_out_header');
+            // Include RTN (warehouse_out_header) in outgoing counts
+            $outgoing_rtn = $this->db->where('bc_type_code', $type->code)->count_all_results('warehouse_out_header');
 
             $bc_stats[] = [
                 'type' => $type->description,
                 'incoming' => $incoming,
-                'outgoing' => $outgoing_subkon + $outgoing_fg + $outgoing_scrap
+                'outgoing' => $outgoing_subkon + $outgoing_fg + $outgoing_scrap + $outgoing_rtn
             ];
         }
         $data['bc_statistics'] = $bc_stats;

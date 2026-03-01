@@ -1,0 +1,219 @@
+<?php defined('BASEPATH') OR exit('No direct script access allowed'); ?>
+
+<div class="container-fluid">
+    <!-- PAGE HEADER -->
+    <div class="row mb-4 mt-3">
+        <div class="col-12">
+            <div class="d-flex justify-content-between align-items-center">
+                <div>
+                    <h1 class="h3 mb-0 text-gray-800">
+                        <i class="fas fa-plus-circle text-primary"></i> Buat Pengeluaran Barang Baru
+                    </h1>
+                    <p class="text-muted small mt-1">Form pembuatan dokumen pengeluaran barang dari gudang</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="card shadow-sm border-0">
+        <div class="card-header bg-white border-bottom py-3">
+            <h6 class="mb-0 text-gray-700">
+                <i class="fas fa-file-import text-muted"></i> Data Dokumen Pengeluaran
+            </h6>
+        </div>
+        <div class="card-body pt-4">
+            <form method="POST" action="<?php echo base_url('warehouse_out/add_header'); ?>">
+                <div class="row">
+                    <!-- KOLOM KIRI -->
+                    <div class="col-lg-6">
+                        <!-- TIPE PENGELUARAN -->
+                        <div class="mb-3">
+                            <label class="form-label font-weight-bold">
+                                <i class="fas fa-inbox text-danger"></i> Tipe Pengeluaran
+                                <span class="text-danger">*</span>
+                            </label>
+                            <select name="wo_type" class="form-select" required onchange="updateFieldRequirement()">
+                                <option value="">-- Pilih Tipe Pengeluaran --</option>
+                                <option value="OUT_WH_RETUR">Retur Barang ke Supplier</option>
+                                <option value="OUT_WH_SALES">Penjualan Barang/Mesin</option>
+                                <option value="OUT_WH_SAMPLE">Sample</option>
+                            </select>
+                            <small class="form-text text-muted d-block mt-1">
+                                Pilih tipe pengeluaran sesuai kebutuhan Anda
+                            </small>
+                        </div>
+
+                        <!-- TANGGAL PENGELUARAN -->
+                        <div class="mb-3">
+                            <label class="form-label font-weight-bold">
+                                <i class="fas fa-calendar text-danger"></i> Tanggal Pengeluaran
+                                <span class="text-danger">*</span>
+                            </label>
+                            <input type="date" name="wo_date" class="form-control" value="<?php echo date('Y-m-d'); ?>" required>
+                        </div>
+
+                        <!-- WAREHOUSE TYPE -->
+                        <div class="mb-3">
+                            <label class="form-label font-weight-bold">
+                                <i class="fas fa-warehouse text-danger"></i> Jenis Gudang
+                                <span class="text-danger">*</span>
+                            </label>
+                            <select name="warehouse_type" class="form-select" required>
+                                <option value="">-- Pilih Jenis Gudang --</option>
+                                <option value="Raw Material">Raw Material</option>
+                                <option value="Finished Goods">Finished Goods</option>
+                                <option value="Work In Progress">Work In Progress</option>
+                            </select>
+                        </div>
+
+                        <!-- SUPPLIER -->
+                        <div class="mb-3" id="supplierField" style="display: none;">
+                            <label class="form-label font-weight-bold">
+                                <i class="fas fa-user text-info"></i> Supplier
+                            </label>
+                            <select name="supplier_id" class="form-select select2-supplier">
+                                <option value="">-- Pilih Supplier --</option>
+                                <?php 
+                                    $suppliers = $this->db->select('id, nama_supplier')->from('suppliers')->get()->result();
+                                    foreach ($suppliers as $s):
+                                ?>
+                                    <option value="<?php echo $s->id; ?>"><?php echo $s->nama_supplier; ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                            <small class="form-text text-muted">Hanya untuk tipe Retur</small>
+                        </div>
+
+                        <!-- PARTNER/CUSTOMER -->
+                        <div class="mb-3" id="partnerField" style="display: none;">
+                            <label class="form-label font-weight-bold">
+                                <i class="fas fa-handshake text-success"></i> Partner / Customer
+                            </label>
+                            <input type="text" name="partner_name" class="form-control" placeholder="Nama partner atau customer">
+                            <small class="form-text text-muted">Untuk tipe Sales atau Sample</small>
+                        </div>
+                    </div>
+
+                    <!-- KOLOM KANAN -->
+                    <div class="col-lg-6">
+                        <!-- BC TYPE -->
+                        <div class="mb-3">
+                            <label class="form-label font-weight-bold">
+                                <i class="fas fa-file-pdf text-warning"></i> Jenis BC (Opsional)
+                            </label>
+                            <select name="bc_type_code" class="form-select">
+                                <option value="">-- Pilih BC Type --</option>
+                                <?php if (!empty($bc_types)): ?>
+                                    <?php foreach ($bc_types as $bc): ?>
+                                        <option value="<?php echo $bc->code; ?>">
+                                            <?php echo $bc->code . ' - ' . $bc->description; ?>
+                                        </option>
+                                    <?php endforeach; ?>
+                                <?php else: ?>
+                                    <option value="">Tidak ada data BC Type</option>
+                                <?php endif; ?>
+                            </select>
+                            <small class="form-text text-muted">Untuk dokumen yang memerlukan BC</small>
+                        </div>
+
+                        <!-- BC NUMBER -->
+                        <div class="mb-3">
+                            <label class="form-label font-weight-bold">
+                                <i class="fas fa-barcode text-warning"></i> Nomor BC
+                            </label>
+                            <input type="text" name="bc_number" class="form-control" placeholder="Contoh: BC/2026/000001">
+                            <small class="form-text text-muted">Nomor surat BC dari customs</small>
+                        </div>
+
+                        <!-- BC DATE -->
+                        <div class="mb-3">
+                            <label class="form-label font-weight-bold">
+                                <i class="fas fa-calendar text-warning"></i> Tanggal BC
+                            </label>
+                            <input type="date" name="bc_date" class="form-control">
+                        </div>
+
+                        <!-- NOTES -->
+                        <div class="mb-3">
+                            <label class="form-label font-weight-bold">
+                                <i class="fas fa-sticky-note text-secondary"></i> Catatan / Keterangan
+                            </label>
+                            <textarea name="notes" class="form-control" rows="4" placeholder="Tuliskan catatan atau keterangan penting tentang pengeluaran barang ini..."></textarea>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ACTION BUTTONS -->
+                <div class="mb-3 pt-3 border-top">
+                    <button type="submit" class="btn btn-primary btn-lg">
+                        <i class="fas fa-save"></i> Buat Pengeluaran
+                    </button>
+                    <a href="<?php echo base_url('warehouse_out'); ?>" class="btn btn-secondary btn-lg ms-2">
+                        <i class="fas fa-times"></i> Batal
+                    </a>
+                </div>
+            </form>
+        </div>
+    </div>
+</div>
+
+<style>
+    .text-gray-800 { color: #2e3338; }
+    .text-gray-700 { color: #5a6268; }
+    .font-weight-bold { font-weight: 600; }
+    
+    .form-label {
+        margin-bottom: 0.5rem;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+    
+    .form-select, .form-control {
+        border-radius: 0.25rem;
+        border: 1px solid #dee2e6;
+    }
+    
+    .form-select:focus, .form-control:focus {
+        border-color: #80bdff;
+        box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+    }
+</style>
+
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
+
+<script>
+$(document).ready(function() {
+    // Initialize Select2
+    $('.select2-supplier').select2({
+        placeholder: '-- Pilih Supplier --',
+        allowClear: true,
+        width: '100%'
+    });
+    
+    // Check field requirement on page load
+    updateFieldRequirement();
+});
+
+function updateFieldRequirement() {
+    const woType = $('select[name="wo_type"]').val();
+    const supplierField = $('#supplierField');
+    const partnerField = $('#partnerField');
+    
+    supplierField.hide().find('select').prop('required', false);
+    partnerField.hide().find('input').prop('required', false);
+    
+    if (woType === 'OUT_WH_RETUR') {
+        supplierField.show().find('select').prop('required', true);
+    } else if (woType === 'OUT_WH_SALES' || woType === 'OUT_WH_SAMPLE') {
+        partnerField.show().find('input').prop('required', true);
+    }
+}
+</script>
+<script>
+$(document).ready(function() {
+    $('.select2').select2({
+        width: '100%'
+    });
+});
+</script>

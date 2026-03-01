@@ -16,9 +16,14 @@ class BeaCukai extends MY_Controller {
             return;
         }
 
-        // Try to decode base64 first (untuk GRN number yang di-encode)
-        $decoded = base64_decode($identifier, true);
-        if ($decoded !== false && preg_match('/^GRN\/\d{6}\/\d{4}$/', $decoded)) {
+        // Try to decode base64 first (untuk nilai yang di-encode oleh view).
+        // Some callers rawurlencode() the base64 payload to make it URL-safe,
+        // so attempt rawurldecode() before base64_decode. If decoding
+        // succeeds we accept the decoded value (this covers RTN numbers
+        // like 'RTN-20260226-003' as well as encoded GRN numbers).
+        $maybe = rawurldecode($identifier);
+        $decoded = base64_decode($maybe, true);
+        if ($decoded !== false && $decoded !== '') {
             $identifier = $decoded;
         }
 
@@ -58,7 +63,7 @@ class BeaCukai extends MY_Controller {
                         gd.receive_qty AS qty,
                         COALESCE(m.satuan, mc.satuan) AS unit,
                         COALESCE(ph.po_number, mh.mir_number) as doc_number,
-                        COALESCE(s_po.nama_supplier, s_mir.nama_supplier) as nama_supplier
+                    COALESCE(s_po.nama_supplier, s_mir.nama_supplier) as nama_supplier
                     ')
                     ->from('grn_details gd')
                     ->join('materials m', 'm.id = gd.item_id AND gd.item_type = "material"', 'left')
@@ -78,6 +83,23 @@ class BeaCukai extends MY_Controller {
                             $doc['nama_supplier'] = $detail['nama_supplier'];
                             break;
                         }
+                    }
+                }
+                // If still empty, try a fallback: check grn_details source docs (PO or MIR) for supplier
+                if (empty($doc['nama_supplier']) || $doc['nama_supplier'] === null || $doc['nama_supplier'] == '-') {
+                    $supplier_from_source = $this->db->select('COALESCE(s_po.nama_supplier, s_mir.nama_supplier) as nama_supplier')
+                        ->from('grn_details gd')
+                        ->join('po_header ph', 'ph.id = gd.source_doc_header_id AND gd.source_doc_type = "PO"', 'left')
+                        ->join('suppliers s_po', 's_po.id = ph.supplier_id', 'left')
+                        ->join('mir_header mh', 'mh.id = gd.source_doc_header_id AND gd.source_doc_type = "MIR"', 'left')
+                        ->join('suppliers s_mir', 's_mir.id = mh.supplier_id', 'left')
+                        ->where('gd.grn_header_id', $doc['id'])
+                        ->limit(1)
+                        ->get()
+                        ->row_array();
+
+                    if (!empty($supplier_from_source) && !empty($supplier_from_source['nama_supplier'])) {
+                        $doc['nama_supplier'] = $supplier_from_source['nama_supplier'];
                     }
                 }
                 if (empty($doc['nama_supplier'])) {
@@ -187,6 +209,52 @@ class BeaCukai extends MY_Controller {
             }
         }
 
+        // Jika belum ketemu di GRN atau SCRAP, cek apakah BC berasal dari RTN (warehouse_out_header)
+        if (empty($doc)) {
+            $this->db->select('h.id, h.out_number, h.out_date, h.bc_type_code, h.bc_number, h.bc_date, h.created_by, h.created_at, h.supplier_id, COALESCE(s.nama_supplier, h.nama_supplier) as nama_supplier');
+            $this->db->from('warehouse_out_header h');
+            $this->db->join('suppliers s', 's.id = h.supplier_id', 'left');
+            // Accept either BC number or RTN out_number as identifier
+            $this->db->group_start();
+            $this->db->where('h.bc_number', $identifier);
+            $this->db->or_where('h.out_number', $identifier);
+            $this->db->group_end();
+            $rtn = $this->db->get()->row_array();
+
+            if (!empty($rtn)) {
+                $doc = $rtn;
+                $doc_type = 'RTN_SUPPLIER';
+                $doc['type'] = 'OUT';
+                // Ambil detail items dari warehouse_out_details
+                $doc['details'] = $this->db->select('wod.id, wod.item_type, COALESCE(wod.qty_return, wod.qty_received, wod.qty_po) AS qty, COALESCE(m.kode_material, mc.kode_mesin) AS item_code, COALESCE(m.nama_material, mc.nama_mesin) AS item_name, COALESCE(m.satuan, mc.satuan) as unit')
+                    ->from('warehouse_out_details wod')
+                    ->join('materials m', 'm.id = wod.item_id AND wod.item_type = "material"', 'left')
+                    ->join('machines mc', 'mc.id = wod.item_id AND wod.item_type = "machine"', 'left')
+                    ->where('wod.header_id', $doc['id'])
+                    ->get()
+                    ->result_array();
+
+                // Ensure nama_supplier present
+                if (empty($doc['nama_supplier']) || $doc['nama_supplier'] === null) {
+                    // Try to derive supplier from linked GRN (warehouse_out_details -> grn_header)
+                    $supplier_fallback = $this->db->select('sg.nama_supplier AS nama_supplier')
+                        ->from('warehouse_out_details wod')
+                        ->join('grn_header gh', 'gh.id = wod.grn_id', 'left')
+                        ->join('suppliers sg', 'sg.id = gh.supplier_id', 'left')
+                        ->where('wod.header_id', $doc['id'])
+                        ->limit(1)
+                        ->get()
+                        ->row_array();
+
+                    if (!empty($supplier_fallback) && !empty($supplier_fallback['nama_supplier'])) {
+                        $doc['nama_supplier'] = $supplier_fallback['nama_supplier'];
+                    } else {
+                        $doc['nama_supplier'] = '-';
+                    }
+                }
+            }
+        }
+
         // Legacy: Jika masih belum ketemu dengan sistem lama (BeaCukai_model)
         if (empty($doc)) {
             $doc = $this->BeaCukai_model->get_by_number($identifier);
@@ -213,6 +281,8 @@ class BeaCukai extends MY_Controller {
             $content_view = 'it_inventory/beacukai/view_bc_material_in';
         } else if ($doc_type == 'SCRAP_OUT') {
             $content_view = 'it_inventory/beacukai/view_bc_scrap_out';
+        } else if ($doc_type == 'RTN_SUPPLIER') {
+            $content_view = 'it_inventory/beacukai/view_bc_rtn';
         } else {
             $content_view = 'it_inventory/lap_mutasi_scrap/view_bc_doc'; // Legacy
         }

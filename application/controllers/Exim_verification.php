@@ -315,6 +315,43 @@ class Exim_verification extends MY_Controller {
     }
 
     /**
+     * Get RTN (warehouse_out) detail items (AJAX)
+     */
+    public function get_rtn_details($header_id) {
+        header('Content-Type: application/json');
+
+        if (!check_access('exim_verification', 'view')) {
+            echo json_encode(['success' => false, 'message' => 'Akses ditolak']);
+            return;
+        }
+
+        try {
+            $this->load->model('Warehouse_out_model');
+            $details = $this->Warehouse_out_model->get_details($header_id);
+            if ($details !== false) {
+                // Normalize items to shape expected by view JS
+                $out = [];
+                foreach ($details as $d) {
+                    $out[] = [
+                        'id' => $d->id,
+                        'item_code' => $d->item_code ?? null,
+                        'item_name' => $d->item_name ?? null,
+                        'qty' => isset($d->qty_return) ? (float)$d->qty_return : 0,
+                        'item_unit' => $d->unit ?? ($d->item_unit ?? null),
+                        'unit_value_idr' => isset($d->unit_value_idr) ? (float)$d->unit_value_idr : null
+                    ];
+                }
+                echo json_encode(['success' => true, 'data' => $out]);
+            } else {
+                echo json_encode(['success' => false, 'message' => 'Detail tidak ditemukan']);
+            }
+        } catch (Exception $e) {
+            log_message('error', 'get_rtn_details error: ' . $e->getMessage());
+            echo json_encode(['success' => false, 'message' => 'Error: ' . $e->getMessage()]);
+        }
+    }
+
+    /**
      * Get Subkon Out detail items (AJAX)
      */
     public function get_subkon_out_details($header_id) {

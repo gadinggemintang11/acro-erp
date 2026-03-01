@@ -267,6 +267,8 @@ function viewDetails(docType, docId, docNumber) {
         url = '<?= site_url('exim_verification/get_scrap_out_details/'); ?>' + docId;
     } else if (docType === 'SUBKON_OUT') {
         url = '<?= site_url('exim_verification/get_subkon_out_details/'); ?>' + docId;
+    } else if (docType === 'RTN_SUPPLIER') {
+        url = '<?= site_url('exim_verification/get_rtn_details/'); ?>' + docId;
     } else {
         $('#detail-content').html('<div class="alert alert-warning">Detail untuk tipe ini belum tersedia</div>');
         return;
@@ -280,13 +282,15 @@ function viewDetails(docType, docId, docNumber) {
             if (response.success) {
                 let html = '<div class="table-responsive"><table class="table table-sm table-bordered">';
                 html += '<thead class="thead-light"><tr><th>No</th><th>Kode Barang</th><th>Nama Barang</th><th>Qty</th><th>Satuan</th>';
-                
+
                 if (docType === 'FG_OUT') {
                     html += '<th>Contract</th><th>Unit Price</th><th>Currency</th>';
                 } else if (docType === 'SCRAP_OUT') {
                     html += '<th>Sales Value</th>';
                 } else if (docType === 'SUBKON_OUT') {
                     html += '<th>WO Number</th>';
+                } else if (docType === 'RTN_SUPPLIER') {
+                    html += '<th>Unit Value (IDR)</th>';
                 }
                 
                 html += '</tr></thead><tbody>';
@@ -302,7 +306,7 @@ function viewDetails(docType, docId, docNumber) {
                         
                         if (docType === 'FG_OUT') {
                             html += '<td class="text-right">' + parseFloat(item.qty_shipped || 0).toFixed(2) + '</td>';
-                        } else if (docType === 'SCRAP_OUT' || docType === 'SUBKON_OUT') {
+                        } else if (docType === 'SCRAP_OUT' || docType === 'SUBKON_OUT' || docType === 'RTN_SUPPLIER') {
                             html += '<td class="text-right">' + parseFloat(item.qty || 0).toFixed(2) + '</td>';
                         }
                         
@@ -316,6 +320,8 @@ function viewDetails(docType, docId, docNumber) {
                             html += '<td class="text-right">' + parseFloat(item.sales_value_per_unit || 0).toLocaleString('id-ID') + '</td>';
                         } else if (docType === 'SUBKON_OUT') {
                             html += '<td>' + (item.wo_number || '-') + '</td>';
+                        } else if (docType === 'RTN_SUPPLIER') {
+                            html += '<td class="text-right">' + (item.unit_value_idr ? parseFloat(item.unit_value_idr).toLocaleString('id-ID') : '-') + '</td>';
                         }
                         
                         html += '</tr>';

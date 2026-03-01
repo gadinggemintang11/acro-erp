@@ -8,7 +8,7 @@ $current = strtolower($this->uri->segment(1));
 // 1. Core Operations
 $order_items = ['sales_contract'];
 $purchase_items = ['purchase_order', 'mir', 'po_report'];
-$inventory_items = ['warehouse_in','subkon_order','subkon_out', 'subkon_in','scrap_in', 'scrap_out', 'scrap_stock',  'stock_ledger', 'adjustment', 'stockopname','material_issuance', 'prodreturn', 'consumable_out']; 
+$inventory_items = ['warehouse_in','warehouse_out','subkon_order','subkon_out', 'subkon_in','scrap_in', 'scrap_out', 'scrap_stock',  'stock_ledger', 'adjustment', 'stockopname','material_issuance', 'prodreturn']; 
 $production_items = ['work_order', 'material_request', 'production_receive', 'production_process'];
 $fg_items = ['fg_receipt', 'fg_stock', 'fg_delivery'];
 $exim_items = ['exim_verification'];
@@ -424,6 +424,9 @@ document.addEventListener('DOMContentLoaded', function() {
                 <h6 class="collapse-header"><?= lang_line('sidebar_warehouse_transactions', 'Transaksi Gudang:'); ?></h6>
                 <?php if (check_access('warehouse_in', 'view')): ?>
                     <a class="collapse-item <?= ($current == 'warehouse_in') ? 'active' : ''; ?>" href="<?= $base; ?>warehouse_in"><?= lang_line('sidebar_goods_receipt', 'Penerimaan Barang'); ?></a>
+                <?php endif; ?>
+                <?php if (check_access('warehouse_out', 'view')): ?>
+                    <a class="collapse-item <?= ($current == 'warehouse_out') ? 'active' : ''; ?>" href="<?= $base; ?>warehouse_out"><?= lang_line('sidebar_goods_return', 'Pengeluaran Barang Gudang'); ?></a>
                 <?php endif; ?>
                 <?php if (check_access('material_issuance', 'view')): ?>
                     <a class="collapse-item <?= ($current == 'material_issuance') ? 'active' : ''; ?>" href="<?= $base; ?>material_issuance"><?= lang_line('sidebar_material_issuance', 'Material Issuance'); ?></a>

@@ -87,14 +87,19 @@
                                 <td class="text-nowrap"><?= $row->tanggal_bc ? date('d-m-Y', strtotime($row->tanggal_bc)) : '-'; ?></td>
                                 
                                 <td class="font-weight-bold text-danger">
-                                    <span class="badge badge-secondary mr-1">
-                                        <?php 
-                                            if ($row->tx_type_raw == 'production_out') echo 'SUBKON';
-                                            elseif ($row->tx_type_raw == 'fg_out') echo 'FG';
-                                            elseif ($row->tx_type_raw == 'OUT_SCRAP_BC') echo 'SCRAP';
-                                            else echo 'ADJ OUT';
-                                        ?>
-                                    </span>
+                                    <?php
+                                        // Only show badges for specific transaction types.
+                                        // Do not display badges for DO (`fg_out`) or Adjustment (`ADJ_OUT`)
+                                        $badge = '';
+                                        if ($row->tx_type_raw == 'production_out') {
+                                            $badge = 'SUBKON';
+                                        } elseif ($row->tx_type_raw == 'OUT_SCRAP_BC') {
+                                            $badge = 'SCRAP';
+                                        }
+                                    ?>
+                                    <?php if (!empty($badge)): ?>
+                                        <span class="badge badge-secondary mr-1"><?= $badge; ?></span>
+                                    <?php endif; ?>
                                     <?= htmlspecialchars($row->nomor_pengeluaran); ?>
                                 </td>
                                 <td class="text-nowrap"><?= date('d-m-Y', strtotime($row->tanggal_pengeluaran)); ?></td>

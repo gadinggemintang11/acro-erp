@@ -6,7 +6,7 @@ class LapPengeluaranBarang_model extends CI_Model {
     private $table_ledger = 'stock_ledger';
     
     private function get_outgoing_tx_types() {
-        return ['fg_out', 'OUT_SCRAP_BC', 'ADJ_OUT', 'production_out']; 
+        return ['fg_out', 'OUT_SCRAP_BC', 'ADJ_OUT', 'production_out', 'RTN_SUPPLIER']; 
     }
 
     /**
@@ -29,21 +29,22 @@ class LapPengeluaranBarang_model extends CI_Model {
                 sl.source_doc_type,
                 
                 -- 1. DOKUMEN PABEAN (BC) - Ambil dari masing-masing sumber
-                COALESCE(cc_scrap.description, cc_fg.description, cc_sub.description, '-') AS jenis_bc, 
-                COALESCE(fdh.bc_number, soh.bc_number, sout.bc_number, '') AS nomor_bc,
-                COALESCE(fdh.bc_date, soh.bc_date, sout.bc_date, NULL) AS tanggal_bc,
+                COALESCE(cc_scrap.description, cc_fg.description, cc_sub.description, cc_wh.description, '-') AS jenis_bc, 
+                COALESCE(fdh.bc_number, soh.bc_number, sout.bc_number, wh.bc_number, '') AS nomor_bc,
+                COALESCE(fdh.bc_date, soh.bc_date, sout.bc_date, wh.bc_date, NULL) AS tanggal_bc,
                 
                 -- 2. BUKTI PENGELUARAN & PENERIMA BARANG
-                COALESCE(s_sub.nama_supplier, c_fg.nama_customer, s_scrap.nama_supplier, 'N/A') AS partner_name,
+                COALESCE(s_sub.nama_supplier, c_fg.nama_customer, s_scrap.nama_supplier, sup.nama_supplier, sup_gh.nama_supplier, wh.nama_supplier, 'N/A') AS partner_name,
                 
                 CASE sl.transaction_type
                     WHEN 'production_out' THEN sout.subkon_out_no
                     WHEN 'fg_out' THEN fdh.delivery_number
                     WHEN 'OUT_SCRAP_BC' THEN soh.doc_no
+                    WHEN 'RTN_SUPPLIER' THEN wh.out_number
                     ELSE adjh.doc_no
                 END AS nomor_pengeluaran,
                 
-                COALESCE(fdh.shipped_at, sout.shipping_date, soh.doc_date, sl.transaction_date) AS tanggal_pengeluaran,
+                COALESCE(fdh.shipped_at, sout.shipping_date, soh.doc_date, wh.out_date, sl.transaction_date) AS tanggal_pengeluaran,
                 
                 -- 3. DETAIL ITEM & NILAI
                 COALESCE(m.kode_material, sf.kode_barang, fg.kode_barang, mc.kode_mesin, scr.scrap_code) AS item_code,
@@ -83,6 +84,14 @@ class LapPengeluaranBarang_model extends CI_Model {
             LEFT JOIN master_scrap scr ON sl.item_id = scr.id AND sl.item_type = 'scrap'
             LEFT JOIN suppliers s_scrap ON soh.destination = s_scrap.id 
 
+            LEFT JOIN warehouse_out_header wh ON sl.transaction_id = wh.id AND sl.transaction_type = 'RTN_SUPPLIER'
+            LEFT JOIN suppliers sup ON wh.supplier_id = sup.id
+            -- If header supplier not set, try to read supplier from the linked GRN via warehouse_out_details
+            LEFT JOIN warehouse_out_details wod ON wh.id = wod.header_id AND wod.item_id = sl.item_id AND wod.item_type = sl.item_type
+            LEFT JOIN grn_header gh ON wod.grn_id = gh.id
+            LEFT JOIN suppliers sup_gh ON gh.supplier_id = sup_gh.id
+
+
             LEFT JOIN adjustment_details ad ON sl.transaction_id = ad.id AND sl.transaction_type = 'ADJ_OUT'
             LEFT JOIN adjustment_header adjh ON ad.adjustment_header_id = adjh.id
 
@@ -93,15 +102,17 @@ class LapPengeluaranBarang_model extends CI_Model {
 
             LEFT JOIN common_code cc_fg ON cc_fg.group_code = 'BC_TYPE' AND cc_fg.id = fdh.bc_type_id
             LEFT JOIN common_code cc_sub ON cc_sub.group_code = 'BC_TYPE' AND cc_sub.code = sout.bc_type_code
+            LEFT JOIN common_code cc_wh ON cc_wh.group_code = 'BC_TYPE' AND cc_wh.code = wh.bc_type_code
             
             -- Combine BC Type dari berbagai sumber
-            LEFT JOIN common_code cc ON cc.id = COALESCE(cc_fg.id, cc_scrap.id, cc_sub.id)
+            LEFT JOIN common_code cc ON cc.id = COALESCE(cc_fg.id, cc_scrap.id, cc_sub.id, cc_wh.id)
 
 
             -- FILTER UTAMA (Eksternal Out)
             WHERE (
                 sl.transaction_type IN ('fg_out', 'OUT_SCRAP_BC', 'ADJ_OUT')
                 OR (sl.transaction_type = 'production_out' AND sl.source_doc_type = 'SUBKON_OUT')
+                OR sl.transaction_type = 'RTN_SUPPLIER'
             )
             
             -- Filter EXIM Verification: Tampilkan yang sudah Confirmed DAN sudah diverifikasi EXIM
@@ -110,6 +121,7 @@ class LapPengeluaranBarang_model extends CI_Model {
                 OR (sl.transaction_type = 'OUT_SCRAP_BC' AND soh.status = 'Confirmed' AND soh.exim_verified = 1)
                 OR (sl.transaction_type = 'production_out' AND sl.source_doc_type = 'SUBKON_OUT' AND sout.status = 'Confirmed' AND sout.exim_verified = 1)
                 OR (sl.transaction_type = 'ADJ_OUT' AND adjh.status = 'Confirmed')
+                OR (sl.transaction_type = 'RTN_SUPPLIER' AND wh.status = 'Confirmed' AND wh.exim_verified = 1)
             )
             
             " . $this->_build_tx_type_where($filters) . "
@@ -153,8 +165,8 @@ class LapPengeluaranBarang_model extends CI_Model {
         $search = $this->db->escape_like_str($filters['search']);
         $where = " AND (COALESCE(m.kode_material, sf.kode_barang, fg.kode_barang, mc.kode_mesin, scr.scrap_code) LIKE '%{$search}%' ";
         $where .= " OR COALESCE(m.nama_material, sf.nama_barang, fg.nama_barang, mc.nama_mesin, scr.scrap_name) LIKE '%{$search}%' ";
-        $where .= " OR COALESCE(fdh.delivery_number, sout.subkon_out_no, soh.doc_no, adjh.doc_no) LIKE '%{$search}%' ";
-        $where .= " OR COALESCE(s_sub.nama_supplier, c_fg.nama_customer, s_scrap.nama_supplier) LIKE '%{$search}%' )";
+        $where .= " OR COALESCE(fdh.delivery_number, sout.subkon_out_no, soh.doc_no, wh.out_number, adjh.doc_no) LIKE '%{$search}%' ";
+        $where .= " OR COALESCE(s_sub.nama_supplier, c_fg.nama_customer, s_scrap.nama_supplier, sup.nama_supplier, wh.nama_supplier) LIKE '%{$search}%' )";
         return $where;
     }
     
@@ -177,6 +189,8 @@ class LapPengeluaranBarang_model extends CI_Model {
         $this->db->join('adjustment_header adjh', 'ad.adjustment_header_id = adjh.id', 'left');
         
         $this->db->where_in('sl.transaction_type', $this->get_outgoing_tx_types());
+        // join warehouse_out for RTN filters/counts
+        $this->db->join('warehouse_out_header wh', 'sl.transaction_id = wh.id AND sl.transaction_type = "RTN_SUPPLIER"', 'left');
         $this->db->group_start();
             $this->db->where_in('sl.transaction_type', ['fg_out', 'OUT_SCRAP_BC', 'ADJ_OUT']);
             $this->db->or_where('(sl.transaction_type = "production_out" AND sl.source_doc_type = "SUBKON_OUT")');
@@ -188,6 +202,7 @@ class LapPengeluaranBarang_model extends CI_Model {
             $this->db->or_where('(sl.transaction_type = "OUT_SCRAP_BC" AND soh.status = "Confirmed")');
             $this->db->or_where('(sl.transaction_type = "production_out" AND sl.source_doc_type = "SUBKON_OUT" AND sout.status = "Confirmed")');
             $this->db->or_where('(sl.transaction_type = "ADJ_OUT" AND adjh.status = "Confirmed")');
+            $this->db->or_where('(sl.transaction_type = "RTN_SUPPLIER" AND wh.status = "Confirmed")');
         $this->db->group_end();
         
         // Filter tanggal dokumen BC (bukan tanggal pengeluaran)

@@ -32,13 +32,13 @@ class LapMutasiMesin_model extends CI_Model {
                 SELECT
                     item_id,
                     SUM(CASE WHEN transaction_type IN ('in', 'wip_in', 'IN_RETURN_WIP') THEN qty_in ELSE 0 END) as total_masuk,
-                    SUM(CASE WHEN transaction_type IN ('out', 'production_out', 'wip_out') THEN qty_out ELSE 0 END) as total_keluar,
+                    SUM(CASE WHEN transaction_type IN ('out', 'production_out', 'wip_out', 'RTN_SUPPLIER') THEN qty_out ELSE 0 END) as total_keluar,
                     SUM(CASE WHEN transaction_type = 'adjustment' THEN (qty_in - qty_out) ELSE 0 END) as total_penyesuaian
                 FROM stock_ledger
                 WHERE transaction_date >= ?
                 AND transaction_date <= ?
                 AND item_type = 'machine'
-                AND transaction_type IN ('in', 'wip_in', 'IN_RETURN_WIP', 'out', 'adjustment', 'production_out', 'wip_out')
+                AND transaction_type IN ('in', 'wip_in', 'IN_RETURN_WIP', 'out', 'adjustment', 'production_out', 'wip_out', 'RTN_SUPPLIER')
                 GROUP BY item_id
             ),
             opname AS (
@@ -139,15 +139,14 @@ class LapMutasiMesin_model extends CI_Model {
 
     public function get_item_detail_mesin($item_id) 
     {
-        $this->db->select("
-            sl.transaction_date, sl.transaction_type, sl.qty_in, sl.qty_out, sl.balance,
+        $this->db->select("sl.transaction_date, sl.transaction_type, sl.qty_in, sl.qty_out, sl.balance,
             sl.bc_type_code,
             sl.bc_number,
             sl.bc_date,
             grn.grn_number,
             adj.doc_no as adjustment_doc, adj.notes as adjustment_notes, adj.id as adjustment_header_id,
-            woh.wo_number
-        ");
+            woh.wo_number,
+            wh.out_number as rtn_number");
         
         $this->db->from('stock_ledger sl');
         
@@ -157,10 +156,12 @@ class LapMutasiMesin_model extends CI_Model {
         $this->db->join('adjustment_header adj', 'ad.adjustment_header_id = adj.id', 'left');
         
         $this->db->join('wo_header woh', '(sl.source_doc_id = woh.id AND sl.transaction_type IN (\'production_out\', \'wip_out\'))', 'left');
+        // RTN_SUPPLIER: link to warehouse_out_header to obtain return number
+        $this->db->join('warehouse_out_header wh', "sl.transaction_id = wh.id AND sl.transaction_type = 'RTN_SUPPLIER'", 'left');
         
         $this->db->where('sl.item_id', $item_id);
         $this->db->where('sl.item_type', 'machine');
-        $this->db->where_in('sl.transaction_type', ['in', 'wip_in', 'IN_RETURN_WIP', 'out', 'adjustment', 'production_out', 'wip_out']);
+        $this->db->where_in('sl.transaction_type', ['in', 'wip_in', 'IN_RETURN_WIP', 'out', 'adjustment', 'production_out', 'wip_out', 'RTN_SUPPLIER']);
         
         $this->db->order_by('sl.transaction_date', 'ASC');
         $this->db->order_by('sl.id', 'ASC');

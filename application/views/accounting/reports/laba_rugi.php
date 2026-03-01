@@ -151,9 +151,13 @@
 }
 
 .export-buttons {
-    display: flex;
-    gap: 0.75rem;
-    flex-wrap: wrap;
+    display: block !important;
+    margin-bottom: 1rem;
+}
+
+.export-buttons a {
+    display: inline-flex;
+    margin-right: 0.75rem;
 }
 
 .dropdown-modern {
@@ -367,9 +371,7 @@
 }
 
 .report-header-section {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
+    display: block !important;
     margin-bottom: 1.5rem;
 }
 
@@ -377,9 +379,8 @@
     font-size: 1.125rem;
     font-weight: 700;
     color: var(--text-primary);
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
+    display: block !important;
+    margin: 0 !important;
 }
 
 @media (max-width: 768px) {
@@ -388,7 +389,6 @@
     .page-header-modern h1 { font-size: 1.5rem; }
     .stats-grid { grid-template-columns: 1fr; }
     .filter-section { flex-direction: column; align-items: stretch; }
-    .report-header-section { flex-direction: column; gap: 1rem; align-items: flex-start; }
 }
 </style>
 
@@ -466,24 +466,24 @@
 
     <!-- Report Table -->
     <div class="modern-card">
-        <div class="report-header-section">
-            <h6 class="report-title">
-                <i class="fas fa-file-invoice-dollar"></i> Laporan Laba Rugi
-            </h6>
-            <?php
-            $queryString = http_build_query([
-                'start_date' => $start_date,
-                'end_date' => $end_date,
-            ]);
-            ?>
-            <div class="export-buttons">
-                <a href="<?= current_url() . '?' . $queryString . '&export=pdf'; ?>" target="_blank" class="btn-modern danger">
+        <?php
+        $queryString = http_build_query([
+            'start_date' => $start_date,
+            'end_date' => $end_date,
+        ]);
+        ?>
+        <div class="report-header-section" style="display: block !important;">
+            <div class="export-buttons" style="display: block !important; margin-bottom: 1rem; clear: both;">
+                <a href="<?= current_url() . '?' . $queryString . '&export=pdf'; ?>" target="_blank" class="btn-modern danger" style="display: inline-block; margin-right: 0.75rem;">
                     <i class="fas fa-file-pdf"></i> PDF
                 </a>
-                <a href="<?= current_url() . '?' . $queryString . '&export=excel'; ?>" class="btn-modern success">
+                <a href="<?= current_url() . '?' . $queryString . '&export=excel'; ?>" class="btn-modern success" style="display: inline-block;">
                     <i class="fas fa-file-excel"></i> Excel
                 </a>
             </div>
+            <h6 class="report-title" style="display: block !important; margin: 0; clear: both;">
+                <i class="fas fa-file-invoice-dollar"></i> Laporan Laba Rugi
+            </h6>
         </div>
 
         <div style="overflow-x: auto;">

@@ -16,7 +16,7 @@
 <div class="modal-body">
     <p class="text-muted small">
         Menampilkan riwayat transaksi GUDANG (Pemasukan, Pengeluaran, Retur, dan Penyesuaian).
-        <br>Transaksi internal WIP diabaikan di kartu stok ini.
+        <br>
     </p>
 
     <div class="table-responsive" style="max-height: 60vh;">
@@ -79,6 +79,16 @@
                                 // Jika Anda ingin Tgl. Adjusment di kolom Tgl BC, Anda bisa tambahkan:
                                 // $bc_date_formatted = $t->adjustment_date ? date('d-m-Y', strtotime($t->adjustment_date)) : '';
                                 break;
+                            case 'RTN_SUPPLIER':
+                                $badge = 'secondary';
+                                // Use RTN-specific fields returned by the model
+                                $doc_num = isset($t->rtn_number) ? $t->rtn_number : '';
+                                $bc_type = isset($t->rtn_bc_type) ? $t->rtn_bc_type : '';
+                                $bc_num = isset($t->rtn_bc_no) ? $t->rtn_bc_no : '';
+                                $bc_date_formatted = !empty($t->rtn_bc_date) ? date('d-m-Y', strtotime($t->rtn_bc_date)) : '';
+                                // show supplier name as reference
+                                $doc_ref = isset($t->rtn_supplier_name) ? $t->rtn_supplier_name : '';
+                                break;
                         }
                 ?>
                 <tr>
@@ -100,8 +110,15 @@
                             </button>
                         <?php endif; ?>
                         
-                        <?php if (!empty($bc_num) && !empty($t->grn_number)): ?>
-                            <a href="<?= base_url('BeaCukai/detail/' . base64_encode($t->grn_number)); ?>" 
+                        <?php 
+                            $bc_link_identifier = '';
+                            if (!empty($bc_num)) {
+                                if (!empty($t->grn_number)) { $bc_link_identifier = $t->grn_number; }
+                                else if (!empty($t->rtn_number)) { $bc_link_identifier = $t->rtn_number; }
+                            }
+                        ?>
+                        <?php if (!empty($bc_num) && !empty($bc_link_identifier)): ?>
+                                     <a href="<?= base_url('BeaCukai/detail/' . rawurlencode(base64_encode($bc_link_identifier))); ?>" 
                                class="btn btn-primary btn-xs" 
                                target="_blank" 
                                title="Lihat Detail BC">

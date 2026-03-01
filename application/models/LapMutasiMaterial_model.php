@@ -65,8 +65,8 @@ class LapMutasiMaterial_model extends CI_Model {
                     SUM(CASE WHEN transaction_type IN ('in') THEN qty_in ELSE 0 END) as pemasukan,
                     -- Retur: Material dikembalikan dari produksi
                     SUM(CASE WHEN transaction_type IN ('IN_RETURN_WIP') THEN qty_in ELSE 0 END) as retur,
-                    -- Pengeluaran: Hanya OUT_ISSUE (issuance ke produksi), bukan production_out (pemakaian aktual WIP)
-                    SUM(CASE WHEN transaction_type IN ('OUT_ISSUE') THEN qty_out ELSE 0 END) as pengeluaran,
+                    -- Pengeluaran: OUT_ISSUE dan Retur ke Supplier (RTN_SUPPLIER) dianggap sebagai pengeluaran fisik
+                    SUM(CASE WHEN transaction_type IN ('OUT_ISSUE', 'RTN_SUPPLIER') THEN qty_out ELSE 0 END) as pengeluaran,
                     -- Penyesuaian: Adjustment stok
                     SUM(CASE WHEN transaction_type = 'adjustment' THEN (qty_in - qty_out) ELSE 0 END) as penyesuaian
                 FROM stock_ledger
@@ -161,6 +161,7 @@ class LapMutasiMaterial_model extends CI_Model {
         $this->db->select("
             sl.id, sl.transaction_date, sl.transaction_type, sl.qty_in, sl.qty_out,
             gh.grn_number, gh.bc_type_code, gh.bc_number, gh.bc_date, ph.po_number,
+            wh.out_number as rtn_number, wh.bc_type_code as rtn_bc_type, wh.bc_number as rtn_bc_no, wh.bc_date as rtn_bc_date, swh.nama_supplier as rtn_supplier_name,
             mrh.mr_number, mrh.issuance_number,
             prh.prod_return_no,
             ah.doc_no as adjustment_doc, ah.notes as adjustment_notes, ah.doc_date as adjustment_date, ah.id as adjustment_header_id
@@ -179,6 +180,9 @@ class LapMutasiMaterial_model extends CI_Model {
         
         $this->db->join('adjustment_details ad', 'sl.transaction_id = ad.id', 'left');
         $this->db->join('adjustment_header ah', 'ad.adjustment_header_id = ah.id AND sl.transaction_type = \'adjustment\'', 'left');
+        // RTN: join warehouse_out_header to expose return document number and BC info
+        $this->db->join('warehouse_out_header wh', 'sl.transaction_id = wh.id AND sl.transaction_type = \'RTN_SUPPLIER\'', 'left');
+        $this->db->join('suppliers swh', 'wh.supplier_id = swh.id', 'left');
         
         $this->db->where('sl.item_id', $item_id);
         $this->db->where('sl.item_type', $item_type);
