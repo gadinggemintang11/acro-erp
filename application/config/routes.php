@@ -174,6 +174,19 @@ $route['jurnalumum/import'] = 'JurnalUmum/import';
 $route['jurnalumum/process_import'] = 'JurnalUmum/process_import';
 $route['jurnalumum'] = 'JurnalUmum/index';
 
+// Cash & Bank routes
+$route['cashbank'] = 'CashBank/index';
+$route['cashbank/create'] = 'CashBank/create';
+$route['cashbank/store'] = 'CashBank/store';
+$route['cashbank/view/(:num)'] = 'CashBank/view/$1';
+$route['cashbank/post/(:num)'] = 'CashBank/post/$1';
+$route['cashbank/delete/(:num)'] = 'CashBank/delete/$1';
+$route['cashbank/ajax_get_cashbank_accounts'] = 'CashBank/ajax_get_cashbank_accounts';
+$route['cashbank/ajax_get_other_accounts'] = 'CashBank/ajax_get_other_accounts';
+$route['cashbank/export_excel'] = 'CashBank/export_excel';
+$route['cashbank/export_pdf'] = 'CashBank/export_pdf';
+$route['cashbank/export_pdf_detail/(:num)'] = 'CashBank/export_pdf_detail/$1';
+
 // ===== Adjustment Document Management Routes =====
 $route['adjustment/ajax_search_grn'] = 'adjustment/ajax_search_grn';
 $route['adjustment/ajax_get_grn_details'] = 'adjustment/ajax_get_grn_details';
