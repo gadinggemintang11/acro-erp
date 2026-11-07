@@ -8,6 +8,10 @@
 ##################################
 !application/
 !assets/
+# vendor (Composer) ikut di-commit: server cPanel deploy via git pull tanpa
+# Composer. Tanpa baris ini "!vendor/**/*" di bawah tidak berlaku karena
+# foldernya sendiri masih ter-ignore (2026-11-07).
+!vendor/
 
 
 ##################################
@@ -25,6 +29,13 @@ application/cache/*
 
 application/logs/*
 !application/logs/index.html
+
+# Cache font dompdf -- dibuat saat runtime di server, jangan di-commit
+# (kalau ikut, git pull di server bisa bentrok dengan file yang ditulis dompdf).
+vendor/dompdf/dompdf/lib/fonts/installed-fonts.json
+vendor/dompdf/dompdf/lib/fonts/*.afm.json
+vendor/dompdf/dompdf/lib/fonts/*.ufm.json
+vendor/dompdf/dompdf/lib/fonts/*_????????????????????????????????.*
 
 ##################################
 # 5. FILE ROOT YANG DIPERLUKAN
