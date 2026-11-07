@@ -27,7 +27,7 @@ class Warehouse_in_model extends CI_Model {
         ";
         
         $this->db->select('
-            h.id, h.grn_number, h.grn_date, h.status, h.base_on,
+            h.id, h.grn_number, h.grn_date, h.status, h.base_on, h.qa_status,
             COALESCE(s.nama_supplier, s_po.nama_supplier, s_mir.nama_supplier) as nama_supplier
         ');
         $this->db->from($this->table_header . ' h');
@@ -40,7 +40,12 @@ class Warehouse_in_model extends CI_Model {
         $this->db->join('suppliers s_po', 's_po.id = po.supplier_id', 'left');
         $this->db->join('mir_header mir', 'gd.source_doc_type = "MIR" AND gd.source_doc_header_id = mir.id', 'left');
         $this->db->join('suppliers s_mir', 's_mir.id = mir.supplier_id', 'left');
-        
+
+        // Penyelesaian jasa (tombol "Selesaikan Jasa" di PO Jasa) menulis ke grn_header
+        // dengan warehouse_type='jasa' juga, tapi bukan penerimaan barang fisik —
+        // jangan tampil di list GRN gudang ini.
+        $this->db->where('h.warehouse_type !=', 'jasa');
+
         $this->db->order_by('h.id', 'DESC');
         return $this->db->get()->result();
     }
@@ -50,7 +55,9 @@ class Warehouse_in_model extends CI_Model {
         $this->db->select('
             h.*, s.nama_supplier,
             creator.fullname as creator_name,
+            creator.signature_path as creator_signature,
             confirmer.fullname as confirmer_name,
+            confirmer.signature_path as confirmer_signature,
             cc_bc.description as bc_type_desc
         ');
         $this->db->from($this->table_header . ' h');
@@ -119,13 +126,8 @@ class Warehouse_in_model extends CI_Model {
     }
 
     public function generate_grn_number() {
-        $this->db->reset_query();
-        $prefix = 'GRN/' . date('Ym') . '/';
-        $this->db->select_max('SUBSTRING(grn_number, 10, 4)', 'max_num');
-        $this->db->like('grn_number', $prefix, 'after');
-        $last = $this->db->get($this->table_header)->row();
-        $new_num = $last && $last->max_num ? (int)$last->max_num + 1 : 1;
-        return $prefix . str_pad($new_num, 4, '0', STR_PAD_LEFT);
+        // Format nomor diatur di config/doc_number.php (rebrand Acropoly 2026-11-05).
+        return doc_number_next('grn', 'grn_header', 'grn_number');
     }
 
     // === DETAILS ===
@@ -135,9 +137,9 @@ class Warehouse_in_model extends CI_Model {
             d.id, d.grn_header_id, d.receive_qty, d.unit_value, d.total_value, d.source_doc_type, d.source_doc_header_id, d.item_id, d.item_type,
             d.bc_type_code, d.bc_number, d.bc_date,
             CASE WHEN d.source_doc_type = 'PO' THEN poh.po_number WHEN d.source_doc_type = 'MIR' THEN mirh.mir_number END as source_doc_number,
-            CASE WHEN d.item_type = 'material' THEN m.kode_material WHEN d.item_type = 'machine' THEN mc.kode_mesin WHEN d.item_type = 'inventory' THEN i.kode_barang WHEN d.item_type = 'semifinished' THEN sf.kode_barang END as item_code,
-            CASE WHEN d.item_type = 'material' THEN m.nama_material WHEN d.item_type = 'machine' THEN mc.nama_mesin WHEN d.item_type = 'inventory' THEN i.nama_barang WHEN d.item_type = 'semifinished' THEN sf.nama_barang END as item_name,
-            CASE WHEN d.item_type = 'material' THEN m.satuan WHEN d.item_type = 'machine' THEN mc.satuan WHEN d.item_type = 'inventory' THEN i.satuan WHEN d.item_type = 'semifinished' THEN sf.satuan END as satuan
+            CASE WHEN d.item_type = 'material' THEN m.kode_material WHEN d.item_type = 'machine' THEN mc.kode_mesin WHEN d.item_type = 'inventory' THEN i.kode_barang WHEN d.item_type = 'semifinished' THEN sf.kode_barang WHEN d.item_type = 'jasa' THEN j.kode_jasa END as item_code,
+            CASE WHEN d.item_type = 'material' THEN m.nama_material WHEN d.item_type = 'machine' THEN mc.nama_mesin WHEN d.item_type = 'inventory' THEN i.nama_barang WHEN d.item_type = 'semifinished' THEN sf.nama_barang WHEN d.item_type = 'jasa' THEN j.nama_jasa END as item_name,
+            CASE WHEN d.item_type = 'material' THEN m.satuan WHEN d.item_type = 'machine' THEN mc.satuan WHEN d.item_type = 'inventory' THEN i.satuan WHEN d.item_type = 'semifinished' THEN sf.satuan WHEN d.item_type = 'jasa' THEN j.satuan END as satuan
         ";
         $this->db->select($select_clause, FALSE);
         $this->db->from($this->table_details . ' d');
@@ -145,11 +147,98 @@ class Warehouse_in_model extends CI_Model {
         $this->db->join('machines mc', 'd.item_id = mc.id AND d.item_type = "machine"', 'left');
         $this->db->join('inventories i', 'd.item_id = i.id AND d.item_type = "inventory"', 'left');
         $this->db->join('semifinished_goods sf', 'd.item_id = sf.id AND d.item_type = "semifinished"', 'left');
+        $this->db->join('jasa j', 'd.item_id = j.id AND d.item_type = "jasa"', 'left');
         $this->db->join('po_header poh', 'd.source_doc_header_id = poh.id AND d.source_doc_type = "PO"', 'left');
         $this->db->join('mir_header mirh', 'd.source_doc_header_id = mirh.id AND d.source_doc_type = "MIR"', 'left');
         $this->db->where('d.grn_header_id', $grn_id);
         $query = $this->db->get();
         return $query ? $query->result() : [];
+    }
+
+    /**
+     * Status penerimaan tiap baris PO -- sumber tunggal untuk modal Pilih PO,
+     * load item terpilih, dan edit item (user 2026-09-14: penerimaan bisa
+     * partial per item maupun per qty).
+     *
+     * Kolom qty dipecah tiga, SALING LEPAS:
+     *   qty_received     dari GRN berstatus Completed (benar-benar sudah masuk)
+     *   qty_draft_other  dari GRN Draft LAIN (sedang disiapkan orang lain)
+     *   qty_this_grn     dari GRN yang sedang dibuka
+     * Sisa yang masih boleh diterima = qty_po - ketiganya.
+     *
+     * Versi lama menandai baris sebagai "sudah diterima" begitu ADA satu baris
+     * grn_details, berapa pun qty-nya. Akibatnya PO yang semua barisnya baru
+     * diterima sebagian hilang dari daftar, dan sisanya tidak bisa diterima
+     * lewat Load PO sama sekali.
+     *
+     * @param int[] $po_ids
+     * @param int   $grn_id GRN yang sedang dibuka (0 kalau tidak ada)
+     */
+    public function get_po_lines_with_receipt(array $po_ids, $grn_id = 0) {
+        $po_ids = array_values(array_filter(array_map('intval', $po_ids)));
+        if (empty($po_ids)) return [];
+        $grn_id = (int) $grn_id;
+
+        $this->db->reset_query();
+        $sql = "
+            SELECT
+                pd.id AS po_detail_id, pd.po_header_id, pd.item_id, pd.item_type,
+                pd.qty AS qty_po, pd.local_price,
+                CASE pd.item_type
+                    WHEN 'material'     THEN m.kode_material WHEN 'semifinished' THEN sf.kode_barang
+                    WHEN 'inventory'    THEN i.kode_barang   WHEN 'machine'      THEN mc.kode_mesin
+                END AS item_code,
+                CASE pd.item_type
+                    WHEN 'material'     THEN m.nama_material WHEN 'semifinished' THEN sf.nama_barang
+                    WHEN 'inventory'    THEN i.nama_barang   WHEN 'machine'      THEN mc.nama_mesin
+                END AS item_name,
+                CASE pd.item_type
+                    WHEN 'material'     THEN m.satuan  WHEN 'semifinished' THEN sf.satuan
+                    WHEN 'inventory'    THEN i.satuan  WHEN 'machine'      THEN mc.satuan
+                END AS unit,
+                COALESCE(SUM(CASE WHEN gh.status = 'Completed' THEN gd.receive_qty END), 0) AS qty_received,
+                COALESCE(SUM(CASE WHEN gh.status = 'Draft' AND gh.id <> ? THEN gd.receive_qty END), 0) AS qty_draft_other,
+                COALESCE(SUM(CASE WHEN gh.status = 'Draft' AND gh.id =  ? THEN gd.receive_qty END), 0) AS qty_this_grn,
+                GROUP_CONCAT(DISTINCT CASE WHEN gh.status = 'Draft' AND gh.id <> ? THEN gh.grn_number END SEPARATOR ', ') AS draft_other_numbers
+            FROM po_details pd
+            LEFT JOIN grn_details gd ON gd.source_doc_detail_id = pd.id AND gd.source_doc_type = 'PO'
+            LEFT JOIN grn_header  gh ON gh.id = gd.grn_header_id
+            LEFT JOIN materials          m  ON m.id  = pd.item_id AND pd.item_type = 'material'
+            LEFT JOIN semifinished_goods sf ON sf.id = pd.item_id AND pd.item_type = 'semifinished'
+            LEFT JOIN inventories        i  ON i.id  = pd.item_id AND pd.item_type = 'inventory'
+            LEFT JOIN machines           mc ON mc.id = pd.item_id AND pd.item_type = 'machine'
+            WHERE pd.po_header_id IN (" . implode(',', $po_ids) . ")
+            GROUP BY pd.id
+            ORDER BY pd.po_header_id, pd.id";
+        $rows = $this->db->query($sql, [$grn_id, $grn_id, $grn_id])->result();
+
+        $receivable_types = ['material', 'semifinished'];
+        foreach ($rows as $r) {
+            $r->qty_po          = (float) $r->qty_po;
+            $r->qty_received    = (float) $r->qty_received;
+            $r->qty_draft_other = (float) $r->qty_draft_other;
+            $r->qty_this_grn    = (float) $r->qty_this_grn;
+            $r->qty_remaining   = round($r->qty_po - $r->qty_received - $r->qty_draft_other - $r->qty_this_grn, 4);
+            $r->is_material     = in_array($r->item_type, $receivable_types, true);
+            $r->receivable      = $r->is_material && $r->qty_remaining > 0.0001;
+
+            // Status manusiawi untuk modal. Urutan cek penting: tipe dulu,
+            // karena baris non-material tidak pernah diterima di modul ini.
+            if (!$r->is_material) {
+                $r->status_key = 'other_module';
+            } elseif ($r->qty_received >= $r->qty_po - 0.0001) {
+                $r->status_key = 'done';
+            } elseif ($r->qty_remaining <= 0.0001 && $r->qty_this_grn > 0) {
+                $r->status_key = 'in_this_grn';
+            } elseif ($r->qty_remaining <= 0.0001) {
+                $r->status_key = 'held_in_draft';
+            } elseif ($r->qty_received > 0 || $r->qty_this_grn > 0 || $r->qty_draft_other > 0) {
+                $r->status_key = 'partial';
+            } else {
+                $r->status_key = 'not_received';
+            }
+        }
+        return $rows;
     }
 
     public function insert_item($data) {
@@ -463,14 +552,15 @@ class Warehouse_in_model extends CI_Model {
         if (empty($grn_ids) || !is_array($grn_ids)) return [];
         $this->db->reset_query();
         $this->db->select('d.id as grn_detail_id, d.grn_header_id, d.receive_qty, d.unit_value, d.total_value, d.source_doc_type, d.source_doc_header_id, d.source_doc_detail_id, d.item_id, d.item_type, d.bc_type_code, d.bc_number, d.bc_date, pd.qty as po_qty, md.total_qty as mir_total_qty, pd.qty as qty, md.total_qty as total_qty', FALSE);
-        $this->db->select('CASE WHEN d.item_type = "material" THEN m.kode_material WHEN d.item_type = "machine" THEN mc.kode_mesin WHEN d.item_type = "inventory" THEN i.kode_barang WHEN d.item_type = "semifinished" THEN sf.kode_barang END as item_code', FALSE);
-        $this->db->select('CASE WHEN d.item_type = "material" THEN m.nama_material WHEN d.item_type = "machine" THEN mc.nama_mesin WHEN d.item_type = "inventory" THEN i.nama_barang WHEN d.item_type = "semifinished" THEN sf.nama_barang END as item_name', FALSE);
-        $this->db->select('CASE WHEN d.item_type = "material" THEN m.satuan WHEN d.item_type = "machine" THEN mc.satuan WHEN d.item_type = "inventory" THEN i.satuan WHEN d.item_type = "semifinished" THEN sf.satuan END as unit', FALSE);
+        $this->db->select('CASE WHEN d.item_type = "material" THEN m.kode_material WHEN d.item_type = "machine" THEN mc.kode_mesin WHEN d.item_type = "inventory" THEN i.kode_barang WHEN d.item_type = "semifinished" THEN sf.kode_barang WHEN d.item_type = "jasa" THEN j.kode_jasa END as item_code', FALSE);
+        $this->db->select('CASE WHEN d.item_type = "material" THEN m.nama_material WHEN d.item_type = "machine" THEN mc.nama_mesin WHEN d.item_type = "inventory" THEN i.nama_barang WHEN d.item_type = "semifinished" THEN sf.nama_barang WHEN d.item_type = "jasa" THEN j.nama_jasa END as item_name', FALSE);
+        $this->db->select('CASE WHEN d.item_type = "material" THEN m.satuan WHEN d.item_type = "machine" THEN mc.satuan WHEN d.item_type = "inventory" THEN i.satuan WHEN d.item_type = "semifinished" THEN sf.satuan WHEN d.item_type = "jasa" THEN j.satuan END as unit', FALSE);
         $this->db->from($this->table_details . ' d');
         $this->db->join('materials m', 'd.item_id = m.id AND d.item_type = "material"', 'left');
         $this->db->join('machines mc', 'd.item_id = mc.id AND d.item_type = "machine"', 'left');
         $this->db->join('inventories i', 'd.item_id = i.id AND d.item_type = "inventory"', 'left');
         $this->db->join('semifinished_goods sf', 'd.item_id = sf.id AND d.item_type = "semifinished"', 'left');
+        $this->db->join('jasa j', 'd.item_id = j.id AND d.item_type = "jasa"', 'left');
         // Join to source detail tables to obtain original PO/MIR qty
         $this->db->join('po_details pd', 'd.source_doc_type = "PO" AND d.source_doc_detail_id = pd.id', 'left');
         $this->db->join('mir_details md', 'd.source_doc_type = "MIR" AND d.source_doc_detail_id = md.id', 'left');
@@ -570,5 +660,204 @@ class Warehouse_in_model extends CI_Model {
         }
 
         return $grn_header;
+    }
+
+    // ========================================================
+    // NEW METHOD: Add stock from QA approved quantities
+    // Called AFTER QA is completed and approved
+    // Only adds stock for items with qa_pass_qty > 0
+    // ========================================================
+    public function add_stock_from_qa($grn_id, $qa_id, $user_id = null) {
+        $this->db->trans_start();
+
+        try {
+            // Get GRN header
+            $grn_header = $this->get_header_by_id($grn_id);
+            if (!$grn_header) {
+                throw new Exception('GRN not found');
+            }
+
+            // Get QA details dengan PASS quantities
+            $this->load->model('Quality_assurance_model');
+            $qa_details = $this->Quality_assurance_model->get_qa_details_by_header($qa_id);
+            
+            if (empty($qa_details)) {
+                throw new Exception('No QA details found');
+            }
+
+            $this->load->model('Stock_ledger_model');
+
+            // Add stock ONLY untuk yang PASS
+            foreach ($qa_details as $detail) {
+                // IMPORTANT: Use qa_pass_qty, NOT receive_qty!
+                if ($detail->qa_pass_qty <= 0) continue;
+
+                $stock_on_hand_id = null;
+
+                // Create SOH batch (untuk material, semifinished, inventory)
+                if (in_array($detail->item_type, ['material', 'semifinished', 'inventory'])) {
+                    $batch_data = [
+                        'grn_detail_id' => $detail->grn_detail_id,
+                        'grn_header_id' => $grn_id,
+                        'item_id'       => $detail->item_id,
+                        'item_type'     => $detail->item_type,
+                        'initial_qty'   => (float)$detail->qa_pass_qty,  // PASS qty, not receive_qty!
+                        'available_qty' => (float)$detail->qa_pass_qty,
+                        'unit_value'    => (float)($detail->unit_value ?? 0)
+                    ];
+
+                    // Add BC info if available
+                    $grn_detail = $this->db->select('*')
+                        ->from($this->table_details)
+                        ->where('id', $detail->grn_detail_id)
+                        ->get()
+                        ->row();
+
+                    if ($grn_detail) {
+                        $batch_data['bc_type_code'] = $grn_detail->bc_type_code ?? $grn_header->bc_type_code ?? null;
+                        $batch_data['bc_number'] = $grn_detail->bc_number ?? $grn_header->bc_number ?? null;
+                        $batch_data['bc_date'] = $grn_detail->bc_date ?? $grn_header->bc_date ?? null;
+                    }
+
+                    // Filter allowed columns
+                    $allowed_soh_columns = $this->db->list_fields('stock_on_hand');
+                    foreach ($batch_data as $key => $value) {
+                        if (!in_array($key, $allowed_soh_columns)) {
+                            unset($batch_data[$key]);
+                        }
+                    }
+
+                    $this->db->reset_query();
+                    if (!$this->db->insert('stock_on_hand', $batch_data)) {
+                        $db_error = $this->db->error();
+                        log_message('error', "QA Stock: Failed to insert SOH. Error: " . json_encode($db_error));
+                        throw new Exception('Failed to create batch in SOH');
+                    }
+                    $stock_on_hand_id = $this->db->insert_id();
+                }
+
+                // Add to Stock Ledger dengan PASS qty
+                $last_balance = $this->Stock_ledger_model->get_last_balance($detail->item_id, $detail->item_type);
+                $new_balance = $last_balance + (float)$detail->qa_pass_qty;  // PASS qty!
+
+                $grn_detail = $this->db->select('*')
+                    ->from($this->table_details)
+                    ->where('id', $detail->grn_detail_id)
+                    ->get()
+                    ->row();
+
+                $ledger_data = [
+                    'item_id'           => $detail->item_id,
+                    'item_type'         => $detail->item_type,
+                    'transaction_date'  => ($grn_header->grn_date ?? date('Y-m-d')) . ' ' . date('H:i:s'),
+                    'transaction_type'  => 'in',
+                    'transaction_id'    => $grn_id,
+                    'source_doc_type'   => $grn_detail->source_doc_type ?? 'GRN',
+                    'source_doc_id'     => $grn_detail->source_doc_header_id ?? $grn_id,
+                    'qty_in'            => (float)$detail->qa_pass_qty,  // PASS qty!
+                    'qty_out'           => 0,
+                    'unit_value'        => (float)($detail->unit_value ?? 0),
+                    'balance'           => $new_balance,
+                    'stock_on_hand_id'  => $stock_on_hand_id,
+                    'remarks'           => 'From GRN ' . $grn_header->grn_number . ' (QA Approved)'
+                ];
+
+                // Add BC info
+                if ($grn_detail) {
+                    $ledger_data['bc_type_code'] = $grn_detail->bc_type_code ?? $grn_header->bc_type_code ?? null;
+                    $ledger_data['bc_number'] = $grn_detail->bc_number ?? $grn_header->bc_number ?? null;
+                    $ledger_data['bc_date'] = $grn_detail->bc_date ?? $grn_header->bc_date ?? null;
+                }
+
+                if (!$this->Stock_ledger_model->insert($ledger_data)) {
+                    $db_error = $this->db->error();
+                    log_message('error', "QA Stock: Failed to insert ledger. Error: " . json_encode($db_error));
+                    throw new Exception('Failed to add to stock ledger');
+                }
+            }
+
+            // Update GRN status to Completed (qa_status already set correctly by complete_qa())
+            $this->db->reset_query();
+            $this->db->where('id', $grn_id)
+                ->update($this->table_header, [
+                    'status' => 'Completed'
+                ]);
+
+            $this->db->trans_complete();
+            if ($this->db->trans_status() === FALSE) {
+                throw new Exception('Transaction failed');
+            }
+
+            log_message('info', "QA Stock: Successfully added stock from QA $qa_id for GRN $grn_id");
+            return true;
+
+        } catch (Exception $e) {
+            $this->db->trans_complete();
+            log_message('error', "QA Stock Error: " . $e->getMessage());
+            return false;
+        }
+    }
+
+    // =====================================================
+    // GOODS RETURN — Receive replacement from supplier
+    // =====================================================
+
+    /**
+     * Get confirmed Warehouse Out documents (NG dari QA & Production Return) untuk Goods Return.
+     * Exclude warehouse_out yang sudah dimuat ke GRN lain (via grn_header.goods_return_wh_out_id).
+     */
+    public function get_available_goods_return($filters = []) {
+        $this->db->reset_query();
+        $this->db->select('
+            h.id, h.out_number, h.out_date, h.supplier_id, h.base_on,
+            COALESCE(s.nama_supplier, h.nama_supplier, \'-\') as nama_supplier,
+            COUNT(d.id) as total_items,
+            SUM(d.qty_return) as total_qty_return
+        ', FALSE);
+        $this->db->from('warehouse_out_header h');
+        $this->db->join('warehouse_out_details d', 'd.header_id = h.id', 'left');
+        $this->db->join('suppliers s', 's.id = h.supplier_id', 'left');
+        $this->db->where_in('h.base_on', ['NG', 'Production Return']);
+        $this->db->where('h.status', 'Confirmed');
+
+        // Exclude yg sudah dimuat ke GRN lain (Draft/Completed sama-sama mengunci)
+        $this->db->where('h.id NOT IN (SELECT goods_return_wh_out_id FROM grn_header WHERE goods_return_wh_out_id IS NOT NULL)', null, FALSE);
+
+        if (!empty($filters['search'])) {
+            $this->db->group_start()
+                ->like('h.out_number', $filters['search'])
+                ->or_like('s.nama_supplier', $filters['search'])
+                ->or_like('h.nama_supplier', $filters['search'])
+                ->group_end();
+        }
+        $this->db->group_by('h.id');
+        $this->db->order_by('h.out_date', 'DESC');
+        return $this->db->get()->result();
+    }
+
+    /**
+     * Get items from a confirmed WO (NG type) to load into a Goods Return GRN.
+     */
+    public function get_goods_return_items($wh_out_id) {
+        $this->db->reset_query();
+        $this->db->select('
+            d.id as wh_out_detail_id,
+            d.header_id as wh_out_header_id,
+            d.qa_detail_id,
+            d.item_id,
+            d.item_type,
+            d.item_code,
+            d.item_name,
+            d.unit,
+            d.qty_return as qty_returned,
+            d.unit_value_idr as unit_value,
+            h.out_number,
+            h.supplier_id
+        ', FALSE);
+        $this->db->from('warehouse_out_details d');
+        $this->db->join('warehouse_out_header h', 'd.header_id = h.id', 'left');
+        $this->db->where('d.header_id', $wh_out_id);
+        $this->db->where('d.qty_return >', 0);
+        return $this->db->get()->result();
     }
 }

@@ -16,22 +16,27 @@ class Sales_contract extends MY_Controller {
         // Muat semua model yang dibutuhkan
         $this->load->model(['Sc_model', 'Customer_model', 'Fg_model', 'Commoncode_model']);
         // Load form helper untuk view edit
-        $this->load->helper('form'); 
+        $this->load->helper('form');
+        // Load translation helper for status translations
+        $this->load->helper('translation');
         // Load form validation library jika belum di autoload
         $this->load->library('form_validation'); 
     }
 
+    /**
+     * CREATE NEW IPO — list IPO status Draft saja, plus form add/import.
+     */
     public function index() {
         if (!check_access('sales_contract', 'view')) {
-            show_error('Anda tidak memiliki izin untuk melihat modul ini.', 403);
+            show_error(lang_line('sc_msg_no_permission_view', 'Anda tidak memiliki izin untuk melihat modul ini.'), 403);
         }
 
         $data = [
-            'title'     => 'Sales Contract',
-            'contracts' => $this->Sc_model->get_all(),
+            'title'     => lang_line('sc_title_create', 'Create New Sales Order'),
+            'contracts' => $this->Sc_model->get_drafts(),
             // Data untuk modal Add
             'customers' => $this->Customer_model->get_all(['status' => 'active']),
-            'styles'    => $this->Fg_model->get_all(['status' => 'active']), 
+            'styles'    => $this->Fg_model->get_all(['status' => 'active']),
             'currencies'=> $this->Commoncode_model->get_by_group('CURRENCY')
         ];
 
@@ -42,19 +47,132 @@ class Sales_contract extends MY_Controller {
         $this->load->view('templates/footer');
     }
 
+    /**
+     * IPO APPROVAL — list IPO yang butuh action user.
+     * - User can_endorsement → lihat status 'Pending Endorsement'
+     * - User can_approval    → lihat status 'Endorsed'
+     * Visibility eksklusif: user endorsement tidak lihat 'Endorsed', dan sebaliknya.
+     */
+    public function approval() {
+        if (!check_access('sales_contract_approval', 'view')) {
+            show_error(lang_line('sc_msg_no_permission_view', 'Anda tidak memiliki izin untuk melihat modul ini.'), 403);
+        }
+
+        // Approval Sales Order 1 tahap (2026-11-06): cukup izin 'approval'.
+        $can_endorse = false;
+        $can_approve = check_access('sales_contract_approval', 'approval');
+        $contracts   = $can_approve ? $this->Sc_model->get_pending_approval() : [];
+        $stage       = $can_approve ? 'approval' : 'none';
+        $data = [
+            'title'       => lang_line('sc_title_approval', 'Sales Order Approval'),
+            'contracts'   => $contracts,
+            'stage'       => $stage,
+            'can_endorse' => $can_endorse,
+            'can_approve' => $can_approve,
+            'can_reject'  => $can_approve,
+            // Riwayat approval milik user yg sedang login (user 2026-09-06:
+            // "di bagian bawah ada riwayat yang user itu approve") — kartu
+            // kedua di bawah antrian, partial templates/my_approval_history.php.
+            'my_approval_history' => my_approval_history([
+                'table'  => 'sales_contracts',
+                'number' => 'sc_number',
+                'date'   => 'contract_date',
+            ]),
+            'my_history_route'    => 'sales_contract/detail',
+        ];
+
+        $this->load->view('templates/header', $data);
+        $this->load->view('templates/sidebar', $data);
+        $this->load->view('templates/topbar', $data);
+        $this->load->view('sales_contract/approval', $data);
+        $this->load->view('templates/footer');
+    }
+
+    /**
+     * Detail IPO (read-only) — bisa dibuka dari Approval/List/Create.
+     * View ini tidak punya tombol aksi; hanya menampilkan data lengkap
+     * + audit trail approval workflow.
+     */
+    public function detail($id) {
+        if (empty($id) || !is_numeric($id)) show_404();
+
+        // Akses: minimal salah satu dari 3 menu IPO.
+        $can_open = check_access('sales_contract', 'view')
+                 || check_access('sales_contract_approval', 'view')
+                 || check_access('sales_contract_list', 'view');
+        if (!$can_open) {
+            show_error(lang_line('sc_msg_no_permission_view', 'Anda tidak memiliki izin untuk melihat modul ini.'), 403);
+        }
+
+        // Pakai _get_with_filter agar dapat semua kolom audit + nama user.
+        $this->db->select('
+            sc.*,
+            c.nama_customer, c.alamat as customer_address,
+            fg.nama_barang as style_name, fg.kode_barang as style_code,
+            us.fullname as submitted_by_name,
+            ue.fullname as endorsed_by_name,
+            ua.fullname as approved_by_name,
+            ur.fullname as rejected_by_name
+        ');
+        $this->db->from('sales_contracts sc');
+        $this->db->join('customers c',     'sc.customer_id = c.id', 'left');
+        $this->db->join('finished_goods fg','sc.fg_id = fg.id',     'left');
+        $this->db->join('users us', 'us.id = sc.submitted_by', 'left');
+        $this->db->join('users ue', 'ue.id = sc.endorsed_by',  'left');
+        $this->db->join('users ua', 'ua.id = sc.approved_by',  'left');
+        $this->db->join('users ur', 'ur.id = sc.rejected_by',  'left');
+        $this->db->where('sc.id', $id);
+        $contract = $this->db->get()->row();
+
+        if (!$contract) show_404();
+
+        $data = [
+            'title'    => sprintf(lang_line('title_sc_detail'), $contract->sc_number),
+            'contract' => $contract,
+            // Asal halaman: untuk tombol back yang benar.
+            'back_url' => $this->input->get('from') ?: 'sales_contract/list_all',
+        ];
+
+        $this->load->view('templates/header', $data);
+        $this->load->view('templates/sidebar', $data);
+        $this->load->view('templates/topbar', $data);
+        $this->load->view('sales_contract/detail', $data);
+        $this->load->view('templates/footer');
+    }
+
+    /**
+     * IPO LIST — semua IPO (read-only), apapun statusnya.
+     */
+    public function list_all() {
+        if (!check_access('sales_contract_list', 'view')) {
+            show_error(lang_line('sc_msg_no_permission_view', 'Anda tidak memiliki izin untuk melihat modul ini.'), 403);
+        }
+
+        $data = [
+            'title'     => lang_line('sc_title_list', 'Sales Order List'),
+            'contracts' => $this->Sc_model->get_all(),
+        ];
+
+        $this->load->view('templates/header', $data);
+        $this->load->view('templates/sidebar', $data);
+        $this->load->view('templates/topbar', $data);
+        $this->load->view('sales_contract/list', $data);
+        $this->load->view('templates/footer');
+    }
+
     public function add() {
         if (!check_access('sales_contract', 'add')) {
-            show_error('Anda tidak memiliki izin untuk menambah data.', 403);
+            show_error(lang_line('sc_msg_no_permission_add', 'Anda tidak memiliki izin untuk menambah data.'), 403);
         }
-        
+
         // --- Validasi Form ---
-        $this->form_validation->set_rules('customer_id', 'Pelanggan', 'required|numeric');
-        $this->form_validation->set_rules('fg_id', 'Style', 'required|numeric');
-        $this->form_validation->set_rules('contract_date', 'Tanggal Kontrak', 'required');
-        $this->form_validation->set_rules('lchd_date', 'LCHD', 'required');
-        $this->form_validation->set_rules('po_qty', 'PO Qty', 'required|numeric|greater_than[0]');
-        $this->form_validation->set_rules('currency_code', 'Mata Uang', 'required');
-        $this->form_validation->set_rules('unit_price', 'Harga Satuan', 'required'); // Validasi numeric bisa ditambahkan
+        $this->form_validation->set_rules('customer_id', lang_line('sc_field_customer', 'Pelanggan'), 'required|numeric');
+        $this->form_validation->set_rules('fg_id', lang_line('sc_field_style', 'Style'), 'required|numeric');
+        $this->form_validation->set_rules('contract_date', lang_line('sc_field_contract_date', 'Tanggal Kontrak'), 'required');
+        $this->form_validation->set_rules('lchd_date', lang_line('sc_field_lchd', 'LCHD'), 'required');
+        $this->form_validation->set_rules('po_qty', lang_line('sc_field_po_qty', 'PO Qty'), 'required|numeric|greater_than[0]');
+        $this->form_validation->set_rules('currency_code', lang_line('sc_field_currency', 'Mata Uang'), 'required');
+        $this->form_validation->set_rules('unit_price', lang_line('sc_field_unit_price', 'Harga Satuan'), 'required');
         // sc_number optional; jika diisi dicek unik di bawah
         
         if ($this->form_validation->run() == FALSE) {
@@ -74,7 +192,7 @@ class Sales_contract extends MY_Controller {
 
         // Cek unik jika user mengisi manual
         if (!empty($input_sc_number) && $this->Sc_model->is_sc_number_exists($input_sc_number)) {
-            $this->session->set_flashdata('error', 'Nomor Sales Contract sudah digunakan.');
+            $this->session->set_flashdata('error', lang_line('sc_msg_sc_number_exists', 'Nomor Sales Contract sudah digunakan.'));
             redirect('sales_contract');
             return;
         }
@@ -90,7 +208,7 @@ class Sales_contract extends MY_Controller {
             'unit_price'    => $unit_price,
             'total_price'   => $total_price,
             'destination'   => $this->input->post('destination'),
-            'status'        => 'Open', // Default saat create
+            'status'        => 'Draft',
         ];
 
         if ($this->Sc_model->insert($data)) {
@@ -99,9 +217,9 @@ class Sales_contract extends MY_Controller {
             $this->_log('CREATE', $deskripsi);
             // --- END LOG ---
             
-            $this->session->set_flashdata('success', 'Sales Contract berhasil ditambahkan!');
+            $this->session->set_flashdata('success', lang_line('sc_msg_create_success', 'Sales Contract berhasil ditambahkan!'));
         } else {
-            $this->session->set_flashdata('error', 'Gagal menambahkan Sales Contract!');
+            $this->session->set_flashdata('error', lang_line('sc_msg_create_failed', 'Gagal menambahkan Sales Contract!'));
         }
         redirect('sales_contract');
     }
@@ -114,11 +232,11 @@ class Sales_contract extends MY_Controller {
      */
     public function upload_excel() {
         if (!check_access('sales_contract', 'add')) {
-            show_error('Anda tidak memiliki izin untuk menambah data.', 403);
+            show_error(lang_line('sc_msg_no_permission_add', 'Anda tidak memiliki izin untuk menambah data.'), 403);
         }
 
         if (empty($_FILES['excel_file']['name'])) {
-            $this->session->set_flashdata('error', 'Harap pilih file Excel (.xlsx/.xls).');
+            $this->session->set_flashdata('error', lang_line('sc_msg_select_excel', 'Harap pilih file Excel (.xlsx/.xls).'));
             redirect('sales_contract');
             return;
         }
@@ -126,7 +244,7 @@ class Sales_contract extends MY_Controller {
         $allowed = ['xlsx','xls'];
         $ext = pathinfo($_FILES['excel_file']['name'], PATHINFO_EXTENSION);
         if (!in_array(strtolower($ext), $allowed)) {
-            $this->session->set_flashdata('error', 'Format file tidak didukung. Gunakan .xlsx atau .xls');
+            $this->session->set_flashdata('error', lang_line('sc_msg_invalid_format', 'Format file tidak didukung. Gunakan .xlsx atau .xls'));
             redirect('sales_contract');
             return;
         }
@@ -136,7 +254,7 @@ class Sales_contract extends MY_Controller {
             $sheet = $spreadsheet->getActiveSheet();
             $rows = $sheet->toArray(null, true, true, true);
         } catch (\Exception $e) {
-            $this->session->set_flashdata('error', 'Gagal membaca file: ' . $e->getMessage());
+            $this->session->set_flashdata('error', lang_line('sc_msg_read_failed', 'Gagal membaca file: ') . $e->getMessage());
             redirect('sales_contract');
             return;
         }
@@ -159,8 +277,9 @@ class Sales_contract extends MY_Controller {
             $unit_price    = (float) $row['H'];
             $destination   = trim($row['I']);
 
+            $row_label = lang_line('sc_msg_row', 'Baris');
             if (empty($customer_name) || empty($fg_name)) {
-                $errors[] = "Baris $idx: Nama customer/supplier atau nama barang kosong";
+                $errors[] = "$row_label $idx: " . lang_line('sc_msg_customer_or_fg_empty', 'Nama customer/supplier atau nama barang kosong');
                 $failed++;
                 continue;
             }
@@ -169,12 +288,12 @@ class Sales_contract extends MY_Controller {
             $fg_id = $this->Sc_model->get_fg_id_by_name($fg_name);
 
             if (!$customer_id) {
-                $errors[] = "Baris $idx: Customer/Supplier '$customer_name' tidak ditemukan";
+                $errors[] = "$row_label $idx: " . lang_line('sc_msg_customer_not_found', 'Customer/Supplier tidak ditemukan') . " '$customer_name'";
                 $failed++;
                 continue;
             }
             if (!$fg_id) {
-                $errors[] = "Baris $idx: Nama barang '$fg_name' tidak ditemukan";
+                $errors[] = "$row_label $idx: " . lang_line('sc_msg_fg_not_found', 'Nama barang tidak ditemukan') . " '$fg_name'";
                 $failed++;
                 continue;
             }
@@ -184,7 +303,7 @@ class Sales_contract extends MY_Controller {
 
             // Cek duplikat jika manual
             if (!empty($sc_number) && $this->Sc_model->is_sc_number_exists($sc_number)) {
-                $errors[] = "Baris $idx: Nomor SC $sc_number sudah ada";
+                $errors[] = "$row_label $idx: SC $sc_number " . lang_line('sc_msg_sc_already_exists', 'sudah ada');
                 $failed++;
                 continue;
             }
@@ -202,16 +321,16 @@ class Sales_contract extends MY_Controller {
                 'unit_price'    => $unit_price,
                 'total_price'   => $total_price,
                 'destination'   => $destination,
-                'status'        => 'Open',
+                'status'        => 'Draft',
             ];
 
             $this->Sc_model->insert($data);
             $success++;
         }
 
-        $msg = "$success baris berhasil di-import.";
+        $msg = "$success " . lang_line('sc_msg_imported_rows', 'baris berhasil di-import.');
         if ($failed > 0) {
-            $msg .= " $failed baris gagal.";
+            $msg .= " $failed " . lang_line('sc_msg_failed_rows', 'baris gagal.');
         }
 
         if ($failed > 0) {
@@ -233,7 +352,7 @@ class Sales_contract extends MY_Controller {
      */
     public function download_template() {
         if (!check_access('sales_contract', 'add')) {
-            show_error('Anda tidak memiliki izin untuk mengunduh template.', 403);
+            show_error(lang_line('sc_msg_no_permission_template', 'Anda tidak memiliki izin untuk mengunduh template.'), 403);
         }
 
         $spreadsheet = new Spreadsheet();
@@ -282,22 +401,28 @@ class Sales_contract extends MY_Controller {
     // ==========================================================
     public function edit($id) {
         if (!check_access('sales_contract', 'edit')) {
-            show_error('Anda tidak memiliki izin untuk mengedit data ini.', 403);
+            show_error(lang_line('sc_msg_no_permission_edit', 'Anda tidak memiliki izin untuk mengedit data ini.'), 403);
         }
         if (empty($id) || !is_numeric($id)) show_404();
 
         $contract = $this->Sc_model->get_by_id($id);
         if (!$contract) show_404(); // Tampilkan 404 jika SC tidak ditemukan
 
+        if ($contract->status != 'Draft') {
+            $this->session->set_flashdata('error', 'Hanya Sales Order dengan status Draft yang bisa diedit.');
+            redirect('sales_contract');
+            return;
+        }
+
         $data = [
-            'title'     => 'Edit Sales Contract',
+            'title'     => lang_line('sc_form_edit_title', 'Edit Sales Contract'),
             'contract'  => $contract,
             // Data untuk dropdown di form edit
             'customers' => $this->Customer_model->get_all(['status' => 'active']),
             'styles'    => $this->Fg_model->get_all(['status' => 'active']), 
             'currencies'=> $this->Commoncode_model->get_by_group('CURRENCY'),
             // Definisikan status yang diizinkan (sesuaikan jika perlu)
-            'status_list' => ['Open', 'Closed', 'Cancelled'] 
+            'status_list' => ['Draft', 'Open', 'Closed', 'Cancelled']
         ];
 
         $this->load->view('templates/header', $data);
@@ -313,23 +438,29 @@ class Sales_contract extends MY_Controller {
 
     public function update($id) {
         if (!check_access('sales_contract', 'edit')) {
-            show_error('Anda tidak memiliki izin untuk mengedit data.', 403);
+            show_error(lang_line('sc_msg_no_permission_edit', 'Anda tidak memiliki izin untuk mengedit data.'), 403);
         }
-        if (empty($id) || !is_numeric($id)) show_404(); 
+        if (empty($id) || !is_numeric($id)) show_404();
 
         // Ambil data lama untuk log
         $old_data = $this->Sc_model->get_by_id($id);
         if (!$old_data) show_404();
 
+        if ($old_data->status != 'Draft') {
+            $this->session->set_flashdata('error', 'Hanya Sales Order dengan status Draft yang bisa diedit.');
+            redirect('sales_contract');
+            return;
+        }
+
         // --- Validasi Form ---
-        $this->form_validation->set_rules('customer_id', 'Pelanggan', 'required|numeric');
-        $this->form_validation->set_rules('fg_id', 'Style', 'required|numeric');
-        $this->form_validation->set_rules('contract_date', 'Tanggal Kontrak', 'required');
-        $this->form_validation->set_rules('lchd_date', 'LCHD', 'required');
-        $this->form_validation->set_rules('po_qty', 'PO Qty', 'required|numeric|greater_than[0]');
-        $this->form_validation->set_rules('currency_code', 'Mata Uang', 'required');
-        $this->form_validation->set_rules('unit_price', 'Harga Satuan', 'required');
-        $this->form_validation->set_rules('status', 'Status', 'required'); // Validasi status
+        $this->form_validation->set_rules('customer_id', lang_line('sc_field_customer', 'Pelanggan'), 'required|numeric');
+        $this->form_validation->set_rules('fg_id', lang_line('sc_field_style', 'Style'), 'required|numeric');
+        $this->form_validation->set_rules('contract_date', lang_line('sc_field_contract_date', 'Tanggal Kontrak'), 'required');
+        $this->form_validation->set_rules('lchd_date', lang_line('sc_field_lchd', 'LCHD'), 'required');
+        $this->form_validation->set_rules('po_qty', lang_line('sc_field_po_qty', 'PO Qty'), 'required|numeric|greater_than[0]');
+        $this->form_validation->set_rules('currency_code', lang_line('sc_field_currency', 'Mata Uang'), 'required');
+        $this->form_validation->set_rules('unit_price', lang_line('sc_field_unit_price', 'Harga Satuan'), 'required');
+        $this->form_validation->set_rules('status', lang_line('sc_field_status', 'Status'), 'required');
         
         if ($this->form_validation->run() == FALSE) {
             // Jika validasi gagal, kembalikan ke halaman edit dengan error
@@ -355,7 +486,7 @@ class Sales_contract extends MY_Controller {
             'unit_price'    => $unit_price,
             'total_price'   => $total_price,
             'destination'   => $this->input->post('destination'),
-            'status'        => $this->input->post('status'), // Ambil status dari form
+            'status'        => 'Draft', // Edit hanya untuk Draft, status tidak bisa diubah dari form
         ];
 
         if ($this->Sc_model->update($id, $data)) {
@@ -364,32 +495,137 @@ class Sales_contract extends MY_Controller {
             $this->_log('UPDATE', $deskripsi);
             // --- END LOG ---
             
-            $this->session->set_flashdata('success', 'Sales Contract berhasil diperbarui!');
+            $this->session->set_flashdata('success', lang_line('sc_msg_update_success', 'Sales Contract berhasil diperbarui!'));
         } else {
-            $this->session->set_flashdata('warning', 'Tidak ada perubahan data Sales Contract atau gagal memperbarui.');
+            $this->session->set_flashdata('warning', lang_line('sc_msg_update_no_change', 'Tidak ada perubahan data Sales Contract atau gagal memperbarui.'));
         }
         redirect('sales_contract'); // Redirect ke index setelah update
     }
 
     public function delete($id) {
         if (!check_access('sales_contract', 'delete')) {
-            show_error('Anda tidak memiliki izin untuk menghapus data.', 403);
+            show_error(lang_line('sc_msg_no_permission_delete', 'Anda tidak memiliki izin untuk menghapus data.'), 403);
         }
-        if (empty($id) || !is_numeric($id)) show_404(); 
+        if (empty($id) || !is_numeric($id)) show_404();
 
         $sc_data = $this->Sc_model->get_by_id($id);
         if (!$sc_data) show_404();
 
-        
-        if ($this->Sc_model->delete($id)) { 
-            // --- LOGGING (UPDATE STATUS / CANCEL) ---
+        if ($sc_data->status != 'Draft') {
+            $this->session->set_flashdata('error', 'Hanya Sales Contract dengan status Draft yang bisa dihapus.');
+            redirect('sales_contract');
+            return;
+        }
+
+        if ($this->Sc_model->delete($id)) {
             $deskripsi = "Membatalkan Sales Contract: {$sc_data->sc_number} (ID: $id)";
-            $this->_log('UPDATE', $deskripsi); 
-            
-            $this->session->set_flashdata('success', 'Sales Contract berhasil dibatalkan!');
+            $this->_log('UPDATE', $deskripsi);
+            $this->session->set_flashdata('success', lang_line('sc_msg_cancel_success', 'Sales Contract berhasil dibatalkan!'));
         } else {
-            $this->session->set_flashdata('error', 'Gagal membatalkan Sales Contract!');
+            $this->session->set_flashdata('error', lang_line('sc_msg_cancel_failed', 'Gagal membatalkan Sales Contract!'));
         }
         redirect('sales_contract');
+    }
+
+    // ==========================================================
+    // APPROVAL WORKFLOW
+    // Draft → Submitted → Open (= Approved) — 1 tahap sejak 2026-11-06
+    // ==========================================================
+
+    /**
+     * Submit IPO Draft → Pending Endorsement (oleh creator).
+     * Yang boleh: user dengan permission 'add' di sales_contract (creator).
+     */
+    public function submit_for_approval($id) {
+        if (!check_access('sales_contract', 'submit')) {
+            show_error('Anda tidak memiliki izin untuk submit Sales Order.', 403);
+        }
+        if (empty($id) || !is_numeric($id)) show_404();
+
+        $sc = $this->Sc_model->get_by_id($id);
+        if (!$sc || $sc->status != 'Draft') {
+            $this->session->set_flashdata('error', 'Hanya Sales Order dengan status Draft yang bisa di-submit.');
+            redirect('sales_contract');
+            return;
+        }
+
+        $user_id = $this->session->userdata('user_id');
+        if ($this->Sc_model->submit_for_approval($id, $user_id)) {
+            $this->_log('SUBMIT', "Submit Sales Order untuk approval: {$sc->sc_number} → Submitted");
+            $this->session->set_flashdata('success', "Sales Order {$sc->sc_number} berhasil di-submit, menunggu approval.");
+        } else {
+            $this->session->set_flashdata('error', 'Gagal submit Sales Order.');
+        }
+        redirect('sales_contract');
+    }
+
+    /**
+     * Endorse: Pending Endorsement → Endorsed.
+     */
+    public function endorse($id) {
+        // Tahap Endorse DIHAPUS 2026-11-06: approval Sales Order sekarang 1 tahap.
+        $this->session->set_flashdata('error', 'Approval Sales Order sekarang 1 tahap -- gunakan tombol Approve.');
+        redirect('sales_contract/approval');
+    }
+
+    /**
+     * Approve final: Endorsed → Open (= disetujui & aktif untuk modul lain).
+     */
+    public function approve($id) {
+        if (!check_access('sales_contract_approval', 'approval')) {
+            show_error('Anda tidak memiliki izin untuk approve Sales Order.', 403);
+        }
+        if (empty($id) || !is_numeric($id)) show_404();
+
+        $sc = $this->Sc_model->get_by_id($id);
+        if (!$sc || !in_array($sc->status, ['Submitted', 'Pending Endorsement', 'Endorsed'], true)) {
+            $this->session->set_flashdata('error', 'Sales Order ini tidak sedang menunggu approval.');
+            redirect('sales_contract/approval');
+            return;
+        }
+
+        $user_id = $this->session->userdata('user_id');
+        if ($this->Sc_model->approve($id, $user_id)) {
+            $this->_log('APPROVE', "Approve Sales Order final: {$sc->sc_number} → Open");
+            $this->session->set_flashdata('success', "Sales Order {$sc->sc_number} berhasil di-approve. Status: Open.");
+        } else {
+            $this->session->set_flashdata('error', 'Gagal approve Sales Order.');
+        }
+        redirect('sales_contract/approval');
+    }
+
+    /**
+     * Reject: status apapun di tahap approval → Rejected.
+     * Yang boleh: user dengan permission endorsement ATAU approval.
+     */
+    public function reject($id) {
+        $can_reject = check_access('sales_contract_approval', 'approval');
+        if (!$can_reject) {
+            show_error('Anda tidak memiliki izin untuk reject Sales Order.', 403);
+        }
+        if (empty($id) || !is_numeric($id)) show_404();
+
+        $sc = $this->Sc_model->get_by_id($id);
+        if (!$sc || !in_array($sc->status, ['Submitted', 'Pending Endorsement', 'Endorsed'], true)) {
+            $this->session->set_flashdata('error', 'Sales Order ini tidak dalam tahap approval.');
+            redirect('sales_contract/approval');
+            return;
+        }
+
+        $reason = trim($this->input->post('reject_reason'));
+        if (empty($reason)) {
+            $this->session->set_flashdata('error', 'Alasan reject wajib diisi.');
+            redirect('sales_contract/approval');
+            return;
+        }
+
+        $user_id = $this->session->userdata('user_id');
+        if ($this->Sc_model->reject($id, $user_id, $reason)) {
+            $this->_log('REJECT', "Reject Sales Order: {$sc->sc_number} → Rejected. Alasan: {$reason}");
+            $this->session->set_flashdata('success', "Sales Order {$sc->sc_number} berhasil di-reject.");
+        } else {
+            $this->session->set_flashdata('error', 'Gagal reject Sales Order.');
+        }
+        redirect('sales_contract/approval');
     }
 }

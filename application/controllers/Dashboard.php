@@ -18,11 +18,13 @@ class Dashboard extends MY_Controller {
         $this->load->model('Mr_model');
         $this->load->model('Production_model');
         $this->load->model('Material_issuance_model');
+        // Outstanding tasks (per-user, per-permission)
+        $this->load->library('outstanding_lib');
     }
 
     public function index() {
-        $data['title'] = 'Dashboard';
-        
+        $data['title'] = lang_line('title_dashboard');
+
         // Data User untuk Topbar
         $data['username'] = $this->session->userdata('fullname');
         $role_id = $this->session->userdata('role_id');
@@ -33,114 +35,193 @@ class Dashboard extends MY_Controller {
         // ====================================================================
         // CEK ROLE: Jika Bea Cukai, redirect ke dashboard khusus BC
         // ====================================================================
-        $role_name_lower = strtolower($data['role_name']);
-        if (in_array($role_name_lower, ['bc', 'bea cukai', 'beacukai', 'customs'])) {
+        // Dashboard khusus BC hanya untuk akun yang SEMUA rolenya BC — user
+        // multi-role (mis. BC + Logistic) tetap dapat dashboard normal.
+        $bc_names = ['bc', 'bea cukai', 'beacukai', 'customs'];
+        $role_names_lower = array_map('strtolower', current_role_names());
+        if (!empty($role_names_lower) && !array_diff($role_names_lower, $bc_names)) {
             return $this->bc_dashboard();
         }
 
         // ====================================================================
-        // DASHBOARD NORMAL (Internal Company)
+        // DASHBOARD BARU (rebrand Acropoly 2026-11-06)
+        // --------------------------------------------------------------------
+        // User: "keuangan gausa ditampilkan di dashboard karna ga semua harus
+        // tau keuangan" -> saldo kas & piutang DIHAPUS (juga perhitungannya).
+        // Fokus: tugas pribadi (Perlu Tindakan), KPI operasional, alur
+        // produksi bulan ini, progres 5 Sales Order terbaru, dokumen terbaru.
         // ====================================================================
+        $month_start = date('Y-m-01');
+        $today       = date('Y-m-d');
+        $count = function ($table, callable $where) {
+            $this->db->reset_query();
+            $where($this->db);
+            return (int) $this->db->count_all_results($table);
+        };
 
-        // 1. PO Baru Bulan Ini (dari 'po_header')
-        // Pastikan 'po_date' sudah benar
-        $data['new_po_count'] = $this->db
-            ->where('MONTH(po_date)', date('m'))
-            ->where('YEAR(po_date)', date('Y'))
-            ->count_all_results('po_header'); // OK
+        $data['kpi'] = [
+            'so_open'     => $count('sales_contracts', function ($db) { $db->where('status', 'Open'); }),
+            'so_waiting'  => $count('sales_contracts', function ($db) { $db->where_in('status', ['Submitted', 'Pending Endorsement', 'Endorsed']); }),
+            // Status WO: Planned / In Progress / Active / Finished. Dashboard lama
+            // menghitung 'WIP' (status yang tidak pernah ada) -> selalu 0.
+            'wo_active'   => $count('wo_header', function ($db) { $db->where_in('status', ['Planned', 'In Progress', 'Active']); }),
+            'wo_running'  => $count('wo_header', function ($db) { $db->where_in('status', ['In Progress', 'Active']); }),
+            'po_month'    => $count('po_header', function ($db) use ($month_start) { $db->where('po_date >=', $month_start); }),
+            'po_waiting'  => $count('po_header', function ($db) { $db->where('status', 'Submitted'); }),
+            'pb_month'    => $count('consumable_request_header', function ($db) use ($month_start) { $db->where('request_date >=', $month_start); }),
+            'pb_waiting'  => $count('consumable_request_header', function ($db) { $db->where('status', 'Submitted'); }),
+            'do_today'    => $count('fg_delivery_header', function ($db) use ($today) { $db->where('DATE(delivery_date)', $today)->where('status !=', 'Cancelled'); }),
+            'do_draft'    => $count('fg_delivery_header', function ($db) { $db->where('status', 'Draft'); }),
+        ];
 
-        // 2. Work Order Aktif (dari 'wo_header')
-        // Pastikan 'status' dan 'WIP' sudah benar
-        $data['active_wo_count'] = $this->db
-            ->where('status', 'WIP') 
-            ->count_all_results('wo_header'); // OK
+        // Alur produksi bulan ini: SO -> WO -> Produksi -> FG -> Kirim
+        $data['pipeline'] = [
+            ['key' => 'so',   'label' => lang_line('db2_pipe_so', 'Sales Order Baru'),     'icon' => 'fa-file-signature', 'url' => 'sales_contract',     'menu' => 'sales_contract',
+             'value' => $count('sales_contracts', function ($db) use ($month_start) { $db->where('contract_date >=', $month_start)->where('status !=', 'Cancelled'); })],
+            ['key' => 'wo',   'label' => lang_line('db2_pipe_wo', 'Work Order Aktif'),      'icon' => 'fa-clipboard-list', 'url' => 'work_order',         'menu' => 'work_order',
+             'value' => $data['kpi']['wo_active']],
+            ['key' => 'prod', 'label' => lang_line('db2_pipe_prod', 'Produksi Berjalan'),   'icon' => 'fa-industry',       'url' => 'production_process', 'menu' => 'production_process',
+             'value' => $count('production_header', function ($db) { $db->where_in('status', ['Draft', 'In Progress']); })],
+            ['key' => 'fg',   'label' => lang_line('db2_pipe_fg', 'Barang Jadi Diterima'),  'icon' => 'fa-boxes',          'url' => 'fg_receipt',         'menu' => 'fg_receipt',
+             'value' => $count('fg_receipt_header', function ($db) use ($month_start) { $db->where('receipt_date >=', $month_start)->where_in('status', ['Confirmed', 'Approved']); })],
+            ['key' => 'do',   'label' => lang_line('db2_pipe_do', 'Terkirim'),              'icon' => 'fa-truck',          'url' => 'fg_delivery',        'menu' => 'fg_delivery',
+             'value' => $count('fg_delivery_header', function ($db) use ($month_start) { $db->where('delivery_date >=', $month_start)->where('status', 'Confirmed'); })],
+        ];
 
-        // 3. Pengiriman Hari Ini (dari 'fg_delivery_header')
-        // Pastikan 'delivery_date' sudah benar
-        $data['shipments_today_count'] = $this->db
-            ->where('DATE(delivery_date)', date('Y-m-d')) 
-            ->count_all_results('fg_delivery_header'); // OK
-
-        // 4. Total User (Statistik Admin, tetap oke)
-        $data['user_count'] = $this->db->count_all_results('users');
-
-        // 5. Total Sales Contract (dari 'sales_contracts')
-        $data['sales_contract_count'] = $this->db->count_all_results('sales_contracts');
-
-        // 6. Total FG Delivery (dari 'fg_delivery_header')
-        $data['fg_delivery_count'] = $this->db->count_all_results('fg_delivery_header');
-
-        // ====================================================================
-        // Tambahan KPI cepat (Receivables, Cash, Pending/Confirmed DO, Inventory)
-        // ====================================================================
-
-        // Pending DO (Draft)
-        $data['pending_do_count'] = (int) $this->db->where('status', 'Draft')->count_all_results('fg_delivery_header');
-
-        // Confirmed DO
-        $data['confirmed_do_count'] = (int) $this->db->where('status', 'Confirmed')->count_all_results('fg_delivery_header');
-
-        // Total Receivables (sisa piutang) dari ar_invoice_header
-        $row = $this->db->select('SUM(total_invoice - COALESCE(total_paid,0)) as total_receivables')
-            ->from('ar_invoice_header')
-            ->where('status', 'Posted')
-            ->where("(payment_status IS NULL OR payment_status != 'Paid')", NULL, FALSE)
-            ->get()->row();
-        $data['total_receivables'] = (float) ($row->total_receivables ?? 0);
-
-        // Cash balance: gunakan report_model helper (kas per bulan sampai hari ini)
-        try {
-            $cash_flow = $this->Report_model->get_cash_flow(date('Y-m-01'), date('Y-m-d'));
-            $data['cash_balance'] = isset($cash_flow['saldo_akhir_kas']) ? (float) $cash_flow['saldo_akhir_kas'] : 0.0;
-        } catch (Exception $ex) {
-            // fallback ke 0 jika terjadi error
-            $data['cash_balance'] = 0.0;
-        }
-
-        // Inventory - Finished Goods: jumlah unit (sum current_stock)
+        // Stok barang jadi & WIP (unit, bukan nilai rupiah)
         $fg_summary = $this->Fg_stock_ledger_model->get_current_stock_summary();
-        $total_fg_qty = 0.0;
-        $low_stock_items = [];
+        $total_fg_qty = 0.0; $empty_fg = [];
         foreach ($fg_summary as $f) {
             $qty = (float) ($f->current_stock ?? 0);
             $total_fg_qty += $qty;
-            if ($qty <= 0) {
-                $low_stock_items[] = $f;
-            }
+            if ($qty <= 0) $empty_fg[] = $f;
         }
-        $data['inventory_fg_qty'] = $total_fg_qty;
-        // top 8 low stock
-        $data['low_stock_alerts'] = array_slice($low_stock_items, 0, 8);
-
-        // Inventory - WIP / Semifinished: gunakan Stock_ledger_model report (closing_stock)
+        $data['inventory_fg_qty']  = $total_fg_qty;
+        $data['fg_item_count']     = count($fg_summary);
+        $data['low_stock_alerts']  = array_slice($empty_fg, 0, 6);
+        $data['low_stock_total']   = count($empty_fg);
         $wip_rows = $this->Stock_ledger_model->get_stock_summary_report(['warehouse_type' => 'semifinished', 'limit' => 0]);
         $total_wip_qty = 0.0;
-        foreach ($wip_rows as $w) {
-            $total_wip_qty += (float) ($w->closing_stock ?? 0);
-        }
+        foreach ($wip_rows as $w) $total_wip_qty += (float) ($w->closing_stock ?? 0);
         $data['inventory_wip_qty'] = $total_wip_qty;
 
+        // Progres 5 Sales Order terbaru (user: "grafik sales order itu dibatasi 5 terbaru")
+        $data['so_progress'] = $this->_latest_so_progress(5);
 
-        // ====================================================================
-        // Data untuk List "Aktivitas Terbaru" (FIXED)
-        // ====================================================================
-        
-        // 5. Mengambil 5 PO Terbaru (dari 'po_header' join 'suppliers')
-        $data['recent_pos'] = $this->db
-            ->select('po.id, po.po_number, po.po_date, s.nama_supplier') // <-- TAMBAHKAN po.id
-            ->from('po_header po')
-            ->join('suppliers s', 's.id = po.supplier_id', 'left')
-            ->order_by('po.po_date', 'DESC')
-            ->limit(5)
-            ->get()
-            ->result();
+        // Tugas pribadi (sesuai hak akses)
+        $data['outstanding_tasks'] = $this->outstanding_lib->get_for_user();
+        $data['outstanding_total'] = array_sum(array_column($data['outstanding_tasks'], 'count'));
+
+        // Dokumen terbaru (hanya jenis dokumen yang boleh dilihat user)
+        $data['recent_docs'] = $this->_recent_documents(8);
+
+        // Aksi cepat (hanya yang boleh dibuat user)
+        $data['quick_actions'] = array_values(array_filter([
+            ['label' => lang_line('db2_qa_pb', 'Permintaan Barang'), 'icon' => 'fa-hand-holding', 'url' => 'consumable_request/add',          'perm' => ['consumable_request', 'add']],
+            ['label' => lang_line('db2_qa_mr', 'Material Request'),  'icon' => 'fa-dolly',        'url' => 'material_request/add',            'perm' => ['material_request', 'add']],
+            ['label' => lang_line('db2_qa_pr', 'Purchase Request'),  'icon' => 'fa-file-invoice', 'url' => 'purchase_request_general?open=create', 'perm' => ['purchase_request_general', 'add']],
+            ['label' => lang_line('db2_qa_po', 'Purchase Order'),    'icon' => 'fa-shopping-cart','url' => 'purchase_order',                  'perm' => ['purchase_order', 'add']],
+            ['label' => lang_line('db2_qa_so', 'Sales Order'),       'icon' => 'fa-file-signature','url' => 'sales_contract',                 'perm' => ['sales_contract', 'add']],
+            ['label' => lang_line('db2_qa_wo', 'Work Order'),        'icon' => 'fa-cogs',         'url' => 'work_order?open=create',          'perm' => ['work_order', 'add']],
+            ['label' => lang_line('db2_qa_do', 'Pengiriman'),        'icon' => 'fa-truck-loading','url' => 'fg_delivery/create',              'perm' => ['fg_delivery', 'add']],
+            ['label' => lang_line('db2_qa_report', 'Laporan'),       'icon' => 'fa-chart-pie',    'url' => 'reports',                         'perm' => ['reports', 'view']],
+        ], function ($a) { return check_access($a['perm'][0], $a['perm'][1]); }));
+
+        $data['can_trace_so']    = check_access('sales_contract', 'view');
+        $data['can_stock_alert'] = check_access('stock_alert', 'view');
 
         // Load semua view
         $this->load->view('templates/header', $data);
         $this->load->view('templates/sidebar', $data);
         $this->load->view('templates/topbar', $data);
-        $this->load->view('dashboard/index', $data); 
+        $this->load->view('dashboard/index', $data);
         $this->load->view('templates/footer');
+    }
+
+    /**
+     * N Sales Order terbaru (bukan Cancelled) + qty dipesan / diproduksi / dikirim.
+     * Sama dgn hitungan sc_chart_data(), ditambah nama customer & persentase.
+     */
+    private function _latest_so_progress($limit = 5) {
+        $rows = $this->db->query("
+            SELECT sc.id, sc.sc_number, sc.status, sc.contract_date, c.nama_customer,
+                COALESCE(sc.po_qty, 0) AS po_qty,
+                COALESCE((
+                    SELECT SUM(frd.qty_received)
+                    FROM fg_receipt_details frd
+                    JOIN fg_receipt_header frh ON frd.fg_receipt_header_id = frh.id
+                    JOIN production_header ph ON frh.production_header_id = ph.id
+                    JOIN wo_header wo ON ph.wo_header_id = wo.id
+                    WHERE wo.sales_contract_id = sc.id
+                ), 0) AS produced_qty,
+                COALESCE((
+                    SELECT SUM(fdd.qty_shipped) FROM fg_delivery_details fdd WHERE fdd.sales_contract_id = sc.id
+                ), 0) AS delivered_qty
+            FROM sales_contracts sc
+            LEFT JOIN customers c ON c.id = sc.customer_id
+            WHERE sc.status != 'Cancelled'
+            ORDER BY sc.contract_date DESC, sc.id DESC
+            LIMIT ?
+        ", [(int) $limit])->result();
+        foreach ($rows as $r) {
+            $base = max((float) $r->po_qty, 0.0001);
+            $r->pct_produced  = (int) min(100, round((float) $r->produced_qty / $base * 100));
+            $r->pct_delivered = (int) min(100, round((float) $r->delivered_qty / $base * 100));
+        }
+        return $rows;
+    }
+
+    /**
+     * Dokumen terbaru lintas modul (non-keuangan), hanya jenis yang boleh
+     * dilihat user. Query terpisah per jenis (bukan UNION) supaya aman dari
+     * perbedaan collation antar tabel.
+     */
+    private function _recent_documents($limit = 8) {
+        $sources = [
+            ['menu' => 'consumable_request', 'label' => 'Permintaan Barang', 'icon' => 'fa-hand-holding',  'color' => 'teal',
+             'table' => 'consumable_request_header', 'no' => 'request_number', 'date' => 'request_date', 'url' => 'consumable_request/detail/'],
+            ['menu' => 'material_request',   'label' => 'Material Request',  'icon' => 'fa-dolly',         'color' => 'indigo',
+             'table' => 'mr_header',          'no' => 'mr_number',      'date' => 'request_date',  'url' => 'material_request/detail/'],
+            ['menu' => 'sales_contract',     'label' => 'Sales Order',       'icon' => 'fa-file-signature','color' => 'blue',
+             'table' => 'sales_contracts',    'no' => 'sc_number',      'date' => 'contract_date', 'url' => 'sales_contract/detail/'],
+            ['menu' => 'work_order',         'label' => 'Work Order',        'icon' => 'fa-cogs',          'color' => 'orange',
+             'table' => 'wo_header',          'no' => 'wo_number',      'date' => 'planned_start_date', 'url' => 'work_order/detail/'],
+            ['menu' => 'fg_delivery',        'label' => 'Pengiriman',        'icon' => 'fa-truck',         'color' => 'green',
+             'table' => 'fg_delivery_header', 'no' => 'delivery_number','date' => 'delivery_date', 'url' => 'fg_delivery/show/'],
+        ];
+        // PR & PO: rute & izin berbeda per tipe
+        $pr_routes = ['produksi' => 'purchase_request', 'non_produksi' => 'purchase_request_general', 'jasa' => 'purchase_request_jasa', 'asset' => 'purchase_request_asset'];
+        $po_routes = ['produksi' => 'purchase_order', 'non_produksi' => 'purchase_order_general', 'jasa' => 'purchase_order_jasa', 'asset' => 'purchase_order_asset'];
+
+        $docs = [];
+        $push = function ($rows, $meta, $url_of) use (&$docs) {
+            foreach ($rows as $r) {
+                $docs[] = (object) [
+                    'label' => $meta['label'], 'icon' => $meta['icon'], 'color' => $meta['color'],
+                    'number' => $r->no, 'date' => $r->d, 'status' => $r->status,
+                    'sort' => $r->created_at ?: $r->d, 'url' => $url_of($r),
+                ];
+            }
+        };
+        foreach ($sources as $src) {
+            if (!check_access($src['menu'], 'view')) continue;
+            $rows = $this->db->select("id, {$src['no']} AS no, {$src['date']} AS d, status, created_at")
+                ->from($src['table'])->order_by('created_at', 'DESC')->order_by('id', 'DESC')->limit($limit)->get()->result();
+            $push($rows, $src, function ($r) use ($src) { return $src['url'] . $r->id; });
+        }
+        foreach (['pr' => [$pr_routes, 'pr_header', 'pr_number', 'pr_date', 'Purchase Request', 'fa-file-invoice', 'purple'],
+                  'po' => [$po_routes, 'po_header', 'po_number', 'po_date', 'Purchase Order', 'fa-shopping-cart', 'pink']] as $k => $cfg) {
+            [$routes, $table, $no, $date, $label, $icon, $color] = $cfg;
+            $types = array_keys(array_filter($routes, function ($menu) { return check_access($menu, 'view'); }));
+            if (empty($types)) continue;
+            $rows = $this->db->select("id, type, {$no} AS no, {$date} AS d, status, created_at")
+                ->from($table)->where_in('type', $types)->order_by('created_at', 'DESC')->order_by('id', 'DESC')->limit($limit)->get()->result();
+            $push($rows, ['label' => $label, 'icon' => $icon, 'color' => $color], function ($r) use ($routes) {
+                return ($routes[$r->type] ?? reset($routes)) . '/detail/' . $r->id;
+            });
+        }
+        usort($docs, function ($a, $b) { return strcmp((string) $b->sort, (string) $a->sort); });
+        return array_slice($docs, 0, $limit);
     }
 
     /**
@@ -148,8 +229,8 @@ class Dashboard extends MY_Controller {
      */
     public function sc_chart_data()
     {
-        // Return top 12 recent sales contracts with po_qty, produced_qty, delivered_qty
-        $limit = 12;
+        // 5 Sales Order terbaru (user 2026-11-06: "grafik sales order dibatasi 5 terbaru")
+        $limit = 5;
         $sql = "
             SELECT sc.id, sc.sc_number, COALESCE(sc.po_qty,0) AS po_qty,
                 COALESCE((

@@ -78,7 +78,9 @@
                                         $bc_no    = htmlspecialchars($m['bc_number'] ?? '-');
                                         $bc_date  = !empty($m['bc_date']) ? date('Y-m-d', strtotime($m['bc_date'])) : '-';
                                         $has_bc   = !empty($m['bc_number']);
-                                        $bc_link  = $has_bc ? base_url('BeaCukai/detail/' . $m['bc_number']) : '#';
+                                        // Gunakan GRN number untuk link (di-encode base64 + rawurlencode untuk URL-safe)
+                                        $bc_link_identifier = !empty($m['grn_number']) ? $m['grn_number'] : $m['bc_number'];
+                                        $bc_link  = $has_bc ? base_url('BeaCukai/detail/' . rawurlencode(base64_encode($bc_link_identifier))) : '#';
                                     ?>
                                     <tr>
                                         <td><?= htmlspecialchars($m['item_code'] ?? '-') ?></td>

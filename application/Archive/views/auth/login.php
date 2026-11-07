@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Login - ERP MINGBAO</title>
+<title>Login - ERP NSI</title>
 <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
 <link href="<?= base_url('assets/vendor/fontawesome-free/css/all.min.css'); ?>" rel="stylesheet">
 <link href="<?= base_url('assets/css/sb-admin-2.min.css'); ?>" rel="stylesheet">
@@ -312,7 +312,7 @@ body::after {
           <img src="<?= base_url('assets/img/logo_mini.png'); ?>" alt="Logo">
         </div>
         <h1>ERP</h1>
-        <p>PT MINGBAO LIANCHUANG INTERNATIONAL</p>
+        <p>PT NEW SPECIALIFE INDUSTRIES</p>
       </div>
 
       <form method="post" action="<?= base_url('auth/login_action'); ?>" id="loginForm">
@@ -346,7 +346,7 @@ body::after {
     </div>
 
     <div class="system-info">
-      <i class="fas fa-copyright"></i> 2025 PT Mingbao Lianchuang International. All rights reserved.
+      <i class="fas fa-copyright"></i> 2025 PT NEW SPECIALIFE INDUSTRIES. All rights reserved.
     </div>
   </div>
 

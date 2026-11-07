@@ -3,7 +3,44 @@
    ============================================================ */
 
 $(document).ready(function() {
-    
+
+    // Auto-generate scrap code
+    $(document).on('click', '#auto_generate_btn', function() {
+        const btn = $(this);
+        const input = $('#scrap_code');
+        const baseUrl = btn.data('base-url');
+
+        btn.prop('disabled', true).html('<i class="fas fa-spinner fa-spin"></i>');
+
+        $.ajax({
+            url: baseUrl + 'master_scrap/generate_code',
+            type: 'GET',
+            dataType: 'json',
+            success: function(response) {
+                if (response.success) {
+                    input.val(response.code);
+                } else {
+                    Swal.fire({
+                        icon: 'error',
+                        title: 'Gagal!',
+                        text: 'Gagal generate kode',
+                        confirmButtonColor: '#d33'
+                    });
+                }
+                btn.prop('disabled', false).html('<i class="fas fa-sync-alt"></i>');
+            },
+            error: function() {
+                Swal.fire({
+                    icon: 'error',
+                    title: 'Error!',
+                    text: 'Terjadi kesalahan saat generate kode',
+                    confirmButtonColor: '#d33'
+                });
+                btn.prop('disabled', false).html('<i class="fas fa-sync-alt"></i>');
+            }
+        });
+    });
+
     // Handle Edit Form Submit via AJAX
     $('form[action*="master_scrap/update"]').on('submit', function(e) {
         e.preventDefault(); // Prevent default form submission

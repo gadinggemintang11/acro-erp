@@ -1,8 +1,8 @@
 <?php
 defined('BASEPATH') OR exit('No direct script access allowed');
 
-use Dompdf\Dompdf;
-use Dompdf\Options;
+// Dompdf tidak dipakai langsung lagi -- cetak Delivery Note lewat
+// render_letterhead_pdf() (document_pdf_helper), sama seperti Purchase Order.
 
 class Fg_delivery extends MY_Controller {
 
@@ -35,7 +35,7 @@ class Fg_delivery extends MY_Controller {
         ];
 
         $data = [
-            'title' => 'Bukti Pengeluaran Barang Jadi',
+            'title' => lang_line('title_fgd_index'),
             'filters' => $filters,
             'deliveries' => $this->Fg_delivery_model->get_all($filters)
         ];
@@ -58,7 +58,7 @@ class Fg_delivery extends MY_Controller {
         if (!check_access('fg_delivery', 'add')) { show_error('Tidak ada izin.', 403); }
 
         $data = [
-            'title' => 'Buat Pengiriman - Header',
+            'title' => lang_line('title_fgd_create_header'),
             'customers' => $this->Fg_delivery_model->get_customers(), // get list customers
             'bc_types' => $this->Commoncode_model->get_by_group('BC_TYPE')
         ];
@@ -121,7 +121,7 @@ class Fg_delivery extends MY_Controller {
         $fg_ready = $this->Fg_delivery_model->get_fg_ready_for_customer($header->customer_id);
 
         $data = [
-            'title' => 'Isi Detail Pengiriman',
+            'title' => lang_line('title_fgd_create_detail'),
             'header' => $header,
             'fg_ready' => $fg_ready
         ];
@@ -153,7 +153,7 @@ class Fg_delivery extends MY_Controller {
                 $qty = isset($d['qty_shipped']) ? (float)$d['qty_shipped'] : 0;
                 if ($qty > 0 && !empty($d['fg_id'])) {
                     $has = true;
-                    $detailsData[] = [
+                    $row = [
                         'fg_delivery_header_id' => $header_id,
                         'sales_contract_id' => $d['sales_contract_id'] ?? NULL,
                         'so_detail_id' => $d['so_detail_id'] ?? NULL,
@@ -162,6 +162,19 @@ class Fg_delivery extends MY_Controller {
                         'uom' => $d['uom'] ?? NULL,
                         'notes' => $d['notes'] ?? NULL
                     ];
+
+                    // Berat bersih & kotor kiriman (user 2026-10-01: "Tambah kolom
+                    // NW dan GW juga di inputan"). Kosong disimpan NULL, bukan 0 --
+                    // supaya "belum ditimbang" bisa dibedakan dari "beratnya nol",
+                    // dan di cetakan tetap kosong untuk ditulis tangan. Dilewati
+                    // kalau migration_fg_delivery_weight.sql belum dijalankan.
+                    foreach (['nw', 'gw'] as $w) {
+                        if (!db_has_column('fg_delivery_details', $w)) continue;
+                        $v = isset($d[$w]) ? trim((string) $d[$w]) : '';
+                        $row[$w] = ($v === '') ? NULL : (float) $v;
+                    }
+
+                    $detailsData[] = $row;
                 }
             }
         }
@@ -205,7 +218,7 @@ class Fg_delivery extends MY_Controller {
         $fg_ready = $this->Fg_delivery_model->get_fg_ready_for_customer($header->customer_id);
 
         $data = [
-            'title' => 'Edit Detail Pengiriman',
+            'title' => lang_line('title_fgd_edit_detail'),
             'header' => $header,
             'fg_ready' => $fg_ready,
             'existing_details_map' => $existing_details_map
@@ -243,7 +256,7 @@ class Fg_delivery extends MY_Controller {
                 $qty = isset($d['qty_shipped']) ? (float)$d['qty_shipped'] : 0;
                 if ($qty > 0 && !empty($d['fg_id'])) {
                     $has_item = true;
-                    $detailsData[] = [
+                    $row = [
                         'fg_delivery_header_id' => $header_id,
                         'sales_contract_id' => $d['sales_contract_id'] ?? NULL,
                         'so_detail_id' => $d['so_detail_id'] ?? NULL,
@@ -252,6 +265,19 @@ class Fg_delivery extends MY_Controller {
                         'uom' => $d['uom'] ?? NULL,
                         'notes' => $d['notes'] ?? NULL
                     ];
+
+                    // Berat bersih & kotor kiriman (user 2026-10-01: "Tambah kolom
+                    // NW dan GW juga di inputan"). Kosong disimpan NULL, bukan 0 --
+                    // supaya "belum ditimbang" bisa dibedakan dari "beratnya nol",
+                    // dan di cetakan tetap kosong untuk ditulis tangan. Dilewati
+                    // kalau migration_fg_delivery_weight.sql belum dijalankan.
+                    foreach (['nw', 'gw'] as $w) {
+                        if (!db_has_column('fg_delivery_details', $w)) continue;
+                        $v = isset($d[$w]) ? trim((string) $d[$w]) : '';
+                        $row[$w] = ($v === '') ? NULL : (float) $v;
+                    }
+
+                    $detailsData[] = $row;
                 }
             }
         }
@@ -284,7 +310,7 @@ class Fg_delivery extends MY_Controller {
 
         $details = $this->Fg_delivery_model->get_details_by_header_id($id);
         $data = [
-            'title' => 'Detail Pengiriman',
+            'title' => lang_line('title_fgd_detail'),
             'delivery_header' => $header,
             'delivery_details' => $details
         ];
@@ -306,7 +332,7 @@ class Fg_delivery extends MY_Controller {
         }
 
         $data = [
-            'title' => 'Edit Header Pengiriman',
+            'title' => lang_line('title_fgd_edit_header'),
             'header' => $header,
             'customers' => $this->Fg_delivery_model->get_customers(),
             'bc_types' => $this->Commoncode_model->get_by_group('BC_TYPE')
@@ -424,24 +450,23 @@ class Fg_delivery extends MY_Controller {
         $details = $this->Fg_delivery_model->get_details_by_header_id($id);
 
         $data = [
-            'title' => 'Delivery Order',
+            'title' => lang_line('title_fgd_delivery_order'),
             'header' => $header,
             'details' => $details
         ];
 
-        $options = new Options();
-        $options->set('isHtml5ParserEnabled', true);
-        $options->set('isRemoteEnabled', true);
-
-        $dompdf = new Dompdf($options);
-        $html = $this->load->view('fg_delivery/pdf_template', $data, true);
-        $dompdf->loadHtml($html);
-        $dompdf->setPaper('A4', 'portrait');
-        $dompdf->render();
-
         $filename = "DeliveryOrder_" . str_replace('/', '-', $header->delivery_number) . ".pdf";
-        $dompdf->stream($filename, ["Attachment" => 0]);
-        exit;
+
+        // Dipakaikan render_letterhead_pdf() -- pembungkus Dompdf yang SAMA
+        // dengan Purchase Order & IRF. Sebelumnya Dompdf dirakit sendiri di
+        // sini tanpa `chroot`, padahal logo letterhead dirujuk lewat path
+        // berkas absolut (FCPATH . assets/img/logo_full_biru.png): Dompdf
+        // memblokir berkas lokal di luar chroot bawaannya, jadi logonya
+        // tidak pernah termuat dan tercetak sebagai kotak silang
+        // (dilaporkan user 2026-10-01). Helper ini menyetel chroot ke FCPATH
+        // sekaligus tempDir, persis seperti jalur PO.
+        render_letterhead_pdf('fg_delivery/pdf_template', $data, $filename);
+        return;
     }
 
     // AJAX: get SC by customer (for UI convenience)

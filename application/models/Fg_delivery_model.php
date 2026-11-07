@@ -20,8 +20,26 @@ class Fg_delivery_model extends CI_Model {
      * Get list deliveries with filter
      */
     public function get_all($filters = []) {
-        $this->db->select("h.id, h.delivery_number, h.delivery_date, h.status, sc.sc_number, c.nama_customer, h.bc_number, h.bc_date");
+        // Nomor IPO diambil dari BARIS DETAIL (satu pengiriman bisa mencakup
+        // beberapa IPO); kolom sales_contract_id di header hanya peninggalan lama
+        // dan pada dokumen baru isinya NULL. Sebelumnya query ini men-join dari
+        // header saja, sehingga kolom IPO di daftar SELALU kosong padahal di
+        // halaman detail nomornya muncul -- detail memang membacanya dari baris
+        // detail (user 2026-09-30: "kenapa di detail nomor sc nya keluar di
+        // index list kenapa ga keluar").
+        $sc_agg = "(
+            SELECT d.fg_delivery_header_id,
+                   GROUP_CONCAT(DISTINCT s.sc_number ORDER BY s.sc_number SEPARATOR ', ') AS sc_numbers
+              FROM {$this->table_details} d
+              JOIN {$this->table_sc} s ON s.id = d.sales_contract_id
+             GROUP BY d.fg_delivery_header_id
+        )";
+
+        $this->db->select("h.id, h.delivery_number, h.delivery_date, h.status,
+                           COALESCE(agg.sc_numbers, sc.sc_number) AS sc_number,
+                           c.nama_customer, h.bc_number, h.bc_date", FALSE);
         $this->db->from($this->table_header . ' h');
+        $this->db->join($sc_agg . ' agg', 'agg.fg_delivery_header_id = h.id', 'left');
         $this->db->join($this->table_sc . ' sc', 'h.sales_contract_id = sc.id', 'left');
         $this->db->join($this->table_customers . ' c', 'h.customer_id = c.id', 'left');
 
@@ -30,6 +48,7 @@ class Fg_delivery_model extends CI_Model {
             $this->db->group_start();
             $this->db->like('h.delivery_number', $term);
             $this->db->or_like('sc.sc_number', $term);
+            $this->db->or_like('agg.sc_numbers', $term);
             $this->db->or_like('c.nama_customer', $term);
             $this->db->group_end();
         }
@@ -50,7 +69,8 @@ class Fg_delivery_model extends CI_Model {
         $this->db->select("
             h.*,
             c.nama_customer,
-            c.alamat AS customer_address,
+            c.alamat AS customer_master_address,
+            COALESCE(NULLIF(TRIM(h.shipping_address), ''), c.alamat) AS customer_address,
             sc.sc_number,
             cc.description AS bc_type_desc
         ");
@@ -69,7 +89,11 @@ class Fg_delivery_model extends CI_Model {
      * Get details by header id
      */
     public function get_details_by_header_id($header_id) {
-        $this->db->select("d.*, fg.kode_barang, fg.nama_barang, fg.satuan, sc.sc_number");
+        // unit_price & currency_code diambil dari IPO-nya -- dipakai kolom Harga
+        // & Total Harga pada cetak Delivery Note.
+        // d.* sudah mencakup nw & gw kalau migrasi berat sudah dijalankan.
+        $this->db->select("d.*, fg.kode_barang, fg.nama_barang, fg.satuan,
+                           sc.sc_number, sc.unit_price, sc.currency_code", FALSE);
         $this->db->from($this->table_details . " d");
         $this->db->join($this->table_fg . " fg", 'd.fg_id = fg.id', 'left');
         $this->db->join($this->table_sc . " sc", 'd.sales_contract_id = sc.id', 'left');
@@ -95,12 +119,8 @@ class Fg_delivery_model extends CI_Model {
      * Generate delivery number
      */
     public function generate_delivery_number() {
-        $prefix = 'DO/' . date('Ym') . '/';
-        $this->db->like('delivery_number', $prefix, 'after');
-        $this->db->order_by('id', 'DESC');
-        $last = $this->db->get($this->table_header, 1)->row();
-        $num = $last ? (int) substr($last->delivery_number, -4) + 1 : 1;
-        return $prefix . str_pad($num, 4, '0', STR_PAD_LEFT);
+        // Format nomor diatur di config/doc_number.php (rebrand Acropoly 2026-11-05).
+        return doc_number_next('fg_delivery', 'fg_delivery_header', 'delivery_number');
     }
 
     /**
@@ -219,6 +239,89 @@ class Fg_delivery_model extends CI_Model {
     /**
      * Ship delivery (confirm) -> insert stock_ledger fg_out entries and set header status Confirmed
      */
+    /**
+     * Selaraskan status IPO (Sales Contract) dengan qty yang BENAR-BENAR sudah
+     * terkirim.
+     *
+     * Dipanggil setelah pengiriman dikonfirmasi maupun dibatalkan, jadi
+     * hasilnya selalu dihitung ulang dari data -- bukan ditebak dari kejadian
+     * terakhir. Aman dipanggil berulang.
+     *
+     * Dua hal yang diperbaiki di sini (dilaporkan user 2026-10-01: "kapan
+     * status open berganti menjadi finish"):
+     *
+     *  1. Dulu IPO diambil dari `fg_delivery_header.sales_contract_id` --
+     *     kolom peninggalan lama yang pada dokumen baru NULL, sehingga
+     *     syaratnya tidak pernah terpenuhi dan status IPO tidak pernah
+     *     berubah sama sekali. Sekarang diambil dari BARIS pengiriman, yang
+     *     juga menangani satu DO berisi beberapa IPO.
+     *
+     *  2. Dulu IPO langsung ditandai Finish pada pengiriman PERTAMA, berapa
+     *     pun jumlahnya. IPO 1.200 unit yang baru dikirim 100 ikut tertutup.
+     *     Sekarang Finish hanya kalau total terkirim sudah mencapai PO Qty.
+     *
+     * Hanya menyentuh IPO yang statusnya Open atau Finish -- Draft, Rejected
+     * & Cancelled tidak boleh ikut terbuka lagi karena urusan pengiriman.
+     *
+     * @return array [sc_id => status baru] untuk dicatat di log
+     */
+    public function sync_sc_status($sc_ids) {
+        $sc_ids = array_values(array_unique(array_filter((array) $sc_ids)));
+        if (empty($sc_ids)) return [];
+
+        $this->load->model('Sc_model');
+        $hasil = [];
+
+        foreach ($sc_ids as $sc_id) {
+            $sc = $this->db->select('id, status, po_qty')
+                           ->where('id', (int) $sc_id)
+                           ->get($this->table_sc)->row();
+            if (!$sc) continue;
+            if (!in_array($sc->status, ['Open', 'Finish'], true)) continue;
+
+            // Yang dihitung hanya pengiriman yang SUDAH dikirim (Confirmed);
+            // Draft belum keluar gudang jadi belum boleh menutup IPO.
+            $row = $this->db->select_sum('d.qty_shipped', 'terkirim')
+                ->from($this->table_details . ' d')
+                ->join($this->table_header . ' h', 'h.id = d.fg_delivery_header_id', 'inner')
+                ->where('d.sales_contract_id', (int) $sc_id)
+                ->where('h.status', 'Confirmed')
+                ->get()->row();
+            $terkirim = $row ? (float) $row->terkirim : 0.0;
+            $po_qty   = (float) $sc->po_qty;
+
+            // po_qty 0/kosong tidak bisa dipakai jadi patokan -- biarkan apa adanya.
+            if ($po_qty <= 0) continue;
+
+            $baru = ($terkirim + 0.0001 >= $po_qty) ? 'Finish' : 'Open';
+            if ($baru !== $sc->status) {
+                $this->Sc_model->update_status($sc_id, $baru);
+                log_message('info', "SC {$sc_id}: {$sc->status} -> {$baru} (terkirim {$terkirim} dari {$po_qty}).");
+            }
+            $hasil[$sc_id] = $baru;
+        }
+        return $hasil;
+    }
+
+    /**
+     * Daftar IPO yang tersentuh satu dokumen pengiriman, dibaca dari BARIS-nya
+     * (satu DO bisa memuat beberapa IPO), dengan kolom header sbg cadangan utk
+     * dokumen lama.
+     */
+    private function _sc_ids_of_delivery($header_id, $header = null) {
+        $ids = [];
+        foreach ($this->db->select('DISTINCT sales_contract_id', FALSE)
+                          ->where('fg_delivery_header_id', (int) $header_id)
+                          ->where('sales_contract_id IS NOT NULL', null, FALSE)
+                          ->get($this->table_details)->result() as $r) {
+            $ids[] = (int) $r->sales_contract_id;
+        }
+        if (empty($ids) && $header && !empty($header->sales_contract_id)) {
+            $ids[] = (int) $header->sales_contract_id;
+        }
+        return array_values(array_unique($ids));
+    }
+
     public function ship_delivery($id, $userId = null) {
         $h = $this->get_header_by_id($id);
         if (!$h || $h->status != 'Draft') return false;
@@ -266,6 +369,10 @@ class Fg_delivery_model extends CI_Model {
             $this->db->insert($this->table_stock, $ledger);
         }
 
+        // Selaraskan status IPO dgn qty yang sudah benar-benar terkirim.
+        // IPO diambil dari baris pengiriman, bukan kolom header yang NULL.
+        $this->sync_sc_status($this->_sc_ids_of_delivery($id, $h));
+
         $this->db->trans_complete();
         return $this->db->trans_status();
     }
@@ -310,13 +417,17 @@ class Fg_delivery_model extends CI_Model {
         foreach ($details as $d) {
             $affected_fgs[] = $d->fg_id;
         }
-        
+
         if (!empty($affected_fgs)) {
             // For each affected FG, recalculate all balances from scratch
             foreach ($affected_fgs as $fg_id) {
                 $this->_recalculate_fg_balance($fg_id);
             }
         }
+
+        // Hitung ulang, bukan asal dikembalikan ke Open: kalau masih ada
+        // pengiriman lain yang menutupi PO Qty, IPO-nya tetap Finish.
+        $this->sync_sc_status($this->_sc_ids_of_delivery($id, $h));
 
         $this->db->trans_complete();
         return $this->db->trans_status();
@@ -370,9 +481,16 @@ class Fg_delivery_model extends CI_Model {
                 (SUM(frd.qty_received) - IFNULL(shipped.total_shipped, 0)) AS current_stock
             FROM fg_receipt_details frd
             LEFT JOIN fg_receipt_header frh ON frd.fg_receipt_header_id = frh.id
-            LEFT JOIN production_header ph ON frh.production_header_id = ph.id
-            LEFT JOIN wo_header wo ON frh.wo_header_id = wo.id
-            LEFT JOIN sales_contracts sc ON wo.sales_contract_id = sc.id
+            -- WO & IPO disimpan di BARIS DETAIL (satu penerimaan bisa mencakup
+            -- beberapa WO); kolom yang sama di header hanya peninggalan lama dan
+            -- pada dokumen baru isinya NULL. Query ini dulu men-join dari HEADER,
+            -- sehingga sc selalu NULL dan syarat sc.customer_id tidak pernah
+            -- terpenuhi -- daftar barang siap kirim selalu kosong. Pola COALESCE
+            -- detail-dulu-baru-header ini sama dengan yang dipakai
+            -- Fg_receipt_model (lihat wo_legacy/sc_legacy di sana).
+            LEFT JOIN production_header ph ON ph.id = COALESCE(frd.production_header_id, frh.production_header_id)
+            LEFT JOIN wo_header wo         ON wo.id = COALESCE(frd.wo_header_id, frh.wo_header_id)
+            LEFT JOIN sales_contracts sc   ON sc.id = COALESCE(frd.sales_contract_id, wo.sales_contract_id, frh.sales_contract_id)
             LEFT JOIN customers c ON sc.customer_id = c.id
             LEFT JOIN finished_goods fg ON frd.fg_id = fg.id
             
@@ -388,7 +506,18 @@ class Fg_delivery_model extends CI_Model {
                 GROUP BY fdd.fg_id, fdd.sales_contract_id
             ) AS shipped ON shipped.fg_id = fg.id AND shipped.sales_contract_id = sc.id
             
-            WHERE frh.status = 'Confirmed'
+            -- Alur Penerimaan Barang Jadi berakhir di status 'Approved'
+            -- (approve_final, dan di situ pula stok fg_in dibuat). 'Confirmed'
+            -- adalah nama status LAMA sebelum ada alur approval -- lihat
+            -- catatan di Fg_receipt_model::confirm_receipt(): status Confirmed
+            -- lama dianggap sama dengan Approved.
+            --
+            -- Query ini tidak ikut diperbarui waktu itu, jadi menyaring nama
+            -- status yang tidak pernah lagi dihasilkan: daftar barang siap
+            -- kirim SELALU kosong untuk dokumen yang dibuat lewat alur baru
+            -- (dilaporkan user 2026-09-30). Keduanya diterima supaya baris
+            -- lama yang masih berstatus 'Confirmed' tetap terbaca.
+            WHERE frh.status IN ('Approved', 'Confirmed')
               AND sc.customer_id = ?
             
             GROUP BY sc.id, fg.id, c.nama_customer

@@ -70,7 +70,10 @@
                                 break;
                             case 'IN_RETURN_WIP':
                                 $badge = 'info';
-                                $doc_num = $t->prod_return_no;
+                                // prod_return_no sudah di-COALESCE dengan issuance_number di model
+                                $doc_num = $t->prod_return_no ?: ($t->issuance_number ?: '-');
+                                $doc_ref = !empty($t->mr_number_wip) ? $t->mr_number_wip : ($t->mr_number ?: '');
+                                $notes   = 'Produksi (WIP Return)';
                                 break;
                             case 'adjustment':
                                 $badge = 'warning';

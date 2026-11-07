@@ -19,6 +19,7 @@ class ApInvoice extends MY_Controller {
         $this->load->model('ApInvoice_model', 'model');
         $this->load->model('JurnalUmum_model'); 
         $this->load->model('Coa_model'); 
+        $this->load->model('Ap_auto_model');
         $this->load->library('form_validation');
         $this->load->helper('form');
     }
@@ -86,10 +87,17 @@ class ApInvoice extends MY_Controller {
     /**
      * Proses Simpan Faktur (Draft)
      */
+    /**
+     * AJAX: Generate invoice number
+     */
+    public function generate_invoice_number_ajax() {
+        $invoice_no = $this->model->generate_invoice_number();
+        return $this->output->set_content_type('application/json')->set_output(json_encode(['invoice_no' => $invoice_no]));
+    }
+
     public function store()
     {
         $this->form_validation->set_rules('supplier_id', 'Supplier', 'required');
-        $this->form_validation->set_rules('invoice_no', 'No. Faktur Supplier', 'required');
         $this->form_validation->set_rules('invoice_date', 'Tgl. Faktur', 'required');
         $this->form_validation->set_rules('due_date', 'Tgl. Jatuh Tempo', 'required');
         $this->form_validation->set_rules('invoice_type', 'Tipe Faktur', 'required');
@@ -99,12 +107,29 @@ class ApInvoice extends MY_Controller {
             redirect('apinvoice/create');
         }
 
-        $invoice_type = $this->input->post('invoice_type');
-        $details = $this->input->post('details');
+        // Auto-generate invoice_no if not provided
+        $post_data = $this->input->post();
+        if (empty($post_data['invoice_no'])) {
+            $post_data['invoice_no'] = $this->model->generate_invoice_number();
+        }
+
+        $invoice_type = $post_data['invoice_type'];
+        $details = $post_data['details'] ?? null;
 
         if (empty($details)) {
             $this->session->set_flashdata('error', 'Detail faktur tidak boleh kosong.');
             redirect('apinvoice/create');
+        }
+
+        // AP berbasis PO: setiap baris wajib punya akun debit (default dari pemetaan akun barang).
+        if ($invoice_type === 'PO_BASED') {
+            foreach ($details as $detail) {
+                if (empty($detail['po_detail_id']) || empty($detail['debet_account_id'])) {
+                    $this->session->set_flashdata('error', 'Setiap baris PO wajib punya Akun DEBET.');
+                    redirect('apinvoice/create');
+                    return;
+                }
+            }
         }
 
         // ✨ NEW: Validasi akun debet dan kredit untuk GRN_BASED
@@ -124,7 +149,7 @@ class ApInvoice extends MY_Controller {
         }
 
         try {
-            $header_id = $this->model->insert_invoice($this->input->post());
+            $header_id = $this->model->insert_invoice($post_data);
             if ($header_id) {
                 $this->session->set_flashdata('success', 'Faktur Supplier berhasil disimpan sebagai Draft.');
                 redirect('apinvoice/view/' . $header_id);
@@ -264,6 +289,23 @@ class ApInvoice extends MY_Controller {
      * AJAX HELPERS (Untuk form create)
      * ======================================
      */
+
+    /** AJAX: PO supplier ini yang masih punya sisa tagihan (barang sudah datang / jasa). */
+    public function ajax_get_billable_pos()
+    {
+        $rows = $this->Ap_auto_model->get_billable_pos((int) $this->input->get('supplier_id'));
+        return $this->output->set_content_type('application/json')->set_output(json_encode(['success' => true, 'data' => $rows]));
+    }
+
+    /** AJAX: baris PO yang bisa ditagih + saran akun debit dari pemetaan akun barang. */
+    public function ajax_get_po_lines()
+    {
+        $po_id = (int) $this->input->get('po_id');
+        $rows = $this->Ap_auto_model->get_po_billable_lines($po_id, null, null, true);
+        $ppn_rate = 0;
+        foreach ($rows as $r) { if ($r->ppn_applied) { $ppn_rate = $r->ppn_rate; break; } }
+        return $this->output->set_content_type('application/json')->set_output(json_encode(['success' => true, 'data' => $rows, 'ppn_rate' => $ppn_rate]));
+    }
 
     public function ajax_get_pending_grn()
     {

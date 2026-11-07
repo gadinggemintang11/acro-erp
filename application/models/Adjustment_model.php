@@ -3,8 +3,16 @@ defined('BASEPATH') OR exit('No direct script access allowed');
 
 class Adjustment_model extends CI_Model {
 
-    // (Fungsi get_all_headers, get_header_by_id, get_details_by_header_id, get_new_doc_number SAMA SEPERTI SEBELUMNYA)
-    // ... (copy dari jawaban saya sebelumnya) ...
+    private $_has_grn_col = null;
+
+    /** Cek apakah kolom grn_header_id sudah ada (untuk kompatibilitas server lama) */
+    private function _has_grn_col() {
+        if ($this->_has_grn_col === null) {
+            $q = $this->db->query("SHOW COLUMNS FROM adjustment_header LIKE 'grn_header_id'");
+            $this->_has_grn_col = ($q->num_rows() > 0);
+        }
+        return $this->_has_grn_col;
+    }
     public function get_all_headers()
     {
         $sql = "
@@ -69,24 +77,18 @@ class Adjustment_model extends CI_Model {
 
     public function get_new_doc_number()
     {
-        $this->db->select('RIGHT(doc_no, 4) as kode', FALSE);
-        $this->db->order_by('doc_no', 'DESC');
-        $this->db->limit(1);
-        $query = $this->db->get_where('adjustment_header', ['YEAR(doc_date)' => date('Y')]);
-        
-        if ($query->num_rows() > 0) {
-            $data = $query->row();
-            $kode = intval($data->kode) + 1;
-        } else {
-            $kode = 1;
-        }
-        $kode_max = str_pad($kode, 4, "0", STR_PAD_LEFT);
-        return "ADJ/" . date('Ym') . "/" . $kode_max;
+        // Format nomor diatur di config/doc_number.php (rebrand Acropoly 2026-11-05).
+        return doc_number_next('stock_adjustment', 'adjustment_header', 'doc_no');
     }
     
     // Menyimpan data ke DB (Status Draft)
     public function insert_adjustment($header_data, $details_data)
     {
+        // Hapus grn_header_id dari data jika kolom belum ada di DB server
+        if (!$this->_has_grn_col()) {
+            unset($header_data['grn_header_id']);
+        }
+
         $this->db->trans_start();
 
         $this->db->insert('adjustment_header', $header_data);
@@ -111,6 +113,11 @@ class Adjustment_model extends CI_Model {
     // FUNGSI BARU: Update Dokumen (Hanya Draft)
     public function update_adjustment($header_id, $header_data, $details_data)
     {
+        // Hapus grn_header_id dari data jika kolom belum ada di DB server
+        if (!$this->_has_grn_col()) {
+            unset($header_data['grn_header_id']);
+        }
+
         $this->db->trans_start();
         
         // 1. Cek status
@@ -452,6 +459,28 @@ class Adjustment_model extends CI_Model {
      */
 
     /**
+     * Ambil info satu GRN untuk ditampilkan di Select2 (pre-selected)
+     */
+    public function get_grn_info_for_select($grn_id)
+    {
+        $sql = "
+            SELECT gh.id, gh.grn_number,
+                   COALESCE(s.nama_supplier, s_mir.nama_supplier, s_po.nama_supplier) AS nama_supplier
+            FROM grn_header gh
+            LEFT JOIN suppliers s ON gh.supplier_id = s.id
+            LEFT JOIN grn_details gd ON gh.id = gd.grn_header_id
+            LEFT JOIN mir_header mh ON gd.source_doc_type = 'MIR' AND gd.source_doc_header_id = mh.id
+            LEFT JOIN suppliers s_mir ON mh.supplier_id = s_mir.id
+            LEFT JOIN po_header ph ON gd.source_doc_type = 'PO' AND gd.source_doc_header_id = ph.id
+            LEFT JOIN suppliers s_po ON ph.supplier_id = s_po.id
+            WHERE gh.id = ?
+            GROUP BY gh.id
+            LIMIT 1
+        ";
+        return $this->db->query($sql, [$grn_id])->row();
+    }
+
+    /**
      * Cari GRN berdasarkan pencarian Select2 (filter berdasarkan grn_number, supplier, item)
      */
     public function search_grn_for_adjustment($search_term = '')
@@ -460,13 +489,19 @@ class Adjustment_model extends CI_Model {
             grn.id,
             grn.grn_number,
             grn.grn_date,
-            s.nama_supplier,
-            GROUP_CONCAT(CONCAT(m.kode_material, " - ", m.nama_material) SEPARATOR ", ") as items_desc
+            COALESCE(s.nama_supplier, s_mir.nama_supplier, s_po.nama_supplier) as nama_supplier,
+            GROUP_CONCAT(DISTINCT CONCAT(m.kode_material, " - ", m.nama_material) SEPARATOR ", ") as items_desc
         ');
         $this->db->from('grn_header grn');
         $this->db->join('suppliers s', 'grn.supplier_id = s.id', 'left');
         $this->db->join('grn_details gd', 'grn.id = gd.grn_header_id', 'left');
         $this->db->join('materials m', 'gd.item_id = m.id AND gd.item_type = "material"', 'left');
+        // JOIN MIR untuk supplier fallback (GRN dari MIR tidak punya supplier_id di grn_header)
+        $this->db->join('mir_header mh', 'gd.source_doc_type = "MIR" AND gd.source_doc_header_id = mh.id', 'left');
+        $this->db->join('suppliers s_mir', 'mh.supplier_id = s_mir.id', 'left');
+        // JOIN PO untuk supplier fallback
+        $this->db->join('po_header ph', 'gd.source_doc_type = "PO" AND gd.source_doc_header_id = ph.id', 'left');
+        $this->db->join('suppliers s_po', 'ph.supplier_id = s_po.id', 'left');
         
         // Filter GRN yang sudah confirmed/verified
         $this->db->where('grn.status', 'Completed');
@@ -475,6 +510,8 @@ class Adjustment_model extends CI_Model {
             $this->db->group_start();
             $this->db->like('grn.grn_number', $search_term);
             $this->db->or_like('s.nama_supplier', $search_term);
+            $this->db->or_like('s_mir.nama_supplier', $search_term);
+            $this->db->or_like('s_po.nama_supplier', $search_term);
             $this->db->or_like('m.kode_material', $search_term);
             $this->db->or_like('m.nama_material', $search_term);
             $this->db->group_end();

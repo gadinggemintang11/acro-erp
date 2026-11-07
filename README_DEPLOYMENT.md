@@ -1,4 +1,4 @@
-# 🚀 Panduan Lengkap - Setup & Deploy ERP Mingbao
+# 🚀 Panduan Lengkap - Setup & Deploy ERP Acropoly
 
 ## 📚 Daftar File Panduan
 
@@ -102,7 +102,7 @@ Edit manual `application/config/database.php` dan `config.php`
 # Manual:
 git init
 git add .
-git commit -m "Initial commit - ERP Mingbao"
+git commit -m "Initial commit - ERP Acropoly"
 ```
 
 ### Connect ke GitHub/GitLab

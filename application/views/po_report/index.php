@@ -62,7 +62,7 @@
                 <div class="card-body">
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1">Total GRN</div>
+                            <div class="text-xs font-weight-bold text-success text-uppercase mb-1"><?= lang_line('po_report_total_grn', 'Total GRN'); ?></div>
                             <div class="h5 mb-0 font-weight-bold text-gray-800"><?php 
                                 $total_grns = 0;
                                 foreach($pos as $po) { $total_grns += $po->num_grns; }
@@ -115,6 +115,13 @@
                     </select>
                 </div>
                 <div class="col-md-2">
+                    <select name="type" class="form-select">
+                        <option value="">-- Semua Tipe --</option>
+                        <option value="produksi" <?= (($filters['type'] ?? '') == 'produksi' ? 'selected' : ''); ?>><?= lang_line('por_type_produksi'); ?></option>
+                        <option value="non_produksi" <?= (($filters['type'] ?? '') == 'non_produksi' ? 'selected' : ''); ?>><?= lang_line('por_type_non_produksi'); ?></option>
+                    </select>
+                </div>
+                <div class="col-md-2">
                     <button type="submit" class="btn btn-primary w-100"><i class="fas fa-search me-1"></i> <?= lang_line('po_report_search', 'Cari'); ?></button>
                 </div>
             </div>
@@ -136,6 +143,9 @@
                         <thead class="table-light">
                             <tr>
                                 <th><?= lang_line('po_report_po_number', 'PO Number'); ?></th>
+                                <th><?= lang_line('por_th_type'); ?></th>
+                                <th><?= lang_line('po_report_pr_number', 'PR Number'); ?></th>
+                                <th><?= lang_line('po_report_requester', 'Requester'); ?></th>
                                 <th><?= lang_line('po_report_po_date', 'Tanggal'); ?></th>
                                 <th><?= lang_line('po_report_supplier', 'Supplier'); ?></th>
                                 <th class="text-end"><?= lang_line('po_report_ordered_qty', 'Qty PO'); ?></th>
@@ -143,7 +153,8 @@
                                 <th class="text-end"><?= lang_line('po_report_outstanding', 'Sisa'); ?></th>
                                 <th><?= lang_line('po_report_status', 'Status PO'); ?></th>
                                 <th><?= lang_line('po_report_receipt_status', 'Receipt Status'); ?></th>
-                                <th>GRN</th>
+                                <th><?= lang_line('po_report_grn_number', 'GRN'); ?></th>
+                                <th><?= lang_line('po_report_days_label', 'Days Information'); ?></th>
                                 <th><?= lang_line('po_report_actions', 'Aksi'); ?></th>
                             </tr>
                         </thead>
@@ -151,6 +162,26 @@
                             <?php foreach($pos as $po): ?>
                             <tr>
                                 <td><strong><?= htmlspecialchars($po->po_number); ?></strong></td>
+                                <td>
+                                    <?php $tipe = $po->type ?? 'produksi'; ?>
+                                    <span class="badge bg-<?= $tipe === 'non_produksi' ? 'secondary' : 'info'; ?>">
+                                        <?= $tipe === 'non_produksi' ? 'Non Produksi' : 'Produksi'; ?>
+                                    </span>
+                                </td>
+                                <td>
+                                    <?php if (!empty($po->pr_number)): ?>
+                                        <span class="badge bg-info"><?= htmlspecialchars($po->pr_number); ?></span>
+                                    <?php else: ?>
+                                        <small class="text-muted">-</small>
+                                    <?php endif; ?>
+                                </td>
+                                <td>
+                                    <?php if (!empty($po->requester_name)): ?>
+                                        <small><?= htmlspecialchars($po->requester_name); ?></small>
+                                    <?php else: ?>
+                                        <small class="text-muted">-</small>
+                                    <?php endif; ?>
+                                </td>
                                 <td><?= date('d/m/Y', strtotime($po->po_date)); ?></td>
                                 <td><?= htmlspecialchars($po->nama_supplier ?? '-'); ?></td>
                                 <td class="text-end"><?= number_format($po->total_po_qty, 2); ?></td>
@@ -176,6 +207,16 @@
                                 </td>
                                 <td class="text-center">
                                     <span class="badge bg-info"><?= $po->num_grns; ?></span>
+                                </td>
+                                <td>
+                                    <?php
+                                        $days = $po->days_to_warehouse_in ?? 0;
+                                        if ($po->first_grn_date) {
+                                            echo '<span class="badge bg-success">' . $days . ' ' . lang_line('po_report_days_wh_in', 'hari (WH In)') . '</span>';
+                                        } else {
+                                            echo '<span class="badge bg-warning">' . $days . ' ' . lang_line('po_report_days_pending', 'hari (Pending)') . '</span>';
+                                        }
+                                    ?>
                                 </td>
                                 <td>
                                     <a href="<?= site_url('po_report/detail/' . $po->id); ?>" class="btn btn-sm btn-outline-primary">

@@ -5,17 +5,17 @@
   <div class="modal-dialog modal-xl modal-dialog-centered">
     <div class="modal-content">
       <div class="modal-header bg-primary text-white">
-        <h5 class="modal-title">Pilih GRN untuk diretur</h5>
+        <h5 class="modal-title"><?= lang_line('wo_grn_modal_title'); ?></h5>
         <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
       </div>
       <div class="modal-body">
         <div class="mb-3 row">
           <div class="col-md-6">
-            <input type="text" id="grnSearch" class="form-control" placeholder="Cari GRN atau supplier...">
+            <input type="text" id="grnSearch" class="form-control" placeholder="<?= lang_line('wo_grn_modal_search_ph'); ?>">
           </div>
           <div class="col-md-6 text-end">
-            <button type="button" id="btnSelectAll" class="btn btn-sm btn-outline-secondary">Pilih Semua</button>
-            <button type="button" id="btnClearAll" class="btn btn-sm btn-outline-secondary">Batal Pilih Semua</button>
+            <button type="button" id="btnSelectAll" class="btn btn-sm btn-outline-secondary"><?= lang_line('wo_grn_modal_btn_select_all'); ?></button>
+            <button type="button" id="btnClearAll" class="btn btn-sm btn-outline-secondary"><?= lang_line('wo_grn_modal_btn_clear'); ?></button>
           </div>
         </div>
 
@@ -24,10 +24,10 @@
             <thead>
               <tr>
                 <th style="width:36px"></th>
-                <th>GRN No</th>
-                <th>Tgl</th>
-                <th>Supplier</th>
-                <th>Keterangan</th>
+                <th><?= lang_line('wo_grn_modal_th_grn_no'); ?></th>
+                <th><?= lang_line('wo_grn_modal_th_date'); ?></th>
+                <th><?= lang_line('wo_grn_modal_th_supplier'); ?></th>
+                <th><?= lang_line('wo_grn_modal_th_notes'); ?></th>
               </tr>
             </thead>
             <tbody>
@@ -45,8 +45,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button type="button" id="btnLoadSelected" class="btn btn-primary">Load Items dari GRN Terpilih</button>
-        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Tutup</button>
+        <button type="button" id="btnLoadSelected" class="btn btn-primary"><?= lang_line('wo_grn_modal_btn_load'); ?></button>
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><?= lang_line('wo_grn_modal_btn_close'); ?></button>
       </div>
     </div>
   </div>
@@ -54,6 +54,16 @@
 
 <script>
 (function(){
+  const I18N_WO_GRN = {
+    min_one:        <?= json_encode(lang_line('wo_grn_js_min_one'), JSON_UNESCAPED_UNICODE); ?>,
+    load_failed:    <?= json_encode(lang_line('wo_grn_js_load_failed'), JSON_UNESCAPED_UNICODE); ?>,
+    invalid_json:   <?= json_encode(lang_line('wo_grn_js_invalid_json'), JSON_UNESCAPED_UNICODE); ?>,
+    added_n:        <?= json_encode(lang_line('wo_grn_js_added_n'), JSON_UNESCAPED_UNICODE); ?>,
+    failed_prefix:  <?= json_encode(lang_line('wo_grn_js_failed_prefix'), JSON_UNESCAPED_UNICODE); ?>,
+    unknown:        <?= json_encode(lang_line('wo_grn_js_unknown'), JSON_UNESCAPED_UNICODE); ?>,
+    attach_fail:    <?= json_encode(lang_line('wo_grn_js_attach_fail'), JSON_UNESCAPED_UNICODE); ?>,
+    load_fail:      <?= json_encode(lang_line('wo_grn_js_load_fail'), JSON_UNESCAPED_UNICODE); ?>
+  };
   const modalEl = document.getElementById('selectGrnModal');
   const headerId = modalEl ? parseInt(modalEl.getAttribute('data-header-id') || '0') : 0;
   const btnLoad = modalEl.querySelector('#btnLoadSelected');
@@ -84,7 +94,7 @@
 
   btnLoad.addEventListener('click', function(){
     const ids = getCheckedIds();
-    if (!ids.length) { alert('Pilih minimal satu GRN.'); return; }
+    if (!ids.length) { alert(I18N_WO_GRN.min_one); return; }
 
     // 1) load GRN items
     const fd = new FormData();
@@ -92,7 +102,7 @@
 
     fetch('<?= base_url('Warehouse_out/load_grn_items') ?>', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
     .then(r=>r.json()).then(j=>{
-      if (!j.success) { alert('Gagal load items: ' + (j.message||'')); return; }
+      if (!j.success) { alert(I18N_WO_GRN.load_failed + (j.message||'')); return; }
       const items = j.data || [];
 
       // 2) attach items to header directly
@@ -106,64 +116,20 @@
           resp = JSON.parse(text);
         } catch (e) {
           console.error('Invalid JSON response from server:', text);
-          alert('Server response not valid JSON. See console for details.');
+          alert(I18N_WO_GRN.invalid_json);
           return;
         }
         if (resp.success) {
           var bsModal = bootstrap.Modal.getInstance(modalEl) || new bootstrap.Modal(modalEl);
           bsModal.hide();
-          alert('Berhasil menambahkan ' + (resp.added||0) + ' item');
+          alert(I18N_WO_GRN.added_n.replace('%s', resp.added||0));
           window.location.reload();
         } else {
-          alert('Gagal: ' + (resp.message || (resp.errors ? resp.errors.join('\n') : 'unknown')));
+          alert(I18N_WO_GRN.failed_prefix + (resp.message || (resp.errors ? resp.errors.join('\n') : I18N_WO_GRN.unknown)));
         }
-      }).catch(err=>{ console.error('Fetch error', err); alert('Gagal attach items ke header (network error)'); });
+      }).catch(err=>{ console.error('Fetch error', err); alert(I18N_WO_GRN.attach_fail); });
 
-    }).catch(err=>{ console.error(err); alert('Gagal load items'); });
+    }).catch(err=>{ console.error(err); alert(I18N_WO_GRN.load_fail); });
   });
 })();
 </script>
-<?php if (!defined('BASEPATH')) exit('No direct script access allowed'); ?>
-<html><head><title>Pilih GRN</title>
-<link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css">
-</head><body>
-<div class="container">
-    <h4>Pilih GRN untuk diretur</h4>
-    <form id="grnForm">
-    <table class="table table-sm table-bordered">
-        <thead><tr><th></th><th>GRN No</th><th>Tgl</th><th>Supplier</th><th>Keterangan</th></tr></thead>
-        <tbody>
-        <?php foreach($grns as $g): ?>
-            <tr>
-                <td><input type="checkbox" name="grn_ids[]" value="<?= $g->id ?>"></td>
-                <td><?= htmlspecialchars($g->grn_number) ?></td>
-                <td><?= date('d M Y', strtotime($g->grn_date)) ?></td>
-                <td><?= htmlspecialchars($g->supplier_name ?? '-') ?></td>
-                <td><?= htmlspecialchars($g->notes ?? '') ?></td>
-            </tr>
-        <?php endforeach; ?>
-        </tbody>
-    </table>
-    <div class="form-group">
-        <button type="button" id="btnLoadItems" class="btn btn-primary">Load Items</button>
-        <button type="button" onclick="window.close()" class="btn btn-secondary">Close</button>
-    </div>
-    </form>
-</div>
-<script>
-document.getElementById('btnLoadItems').addEventListener('click', function(){
-    const form = document.getElementById('grnForm');
-    const fd = new FormData(form);
-    fetch('<?= base_url('Warehouse_out/load_grn_items') ?>', {method:'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' }})
-    .then(r=>r.json()).then(j=>{
-        if (j.success) {
-            // Send items to opener window
-            window.opener.postMessage(JSON.stringify({type:'warehouse_out_grn_items', items: j.data}), '*');
-            window.close();
-        } else {
-            alert('Gagal load items');
-        }
-    });
-});
-</script>
-</body></html>

@@ -1,6 +1,12 @@
 <?php
 defined('BASEPATH') OR exit('No direct script access allowed');
 
+use PhpOffice\PhpSpreadsheet\Spreadsheet;
+use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
+use PhpOffice\PhpSpreadsheet\Style\Alignment;
+use PhpOffice\PhpSpreadsheet\Style\Border;
+use PhpOffice\PhpSpreadsheet\Style\Fill;
+
 class StockOpname extends MY_Controller {
 
     public function __construct()
@@ -171,8 +177,9 @@ class StockOpname extends MY_Controller {
         $data['details'] = $merged_details;
         $data['pagination'] = $this->pagination->create_links();
         $data['current_page'] = $page;
-        $data['total_pages'] = ceil($total_records / $config['per_page']);
+        $data['total_pages'] = ($config['per_page'] > 0) ? (int)ceil($total_records / $config['per_page']) : 1;
         $data['session_data'] = $session_data;
+        $data['progress'] = $this->model->get_counting_progress($id);
         
         $this->load->view('templates/header', $data);
         $this->load->view('templates/sidebar', $data);
@@ -292,6 +299,173 @@ class StockOpname extends MY_Controller {
             $this->session->set_flashdata('error', 'Gagal konfirmasi: ' . $result['message']);
             redirect('stockopname/counting/' . $id);
         }
+    }
+
+    // Export hasil STO ke PDF
+    public function export_pdf($id)
+    {
+        $header = $this->model->get_header_by_id($id);
+        if (!$header) show_404();
+
+        $details  = $this->model->get_details_by_header_id($id);
+        $progress = $this->model->get_counting_progress($id);
+
+        $data = [
+            'title'    => 'Stock Opname - ' . $header->opname_no,
+            'header'   => $header,
+            'details'  => $details,
+            'progress' => $progress,
+        ];
+        $html = $this->load->view('stockopname/print_pdf', $data, TRUE);
+
+        // tempDir di project — pola sama dengan Purchase_order / Purchase_request
+        $temp_dir = APPPATH . 'cache/pdf_temp/';
+        if (!is_dir($temp_dir)) @mkdir($temp_dir, 0777, true);
+
+        $mpdf = new \Mpdf\Mpdf([
+            'format'        => 'A4',
+            'orientation'   => 'L',
+            'margin_left'   => 10,
+            'margin_right'  => 10,
+            'margin_top'    => 12,
+            'margin_bottom' => 12,
+            'tempDir'       => $temp_dir,
+        ]);
+        $mpdf->SetTitle($data['title']);
+        $mpdf->WriteHTML($html);
+        $mpdf->Output('STO-' . $header->opname_no . '.pdf', 'I');
+    }
+
+    // Export hasil STO ke Excel
+    public function export_excel($id)
+    {
+        $header = $this->model->get_header_by_id($id);
+        if (!$header) show_404();
+        $details = $this->model->get_details_by_header_id($id);
+
+        $spreadsheet = new Spreadsheet();
+        $sheet = $spreadsheet->getActiveSheet();
+        $sheet->setTitle('Stock Opname');
+
+        // === Judul ===
+        $sheet->setCellValue('A1', 'STOCK OPNAME');
+        $sheet->mergeCells('A1:G1');
+        $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
+        $sheet->getStyle('A1')->getAlignment()->setHorizontal(Alignment::HORIZONTAL_CENTER);
+
+        // === Info Header ===
+        $sheet->setCellValue('A3', 'No. Dokumen');     $sheet->setCellValue('B3', ': ' . $header->opname_no);
+        $sheet->setCellValue('D3', 'Tipe Item');        $sheet->setCellValue('E3', ': ' . ucfirst($header->item_type));
+        $sheet->setCellValue('A4', 'Tanggal Opname');   $sheet->setCellValue('B4', ': ' . date('d-m-Y', strtotime($header->opname_date)));
+        $sheet->setCellValue('D4', 'Status');           $sheet->setCellValue('E4', ': ' . $header->status);
+        $sheet->setCellValue('A5', 'Catatan');          $sheet->setCellValue('B5', ': ' . ($header->notes ?: '-'));
+        $sheet->setCellValue('A6', 'Dibuat Oleh');      $sheet->setCellValue('B6', ': ' . ($header->creator_name ?: '-'));
+        if ($header->confimer_name) {
+            $sheet->setCellValue('D6', 'Dikonfirmasi'); $sheet->setCellValue('E6', ': ' . $header->confimer_name . ' (' . date('d-m-Y H:i', strtotime($header->confirmed_at)) . ')');
+        }
+        if (!empty($header->adjustment_doc)) {
+            $sheet->setCellValue('A7', 'Dok. Adjustment'); $sheet->setCellValue('B7', ': ' . $header->adjustment_doc);
+        }
+        foreach (['A3','A4','A5','A6','A7','D3','D4','D6'] as $cell) {
+            $sheet->getStyle($cell)->getFont()->setBold(true);
+        }
+
+        // === Header tabel ===
+        $startRow = 9;
+        $headers = ['No', 'Kode Item', 'Nama Item', 'Satuan', 'Qty Sistem', 'Qty Fisik', 'Selisih', 'Catatan'];
+        $col = 'A';
+        foreach ($headers as $h) { $sheet->setCellValue($col . $startRow, $h); $col++; }
+        $sheet->getStyle('A' . $startRow . ':H' . $startRow)->applyFromArray([
+            'font' => ['bold' => true],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'D9E1F2']],
+            'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
+            'alignment' => ['horizontal' => Alignment::HORIZONTAL_CENTER],
+        ]);
+
+        // === Isi tabel ===
+        $row = $startRow + 1;
+        $no = 1;
+        $sum_sistem = 0; $sum_fisik = 0; $sum_selisih = 0;
+        foreach ($details as $d) {
+            $qty_sistem = (float)$d->qty_sistem;
+            $qty_fisik  = ($d->qty_fisik !== NULL) ? (float)$d->qty_fisik : null;
+            $selisih    = (float)$d->selisih;
+            $sheet->setCellValue('A' . $row, $no++);
+            $sheet->setCellValue('B' . $row, $d->item_code ?? '');
+            $sheet->setCellValue('C' . $row, $d->item_name);
+            $sheet->setCellValue('D' . $row, $d->item_unit);
+            $sheet->setCellValueExplicit('E' . $row, $qty_sistem, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_NUMERIC);
+            if ($qty_fisik !== null) {
+                $sheet->setCellValueExplicit('F' . $row, $qty_fisik, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_NUMERIC);
+                $sum_fisik += $qty_fisik;
+            } else {
+                $sheet->setCellValue('F' . $row, '(Belum diisi)');
+                $sheet->getStyle('F' . $row)->getFont()->getColor()->setRGB('808080');
+            }
+            $sheet->setCellValueExplicit('G' . $row, $selisih, \PhpOffice\PhpSpreadsheet\Cell\DataType::TYPE_NUMERIC);
+            $sheet->setCellValue('H' . $row, $d->notes ?? '');
+            // Warna selisih
+            if ($selisih > 0) $sheet->getStyle('G' . $row)->getFont()->getColor()->setRGB('27AE60');
+            elseif ($selisih < 0) $sheet->getStyle('G' . $row)->getFont()->getColor()->setRGB('C0392B');
+            $sum_sistem += $qty_sistem;
+            $sum_selisih += $selisih;
+            $row++;
+        }
+
+        // === Total ===
+        $sheet->setCellValue('A' . $row, 'TOTAL');
+        $sheet->mergeCells('A' . $row . ':D' . $row);
+        $sheet->setCellValue('E' . $row, $sum_sistem);
+        $sheet->setCellValue('F' . $row, $sum_fisik);
+        $sheet->setCellValue('G' . $row, $sum_selisih);
+        $sheet->getStyle('A' . $row . ':H' . $row)->applyFromArray([
+            'font' => ['bold' => true],
+            'fill' => ['fillType' => Fill::FILL_SOLID, 'startColor' => ['rgb' => 'F2F2F2']],
+            'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN]],
+        ]);
+
+        // Border seluruh data
+        $sheet->getStyle('A' . ($startRow + 1) . ':H' . ($row - 1))->applyFromArray([
+            'borders' => ['allBorders' => ['borderStyle' => Border::BORDER_THIN, 'color' => ['rgb' => 'CCCCCC']]],
+        ]);
+        // Format angka kolom Qty
+        $sheet->getStyle('E' . ($startRow + 1) . ':G' . $row)->getNumberFormat()->setFormatCode('#,##0.####;[Red]-#,##0.####');
+        $sheet->getStyle('E' . ($startRow + 1) . ':G' . $row)->getAlignment()->setHorizontal(Alignment::HORIZONTAL_RIGHT);
+
+        // Auto-size kolom
+        foreach (range('A', 'H') as $c) { $sheet->getColumnDimension($c)->setAutoSize(true); }
+
+        $filename = 'STO-' . $header->opname_no . '-' . date('YmdHis') . '.xlsx';
+        // Bersihkan output buffer sebelum kirim header
+        while (ob_get_level() > 0) { ob_end_clean(); }
+        header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+        header('Content-Disposition: attachment;filename="' . $filename . '"');
+        header('Cache-Control: max-age=0');
+
+        $writer = new Xlsx($spreadsheet);
+        $writer->save('php://output');
+        exit;
+    }
+
+    // Refresh / tambah item yang mungkin baru muncul (untuk sesi Draft/Counting)
+    public function regenerate($id)
+    {
+        $header = $this->model->get_header_by_id($id);
+        if (!$header) show_404();
+
+        $result = $this->model->regenerate_items($id);
+        if ($result['status']) {
+            if ($result['added'] > 0) {
+                $this->session->set_flashdata('success',
+                    'Berhasil menambahkan ' . $result['added'] . ' item baru ke daftar opname.');
+            } else {
+                $this->session->set_flashdata('warning',
+                    'Tidak ada item baru yang perlu ditambahkan. Daftar sudah lengkap.');
+            }
+        } else {
+            $this->session->set_flashdata('error', $result['message']);
+        }
+        redirect('stockopname/counting/' . $id);
     }
 
     // Hapus sesi (hanya Draft)

@@ -4,7 +4,7 @@
             <i class="fas fa-minus-square text-danger mr-2"></i><?= htmlspecialchars($title); ?>
         </h3>
         <a href="<?= base_url('Scrap_Out/create') ?>" class="btn btn-danger shadow-sm btn-load">
-            <i class="fas fa-plus-circle mr-1"></i> Buat Pengeluaran Scrap
+            <i class="fas fa-plus-circle mr-1"></i> <?= lang_line('scrap_out_create'); ?>
         </a>
     </div>
 
@@ -14,14 +14,14 @@
                 <table class="table table-striped table-hover align-middle">
                     <thead class="thead-light text-center">
                         <tr>
-                            <th>No. Dokumen</th>
-                            <th>Tgl Dokumen</th>
-                            <th>Tipe BC</th>
-                            <th>No. BC</th>
-                            <th>Tgl BC</th>
-                            <th>Customer</th>
-                            <th>Status</th>
-                            <th width="200">Aksi</th>
+                            <th><?= lang_line('scrap_out_doc_number'); ?></th>
+                            <th><?= lang_line('scrap_out_doc_date'); ?></th>
+                            <th><?= lang_line('scrap_out_bc_type'); ?></th>
+                            <th><?= lang_line('scrap_out_bc_number'); ?></th>
+                            <th><?= lang_line('scrap_out_bc_date'); ?></th>
+                            <th><?= lang_line('scrap_out_customer'); ?></th>
+                            <th><?= lang_line('scrap_out_status'); ?></th>
+                            <th width="200"><?= lang_line('label_action'); ?></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -40,24 +40,24 @@
                                 <span class="badge badge-<?= $badge; ?>"><?= htmlspecialchars($doc->status); ?></span>
                             </td>
                             <td class="text-center">
-                                <a href="<?= base_url('Scrap_Out/view/'.$doc->id); ?>" class="btn btn-sm btn-info btn-load" title="Lihat Detail">
+                                <a href="<?= base_url('Scrap_Out/view/'.$doc->id); ?>" class="btn btn-sm btn-info btn-load" title="<?= lang_line('scrap_out_view_detail'); ?>">
                                     <i class="fas fa-eye"></i>
                                 </a>
                                 <?php if ($doc->status == 'Draft'): ?>
-                                    <a href="<?= base_url('Scrap_Out/edit/'.$doc->id); ?>" class="btn btn-sm btn-warning" title="Edit">
+                                    <a href="<?= base_url('Scrap_Out/edit/'.$doc->id); ?>" class="btn btn-sm btn-warning" title="<?= lang_line('scrap_out_edit'); ?>">
                                         <i class="fas fa-edit"></i>
                                     </a>
-                                    <a href="<?= base_url('Scrap_Out/delete/'.$doc->id); ?>" class="btn btn-sm btn-danger btn-delete" data-message="Hapus draft ini?">
+                                    <a href="<?= base_url('Scrap_Out/delete/'.$doc->id); ?>" class="btn btn-sm btn-danger btn-delete" data-message="<?= lang_line('scrap_out_delete_confirm'); ?>">
                                         <i class="fas fa-trash"></i>
                                     </a>
                                 <?php endif; ?>
-                                <a href="<?= base_url('Scrap_Out/export_pdf/'.$doc->id); ?>" target="_blank" class="btn btn-sm btn-secondary" title="PDF">
+                                <a href="<?= base_url('Scrap_Out/export_pdf/'.$doc->id); ?>" target="_blank" class="btn btn-sm btn-secondary" title="<?= lang_line('scrap_out_pdf'); ?>">
                                     <i class="fas fa-file-pdf"></i>
                                 </a>
                             </td>
                         </tr>
                         <?php endforeach; else: ?>
-                            <tr><td colspan="8" class="text-center text-muted py-3">Belum ada data pengeluaran scrap.</td></tr>
+                            <tr><td colspan="8" class="text-center text-muted py-3"><?= lang_line('scrap_out_no_data'); ?></td></tr>
                         <?php endif; ?>
                     </tbody>
                 </table>

@@ -9,6 +9,7 @@ class LapMutasiMaterial extends MY_Controller {
 
     public function __construct() {
         parent::__construct();
+        check_login(); // 2026-11-05: halaman ini sebelumnya bisa dibuka TANPA login
         $this->load->model('LapMutasiMaterial_model');
         $this->load->helper(['url', 'file']);
     }
@@ -275,7 +276,7 @@ class LapMutasiMaterial extends MY_Controller {
         $sheet->setTitle('Mutasi Material');
 
         // --- Header dengan Company Name ---
-        $sheet->setCellValue('A1', 'PT MINGBAO LIANCHUANG INTERNATIONAL');
+        $sheet->setCellValue('A1', company_info('company_name'));
         $sheet->mergeCells('A1:M1');
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(11);
         $sheet->getStyle('A1')->getAlignment()->setHorizontal('center');

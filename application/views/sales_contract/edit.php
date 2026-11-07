@@ -21,7 +21,7 @@
 
     <div class="card shadow mb-4">
         <div class="card-header py-3">
-            <h6 class="m-0 font-weight-bold text-primary"><?= lang_line('sc_form_edit_title', 'Form Edit Sales Contract'); ?></h6>
+            <h6 class="m-0 font-weight-bold text-primary"><?= lang_line('sc_form_edit_title', 'Form Edit Sales Order Number'); ?></h6>
         </div>
         <div class="card-body">
             <!-- Ganti action form ke method update -->
@@ -31,7 +31,7 @@
             <div class="row">
                 <div class="col-md-6">
                     <div class="form-group">
-                        <label for="sc_number"><?= lang_line('sc_number', 'Nomor SC'); ?></label>
+                        <label for="sc_number"><?= lang_line('sc_number', 'Nomor Sales Order'); ?></label>
                         <input type="text" class="form-control" id="sc_number" value="<?= html_escape($contract->sc_number); ?>" readonly>
                     </div>
 
@@ -48,7 +48,7 @@
                     </div>
 
                     <div class="form-group">
-                        <label for="fg_id"><?= lang_line('sc_style', 'Style'); ?> (Finished Good) <span class="text-danger">*</span></label>
+                        <label for="fg_id"><?= lang_line('sc_style', 'Style'); ?> <?= lang_line('sc_finished_good_suffix', '(Finished Good)'); ?> <span class="text-danger">*</span></label>
                         <select class="form-control" id="fg_id" name="fg_id" required>
                             <option value=""><?= lang_line('sc_style_select', '-- Pilih Style --'); ?></option>
                             <?php foreach ($styles as $style): ?>

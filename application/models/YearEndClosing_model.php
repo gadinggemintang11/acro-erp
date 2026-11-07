@@ -45,10 +45,14 @@ class YearEndClosing_model extends CI_Model {
         $this->db->from('chart_of_accounts');
         $this->db->where('status', 'active');
         $this->db->where('is_header', 0);
-        $this->db->where('LEFT(account_code, 1)', '3');
+        // Pakai tipe akun, bukan digit kode (2026-11-07). group_start wajib:
+        // tanpa itu OR-nya lolos dari filter status/header/tipe di atas.
+        $this->db->where('account_type', 'Ekuitas');
+        $this->db->group_start();
         $this->db->like('account_name', 'laba', 'both');
         $this->db->or_like('account_name', 'retained', 'both');
         $this->db->or_like('account_name', 'ditahan', 'both');
+        $this->db->group_end();
         return $this->db->get()->result();
     }
 
@@ -62,7 +66,7 @@ class YearEndClosing_model extends CI_Model {
             JOIN chart_of_accounts coa ON jd.account_id = coa.id
             WHERE YEAR(jh.journal_date) = ?
             AND jh.status = 'Posted'
-            AND LEFT(coa.account_code, 1) = '4'
+            AND coa.account_type = 'Pendapatan'
         ", [$year])->row()->total ?? 0;
 
         // Hitung total Expense (5xxx)
@@ -73,7 +77,7 @@ class YearEndClosing_model extends CI_Model {
             JOIN chart_of_accounts coa ON jd.account_id = coa.id
             WHERE YEAR(jh.journal_date) = ?
             AND jh.status = 'Posted'
-            AND LEFT(coa.account_code, 1) = '5'
+            AND coa.account_type IN ('HPP', 'Biaya')
         ", [$year])->row()->total ?? 0;
 
         $net_income = $revenue - $expense;
@@ -98,7 +102,7 @@ class YearEndClosing_model extends CI_Model {
             JOIN chart_of_accounts coa ON jd.account_id = coa.id
             WHERE YEAR(jh.journal_date) = ?
             AND jh.status = 'Posted'
-            AND LEFT(coa.account_code, 1) = '4'
+            AND coa.account_type = 'Pendapatan'
             GROUP BY coa.id
             HAVING balance != 0
             ORDER BY coa.account_code
@@ -118,7 +122,7 @@ class YearEndClosing_model extends CI_Model {
             JOIN chart_of_accounts coa ON jd.account_id = coa.id
             WHERE YEAR(jh.journal_date) = ?
             AND jh.status = 'Posted'
-            AND LEFT(coa.account_code, 1) = '5'
+            AND coa.account_type IN ('HPP', 'Biaya')
             GROUP BY coa.id
             HAVING balance != 0
             ORDER BY coa.account_code
@@ -162,36 +166,47 @@ class YearEndClosing_model extends CI_Model {
         $total_debit = 0;
         $total_kredit = 0;
 
-        // Close Revenue accounts (Debit Revenue, Kredit Income Summary/Retained Earnings)
+        // Tutup semua akun P&L ke nol, termasuk yang saldonya berlawanan
+        // (2026-11-07). Sebelumnya hanya saldo > 0 yang ditutup, padahal
+        // net_income sudah memperhitungkan akun kontra seperti Discount
+        // Penjualan (Pendapatan bersaldo debit) -- jurnal jadi tidak seimbang
+        // dan akun kontranya tidak ikut nol.
+        // Pendapatan: saldo = kredit - debit -> positif ditutup di Debit.
         foreach ($revenue_accounts as $acc) {
-            if ($acc->balance > 0) {
-                $details[] = [
-                    'journal_header_id' => $journal_header_id,
-                    'account_id' => $acc->id,
-                    'description' => 'Closing Revenue ' . $year,
-                    'debit' => $acc->balance,
-                    'kredit' => 0,
-                    'debit_local' => $acc->balance,
-                    'kredit_local' => 0
-                ];
-                $total_debit += $acc->balance;
-            }
+            $bal = round((float) $acc->balance, 2);
+            if ($bal == 0) continue;
+            $dr = $bal > 0 ? $bal : 0;
+            $cr = $bal < 0 ? abs($bal) : 0;
+            $details[] = [
+                'journal_header_id' => $journal_header_id,
+                'account_id' => $acc->id,
+                'description' => 'Closing Revenue ' . $year,
+                'debit' => $dr,
+                'kredit' => $cr,
+                'debit_local' => $dr,
+                'kredit_local' => $cr
+            ];
+            $total_debit += $dr;
+            $total_kredit += $cr;
         }
 
-        // Close Expense accounts (Debit Income Summary/Retained Earnings, Kredit Expense)
+        // Biaya/HPP: saldo = debit - kredit -> positif ditutup di Kredit.
         foreach ($expense_accounts as $acc) {
-            if ($acc->balance > 0) {
-                $details[] = [
-                    'journal_header_id' => $journal_header_id,
-                    'account_id' => $acc->id,
-                    'description' => 'Closing Expense ' . $year,
-                    'debit' => 0,
-                    'kredit' => $acc->balance,
-                    'debit_local' => 0,
-                    'kredit_local' => $acc->balance
-                ];
-                $total_kredit += $acc->balance;
-            }
+            $bal = round((float) $acc->balance, 2);
+            if ($bal == 0) continue;
+            $dr = $bal < 0 ? abs($bal) : 0;
+            $cr = $bal > 0 ? $bal : 0;
+            $details[] = [
+                'journal_header_id' => $journal_header_id,
+                'account_id' => $acc->id,
+                'description' => 'Closing Expense ' . $year,
+                'debit' => $dr,
+                'kredit' => $cr,
+                'debit_local' => $dr,
+                'kredit_local' => $cr
+            ];
+            $total_debit += $dr;
+            $total_kredit += $cr;
         }
 
         // Transfer to Retained Earnings
@@ -267,23 +282,8 @@ class YearEndClosing_model extends CI_Model {
 
     private function _generate_closing_journal_no($year)
     {
-        // Format: YEC/YYYY/0001
-        $prefix = 'YEC/' . $year . '/';
-        
-        $this->db->select('journal_no');
-        $this->db->from('journal_header');
-        $this->db->like('journal_no', $prefix, 'after');
-        $this->db->order_by('id', 'DESC');
-        $this->db->limit(1);
-        $result = $this->db->get()->row();
-        
-        if ($result) {
-            $last_number = (int) substr($result->journal_no, -4);
-            $next_number = $last_number + 1;
-        } else {
-            $next_number = 1;
-        }
-        
-        return $prefix . str_pad($next_number, 4, '0', STR_PAD_LEFT);
+        // Format nomor diatur di config/doc_number.php (rebrand Acropoly 2026-11-05).
+        // YYMM = Desember tahun yang ditutup.
+        return doc_number_next('year_end_closing', 'journal_header', 'journal_no', ((int) $year) . '-12-31');
     }
 }

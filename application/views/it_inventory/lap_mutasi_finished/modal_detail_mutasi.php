@@ -24,7 +24,7 @@
                 <th>No. Dokumen</th>
                 <th>Customer</th>
                 <th>No. WO</th>
-                <th>No. SC</th>
+                <th>No. Sales Order</th>
                 <th class="text-right">Masuk</th>
                 <th class="text-right">Keluar</th>
                 <th class="text-right">Saldo</th>

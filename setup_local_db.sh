@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# Script Setup Database Local untuk ERP Mingbao
+# Script Setup Database Local untuk ERP NSI
 # Jalankan dengan: bash setup_local_db.sh
 
 echo "================================================"
-echo "  Setup Database Local - ERP Mingbao"
+echo "  Setup Database Local - ERP NSI"
 echo "================================================"
 echo ""
 

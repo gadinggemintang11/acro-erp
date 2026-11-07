@@ -77,31 +77,15 @@ class ProdReturn_model extends CI_Model {
         return $q ? $q->result() : [];
     }
     public function generate_return_no() {
-        $prefix = 'RFP-' . date('Ym') . '-';
-        $this->db->select('prod_return_no')
-                 ->from($this->tbl_header)
-                 ->like('prod_return_no', $prefix, 'after')
-                 ->order_by('id', 'DESC')
-                 ->limit(1);
-        $q = $this->db->get();
-        if (!$q) {
-            log_message('error', 'ProdReturn_model->generate_return_no DB Error: ' . print_r($this->db->error(), true));
-            return $prefix . '001';
-        }
-        $last = $q->row();
-        $next = 1;
-        if ($last && isset($last->prod_return_no)) {
-            $part = substr($last->prod_return_no, strlen($prefix));
-            if (is_numeric($part)) $next = (int)$part + 1;
-        }
-        return $prefix . sprintf('%03d', $next);
+        // Format nomor diatur di config/doc_number.php (rebrand Acropoly 2026-11-05).
+        return doc_number_next('production_return', 'prod_return_header', 'prod_return_no');
     }
 
   
     public function get_return_by_id($id) {
         $data = [];
-      
-        $this->db->select('h.*, w.wo_number, u_ret.fullname as returner_name, u_conf.fullname as confirmer_name');
+
+        $this->db->select('h.*, w.wo_number, u_ret.fullname as returner_name, u_ret.signature_path as returner_signature, u_conf.fullname as confirmer_name, u_conf.signature_path as confirmer_signature');
         $this->db->from($this->tbl_header . ' h');
         $this->db->join($this->tbl_wo . ' w', 'w.id = h.work_order_id', 'left');
         $this->db->join($this->tbl_users . ' u_ret', 'u_ret.id = h.returned_by', 'left');

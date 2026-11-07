@@ -49,9 +49,15 @@
             border: 2px solid #000000;
         }
 
+        .detail-table {
+            table-layout: fixed;
+        }
+
         .detail-table th,
         .detail-table td {
             border: 2px solid #000000;
+            overflow-wrap: break-word;
+            word-wrap: break-word;
         }
 
         .payment-table th,
@@ -132,10 +138,9 @@
                     <img src="<?= FCPATH . 'assets/img/fav.png'; ?>" alt="Company Logo" style="width: 35px; height: 35px; max-width: 35px; max-height: 35px;">
                 </div>
                 <div style="font-size: 11px; line-height: 1.4;">
-                    <strong style="font-size: 12px;">PT. MINGBAO LIANCHUANG INTERNATIONAL</strong><br>
-                    Jalan Kawasan Industri Candi 11B No. 8<br>
-                    Kel. Bambankerep, Kec. Ngaliyan, Kota Semarang
-                    purchasing@mingbaolianchuanginternational.com
+                    <strong style="font-size: 12px;"><?= htmlspecialchars(company_info('company_name')) ?></strong><br>
+                    <?= company_address_html() ?>
+                    <?php if (trim((string) company_info('company_email')) !== ''): ?><br><?= htmlspecialchars(company_info('company_email')) ?><?php endif; ?>
                 </div>
             </td>
             <td style="width: 50%; vertical-align: top; text-align: center; padding: 0; border: none;">
@@ -278,47 +283,69 @@
     </table>
 
     <!-- Signature Table -->
-    <table class="signature-table" style="margin-top: 15px;">
+    <?php
+    $confirmer_sig = '';
+    $creator_sig = '';
+
+    if (!empty($header->confirmer_signature)) {
+        $sig_path = FCPATH . $header->confirmer_signature;
+        if (file_exists($sig_path)) {
+            $confirmer_sig = '<img src="' . $sig_path . '" style="height: 40px; width: auto;" />';
+        }
+    }
+
+    if (!empty($header->creator_signature)) {
+        $sig_path = FCPATH . $header->creator_signature;
+        if (file_exists($sig_path)) {
+            $creator_sig = '<img src="' . $sig_path . '" style="height: 40px; width: auto;" />';
+        }
+    }
+    ?>
+    <table class="signature-table" style="margin-top: 15px; border-collapse: collapse; width: 100%;">
         <tr>
-            <td style="width: 25%; text-align: center; padding: 10px;">
+            <td style="width: 25%; text-align: center; padding: 10px; border: 2px solid #000000;">
                 <strong>Disetujui<br>批准</strong>
             </td>
-            <td style="width: 25%; text-align: center; padding: 10px;">
+            <td style="width: 25%; text-align: center; padding: 10px; border: 2px solid #000000;">
                 <strong>Kepala Bagian<br>行政主管</strong>
             </td>
-            <td style="width: 25%; text-align: center; padding: 10px;">
+            <td style="width: 25%; text-align: center; padding: 10px; border: 2px solid #000000;">
                 <strong>Kepala Akuntan<br>会计主管</strong>
             </td>
-            <td style="width: 25%; text-align: center; padding: 10px;">
+            <td style="width: 25%; text-align: center; padding: 10px; border: 2px solid #000000;">
                 <strong>Pemohon<br>申请人</strong>
             </td>
         </tr>
         <tr>
-            <td style="width: 25%; text-align: center; padding: 40px 10px;">
+            <td style="width: 25%; text-align: center; padding: 30px 10px; border: 2px solid #000000; height: 80px; vertical-align: bottom;">
+                <?= $confirmer_sig; ?>
+            </td>
+            <td style="width: 25%; text-align: center; padding: 30px 10px; border: 2px solid #000000; height: 80px; vertical-align: bottom;">
                 &nbsp;
             </td>
-            <td style="width: 25%; text-align: center; padding: 40px 10px;">
+            <td style="width: 25%; text-align: center; padding: 30px 10px; border: 2px solid #000000; height: 80px; vertical-align: bottom;">
                 &nbsp;
             </td>
-            <td style="width: 25%; text-align: center; padding: 40px 10px;">
-                &nbsp;
-            </td>
-            <td style="width: 25%; text-align: center; padding: 40px 10px;">
-                &nbsp;
+            <td style="width: 25%; text-align: center; padding: 30px 10px; border: 2px solid #000000; height: 80px; vertical-align: bottom;">
+                <?= $creator_sig; ?>
             </td>
         </tr>
         <tr>
-            <td style="width: 25%; text-align: center; padding: 10px; font-size: 9px;">
-                Tanda Tangan / 签名
+            <td style="width: 25%; text-align: center; padding: 10px; border: 2px solid #000000; font-size: 9px;">
+                <?= htmlspecialchars($header->confirmer_name ?? '( _______________  )'); ?>
+                <br/>
+                <small><?= !empty($header->confirmed_at) ? date('d/m/Y', strtotime($header->confirmed_at)) : '( _______________  )'; ?></small>
             </td>
-            <td style="width: 25%; text-align: center; padding: 10px; font-size: 9px;">
-                Tanda Tangan / 签名
+            <td style="width: 25%; text-align: center; padding: 10px; border: 2px solid #000000; font-size: 9px;">
+                ( _______________  )
             </td>
-            <td style="width: 25%; text-align: center; padding: 10px; font-size: 9px;">
-                Tanda Tangan / 签名
+            <td style="width: 25%; text-align: center; padding: 10px; border: 2px solid #000000; font-size: 9px;">
+                ( _______________  )
             </td>
-            <td style="width: 25%; text-align: center; padding: 10px; font-size: 9px;">
-                Tanda Tangan / 签名
+            <td style="width: 25%; text-align: center; padding: 10px; border: 2px solid #000000; font-size: 9px;">
+                <?= htmlspecialchars($header->creator_name ?? '( _______________  )'); ?>
+                <br/>
+                <small><?= date('d/m/Y', strtotime($header->po_date)); ?></small>
             </td>
         </tr>
     </table>

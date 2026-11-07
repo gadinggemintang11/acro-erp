@@ -22,7 +22,7 @@ class Mir extends MY_Controller {
         }
 
         $data = [
-            'title'         => 'Material Import Request (MIR)',
+            'title'         => lang_line('page_mir_title'),
             'mirs'          => $this->Mir_model->get_all(),
             'suppliers'     => $this->Supplier_model->get_all(['status' => 'active', 'jenis' => 'Impor']),
             'payment_types' => $this->Commoncode_model->get_by_group('PAYMENT_TYPE'),
@@ -117,7 +117,7 @@ class Mir extends MY_Controller {
         if (!$header) show_404();
 
         $data = [
-            'title'         => 'Detail Material Import Request',
+            'title'         => lang_line('mir_d_title'),
             'header'        => $header,
             'details'       => $this->Mir_model->get_details_by_id($id),
             'open_contracts'=> $this->Sc_model->get_open_contracts(),
@@ -447,8 +447,7 @@ class Mir extends MY_Controller {
     }
 
     public function approve_mir($id) {
-        // Gunakan izin 'edit' atau buat izin 'approve_mir'
-        if (!check_access('mir', 'edit')) { show_error('Izin Ditolak.', 403); return; }
+        if (!check_access('mir', 'approve')) { show_error('Izin Ditolak.', 403); return; }
         if (empty($id) || !is_numeric($id)) show_404();
 
         $header = $this->Mir_model->get_header_by_id($id);

@@ -25,17 +25,17 @@
             <h6 class="m-0 font-weight-bold text-primary"><?= lang_line('po_title', 'Daftar Purchase Order'); ?></h6>
             <div class="row mt-3">
                 <div class="col-md-3">
-                    <label class="small font-weight-bold">Dari Tanggal</label>
+                    <label class="small font-weight-bold"><?= lang_line('po_filter_date_from'); ?></label>
                     <input type="date" id="startDate" class="form-control form-control-sm">
                 </div>
                 <div class="col-md-3">
-                    <label class="small font-weight-bold">Sampai Tanggal</label>
+                    <label class="small font-weight-bold"><?= lang_line('po_filter_date_to'); ?></label>
                     <input type="date" id="endDate" class="form-control form-control-sm">
                 </div>
                 <div class="col-md-2">
-                    <label class="small font-weight-bold">Status</label>
+                    <label class="small font-weight-bold"><?= lang_line('po_filter_status'); ?></label>
                     <select id="filterStatus" class="form-control form-control-sm">
-                        <option value="">Semua Status</option>
+                        <option value=""><?= lang_line('text_all_status'); ?></option>
                         <option value="Draft">Draft</option>
                         <option value="Submitted">Submitted</option>
                         <option value="Confirmed">Confirmed</option>
@@ -47,13 +47,16 @@
                 <div class="col-md-4">
                     <label class="small font-weight-bold d-block">&nbsp;</label>
                     <button type="button" id="filterBtn" class="btn btn-primary btn-sm">
-                        <i class="fas fa-filter"></i> Terapkan
+                        <i class="fas fa-filter"></i> <?= lang_line('po_filter_apply'); ?>
                     </button>
                     <button type="button" id="resetBtn" class="btn btn-secondary btn-sm">
-                        <i class="fas fa-redo"></i> Reset
+                        <i class="fas fa-redo"></i> <?= lang_line('po_filter_reset'); ?>
                     </button>
                     <button type="button" id="exportBtn" class="btn btn-success btn-sm">
-                        <i class="fas fa-file-excel"></i> Export
+                        <i class="fas fa-file-excel"></i> <?= lang_line('po_export_excel'); ?>
+                    </button>
+                    <button type="button" id="exportPdfBtn" class="btn btn-danger btn-sm">
+                        <i class="fas fa-file-pdf"></i> <?= lang_line('po_export_pdf'); ?>
                     </button>
                 </div>
             </div>
@@ -66,7 +69,7 @@
                             <th width="15%"><?= lang_line('po_number', 'Nomor PO'); ?></th>
                             <th width="12%"><?= lang_line('po_date', 'Tanggal PO'); ?></th>
                             <th width="25%"><?= lang_line('po_supplier', 'Supplier'); ?></th>
-                            <th width="15%">Total Amount</th>
+                            <th width="15%"><?= lang_line('po_total_amount', 'Total Amount'); ?></th>
                             <th width="10%"><?= lang_line('po_status', 'Status'); ?></th>
                             <th width="23%"><?= lang_line('po_actions', 'Aksi'); ?></th>
                         </tr>
@@ -145,8 +148,8 @@
                     </div>
                     <div class="row">
                         <div class="col-md-6 form-group">
-                            <label>Nomor PO <small class="text-muted">(Biarkan kosong untuk auto-generate)</small></label>
-                            <input type="text" name="po_number" class="form-control" placeholder="Contoh: PO/MLI/202602/0001">
+                            <label><?= lang_line('po_number_label', 'Nomor PO'); ?> <small class="text-muted"><?= lang_line('po_number_help', '(Biarkan kosong untuk auto-generate)'); ?></small></label>
+                            <input type="text" name="po_number" class="form-control" placeholder="<?= lang_line('po_number_placeholder', 'Contoh: POM/ACRO/26110001'); ?>">
                         </div>
                     </div>
                     <div class="row">
@@ -175,6 +178,7 @@
                         <div class="col-md-6 form-group" id="add_exchange_rate_div" style="display: none;">
                             <label><?= lang_line('po_exchange_rate', 'Kurs Tukar'); ?> (Rate) <span class="text-danger">*</span></label>
                             <input type="text" name="exchange_rate" class="form-control autonumeric-4dec text-right" value="1.0000">
+                            <small id="add_kurs_info" class="form-text text-muted">Kurs akan terisi otomatis dari Kurs Pajak Kemenkeu.</small>
                         </div>
                     </div>
                      <div class="form-group form-check">
@@ -225,22 +229,49 @@ $(document).ready(function() {
         console.error("AutoNumeric library is not loaded, but input exists.");
     }
 
+    // Auto-fill kurs dari Kurs Pajak Kemenkeu (modul Kurs Pajak).
+    // User tetap bisa override manual karena input tidak di-readonly.
+    function fetchAddKursFromPajak(currency) {
+        const $info = $('#add_kurs_info');
+        $info.removeClass('text-success text-danger').addClass('text-muted')
+             .html('<i class="fas fa-spinner fa-spin"></i> Mengambil kurs pajak terbaru...');
+        $.getJSON('<?= base_url('kurs_pajak/ajax_get_rate'); ?>', { currency: currency })
+            .done(function(res) {
+                if (res.ok && res.rate) {
+                    if (anAddExchangeRate) { anAddExchangeRate.set(res.rate); }
+                    else { $exchangeRateInput.val(res.rate); }
+                    $info.removeClass('text-muted text-danger').addClass('text-success')
+                         .html('<i class="fas fa-check-circle"></i> Auto dari Kurs Pajak ('
+                              + res.effective_date_start + ' s/d ' + res.effective_date_end
+                              + '). Boleh diubah manual bila perlu.');
+                } else {
+                    $info.removeClass('text-muted text-success').addClass('text-danger')
+                         .html('<i class="fas fa-exclamation-triangle"></i> ' + (res.message || 'Kurs tidak tersedia, isi manual.'));
+                }
+            })
+            .fail(function() {
+                $info.removeClass('text-muted text-success').addClass('text-danger')
+                     .html('<i class="fas fa-exclamation-triangle"></i> Gagal mengambil kurs, isi manual.');
+            });
+    }
+
     // Tampilkan/Sembunyikan input kurs berdasarkan mata uang
     function toggleAddKurs() {
         const $rateDiv = $('#add_exchange_rate_div'); // Cache div
-        
-        if ($('#add_currency_code').val() !== 'IDR') { 
-            $rateDiv.slideDown(); 
-            // ✅ PERBAIKAN: Tambahkan 'required'
-            $exchangeRateInput.prop('required', true); 
-        } else { 
-            $rateDiv.slideUp(); 
+        const curr = $('#add_currency_code').val();
+
+        if (curr !== 'IDR') {
+            $rateDiv.slideDown();
+            $exchangeRateInput.prop('required', true);
+            fetchAddKursFromPajak(curr);
+        } else {
+            $rateDiv.slideUp();
             // ✅ PERBAIKAN: Hapus 'required'
-            $exchangeRateInput.prop('required', false); 
-            
+            $exchangeRateInput.prop('required', false);
+
             // Set nilai ke 1 jika ada instance AutoNumeric
             if (anAddExchangeRate) {
-                anAddExchangeRate.set(1); 
+                anAddExchangeRate.set(1);
             } else {
                 $exchangeRateInput.val('1.0000'); // Fallback
             }
@@ -266,14 +297,14 @@ $(document).ready(function() {
               confirmButtonColor: '#e74a3b', cancelButtonColor: '#858796', reverseButtons: true
             }).then((result) => {
               if (result.isConfirmed) {
-                if(typeof showLoader === 'function') showLoader('Menghapus...'); // Panggil loader jika ada
+                if(typeof showLoader === 'function') showLoader('<?= lang_line('po_delete_loading', 'Menghapus...'); ?>'); // Panggil loader jika ada
                 window.location.href = url; 
               }
             });
         } else {
             // Fallback confirm biasa
             if (confirm(message)) {
-                if(typeof showLoader === 'function') showLoader('Menghapus...');
+                if(typeof showLoader === 'function') showLoader('<?= lang_line('po_delete_loading', 'Menghapus...'); ?>');
                 window.location.href = url; 
             }
         }
@@ -291,76 +322,94 @@ $(document).ready(function() {
     // ========================================
     // DataTables Configuration for PO Table
     // ========================================
+    var PO_FILTER_KEY = 'po_table_filters';
+
+    // Restore custom filters from localStorage before DataTable init
+    var savedFilters = {};
+    try { savedFilters = JSON.parse(localStorage.getItem(PO_FILTER_KEY) || '{}'); } catch(e) {}
+    if (savedFilters.startDate) $('#startDate').val(savedFilters.startDate);
+    if (savedFilters.endDate)   $('#endDate').val(savedFilters.endDate);
+    if (savedFilters.filterStatus) $('#filterStatus').val(savedFilters.filterStatus);
+
     var poTable = $('#poTable').DataTable({
-        "order": [[1, "desc"]], // Sort by Date descending (newest first)
+        "stateSave": true,                          // persist sort, page, search, pageLength
+        "stateDuration": 0,                         // 0 = session only (cleared on browser close)
+        "order": [[1, "desc"]],                     // default order (overridden by saved state)
         "pageLength": 25,
-        "lengthMenu": [[10, 25, 50, 100, -1], [10, 25, 50, 100, "Semua"]],
+        "lengthMenu": [[10, 25, 50, 100, -1], [10, 25, 50, 100, "<?= lang_line('po_datatable_all', 'Semua'); ?>"]],
         "language": {
-            "lengthMenu": "Tampilkan _MENU_ data per halaman",
-            "zeroRecords": "Data tidak ditemukan",
-            "info": "Menampilkan halaman _PAGE_ dari _PAGES_",
-            "infoEmpty": "Tidak ada data tersedia",
-            "infoFiltered": "(difilter dari _MAX_ total data)",
-            "search": "Cari:",
+            "lengthMenu": "<?= lang_line('po_datatable_length_menu', 'Tampilkan _MENU_ data per halaman'); ?>",
+            "zeroRecords": "<?= lang_line('po_datatable_zero_records', 'Data tidak ditemukan'); ?>",
+            "info": "<?= lang_line('po_datatable_info', 'Menampilkan halaman _PAGE_ dari _PAGES_'); ?>",
+            "infoEmpty": "<?= lang_line('po_datatable_info_empty', 'Tidak ada data tersedia'); ?>",
+            "infoFiltered": "<?= lang_line('po_datatable_info_filtered', '(difilter dari _MAX_ total data)'); ?>",
+            "search": "<?= lang_line('po_datatable_search', 'Cari:'); ?>",
             "paginate": {
-                "first": "Pertama",
-                "last": "Terakhir",
-                "next": "Selanjutnya",
-                "previous": "Sebelumnya"
+                "first": "<?= lang_line('po_datatable_first', 'Pertama'); ?>",
+                "last": "<?= lang_line('po_datatable_last', 'Terakhir'); ?>",
+                "next": "<?= lang_line('po_datatable_next', 'Selanjutnya'); ?>",
+                "previous": "<?= lang_line('po_datatable_previous', 'Sebelumnya'); ?>"
             }
         },
         "columnDefs": [
-            { "orderable": false, "targets": 5 } // Disable sorting on Aksi column
+            { "orderable": false, "targets": 5 }
         ],
         "dom": '<"row"<"col-sm-12 col-md-6"l><"col-sm-12 col-md-6"f>>' +
                '<"row"<"col-sm-12"tr>>' +
                '<"row"<"col-sm-12 col-md-5"i><"col-sm-12 col-md-7"p>>'
     });
 
+    // Save custom filters to localStorage whenever filter changes
+    function saveFilters() {
+        localStorage.setItem(PO_FILTER_KEY, JSON.stringify({
+            startDate:    $('#startDate').val(),
+            endDate:      $('#endDate').val(),
+            filterStatus: $('#filterStatus').val()
+        }));
+    }
+
     // Custom Date Range & Status Filter
     $.fn.dataTable.ext.search.push(
         function(settings, data, dataIndex) {
-            // Only apply to poTable
             if (settings.nTable.id !== 'poTable') return true;
-            
-            var startDate = $('#startDate').val();
-            var endDate = $('#endDate').val();
+
+            var startDate    = $('#startDate').val();
+            var endDate      = $('#endDate').val();
             var filterStatus = $('#filterStatus').val();
-            
-            // Get date from column 1 (data-order attribute)
+
             var dateStr = $(poTable.row(dataIndex).node()).find('td:eq(1)').attr('data-order');
             var rowDate = dateStr ? new Date(parseInt(dateStr) * 1000) : null;
-            
-            // Get status from column 4 (text content)
             var rowStatus = data[4] || '';
-            
+
             var dateValid = true;
             var statusValid = true;
-            
-            // Check date range
+
             if (startDate && rowDate) {
                 var start = new Date(startDate);
                 start.setHours(0, 0, 0, 0);
                 if (rowDate < start) dateValid = false;
             }
-            
             if (endDate && rowDate) {
                 var end = new Date(endDate);
                 end.setHours(23, 59, 59, 999);
                 if (rowDate > end) dateValid = false;
             }
-            
-            // Check status
             if (filterStatus && rowStatus.indexOf(filterStatus) === -1) {
                 statusValid = false;
             }
-            
+
             return dateValid && statusValid;
         }
     );
 
+    // Apply restored filters on load if any were saved
+    if (savedFilters.startDate || savedFilters.endDate || savedFilters.filterStatus) {
+        poTable.draw();
+    }
+
     // Apply Filter Button
     $('#filterBtn').on('click', function() {
+        saveFilters();
         poTable.draw();
     });
 
@@ -369,6 +418,7 @@ $(document).ready(function() {
         $('#startDate').val('');
         $('#endDate').val('');
         $('#filterStatus').val('');
+        localStorage.removeItem(PO_FILTER_KEY);
         poTable.search('').draw();
     });
 
@@ -377,15 +427,31 @@ $(document).ready(function() {
         var startDate = $('#startDate').val();
         var endDate = $('#endDate').val();
         var status = $('#filterStatus').val();
-        
+
         var url = '<?= base_url('purchase_order/export_list_excel'); ?>?';
         var params = [];
-        
+
         if (startDate) params.push('start_date=' + startDate);
         if (endDate) params.push('end_date=' + endDate);
         if (status) params.push('status=' + status);
-        
+
         window.location.href = url + params.join('&');
+    });
+
+    // Export to PDF with Filters
+    $('#exportPdfBtn').on('click', function() {
+        var startDate = $('#startDate').val();
+        var endDate = $('#endDate').val();
+        var status = $('#filterStatus').val();
+
+        var url = '<?= base_url('purchase_order/export_list_pdf'); ?>?';
+        var params = [];
+
+        if (startDate) params.push('start_date=' + startDate);
+        if (endDate) params.push('end_date=' + endDate);
+        if (status) params.push('status=' + status);
+
+        window.open(url + params.join('&'), '_blank');
     });
 
     // Auto-filter on Enter key

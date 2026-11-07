@@ -7,19 +7,19 @@
         <div class="col-lg-12">
             <div class="card shadow mb-4">
                 <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">Detail Ledger Akun</h6>
+                    <h6 class="m-0 font-weight-bold text-primary"><?= lang_line('nrc_detail_card_header', 'Detail Ledger Akun') ?></h6>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive">
                         <table class="table table-bordered">
                             <thead>
                                 <tr>
-                                    <th>Tanggal</th>
-                                    <th>No. Jurnal / Invoice</th>
-                                    <th>Partner</th>
-                                    <th>Keterangan</th>
-                                    <th class="text-right">Debit</th>
-                                    <th class="text-right">Kredit</th>
+                                    <th><?= lang_line('nrc_th_date', 'Tanggal') ?></th>
+                                    <th><?= lang_line('nrc_th_journal_invoice', 'No. Jurnal / Invoice') ?></th>
+                                    <th><?= lang_line('nrc_th_partner', 'Partner') ?></th>
+                                    <th><?= lang_line('nrc_th_remarks', 'Keterangan') ?></th>
+                                    <th class="text-right"><?= lang_line('nrc_th_debit', 'Debit') ?></th>
+                                    <th class="text-right"><?= lang_line('nrc_th_credit', 'Kredit') ?></th>
                                 </tr>
                             </thead>
                             <tbody>

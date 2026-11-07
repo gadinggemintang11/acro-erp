@@ -1,5 +1,5 @@
 /* ============================================================
-   Neokaber Core JavaScript (Stable Build)
+   PT. ACROPOLY INTERNATIONAL ERP Core JavaScript (Stable Build)
    - Loader Handler
    - SweetAlert Global (Delete & Flash)
    - Safe Modal Integration

@@ -22,7 +22,7 @@ class Scrap_Stock extends MY_Controller {
        ============================================================ */
     public function index() {
         check_access('scrap_stock', 'view');
-        $data['title'] = lang_line('stock_report_title', 'Laporan Rinci Stok Scrap (per Batch)');
+        $data['title'] = lang_line('title_scrs_list');
 
         $filters = ['search' => trim($this->input->get('search', TRUE))];
         $per_page = 25;
@@ -62,7 +62,7 @@ class Scrap_Stock extends MY_Controller {
        ============================================================ */
     public function summary() {
         check_access('scrap_stock', 'view');
-        $data['title'] = lang_line('stock_summary_title', 'Ringkasan Stok Scrap');
+        $data['title'] = lang_line('title_scrs_summary');
 
         $filters = ['search' => trim($this->input->get('search', TRUE))];
         $per_page = 25;
@@ -106,7 +106,7 @@ class Scrap_Stock extends MY_Controller {
             return;
         }
 
-        $data['title'] = 'Detail Traceability Scrap';
+        $data['title'] = lang_line('title_scrs_trace');
 
         // Ambil data summary berdasarkan ID (sama persis dengan perhitungan di list)
         $data['scrap'] = $this->Scrap_Stock_model->get_summary_stock_by_id($scrap_id);
@@ -176,7 +176,7 @@ class Scrap_Stock extends MY_Controller {
     public function export_pdf() {
         $filters = ['search' => trim($this->input->get('search', TRUE))];
         $data = [
-            'title' => 'Laporan Rinci Stok Scrap (per Batch)',
+            'title' => lang_line('title_scrs_list'),
             'stock_data' => $this->Scrap_Stock_model->get_detailed_stock($filters, 0, 0)
         ];
 

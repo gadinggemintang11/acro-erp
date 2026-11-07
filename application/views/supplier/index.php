@@ -4,25 +4,53 @@
             <i class="fas fa-truck text-primary mr-2"></i><?= htmlspecialchars($title); ?>
         </h3>
 
-        <?php if (check_access('master_supplier', 'add')): ?>
-            <button class="btn btn-primary shadow-sm" data-toggle="modal" data-target="#addModal">
-                <i class="fas fa-plus-circle mr-1"></i> Tambah Supplier
-            </button>
-        <?php endif; ?>
+        <div>
+            <?php if (check_access('master_supplier', 'view')): ?>
+                <div class="btn-group mr-2" role="group">
+                    <a href="<?= base_url('master_supplier/export_excel'); ?>" class="btn btn-sm btn-success" title="<?= lang_line('supplier_idx_tt_excel'); ?>">
+                        <i class="fas fa-file-excel"></i> Excel
+                    </a>
+                    <a href="<?= base_url('master_supplier/export_pdf'); ?>" class="btn btn-sm btn-danger" title="<?= lang_line('supplier_idx_tt_pdf'); ?>">
+                        <i class="fas fa-file-pdf"></i> PDF
+                    </a>
+                </div>
+            <?php endif; ?>
+
+            <?php if (check_access('master_supplier', 'add')): ?>
+                <button class="btn btn-primary shadow-sm" data-toggle="modal" data-target="#addModal">
+                    <i class="fas fa-plus-circle mr-1"></i> <?= lang_line('btn_add'); ?> <?= lang_line('supplier_name'); ?>
+                </button>
+            <?php endif; ?>
+        </div>
+    </div>
+
+    <!-- KATEGORI SUPPLIER: Dynamic from common code -->
+    <div class="btn-group mb-3" role="group">
+        <a href="<?= base_url('master_supplier?' . http_build_query(array_filter(['search' => $search, 'jenis' => $jenis, 'status' => $status]))); ?>"
+            class="btn <?= empty($kategori) ? 'btn-primary' : 'btn-outline-primary'; ?>">
+            <i class="fas fa-list mr-1"></i> <?= lang_line('supplier_kategori_all', 'Semua'); ?>
+        </a>
+        <?php foreach ($kategori_list as $k): ?>
+        <a href="<?= base_url('master_supplier?' . http_build_query(array_filter(['search' => $search, 'jenis' => $jenis, 'status' => $status, 'kategori' => $k->code]))); ?>"
+            class="btn <?= $kategori == $k->code ? 'btn-primary' : 'btn-outline-primary'; ?>">
+            <?= htmlspecialchars($k->description); ?>
+        </a>
+        <?php endforeach; ?>
     </div>
 
     <!-- ✅ SEARCH & FILTER FORM -->
     <div class="card border-0 shadow-sm rounded mb-4">
         <div class="card-body">
             <form method="get" action="<?= base_url('master_supplier'); ?>" class="form-inline">
+                <input type="hidden" name="kategori" value="<?= htmlspecialchars($kategori ?? ''); ?>">
                 <div class="form-group mr-2 mb-2" style="flex: 1;">
-                    <input type="text" name="search" class="form-control w-100" placeholder="Cari: Kode, Nama, NPWP, Alamat..." 
+                    <input type="text" name="search" class="form-control w-100" placeholder="<?= lang_line('supplier_idx_search_placeholder'); ?>"
                         value="<?= htmlspecialchars($search); ?>">
                 </div>
 
                 <div class="form-group mr-2 mb-2">
                     <select name="jenis" class="form-control">
-                        <option value="">-- Semua Jenis --</option>
+                        <option value=""><?= lang_line('supplier_idx_filter_all_jenis'); ?></option>
                         <?php foreach($jenis_list as $j): ?>
                             <option value="<?= $j->code; ?>" <?= $jenis == $j->code ? 'selected' : ''; ?>>
                                 <?= htmlspecialchars($j->description); ?>
@@ -33,18 +61,18 @@
 
                 <div class="form-group mr-2 mb-2">
                     <select name="status" class="form-control">
-                        <option value="active" <?= empty($status) || $status == 'active' ? 'selected' : ''; ?>>Active</option>
-                        <option value="inactive" <?= $status == 'inactive' ? 'selected' : ''; ?>>Inactive</option>
-                        <option value="">Semua Status</option>
+                        <option value="active" <?= empty($status) || $status == 'active' ? 'selected' : ''; ?>><?= lang_line('supplier_status_active'); ?></option>
+                        <option value="inactive" <?= $status == 'inactive' ? 'selected' : ''; ?>><?= lang_line('supplier_status_inactive'); ?></option>
+                        <option value=""><?= lang_line('supplier_idx_filter_all_status'); ?></option>
                     </select>
                 </div>
 
                 <div class="form-group mr-2 mb-2">
                     <button type="submit" class="btn btn-info">
-                        <i class="fas fa-search mr-1"></i> Cari
+                        <i class="fas fa-search mr-1"></i> <?= lang_line('text_search'); ?>
                     </button>
                     <a href="<?= base_url('master_supplier'); ?>" class="btn btn-secondary ml-2">
-                        <i class="fas fa-redo mr-1"></i> Reset
+                        <i class="fas fa-redo mr-1"></i> <?= lang_line('text_reset'); ?>
                     </a>
                 </div>
             </form>
@@ -54,16 +82,16 @@
     <div class="card border-0 shadow-sm rounded">
         <div class="card-header bg-light d-flex justify-content-between align-items-center">
             <div>
-                <span class="text-muted">Total: <strong><?= $total_rows; ?></strong> Supplier</span>
+                <span class="text-muted"><?= lang_line('supplier_idx_total_label'); ?> <strong><?= $total_rows; ?></strong> <?= lang_line('supplier_idx_total_suffix'); ?></span>
             </div>
             <div>
                 <!-- ✅ EXPORT BUTTONS -->
-                <a href="<?= base_url('master_supplier/export_excel?' . http_build_query(['search' => $search, 'jenis' => $jenis, 'status' => $status])); ?>" 
-                    class="btn btn-sm btn-success" title="Export ke Excel">
+                <a href="<?= base_url('master_supplier/export_excel?' . http_build_query(['search' => $search, 'jenis' => $jenis, 'kategori' => $kategori, 'status' => $status])); ?>"
+                    class="btn btn-sm btn-success" title="<?= lang_line('supplier_idx_tt_export_excel'); ?>">
                     <i class="fas fa-file-excel mr-1"></i> Excel
                 </a>
-                <a href="<?= base_url('master_supplier/export_pdf?' . http_build_query(['search' => $search, 'jenis' => $jenis, 'status' => $status])); ?>" 
-                    class="btn btn-sm btn-danger" title="Export ke PDF">
+                <a href="<?= base_url('master_supplier/export_pdf?' . http_build_query(['search' => $search, 'jenis' => $jenis, 'kategori' => $kategori, 'status' => $status])); ?>"
+                    class="btn btn-sm btn-danger" title="<?= lang_line('supplier_idx_tt_export_pdf'); ?>">
                     <i class="fas fa-file-pdf mr-1"></i> PDF
                 </a>
             </div>
@@ -75,13 +103,16 @@
                     <thead class="thead-light text-center">
                         <tr>
                             <th>#</th>
-                            <th>Kode</th>
-                            <th>Nama Supplier</th>
-                            <th>Jenis</th>
-                            <th>NPWP</th>
-                            <th>Telepon</th>
-                            <th>Status</th>
-                            <th width="180">Aksi</th>
+                            <th><?= lang_line('supplier_code'); ?></th>
+                            <th><?= lang_line('supplier_name'); ?></th>
+                            <th><?= lang_line('supplier_contact_person', 'Contact Person (Attn)'); ?></th>
+                            <th><?= lang_line('text_type'); ?></th>
+                            <th><?= lang_line('supplier_kategori', 'Kategori'); ?></th>
+                            <th><?= lang_line('supplier_idx_npwp_label'); ?></th>
+                            <th><?= lang_line('supplier_phone'); ?></th>
+                            <th><?= lang_line('text_description'); ?></th>
+                            <th><?= lang_line('supplier_status'); ?></th>
+                            <th width="180"><?= lang_line('label_action'); ?></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -93,12 +124,23 @@
                             <td><?= $no++; ?></td>
                             <td class="font-weight-bold text-primary"><?= htmlspecialchars($s->kode_supplier); ?></td>
                             <td class="text-left"><?= htmlspecialchars($s->nama_supplier); ?></td>
+                            <td><?= htmlspecialchars($s->contact_person ?: '-'); ?></td>
                             <td><?= htmlspecialchars($s->jenis); ?></td>
+                            <td>
+                                <?php
+                                    $kat_label = $s->kategori ?? '';
+                                    foreach ($kategori_list as $k) {
+                                        if ($k->code == $s->kategori) { $kat_label = $k->description; break; }
+                                    }
+                                ?>
+                                <span class="badge badge-info"><?= htmlspecialchars($kat_label); ?></span>
+                            </td>
                             <td><?= htmlspecialchars($s->npwp ?: '-'); ?></td>
                             <td><?= htmlspecialchars($s->telepon ?: '-'); ?></td>
+                            <td class="text-left"><?= htmlspecialchars($s->supply_description ?: '-'); ?></td>
                             <td>
                                 <span class="badge badge-<?= $s->status=='active'?'success':'secondary'; ?>">
-                                    <?= ucfirst($s->status); ?>
+                                    <?= $s->status=='active' ? lang_line('supplier_status_active') : lang_line('supplier_status_inactive'); ?>
                                 </span>
                             </td>
                             <td>
@@ -116,46 +158,83 @@
                         </tr>
 
                         <div class="modal fade" id="editModal<?= $s->id; ?>" tabindex="-1" aria-hidden="true">
-                            <div class="modal-dialog modal-dialog-centered">
+                            <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
                                 <form method="post" action="<?= base_url('master_supplier/update/'.$s->id); ?>">
                                     <div class="modal-content border-0 shadow">
                                         <div class="modal-header bg-gradient-primary text-white">
-                                            <h5 class="modal-title"><i class="fas fa-edit mr-2"></i>Edit Supplier</h5>
+                                            <h5 class="modal-title"><i class="fas fa-edit mr-2"></i><?= lang_line('supplier_edit_title'); ?></h5>
                                             <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
                                         </div>
                                         <div class="modal-body">
-                                            <div class="form-group"><label>Nama Supplier</label><input type="text" name="nama_supplier" class="form-control" value="<?= htmlspecialchars($s->nama_supplier); ?>" required></div>
-                                            
-                                            <div class="form-group"><label>Jenis</label>
-                                                <select name="jenis" class="form-control">
-                                                    <?php foreach($jenis_list as $j): ?>
-                                                        <option value="<?= $j->code; ?>" <?= $s->jenis == $j->code ? 'selected' : ''; ?>>
-                                                            <?= htmlspecialchars($j->description); ?>
-                                                        </option>
-                                                    <?php endforeach; ?>
-                                                </select>
+                                            <div class="form-row">
+                                                <div class="form-group col-md-4"><label><?= lang_line('supplier_code'); ?></label><input type="text" name="kode_supplier" class="form-control" value="<?= htmlspecialchars($s->kode_supplier); ?>" required></div>
+                                                <div class="form-group col-md-5"><label><?= lang_line('supplier_name'); ?></label><input type="text" name="nama_supplier" class="form-control" value="<?= htmlspecialchars($s->nama_supplier); ?>" required></div>
+                                                <div class="form-group col-md-3"><label><?= lang_line('supplier_status'); ?></label>
+                                                    <select name="status" class="form-control">
+                                                        <option value="active" <?= $s->status=='active'?'selected':''; ?>><?= lang_line('supplier_status_active'); ?></option>
+                                                        <option value="inactive" <?= $s->status=='inactive'?'selected':''; ?>><?= lang_line('supplier_status_inactive'); ?></option>
+                                                    </select>
+                                                </div>
                                             </div>
-                                            
-                                            <div class="form-group"><label>NPWP</label><input type="text" name="npwp" class="form-control" value="<?= htmlspecialchars($s->npwp); ?>"></div>
-                                            <div class="form-group"><label>Alamat</label><textarea name="alamat" class="form-control"><?= htmlspecialchars($s->alamat); ?></textarea></div>
-                                            <div class="form-group"><label>Telepon</label><input type="text" name="telepon" class="form-control" value="<?= htmlspecialchars($s->telepon); ?>"></div>
-                                            <div class="form-group"><label>Status</label>
-                                                <select name="status" class="form-control">
-                                                    <option value="active" <?= $s->status=='active'?'selected':''; ?>>Active</option>
-                                                    <option value="inactive" <?= $s->status=='inactive'?'selected':''; ?>>Inactive</option>
-                                                </select>
+                                            <div class="form-row">
+                                                <div class="form-group col-md-6"><label><?= lang_line('supplier_contact_person', 'Contact Person (Attn)'); ?></label><input type="text" name="contact_person" class="form-control" value="<?= htmlspecialchars($s->contact_person ?? ''); ?>" placeholder="<?= lang_line('supplier_contact_person_ph', 'Nama PIC di supplier ini'); ?>"></div>
+                                                <div class="form-group col-md-6"><label><?= lang_line('supplier_idx_phone_label'); ?></label><input type="text" name="telepon" class="form-control" value="<?= htmlspecialchars($s->telepon); ?>"></div>
+                                            </div>
+                                            <div class="form-row">
+                                                <div class="form-group col-md-6"><label><?= lang_line('supplier_idx_jenis_label'); ?></label>
+                                                    <select name="jenis" class="form-control">
+                                                        <?php foreach($jenis_list as $j): ?>
+                                                            <option value="<?= $j->code; ?>" <?= $s->jenis == $j->code ? 'selected' : ''; ?>>
+                                                                <?= htmlspecialchars($j->description); ?>
+                                                            </option>
+                                                        <?php endforeach; ?>
+                                                    </select>
+                                                </div>
+                                                <div class="form-group col-md-6"><label><?= lang_line('supplier_kategori', 'Kategori'); ?></label>
+                                                    <select name="kategori" class="form-control" required>
+                                                        <option value=""><?= lang_line('supplier_kategori_select', '-- Pilih Kategori --'); ?></option>
+                                                        <?php foreach ($kategori_list as $k): ?>
+                                                            <option value="<?= $k->code; ?>" <?= ($s->kategori ?? '') == $k->code ? 'selected' : ''; ?>><?= htmlspecialchars($k->description); ?></option>
+                                                        <?php endforeach; ?>
+                                                    </select>
+                                                </div>
+                                            </div>
+                                            <div class="form-row">
+                                                <div class="form-group col-md-6"><label><?= lang_line('supplier_idx_npwp_label'); ?></label><input type="text" name="npwp" class="form-control" value="<?= htmlspecialchars($s->npwp); ?>"></div>
+                                                <div class="form-group col-md-6"><label><?= lang_line('supplier_idx_address_label'); ?></label><textarea name="alamat" class="form-control" rows="2"><?= htmlspecialchars($s->alamat); ?></textarea></div>
+                                            </div>
+                                            <div class="form-row">
+                                                <div class="form-group col-md-4"><label><?= lang_line('supplier_bank_name', 'Nama Bank'); ?></label><input type="text" name="bank_name" class="form-control" value="<?= htmlspecialchars($s->bank_name ?? ''); ?>"></div>
+                                                <div class="form-group col-md-4"><label><?= lang_line('supplier_bank_account', 'No. Rekening'); ?></label><input type="text" name="bank_account" class="form-control" value="<?= htmlspecialchars($s->bank_account ?? ''); ?>"></div>
+                                                <?php /*
+                                                    Nama pemilik rekening. Sebelum ini cetak PRF menebaknya dari
+                                                    NAMA SUPPLIER, padahal rekening sering atas nama pemilik usaha
+                                                    (user 2026-10-02). Boleh dikosongkan -- cetakan jatuh kembali
+                                                    ke nama supplier seperti perilaku lama.
+                                                */ ?>
+                                                <div class="form-group col-md-4"><label><?= lang_line('supplier_bank_account_name', 'Nama Akun'); ?></label><input type="text" name="bank_account_name" class="form-control" maxlength="150" placeholder="<?= lang_line('supplier_bank_account_name_ph', 'Atas nama rekening'); ?>" value="<?= htmlspecialchars($s->bank_account_name ?? ''); ?>"></div>
+                                            </div>
+                                            <div class="form-row">
+                                                <div class="form-group col-md-6">
+                                                    <div class="custom-control custom-checkbox mb-1">
+                                                        <input type="checkbox" class="custom-control-input" id="pph23_<?= $s->id; ?>" name="pph23" value="1" <?= !empty($s->pph23) ? 'checked' : ''; ?>>
+                                                        <label class="custom-control-label" for="pph23_<?= $s->id; ?>"><?= lang_line('supplier_pph23', 'Kena PPh 23 (WHT otomatis)'); ?></label>
+                                                    </div>
+                                                    <input type="number" step="0.01" min="0" name="pph23_rate" class="form-control form-control-sm" value="<?= htmlspecialchars($s->pph23_rate ?? '2.00'); ?>" placeholder="<?= lang_line('supplier_pph23_rate', 'Rate PPh 23 (%)'); ?>">
+                                                </div>
+                                                <div class="form-group col-md-6"><label><?= lang_line('supplier_idx_supply_desc_label'); ?></label><textarea name="supply_description" class="form-control" rows="3" placeholder="<?= lang_line('supplier_idx_supply_desc_ph'); ?>"><?= htmlspecialchars($s->supply_description ?? ''); ?></textarea></div>
                                             </div>
                                         </div>
                                         <div class="modal-footer">
-                                            <button type="submit" class="btn btn-success btn-load"><i class="fas fa-save mr-1"></i> Update</button>
-                                            <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                                            <button type="submit" class="btn btn-success btn-load"><i class="fas fa-save mr-1"></i> <?= lang_line('supplier_idx_btn_update'); ?></button>
+                                            <button type="button" class="btn btn-secondary" data-dismiss="modal"><?= lang_line('btn_cancel'); ?></button>
                                         </div>
                                     </div>
                                 </form>
                             </div>
                         </div>
                         <?php endforeach; else: ?>
-                            <tr><td colspan="8" class="text-center text-muted py-3">Belum ada data supplier</td></tr>
+                            <tr><td colspan="11" class="text-center text-muted py-3"><?= lang_line('supplier_no_data_message'); ?></td></tr>
                         <?php endif; ?>
                     </tbody>
                 </table>
@@ -172,32 +251,63 @@
 </div>
 
 <div class="modal fade" id="addModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
         <form method="post" action="<?= base_url('master_supplier/add'); ?>">
             <div class="modal-content border-0 shadow">
                 <div class="modal-header bg-gradient-primary text-white">
-                    <h5 class="modal-title"><i class="fas fa-plus-circle mr-2"></i>Tambah Supplier</h5>
+                    <h5 class="modal-title"><i class="fas fa-plus-circle mr-2"></i><?= lang_line('supplier_idx_add_modal_title'); ?></h5>
                     <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
                 </div>
                 <div class="modal-body">
-                    <div class="form-group"><label>Nama Supplier</label><input type="text" name="nama_supplier" class="form-control" required></div>
-                    
-                    <div class="form-group"><label>Jenis</label>
-                        <select name="jenis" class="form-control" required>
-                            <option value="">-- Pilih Jenis --</option>
-                            <?php foreach($jenis_list as $j): ?>
-                                <option value="<?= $j->code; ?>"><?= htmlspecialchars($j->description); ?></option>
-                            <?php endforeach; ?>
-                        </select>
+                    <div class="form-row">
+                        <div class="form-group col-md-4"><label><?= lang_line('supplier_code'); ?></label><input type="text" name="kode_supplier" class="form-control" required></div>
+                        <div class="form-group col-md-8"><label><?= lang_line('supplier_name'); ?></label><input type="text" name="nama_supplier" class="form-control" required></div>
                     </div>
-                    
-                    <div class="form-group"><label>NPWP</label><input type="text" name="npwp" class="form-control"></div>
-                    <div class="form-group"><label>Alamat</label><textarea name="alamat" class="form-control"></textarea></div>
-                    <div class="form-group"><label>Telepon</label><input type="text" name="telepon" class="form-control"></div>
+                    <div class="form-row">
+                        <div class="form-group col-md-6"><label><?= lang_line('supplier_contact_person', 'Contact Person (Attn)'); ?></label><input type="text" name="contact_person" class="form-control" placeholder="<?= lang_line('supplier_contact_person_ph', 'Nama PIC di supplier ini'); ?>"></div>
+                        <div class="form-group col-md-6"><label><?= lang_line('supplier_idx_phone_label'); ?></label><input type="text" name="telepon" class="form-control"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-6"><label><?= lang_line('supplier_idx_jenis_label'); ?></label>
+                            <select name="jenis" class="form-control" required>
+                                <option value=""><?= lang_line('supplier_idx_select_jenis'); ?></option>
+                                <?php foreach($jenis_list as $j): ?>
+                                    <option value="<?= $j->code; ?>"><?= htmlspecialchars($j->description); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                        <div class="form-group col-md-6"><label><?= lang_line('supplier_kategori', 'Kategori'); ?></label>
+                            <select name="kategori" class="form-control" required>
+                                <option value=""><?= lang_line('supplier_kategori_select', '-- Pilih Kategori --'); ?></option>
+                                <?php foreach ($kategori_list as $k): ?>
+                                    <option value="<?= $k->code; ?>"><?= htmlspecialchars($k->description); ?></option>
+                                <?php endforeach; ?>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-6"><label><?= lang_line('supplier_idx_npwp_label'); ?></label><input type="text" name="npwp" class="form-control"></div>
+                        <div class="form-group col-md-6"><label><?= lang_line('supplier_idx_address_label'); ?></label><textarea name="alamat" class="form-control" rows="2"></textarea></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-4"><label><?= lang_line('supplier_bank_name', 'Nama Bank'); ?></label><input type="text" name="bank_name" class="form-control"></div>
+                        <div class="form-group col-md-4"><label><?= lang_line('supplier_bank_account', 'No. Rekening'); ?></label><input type="text" name="bank_account" class="form-control"></div>
+                        <div class="form-group col-md-4"><label><?= lang_line('supplier_bank_account_name', 'Nama Akun'); ?></label><input type="text" name="bank_account_name" class="form-control" maxlength="150" placeholder="<?= lang_line('supplier_bank_account_name_ph', 'Atas nama rekening'); ?>"></div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group col-md-6">
+                            <div class="custom-control custom-checkbox mb-1">
+                                <input type="checkbox" class="custom-control-input" id="pph23_add" name="pph23" value="1">
+                                <label class="custom-control-label" for="pph23_add"><?= lang_line('supplier_pph23', 'Kena PPh 23 (WHT otomatis)'); ?></label>
+                            </div>
+                            <input type="number" step="0.01" min="0" name="pph23_rate" class="form-control form-control-sm" value="2.00" placeholder="<?= lang_line('supplier_pph23_rate', 'Rate PPh 23 (%)'); ?>">
+                        </div>
+                        <div class="form-group col-md-6"><label><?= lang_line('supplier_idx_supply_desc_label'); ?></label><textarea name="supply_description" class="form-control" rows="3" placeholder="<?= lang_line('supplier_idx_supply_desc_ph'); ?>"></textarea></div>
+                    </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary btn-load"><i class="fas fa-save mr-1"></i> Simpan</button>
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-primary btn-load"><i class="fas fa-save mr-1"></i> <?= lang_line('btn_save'); ?></button>
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal"><?= lang_line('btn_cancel'); ?></button>
                 </div>
             </div>
         </form>

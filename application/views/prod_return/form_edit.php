@@ -18,29 +18,15 @@ if ($header['status'] != 'Draft') {
      // exit; // Optional exit
 }
 ?>
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="utf-8">
-    <title><?= htmlspecialchars($title ?? 'Edit Material Return'); ?></title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
-    <style>
-        .table th, .table td { vertical-align: middle; padding: 0.5rem; }
-        .btn-xs { padding: .125rem .25rem; font-size: .75rem; line-height: 1.5; border-radius: .2rem; }
-         input[type=number]::-webkit-inner-spin-button,
-         input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-         input[type=number] { -moz-appearance: textfield; }
-    </style>
-</head>
-<body id="page-top">
+<style>
+    .table th, .table td { vertical-align: middle; padding: 0.5rem; }
+    .btn-xs { padding: .125rem .25rem; font-size: .75rem; line-height: 1.5; border-radius: .2rem; }
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type=number] { -moz-appearance: textfield; }
+</style>
 
-    <div id="wrapper">
-        <?php //$this->load->view('templates/sidebar'); ?>
-        <div id="content-wrapper" class="d-flex flex-column">
-            <div id="content">
-                <?php //$this->load->view('templates/topbar'); ?>
-                <div class="container-fluid">
+<div class="container-fluid">
 
                     <div class="d-sm-flex align-items-center justify-content-between mb-4">
                         <h3 class="h4 mb-0 text-gray-800"><i class="fas fa-edit text-warning mr-2"></i><?= htmlspecialchars($title); ?></h3>
@@ -139,14 +125,11 @@ if ($header['status'] != 'Draft') {
                                 <a href="<?= base_url('ProdReturn/view/' . $header['id']); ?>" class="btn btn-secondary"> <?= lang_line('prodreturn_cancel', 'Batal'); ?> </a>
                             </div>
                         </form>
-                    </div> </div></div><?php //$this->load->view('templates/footer_content'); ?>
-        </div></div><a class="scroll-to-top rounded" href="#page-top"><i class="fas fa-angle-up"></i></a>
+                    </div>
+</div>
 
     <?php //$this->load->view('templates/logout_modal'); ?>
 
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
     $(document).ready(function() {
 
@@ -217,7 +200,7 @@ if ($header['status'] != 'Draft') {
                 // Cek apakah total Qty > 0 (jika individual valid semua tapi total 0)
                 if (totalReturn <= 0 && isValid) {
                     console.error("Validation failed: Total return quantity is zero.");
-                    $('#detail-error-msg').text('Minimal harus ada 1 item dengan Qty Retur lebih dari 0.').show();
+                    $('#detail-error-msg').text(<?= json_encode(lang_line('prtn_js_invalid_min_qty', 'Minimal harus ada 1 item dengan Qty Retur lebih dari 0.')); ?>).show();
                     isValid = false;
                 }
             }
@@ -228,8 +211,8 @@ if ($header['status'] != 'Draft') {
                 console.warn("Form submission prevented due to validation errors.");
                 event.preventDefault(); // Mencegah form disubmit
                 Swal.fire({
-                    title: 'Input Tidak Valid',
-                    text: 'Harap periksa Tanggal Retur dan pastikan minimal ada 1 item dengan Qty Retur lebih dari 0.',
+                    title: <?= json_encode(lang_line('prtn_js_invalid_title', 'Input Tidak Valid')); ?>,
+                    text: <?= json_encode(lang_line('prtn_js_invalid_detail_text', 'Harap periksa Tanggal Retur dan pastikan minimal ada 1 item dengan Qty Retur lebih dari 0.')); ?>,
                     icon: 'warning',
                     toast: true,
                     position: 'top-end',
@@ -242,7 +225,7 @@ if ($header['status'] != 'Draft') {
             // Jika valid, log data dan biarkan submit
             console.log("Form data seems valid. Submitting form...");
             // Menonaktifkan tombol submit
-            $(this).find('button[type="submit"]').prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Menyimpan...');
+            $(this).find('button[type="submit"]').prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> <?= lang_line('prtn_js_saving', 'Menyimpan...'); ?>');
 
             // Form akan disubmit secara normal
         });
@@ -264,6 +247,3 @@ if ($header['status'] != 'Draft') {
 
     }); // Akhir $(document).ready()
     </script>
-
-</body>
-</html>

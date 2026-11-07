@@ -131,18 +131,38 @@ $(document).ready(function() {
         return isValid;
     }
     
-    // Component change - get unit
+    // Component change - get unit & stock
     $('#input_component').on('change', function() {
         const componentData = $(this).val();
         if (componentData) {
-            // Parse component_id|type to get unit from selection text
-            const text = $(this).select2('data')[0]?.text || '';
-            // Unit biasanya sudah di-handle di backend saat insert
-            $('#input_unit').text('...');
+            const data = $(this).select2('data')[0] || {};
+            $('#input_unit').text(data.unit || '...');
+            if (typeof data.stock !== 'undefined' && data.stock !== null) {
+                const stockNum = parseFloat(data.stock);
+                const stockTxt = stockNum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+                const $stock = $('#input_stock');
+                $stock.text(stockTxt).removeClass('text-muted text-danger text-success');
+                const qty = parseFloat($('#input_qty').val()) || 0;
+                $stock.addClass(stockNum < qty && qty > 0 ? 'text-danger' : 'text-success');
+            } else {
+                $('#input_stock').text('-').removeClass('text-danger text-success').addClass('text-muted');
+            }
         } else {
             $('#input_unit').text('-');
+            $('#input_stock').text('-').removeClass('text-danger text-success').addClass('text-muted');
         }
         validateInputRow();
+    });
+
+    $('#input_qty').on('input', function() {
+        const data = $('#input_component').select2('data')[0];
+        if (data && typeof data.stock !== 'undefined') {
+            const qty = parseFloat($(this).val()) || 0;
+            const stockNum = parseFloat(data.stock);
+            const $stock = $('#input_stock');
+            $stock.removeClass('text-danger text-success text-muted');
+            $stock.addClass(stockNum < qty && qty > 0 ? 'text-danger' : 'text-success');
+        }
     });
     
     $('#input_qty').on('input', validateInputRow);
@@ -251,7 +271,12 @@ $(document).ready(function() {
     function addRowToTable(item) {
         // Remove empty row if exists
         $('#empty_row').remove();
-        
+
+        const stockNum = parseFloat(item.stock || 0);
+        const reqNum = parseFloat(item.requested_qty || 0);
+        const stockClass = stockNum < reqNum ? 'text-danger font-weight-bold' : 'text-success';
+        const stockTxt = stockNum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+
         const row = `
             <tr data-id="${item.id}" class="new-item">
                 <td><small>${item.wo_number}</small></td>
@@ -259,6 +284,7 @@ $(document).ready(function() {
                 <td><small>${item.item_name}</small></td>
                 <td class="text-right">${parseFloat(item.requested_qty).toFixed(2)}</td>
                 <td><small>${item.unit_measure || '-'}</small></td>
+                <td class="text-right"><small class="${stockClass}">${stockTxt}</small></td>
                 <td><small>${item.notes || ''}</small></td>
                 <td class="text-center">
                     <button class="btn btn-danger btn-xs btn-delete-item" data-id="${item.id}" data-name="${item.item_name}">
@@ -313,7 +339,7 @@ $(document).ready(function() {
                                 if ($('.existing-item').length === 0) {
                                     $('#input_row').before(`
                                         <tr id="empty_row">
-                                            <td colspan="7" class="text-center text-muted py-3">
+                                            <td colspan="8" class="text-center text-muted py-3">
                                                 <i class="fas fa-inbox fa-2x mb-2 d-block text-secondary"></i>
                                                 <strong>Belum ada item.</strong><br>
                                                 <small>Pilih WO di atas, lalu isi baris biru untuk menambah item</small>

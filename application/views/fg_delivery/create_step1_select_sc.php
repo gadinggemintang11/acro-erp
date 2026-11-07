@@ -1,11 +1,11 @@
 <div class="container-fluid">
     <h3 class="h4 mb-4 text-gray-800">
-        <i class="fas fa-file-signature text-primary mr-2"></i> Pilih Sales Contract
+        <i class="fas fa-file-signature text-primary mr-2"></i> Pilih Sales Order Number
     </h3>
 
     <form method="get" action="<?= site_url('fg_delivery/create_items'); ?>">
         <div class="form-group">
-            <label for="sc_select">Sales Contract</label>
+            <label for="sc_select">Sales Order Number</label>
             <select id="sc_select" name="source_id" class="form-control" style="width:100%" required></select>
         </div>
         <input type="hidden" name="source_type" value="sc">

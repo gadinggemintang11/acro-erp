@@ -35,7 +35,7 @@ class Subkon_in extends MY_Controller {
         $offset = ($page > 0) ? ($page - 1) * $config['per_page'] : 0;
         
         $data = [
-            'title'      => 'Daftar Penerimaan Subkon',
+            'title'      => lang_line('title_subkon_in_index'),
             'filters'    => $filters,
             'grns'       => $this->Subkon_in_model->get_all($filters, $config['per_page'], $offset),
             'pagination' => $this->pagination->create_links(),
@@ -47,7 +47,7 @@ class Subkon_in extends MY_Controller {
     public function create() {
         if (!check_access('subkon_in', 'add')) show_error('Akses ditolak', 403);
         $data = [
-            'title'    => 'Buat Penerimaan Subkon Baru',
+            'title'    => lang_line('title_subkon_in_create'),
             'bc_types' => $this->Commoncode_model->get_by_group('BC_TYPE')
         ];
         $this->load_views('subkon_in/create', $data);
@@ -98,7 +98,7 @@ class Subkon_in extends MY_Controller {
         if (!$header) show_404();
 
         $data = [
-            'title'           => 'Detail Penerimaan Subkon: ' . $header->subkon_in_no,
+            'title'           => sprintf(lang_line('title_subkon_in_detail'), $header->subkon_in_no),
             'header'          => $header,
             'detail_items'    => $this->Subkon_in_model->get_details_by_id($id),
             // Item yang dipesan di kontrak dan belum diterima
@@ -187,7 +187,7 @@ class Subkon_in extends MY_Controller {
     
     // Fungsi Konfirmasi Stok (Logika Utama)
     public function confirm_grn($id, $user_id) { // <-- Fungsi ini Menerima $user_id
-        if (!check_access('subkon_in', 'edit')) show_error('Akses ditolak', 403);
+        if (!check_access('subkon_in', 'confirm')) show_error('Akses ditolak', 403);
 
         $header = $this->Subkon_in_model->get_header_by_id($id);
         if (!$header || $header->status != 'Draft') {

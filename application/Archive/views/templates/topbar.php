@@ -9,7 +9,7 @@
   <a class="btn-load navbar-brand d-flex align-items-center" href="<?= base_url('dashboard'); ?>" style="text-decoration: none;">
     <img src="<?= base_url('assets/img/logo_mini.png'); ?>" alt="Logo" style="height: 40px; width: auto; margin-right: 12px;">
     <div class="d-none d-md-block">
-      <div style="font-size: 16px; font-weight: 700; color: #5a5c69; line-height: 1.2;">PT MINGBAO LIANCHUANG INTERNATIONAL</div>
+      <div style="font-size: 16px; font-weight: 700; color: #5a5c69; line-height: 1.2;">PT NEW SPECIALIFE INDUSTRIES</div>
       <div style="font-size: 11px; color: #858796; font-weight: 500;">Enterprise Resource Planning</div>
     </div>
   </a>
@@ -187,12 +187,12 @@
 
 .notification-item:hover {
   background-color: #f8f9fc !important;
-  border-left-color: #4e73df;
+  border-left-color: #c62828;
 }
 
 .notification-item.unread {
   background-color: #f0f7ff;
-  border-left-color: #4e73df;
+  border-left-color: #c62828;
 }
 
 .notification-item .icon-circle {

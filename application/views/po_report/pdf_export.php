@@ -137,6 +137,19 @@
                 <td class="label">Currency:</td>
                 <td><?= htmlspecialchars($po_header->currency_code ?? 'IDR'); ?></td>
             </tr>
+            <tr>
+                <td class="label">Keterangan Hari:</td>
+                <td colspan="3">
+                    <?php
+                        $days = $po_header->days_to_warehouse_in ?? 0;
+                        if ($po_header->first_grn_date) {
+                            echo $days . ' hari (Warehouse In: ' . date('d/m/Y', strtotime($po_header->first_grn_date)) . ')';
+                        } else {
+                            echo $days . ' hari (Belum Warehouse In)';
+                        }
+                    ?>
+                </td>
+            </tr>
             <?php if (!empty($po_header->remarks)): ?>
             <tr>
                 <td class="label">Catatan:</td>
@@ -152,8 +165,8 @@
         <thead>
             <tr>
                 <th style="width: 5%;">No</th>
-                <th style="width: 15%;">Kode Material</th>
-                <th style="width: 25%;">Nama Material</th>
+                <th style="width: 15%;">Kode Item</th>
+                <th style="width: 25%;">Nama Item</th>
                 <th style="width: 8%;">Qty PO</th>
                 <th style="width: 7%;">Unit</th>
                 <th style="width: 12%;">Harga</th>
@@ -175,8 +188,8 @@
                 ?>
                 <tr>
                     <td class="center"><?= $no++; ?></td>
-                    <td class="left"><?= htmlspecialchars($item->kode_material ?? '-'); ?></td>
-                    <td class="left"><?= htmlspecialchars($item->nama_material ?? '-'); ?></td>
+                    <td class="left"><?= htmlspecialchars($item->item_code ?? '-'); ?></td>
+                    <td class="left"><?= htmlspecialchars($item->item_name ?? '-'); ?></td>
                     <td class="right"><?= number_format($item->qty, 2, ',', '.'); ?></td>
                     <td class="center"><?= htmlspecialchars($item->satuan ?? 'PCS'); ?></td>
                     <td class="right"><?= number_format($item->base_price, 2, ',', '.'); ?></td>
@@ -229,7 +242,7 @@
                     ?>
                     <tr>
                         <td class="center"><?= $n++; ?></td>
-                        <td class="left"><?= htmlspecialchars($gd->nama_material ?? $gd->kode_material ?? '-'); ?></td>
+                        <td class="left"><?= htmlspecialchars($gd->item_name ?? $gd->item_code ?? '-'); ?></td>
                         <td class="right"><?= number_format($gd->receive_qty, 2, ',', '.'); ?></td>
                         <td class="right">0,00</td>
                         <td class="center"><?= htmlspecialchars($gd->satuan ?? 'PCS'); ?></td>

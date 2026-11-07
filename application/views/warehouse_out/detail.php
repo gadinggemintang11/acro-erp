@@ -6,7 +6,7 @@
         <div class="card-header bg-primary text-white">
             <div class="row align-items-center">
                 <div class="col-md-8">
-                    <h5 class="mb-0">Retur #<?php echo isset($header->out_number) && $header->out_number ? $header->out_number : 'Draft'; ?></h5>
+                    <h5 class="mb-0"><?= lang_line('warehouse_out_detail_title_prefix', 'Return #'); ?><?php echo isset($header->out_number) && $header->out_number ? $header->out_number : lang_line('warehouse_out_detail_title_draft', 'Draft'); ?></h5>
                 </div>
                 <div class="col-md-4 text-end">
                     <span class="badge 
@@ -27,24 +27,24 @@
         <div class="card-body">
             <div class="row">
                 <div class="col-md-3">
-                    <p><strong>Tanggal:</strong> <?php
+                    <p><strong><?= lang_line('warehouse_out_label_date', 'Date:'); ?></strong> <?php
                         $d = $header->out_date ?? $header->created_at ?? null;
                         echo $d ? date('d M Y', strtotime($d)) : '-';
                     ?></p>
-                    <p><strong>Tipe:</strong> <?php echo $header->base_on ?? '-'; ?></p>
+                    <p><strong><?= lang_line('warehouse_out_label_type', 'Type:'); ?></strong> <?php echo $header->base_on ?? '-'; ?></p>
                 </div>
                 <div class="col-md-3">
-                    <p><strong>Gudang:</strong> <?php echo $header->warehouse_type ?? '-'; ?></p>
-                    <p><strong>Dibuat oleh:</strong> <?php echo $header->created_by_name ?? $header->created_by ?? '-'; ?></p>
+                    <p><strong><?= lang_line('warehouse_out_label_warehouse', 'Warehouse:'); ?></strong> <?php echo $header->warehouse_type ?? '-'; ?></p>
+                    <p><strong><?= lang_line('warehouse_out_label_created_by', 'Created by:'); ?></strong> <?php echo $header->created_by_name ?? $header->created_by ?? '-'; ?></p>
                 </div>
                 <div class="col-md-3">
-                    <p><strong>Partner:</strong> <?php echo $header->nama_supplier ?? $header->supplier_name ?? $header->partner_name ?? '-'; ?></p>
+                    <p><strong><?= lang_line('warehouse_out_label_partner', 'Partner:'); ?></strong> <?php echo $header->nama_supplier ?? $header->supplier_name ?? $header->partner_name ?? '-'; ?></p>
                 </div>
                 <div class="col-md-3">
-                    <p><strong>BC Info:</strong> <?php echo ($header->bc_type_code ? $header->bc_type_code . ' / ' . $header->bc_number : '-'); ?></p>
+                    <p><strong><?= lang_line('warehouse_out_label_bc_info', 'BC Info:'); ?></strong> <?php echo ($header->bc_type_code ? $header->bc_type_code . ' / ' . $header->bc_number : '-'); ?></p>
                     <?php if ($header->status == 'Draft' && check_access('warehouse_out', 'edit')): ?>
                         <div class="mt-2">
-                            <label class="form-label small mb-1">Currency</label>
+                            <label class="form-label small mb-1"><?= lang_line('warehouse_out_label_currency', 'Currency'); ?></label>
                             <select id="headerCurrency" class="form-select form-select-sm">
                                 <?php $cur = $header->currency_code ?? 'IDR'; ?>
                                 <option value="IDR" <?= $cur=='IDR' ? 'selected' : '' ?>>IDR</option>
@@ -61,7 +61,7 @@
             </div>
             <div class="row">
                 <div class="col-12">
-                    <p><strong>Catatan:</strong> <?php echo nl2br($header->reference_note ?? '') ?: '-'; ?></p>
+                    <p><strong><?= lang_line('warehouse_out_label_notes', 'Notes:'); ?></strong> <?php echo nl2br($header->reference_note ?? '') ?: '-'; ?></p>
                 </div>
             </div>
         </div>
@@ -70,38 +70,40 @@
     <!-- ACTION BUTTONS -->
     <div class="mb-3">
         <?php if ($header->status == 'Draft' && check_access('warehouse_out', 'edit')): ?>
-            <a href="<?php echo base_url('warehouse_out/submit_for_approval/' . $header->id); ?>" class="btn btn-warning btn-sm" onclick="return confirm('Submit untuk approval?')">
-                <i class="fas fa-arrow-right"></i> Submit untuk Approval
+            <?php if (check_access('warehouse_out', 'submit')): ?>
+            <a href="<?php echo base_url('warehouse_out/submit_for_approval/' . $header->id); ?>" class="btn btn-warning btn-sm" onclick="return confirm('<?= lang_line('warehouse_out_button_submit_approval', 'Submit for Approval?'); ?>')">
+                <i class="fas fa-arrow-right"></i> <?= lang_line('warehouse_out_button_submit_approval', 'Submit for Approval'); ?>
             </a>
-            <a href="<?php echo base_url('warehouse_out'); ?>" class="btn btn-secondary btn-sm">Kembali</a>
+            <?php endif; ?>
+            <a href="<?php echo base_url('warehouse_out'); ?>" class="btn btn-secondary btn-sm"><?= lang_line('warehouse_out_button_back', 'Back'); ?></a>
         <?php endif; ?>
 
         <?php if ($header->status == 'Pending Approval' && check_access('warehouse_out', 'approve')): ?>
             <button type="button" class="btn btn-success btn-sm btn-approve-trigger" data-bs-toggle="modal" data-bs-target="#approveModal">
-                <i class="fas fa-check"></i> Approve
+                <i class="fas fa-check"></i> <?= lang_line('warehouse_out_button_approve', 'Approve'); ?>
             </button>
             <button type="button" class="btn btn-danger btn-sm btn-reject-trigger" data-bs-toggle="modal" data-bs-target="#rejectModal">
-                <i class="fas fa-times"></i> Reject
+                <i class="fas fa-times"></i> <?= lang_line('warehouse_out_button_reject', 'Reject'); ?>
             </button>
         <?php endif; ?>
 
         <?php if ($header->status == 'Approved' && check_access('warehouse_out', 'edit')): ?>
-            <a href="<?php echo base_url('warehouse_out/confirm/' . $header->id); ?>" class="btn btn-primary btn-sm" onclick="return confirm('Konfirmasi pengeluaran? Stok akan diperbarui.')">
-                <i class="fas fa-check-circle"></i> Confirm
+            <a href="<?php echo base_url('warehouse_out/confirm/' . $header->id); ?>" class="btn btn-primary btn-sm" onclick="return confirm('<?= lang_line('warehouse_out_confirm_dialog', 'Confirm goods issue? Inventory will be updated.'); ?>')">
+                <i class="fas fa-check-circle"></i> <?= lang_line('warehouse_out_button_confirm', 'Confirm'); ?>
             </a>
         <?php endif; ?>
 
         <?php if ($header->status == 'Confirmed' && check_access('warehouse_out', 'edit')): ?>
-            <a href="<?php echo base_url('warehouse_out/unconfirm/' . $header->id); ?>" class="btn btn-warning btn-sm" onclick="return confirm('Batalkan konfirmasi?')">
-                <i class="fas fa-undo"></i> Batalkan Konfirmasi
+            <a href="<?php echo base_url('warehouse_out/unconfirm/' . $header->id); ?>" class="btn btn-warning btn-sm" onclick="return confirm('<?= lang_line('warehouse_out_unconfirm_dialog', 'Cancel confirmation?'); ?>')">
+                <i class="fas fa-undo"></i> <?= lang_line('warehouse_out_button_unconfirm', 'Cancel Confirmation'); ?>
             </a>
         <?php endif; ?>
 
         <a href="<?php echo base_url('warehouse_out/export_pdf/' . $header->id); ?>" class="btn btn-secondary btn-sm" target="_blank">
-            <i class="fas fa-file-pdf"></i> Export PDF
+            <i class="fas fa-file-pdf"></i> <?= lang_line('warehouse_out_button_export_pdf', 'Export PDF'); ?>
         </a>
         <a href="<?php echo base_url('warehouse_out/export_excel/' . $header->id); ?>" class="btn btn-secondary btn-sm">
-            <i class="fas fa-file-excel"></i> Export Excel
+            <i class="fas fa-file-excel"></i> <?= lang_line('warehouse_out_button_export_excel', 'Export Excel'); ?>
         </a>
     </div>
 
@@ -110,15 +112,25 @@
         <div class="card-header bg-info text-white">
             <div class="row align-items-center">
                 <div class="col-md-6">
-                    <h5 class="mb-0">Detail Item</h5>
+                    <h5 class="mb-0"><?= lang_line('warehouse_out_section_items', 'Item Details'); ?></h5>
                 </div>
                 <div class="col-md-6 text-end">
                         <?php if ($header->status == 'Draft' && check_access('warehouse_out', 'edit')): ?>
-                            <button type="button" id="btnPullGrn" class="btn btn-sm btn-primary me-2">
-                                <i class="fas fa-download"></i> Tarik Data dari GRN
-                            </button>
+                            <?php if ($header->base_on === 'NG'): ?>
+                                <button type="button" id="btnPullNgQa" class="btn btn-sm btn-danger me-2">
+                                    <i class="fas fa-exclamation-triangle"></i> <?= lang_line('warehouse_out_button_pull_ng', 'Pull NG Items from QA'); ?>
+                                </button>
+                            <?php elseif ($header->base_on === 'Production Return'): ?>
+                                <button type="button" id="btnPullProdReject" class="btn btn-sm btn-warning me-2">
+                                    <i class="fas fa-industry"></i> <?= lang_line('warehouse_out_button_pull_prod_reject', 'Pull Production Reject Items'); ?>
+                                </button>
+                            <?php else: ?>
+                                <button type="button" id="btnPullGrn" class="btn btn-sm btn-primary me-2">
+                                    <i class="fas fa-download"></i> <?= lang_line('warehouse_out_button_pull_grn', 'Pull Data from GRN'); ?>
+                                </button>
+                            <?php endif; ?>
                             <button type="button" class="btn btn-sm btn-success" data-bs-toggle="modal" data-bs-target="#addItemModal">
-                                <i class="fas fa-plus"></i> Tambah Item Manual
+                                <i class="fas fa-plus"></i> <?= lang_line('warehouse_out_button_add_item', 'Add Item Manual'); ?>
                             </button>
                         <?php endif; ?>
                 </div>
@@ -127,62 +139,120 @@
         <div class="card-body">
             <div class="table-responsive">
                 <table class="table table-bordered table-hover table-sm">
-                    <thead class="table-light">
+                    <thead class="table-light" style="font-size:0.82rem;">
                         <tr>
-                            <th>Kode</th>
-                            <th>Nama Barang</th>
-                            <th>QTY PO/MIR</th>
-                            <th>QTY DITERIMA</th>
-                            <th>QTY RETUR</th>
-                            <th>Satuan</th>
-                            <th>Unit Value</th>
-                            <th>Total Value</th>
-                            <th>GRN Asal</th>
-                            <th>Aksi</th>
+                            <th><?= lang_line('warehouse_out_table_code', 'Code'); ?></th>
+                            <th><?= lang_line('warehouse_out_table_item_name', 'Item Name'); ?></th>
+                            <?php if ($header->base_on === 'NG'): ?>
+                                <th class="text-center"><?= lang_line('warehouse_out_table_grn_qa', 'GRN / QA'); ?></th>
+                                <th class="text-center"><?= lang_line('warehouse_out_table_po_number', 'PO Number'); ?></th>
+                                <th class="text-center"><?= lang_line('warehouse_out_table_qty_order', 'Qty Order'); ?></th>
+                                <th class="text-center"><?= lang_line('warehouse_out_table_qty_received', 'Qty Received'); ?></th>
+                                <th class="text-center"><?= lang_line('warehouse_out_table_pass_qa', 'Pass QA'); ?></th>
+                                <th class="text-center text-danger"><?= lang_line('warehouse_out_table_ng_qty', 'NG Qty'); ?></th>
+                                <th><?= lang_line('warehouse_out_table_ng_category', 'NG Category'); ?></th>
+                            <?php elseif ($header->base_on === 'Production Return'): ?>
+                                <th><?= lang_line('warehouse_out_table_grn_source', 'Source GRN'); ?></th>
+                                <th><?= lang_line('warehouse_out_table_po_number', 'PO Number'); ?></th>
+                                <th><?= lang_line('warehouse_out_table_supplier', 'Supplier'); ?></th>
+                                <th class="text-center text-danger"><?= lang_line('warehouse_out_table_qty_reject_prod', 'Qty Reject Production'); ?></th>
+                            <?php else: ?>
+                                <th class="text-center"><?= lang_line('warehouse_out_table_qty_po_mir', 'QTY PO/MIR'); ?></th>
+                                <th class="text-center"><?= lang_line('warehouse_out_table_qty_diterima', 'QTY RECEIVED'); ?></th>
+                                <th><?= lang_line('warehouse_out_table_grn_source', 'Source GRN'); ?></th>
+                            <?php endif; ?>
+                            <th class="text-center"><?= lang_line('warehouse_out_table_qty_return', 'QTY RETURN'); ?></th>
+                            <th><?= lang_line('warehouse_out_table_unit', 'Unit'); ?></th>
+                            <th class="text-end"><?= lang_line('warehouse_out_table_unit_value', 'Unit Value'); ?></th>
+                            <th class="text-end"><?= lang_line('warehouse_out_table_total_value', 'Total Value'); ?></th>
+                            <th><?= lang_line('warehouse_out_table_action', 'Action'); ?></th>
                         </tr>
                     </thead>
                     <tbody>
                         <?php if (!empty($details)): ?>
                             <?php foreach ($details as $detail): ?>
                                 <?php
-                                    $code = $detail->item_code ?? $detail->kode_barang ?? '';
-                                    $name = $detail->item_name ?? $detail->nama_barang ?? '';
-                                    $qty_po = isset($detail->qty_po) ? (float)$detail->qty_po : 0;
-                                    $qty_received = isset($detail->qty_received) ? (float)$detail->qty_received : (isset($detail->receive_qty) ? (float)$detail->receive_qty : 0);
-                                    $qty_return = isset($detail->qty_return) ? (float)$detail->qty_return : 0;
-                                    $unit = $detail->unit ?? $detail->satuan ?? '';
-                                    $unit_value = isset($detail->unit_value_idr) ? (float)$detail->unit_value_idr : (isset($detail->unit_value) ? (float)$detail->unit_value : 0);
-                                    $total = isset($detail->total_value) ? (float)$detail->total_value : ($unit_value * $qty_return);
-                                    $grn_label = $detail->grn_number ?? (isset($detail->grn_id) ? $detail->grn_id : '-');
+                                    $code        = $detail->item_code ?? '';
+                                    $name        = $detail->item_name ?? '';
+                                    $qty_po      = (float)($detail->qty_po ?? 0);
+                                    $qty_received= (float)($detail->qty_received ?? $detail->receive_qty ?? 0);
+                                    $qty_return  = (float)($detail->qty_return ?? 0);
+                                    $unit        = $detail->unit ?? $detail->satuan ?? '';
+                                    $unit_value  = (float)($detail->unit_value_idr ?? $detail->unit_value ?? 0);
+                                    $total       = $unit_value * $qty_return;
+                                    $grn_label   = $detail->grn_number ?? '-';
+                                    // NG-specific fields (populated from qa_details join in get_details())
+                                    $qa_pass     = (float)($detail->qa_pass_qty ?? 0);
+                                    $qa_reject   = (float)($detail->qa_reject_qty ?? $qty_return);
+                                    $ng_cat      = $detail->ng_category ?? '-';
+                                    $po_number   = $detail->po_number ?? '-';
+                                    $qa_number   = $detail->qa_number ?? '-';
                                 ?>
                                 <tr>
                                     <td><?php echo htmlspecialchars($code); ?></td>
                                     <td><?php echo htmlspecialchars($name); ?></td>
-                                    <td class="text-end"><?php echo number_format($qty_po, 2); ?></td>
-                                    <td class="text-end"><?php echo number_format($qty_received, 2); ?></td>
-                                    <td class="text-end">
+                                    <?php if ($header->base_on === 'NG'): ?>
+                                        <td class="text-center small">
+                                            <div class="text-muted"><?= htmlspecialchars($grn_label) ?></div>
+                                            <div class="text-info"><?= htmlspecialchars($qa_number) ?></div>
+                                        </td>
+                                        <td class="text-center small"><?= htmlspecialchars($po_number) ?></td>
+                                        <td class="text-center"><?= number_format($qty_po, 2) ?></td>
+                                        <td class="text-center"><?= number_format($qty_received, 2) ?></td>
+                                        <td class="text-center text-success"><?= number_format($qa_pass, 2) ?></td>
+                                        <td class="text-center text-danger font-weight-bold"><?= number_format($qa_reject, 2) ?></td>
+                                        <td><small><?= htmlspecialchars($ng_cat) ?></small></td>
+                                    <?php elseif ($header->base_on === 'Production Return'): ?>
+                                        <?php
+                                        $supplier_display = $detail->supplier_name ?? $detail->po_supplier_name ?? $detail->mir_supplier_name ?? '-';
+                                        ?>
+                                        <td><small class="text-muted"><?= htmlspecialchars($grn_label) ?></small></td>
+                                        <td>
+                                            <?php if (!empty($po_number) && $po_number !== '-'): ?>
+                                                <span class="badge badge-primary"><?= htmlspecialchars($po_number) ?></span>
+                                            <?php else: ?>
+                                                <small class="text-muted">-</small>
+                                            <?php endif; ?>
+                                        </td>
+                                        <td>
+                                            <small class="font-weight-bold"><?= htmlspecialchars($supplier_display) ?></small>
+                                        </td>
+                                        <td class="text-center text-danger font-weight-bold">
+                                            <?= number_format($qty_received, 2) ?>
+                                        </td>
+                                    <?php else: ?>
+                                        <td class="text-center"><?= number_format($qty_po, 2) ?></td>
+                                        <td class="text-center"><?= number_format($qty_received, 2) ?></td>
+                                        <td><?= htmlspecialchars($grn_label) ?></td>
+                                    <?php endif; ?>
+                                    <td class="text-center">
                                         <?php if ($header->status == 'Draft' && check_access('warehouse_out', 'edit')): ?>
-                                            <input type="number" step="0.01" min="0" max="<?php echo $qty_received; ?>" value="<?php echo number_format($qty_return,2,'.',''); ?>" class="form-control form-control-sm text-end qty-return-input" data-detail-id="<?= $detail->id ?>" />
+                                            <input type="number" step="0.01" min="0" max="<?= $qty_received ?>"
+                                                   value="<?= number_format($qty_return,2,'.','') ?>"
+                                                   class="form-control form-control-sm text-end qty-return-input"
+                                                   data-detail-id="<?= $detail->id ?>" style="width:90px;" />
                                         <?php else: ?>
-                                            <?php echo number_format($qty_return, 2); ?>
+                                            <?= number_format($qty_return, 2) ?>
                                         <?php endif; ?>
                                     </td>
-                                    <td><?php echo htmlspecialchars($unit); ?></td>
+                                    <td><?= htmlspecialchars($unit) ?></td>
                                     <td class="text-end">
                                         <?php if ($header->status == 'Draft' && check_access('warehouse_out', 'edit')): ?>
-                                            <input type="number" step="0.01" min="0" value="<?php echo number_format($unit_value,2,'.',''); ?>" class="form-control form-control-sm text-end unit-value-input" data-detail-id="<?= $detail->id ?>" />
+                                            <input type="number" step="0.01" min="0"
+                                                   value="<?= number_format($unit_value,2,'.','') ?>"
+                                                   class="form-control form-control-sm text-end unit-value-input"
+                                                   data-detail-id="<?= $detail->id ?>" style="width:110px;" />
                                         <?php else: ?>
-                                            Rp <?php echo number_format($unit_value, 2); ?>
+                                            Rp <?= number_format($unit_value, 2) ?>
                                         <?php endif; ?>
                                     </td>
-                                    <td class="text-end">Rp <span class="detail-total" data-detail-id="<?= $detail->id ?>"><?php echo number_format($total, 2); ?></span></td>
-                                    <td><?php echo htmlspecialchars($grn_label); ?></td>
+                                    <td class="text-end">Rp <span class="detail-total" data-detail-id="<?= $detail->id ?>"><?= number_format($total, 2) ?></span></td>
                                     <td>
                                         <?php if ($header->status == 'Draft' && check_access('warehouse_out', 'edit')): ?>
                                             <button type="button" class="btn btn-xs btn-primary save-detail-btn" data-detail-id="<?= $detail->id ?>" title="Simpan">
                                                 <i class="fas fa-save"></i>
                                             </button>
-                                            <a href="<?php echo base_url('warehouse_out/delete_item/' . $header->id . '/' . $detail->id); ?>" 
+                                            <a href="<?= base_url('warehouse_out/delete_item/' . $header->id . '/' . $detail->id) ?>"
                                                class="btn btn-xs btn-danger ms-1" onclick="return confirm('Hapus item?')" title="Hapus">
                                                 <i class="fas fa-trash"></i>
                                             </a>
@@ -192,7 +262,7 @@
                             <?php endforeach; ?>
                         <?php else: ?>
                             <tr>
-                                <td colspan="8" class="text-center text-muted">Belum ada item. Tambahkan item untuk memulai.</td>
+                                <td colspan="12" class="text-center text-muted"><?= lang_line('warehouse_out_empty_items', 'No items yet. Add items to start.'); ?></td>
                             </tr>
                         <?php endif; ?>
                     </tbody>
@@ -300,63 +370,121 @@ window.addEventListener('message', function(e){
 });
 </script>
 
+<!-- Toast Notification -->
+<div id="woToastContainer" style="position:fixed; bottom:24px; right:24px; z-index:9999; min-width:260px;"></div>
+
 <script>
-// Live recalc and Save per-row for qty_return + unit_value
+/* ── Toast helper ─────────────────────────────────────── */
+function showToast(msg, type) {
+    type = type || 'success';
+    var colors = { success: '#28a745', error: '#dc3545', warning: '#fd7e14' };
+    var icons  = { success: 'fa-check-circle', error: 'fa-times-circle', warning: 'fa-exclamation-circle' };
+    var id = 'toast_' + Date.now();
+    var html = '<div id="' + id + '" style="'
+        + 'background:#fff; border-left:4px solid ' + (colors[type]||colors.success) + ';'
+        + 'box-shadow:0 4px 16px rgba(0,0,0,.15); border-radius:6px;'
+        + 'padding:12px 16px; margin-top:10px; display:flex; align-items:center; gap:10px;'
+        + 'animation:woSlideIn .25s ease; font-size:.88rem;">'
+        + '<i class="fas ' + (icons[type]||icons.success) + '" style="color:' + (colors[type]||colors.success) + '; font-size:1.1rem; flex-shrink:0;"></i>'
+        + '<span style="flex:1; color:#333;">' + msg + '</span>'
+        + '<button onclick="document.getElementById(\'' + id + '\').remove()" style="background:none;border:none;color:#aaa;cursor:pointer;font-size:1rem;line-height:1;padding:0;">&times;</button>'
+        + '</div>';
+    document.getElementById('woToastContainer').insertAdjacentHTML('beforeend', html);
+    setTimeout(function(){ var el = document.getElementById(id); if (el) el.style.animation = 'woSlideOut .3s ease forwards'; setTimeout(function(){ var el2 = document.getElementById(id); if (el2) el2.remove(); }, 300); }, 3000);
+}
+(function addToastStyles(){
+    var s = document.createElement('style');
+    s.textContent = '@keyframes woSlideIn{from{opacity:0;transform:translateX(40px)}to{opacity:1;transform:translateX(0)}} @keyframes woSlideOut{from{opacity:1;transform:translateX(0)}to{opacity:0;transform:translateX(40px)}}';
+    document.head.appendChild(s);
+})();
+
+/* ── Live recalc ──────────────────────────────────────── */
 function recalcTotalForDetail(detailId) {
-    const qtyEl = document.querySelector('.qty-return-input[data-detail-id="' + detailId + '"]');
-    const unitEl = document.querySelector('.unit-value-input[data-detail-id="' + detailId + '"]');
-    const span = document.querySelector('.detail-total[data-detail-id="' + detailId + '"]');
-    const qty = qtyEl ? parseFloat(qtyEl.value) || 0 : 0;
-    const unit = unitEl ? parseFloat(unitEl.value) || 0 : 0;
-    const total = qty * unit;
-    if (span) span.textContent = Number(total).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+    var qtyEl  = document.querySelector('.qty-return-input[data-detail-id="' + detailId + '"]');
+    var unitEl = document.querySelector('.unit-value-input[data-detail-id="' + detailId + '"]');
+    var span   = document.querySelector('.detail-total[data-detail-id="' + detailId + '"]');
+    var qty  = qtyEl  ? parseFloat(qtyEl.value)  || 0 : 0;
+    var unit = unitEl ? parseFloat(unitEl.value) || 0 : 0;
+    if (span) span.textContent = Number(qty * unit).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
 }
 
 document.addEventListener('DOMContentLoaded', function(){
-    // bind live recalc on inputs
     document.querySelectorAll('.qty-return-input').forEach(function(inp){
-        inp.addEventListener('input', function(){
-            recalcTotalForDetail(this.dataset.detailId);
-        });
+        inp.addEventListener('input', function(){ recalcTotalForDetail(this.dataset.detailId); });
     });
     document.querySelectorAll('.unit-value-input').forEach(function(inp){
-        inp.addEventListener('input', function(){
-            recalcTotalForDetail(this.dataset.detailId);
-        });
+        inp.addEventListener('input', function(){ recalcTotalForDetail(this.dataset.detailId); });
     });
 
-    // bind save buttons
+    /* ── Save button ───────────────────────────────────── */
     document.querySelectorAll('.save-detail-btn').forEach(function(btn){
         btn.addEventListener('click', function(){
-            const detailId = this.dataset.detailId;
-            const qtyEl = document.querySelector('.qty-return-input[data-detail-id="' + detailId + '"]');
-            const unitEl = document.querySelector('.unit-value-input[data-detail-id="' + detailId + '"]');
-            const qty = qtyEl ? parseFloat(qtyEl.value) || 0 : 0;
-            const unit = unitEl ? parseFloat(unitEl.value) || 0 : 0;
-            const currencyEl = document.getElementById('headerCurrency');
-            const currency = currencyEl ? currencyEl.value : '';
-            const fd = new FormData();
+            var self       = this;
+            var detailId   = this.dataset.detailId;
+            var qtyEl      = document.querySelector('.qty-return-input[data-detail-id="' + detailId + '"]');
+            var unitEl     = document.querySelector('.unit-value-input[data-detail-id="' + detailId + '"]');
+            var qty        = qtyEl  ? parseFloat(qtyEl.value)  || 0 : 0;
+            var unit       = unitEl ? parseFloat(unitEl.value) || 0 : 0;
+            var currencyEl = document.getElementById('headerCurrency');
+            var currency   = currencyEl ? currencyEl.value : '';
+
+            var fd = new FormData();
             fd.append('detail_id', detailId);
             fd.append('qty_return', qty);
             fd.append('unit_value', unit);
             if (currency) fd.append('currency', currency);
-            const btnOldHtml = this.innerHTML;
+
+            // Loading state
+            var oldHtml = this.innerHTML;
             this.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
             this.disabled = true;
-            fetch('<?= base_url('Warehouse_out/update_detail_ajax') ?>', { method: 'POST', body: fd, headers: { 'X-Requested-With': 'XMLHttpRequest' } })
-            .then(r=>r.json()).then(j=>{
-                this.disabled = false; this.innerHTML = btnOldHtml;
-                if (!j.success) { alert('Gagal simpan: ' + (j.message || (j.errors ? j.errors.join('\n') : 'unknown'))); return; }
-                // update total cell
-                const span = document.querySelector('.detail-total[data-detail-id="'+detailId+'"]');
-                if (span) span.textContent = Number(j.total).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
-            }).catch(err=>{ console.error(err); this.disabled = false; this.innerHTML = btnOldHtml; alert('Gagal menyimpan perubahan (network)'); });
+            this.style.opacity = '0.7';
+
+            fetch('<?= base_url('Warehouse_out/update_detail_ajax') ?>', {
+                method: 'POST', body: fd,
+                headers: { 'X-Requested-With': 'XMLHttpRequest' }
+            })
+            .then(function(r){ return r.json(); })
+            .then(function(j){
+                // Reset button
+                self.disabled = false;
+                self.style.opacity = '';
+
+                if (!j.success) {
+                    self.innerHTML = oldHtml;
+                    showToast('Gagal: ' + (j.message || 'Terjadi kesalahan'), 'error');
+                    return;
+                }
+
+                // Success — tampilkan checkmark sebentar lalu kembali ke icon save
+                self.innerHTML = '<i class="fas fa-check"></i>';
+                self.style.background = '#28a745';
+                self.style.borderColor = '#28a745';
+                setTimeout(function(){
+                    self.innerHTML = oldHtml;
+                    self.style.background = '';
+                    self.style.borderColor = '';
+                }, 1200);
+
+                // Update total cell
+                var span = document.querySelector('.detail-total[data-detail-id="' + detailId + '"]');
+                if (span) span.textContent = 'Rp ' + Number(j.total).toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
+
+                showToast('Tersimpan — Qty: ' + qty.toFixed(2) + ' | Unit Value: ' + unit.toLocaleString(), 'success');
+            })
+            .catch(function(err){
+                console.error(err);
+                self.disabled = false;
+                self.innerHTML = oldHtml;
+                self.style.opacity = '';
+                showToast('Gagal menyimpan (koneksi terputus)', 'error');
+            });
         });
     });
 
-    // initial recalc for existing rows
+    // Initial recalc
     document.querySelectorAll('.detail-total').forEach(function(s){
-        const id = s.getAttribute('data-detail-id');
+        var id = s.getAttribute('data-detail-id');
         if (id) recalcTotalForDetail(id);
     });
 });
@@ -415,18 +543,455 @@ function initSelectGrnModal(modalEl) {
 }
 </script>
 
+<!-- PRODUCTION RETURN MODAL -->
+<div class="modal fade" id="prodReturnModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title"><i class="fas fa-industry mr-2"></i><?= lang_line('warehouse_out_modal_select_prod_reject', 'Select Production Reject Items'); ?></h5>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <input type="text" id="prSearch" class="form-control" placeholder="Cari No. Issuance, MR...">
+                    </div>
+                </div>
+                <!-- Step 1: Pilih issuance -->
+                <div id="prStep1">
+                    <h6 class="text-muted mb-2">Step 1 — Pilih Issuance yang memiliki item reject:</h6>
+                    <div class="table-responsive" style="max-height:220px; overflow-y:auto;">
+                        <table class="table table-sm table-hover" id="prIssuanceTable">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th width="30"></th>
+                                    <th>Issuance No</th>
+                                    <th>MR No</th>
+                                    <th>Supplier (via PO)</th>
+                                    <th class="text-center">Total Items Reject</th>
+                                    <th class="text-center">Total Qty Reject</th>
+                                    <th class="text-center">QC Done At</th>
+                                </tr>
+                            </thead>
+                            <tbody id="prIssuanceBody">
+                                <tr><td colspan="7" class="text-center text-muted">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <button type="button" class="btn btn-warning mt-2" id="btnLoadPrItems">
+                        <i class="fas fa-arrow-down"></i> Load Item Reject
+                    </button>
+                </div>
+                <!-- Step 2: Konfirmasi item -->
+                <div id="prStep2" style="display:none;">
+                    <hr>
+                    <h6 class="text-muted mb-2">Step 2 — Konfirmasi item dan qty return ke supplier:</h6>
+                    <div class="table-responsive" style="max-height:300px; overflow-y:auto;">
+                        <table class="table table-sm table-bordered" id="prItemsTable">
+                            <thead class="thead-light" style="font-size:0.8rem;">
+                                <tr>
+                                    <th width="30"><input type="checkbox" id="prItemCheckAll" checked></th>
+                                    <th>Item</th>
+                                    <th>Issuance / MR</th>
+                                    <th>GRN Asal</th>
+                                    <th>PO</th>
+                                    <th class="text-center text-danger">Reject Qty</th>
+                                    <th>Catatan QC</th>
+                                    <th class="text-center" style="width:110px;">Qty Return</th>
+                                </tr>
+                            </thead>
+                            <tbody id="prItemsBody"></tbody>
+                        </table>
+                    </div>
+                    <div class="mt-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="btnBackToPrList">
+                            <i class="fas fa-arrow-left"></i> Kembali
+                        </button>
+                        <button type="button" class="btn btn-warning ml-2" id="btnPullPrConfirm">
+                            <i class="fas fa-check"></i> Tambahkan ke Dokumen Return
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+(function(){
+    var headerId = <?= (int)$header->id ?>;
+    var prData = []; var prItemsData = [];
+    function esc(s){ return String(s||'').replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+    function fmt(n){ return (parseFloat(n)||0).toFixed(2); }
+
+    var btnOpen = document.getElementById('btnPullProdReject');
+    if (!btnOpen) return;
+
+    btnOpen.addEventListener('click', function(){
+        loadPrList('');
+        $('#prodReturnModal').modal('show');
+    });
+
+    function loadPrList(search) {
+        document.getElementById('prIssuanceBody').innerHTML = '<tr><td colspan="7" class="text-center"><i class="fas fa-spinner fa-spin"></i></td></tr>';
+        document.getElementById('prStep1').style.display = '';
+        document.getElementById('prStep2').style.display = 'none';
+        fetch('<?= base_url('Warehouse_out/popup_select_production_return') ?>?header_id='+headerId+'&search='+encodeURIComponent(search), {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        }).then(function(r){ return r.json(); }).then(function(j){
+            if (!j.success) { document.getElementById('prIssuanceBody').innerHTML = '<tr><td colspan="7" class="text-danger text-center">'+esc(j.message||'Error')+'</td></tr>'; return; }
+            prData = j.data || [];
+            var html = prData.length ? prData.map(function(r){
+                return '<tr><td><input type="checkbox" class="pr-iss-check" value="'+r.issuance_id+'"></td>'
+                    + '<td><strong>'+esc(r.issuance_number)+'</strong></td>'
+                    + '<td class="small">'+esc(r.mr_number)+'</td>'
+                    + '<td class="small">'+esc(r.nama_supplier)+'</td>'
+                    + '<td class="text-center"><span class="badge badge-danger">'+r.total_items+'</span></td>'
+                    + '<td class="text-center text-danger font-weight-bold">'+fmt(r.total_reject_qty)+'</td>'
+                    + '<td class="text-center small">'+(r.qc_done_at ? r.qc_done_at.substr(0,16) : '-')+'</td>'
+                    + '</tr>';
+            }).join('') : '<tr><td colspan="7" class="text-center text-muted">Tidak ada item reject produksi</td></tr>';
+            document.getElementById('prIssuanceBody').innerHTML = html;
+        }).catch(function(){ document.getElementById('prIssuanceBody').innerHTML = '<tr><td colspan="7" class="text-danger text-center">Gagal load</td></tr>'; });
+    }
+
+    document.getElementById('prSearch').addEventListener('input', function(){
+        var t = this.value.toLowerCase();
+        document.querySelectorAll('#prIssuanceBody tr').forEach(function(tr){ tr.style.display = tr.textContent.toLowerCase().indexOf(t) === -1 ? 'none' : ''; });
+    });
+
+    document.getElementById('btnLoadPrItems').addEventListener('click', function(){
+        var ids = Array.from(document.querySelectorAll('.pr-iss-check:checked')).map(function(c){ return parseInt(c.value); });
+        if (!ids.length) { alert('Pilih minimal satu issuance.'); return; }
+        var self = this; self.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; self.disabled = true;
+        fetch('<?= base_url('Warehouse_out/load_production_reject_items') ?>', {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify({ issuance_ids: ids })
+        }).then(function(r){ return r.json(); }).then(function(j){
+            self.innerHTML = '<i class="fas fa-arrow-down"></i> Load Item Reject'; self.disabled = false;
+            if (!j.success) { alert('Gagal: ' + (j.message||'')); return; }
+            prItemsData = j.items || [];
+            var html = prItemsData.length ? prItemsData.map(function(it, idx){
+                var avail = parseFloat(it.reject_qty || 0);
+                return '<tr><td><input type="checkbox" class="pr-item-check" value="'+idx+'" '+(avail>0?'checked':'disabled')+'></td>'
+                    + '<td><strong>'+esc(it.item_code)+'</strong><div class="small text-muted">'+esc(it.item_name)+'</div></td>'
+                    + '<td class="small text-muted">'+esc(it.issuance_number)+'<br>'+esc(it.mr_number)+'</td>'
+                    + '<td class="small">'+esc(it.grn_number||'-')+'</td>'
+                    + '<td class="small">'+esc(it.po_number||'-')+'</td>'
+                    + '<td class="text-center text-danger font-weight-bold">'+fmt(avail)+'</td>'
+                    + '<td class="small">'+esc(it.qc_notes||'-')+'</td>'
+                    + '<td><input type="number" step="0.01" min="0" max="'+avail+'" value="'+fmt(avail)+'" class="form-control form-control-sm pr-qty-return" data-idx="'+idx+'"></td>'
+                    + '</tr>';
+            }).join('') : '<tr><td colspan="8" class="text-center text-muted">Tidak ada item</td></tr>';
+            document.getElementById('prItemsBody').innerHTML = html;
+            document.getElementById('prStep1').style.display = 'none';
+            document.getElementById('prStep2').style.display = '';
+            document.getElementById('prItemCheckAll').addEventListener('change', function(){
+                document.querySelectorAll('.pr-item-check:not(:disabled)').forEach(function(c){ c.checked = this.checked; }.bind(this));
+            });
+        }).catch(function(err){ console.error(err); self.innerHTML = '<i class="fas fa-arrow-down"></i> Load'; self.disabled = false; alert('Error'); });
+    });
+
+    document.getElementById('btnBackToPrList').addEventListener('click', function(){
+        document.getElementById('prStep1').style.display = ''; document.getElementById('prStep2').style.display = 'none';
+    });
+
+    document.getElementById('btnPullPrConfirm').addEventListener('click', function(){
+        var checked = Array.from(document.querySelectorAll('.pr-item-check:checked'));
+        if (!checked.length) { alert('Pilih minimal satu item.'); return; }
+        var items = [];
+        checked.forEach(function(c){
+            var idx = parseInt(c.value); var it = prItemsData[idx];
+            var qtyEl = document.querySelector('.pr-qty-return[data-idx="'+idx+'"]');
+            var qty = qtyEl ? parseFloat(qtyEl.value)||0 : 0;
+            if (qty <= 0) return;
+            items.push({ grn_detail_id: it.grn_detail_id, grn_header_id: it.grn_header_id, po_header_id: it.po_header_id||null, item_id: it.item_id, item_type: it.item_type, item_code: it.item_code, item_name: it.item_name, unit: it.unit, reject_qty: it.reject_qty, unit_value: it.unit_value||0, supplier_id: it.supplier_id, nama_supplier: it.nama_supplier, qty_return: qty });
+        });
+        if (!items.length) { alert('Qty return harus > 0.'); return; }
+        var self = this; self.innerHTML = '<i class="fas fa-spinner fa-spin"></i>'; self.disabled = true;
+        fetch('<?= base_url('Warehouse_out/pull_production_reject_items_to_header') ?>', {
+            method: 'POST', headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify({ header_id: headerId, items: items })
+        }).then(function(r){ return r.json(); }).then(function(j){
+            self.innerHTML = '<i class="fas fa-check"></i> Tambahkan'; self.disabled = false;
+            if (j.success) { $('#prodReturnModal').modal('hide'); alert(j.message); window.location.reload(); }
+            else { alert('Gagal: ' + (j.errors ? j.errors.join('\n') : j.message)); }
+        }).catch(function(err){ console.error(err); self.innerHTML = '<i class="fas fa-check"></i> Tambahkan'; self.disabled = false; alert('Error'); });
+    });
+})();
+</script>
+
+<!-- NG QA SELECT MODAL -->
+<div class="modal fade" id="ngQaModal" tabindex="-1">
+    <div class="modal-dialog modal-xl">
+        <div class="modal-content">
+            <div class="modal-header bg-danger text-white">
+                <h5 class="modal-title"><i class="fas fa-exclamation-triangle mr-2"></i><?= lang_line('warehouse_out_modal_select_ng', 'Select NG Items from QA'); ?></h5>
+                <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <input type="text" id="ngQaSearch" class="form-control" placeholder="Cari QA Number, GRN, Supplier...">
+                    </div>
+                    <div class="col-md-6 text-right">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="btnNgSelectAll">Pilih Semua QA</button>
+                        <button type="button" class="btn btn-sm btn-outline-secondary ml-1" id="btnNgClearAll">Batal Semua</button>
+                    </div>
+                </div>
+
+                <!-- Step 1: Pilih QA -->
+                <div id="ngStep1">
+                    <h6 class="text-muted mb-2">Step 1 — Pilih QA yang akan di-return:</h6>
+                    <div class="table-responsive" style="max-height:240px; overflow-y:auto;">
+                        <table class="table table-sm table-hover" id="ngQaTable">
+                            <thead class="thead-light">
+                                <tr>
+                                    <th width="30"></th>
+                                    <th>QA Number</th>
+                                    <th>GRN Number</th>
+                                    <th>Supplier</th>
+                                    <th class="text-center">Tgl QA</th>
+                                    <th class="text-center">Total NG Items</th>
+                                    <th class="text-center">Total NG Qty</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ngQaTableBody">
+                                <tr><td colspan="7" class="text-center text-muted">Loading...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="mt-2">
+                        <button type="button" class="btn btn-warning" id="btnLoadNgItems">
+                            <i class="fas fa-arrow-down"></i> Load Item NG dari QA Terpilih
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Step 2: Pilih item + input qty return -->
+                <div id="ngStep2" style="display:none;">
+                    <hr>
+                    <h6 class="text-muted mb-2">Step 2 — Konfirmasi item NG dan qty yang akan di-return:</h6>
+                    <div class="table-responsive" style="max-height:320px; overflow-y:auto;">
+                        <table class="table table-sm table-bordered" id="ngItemsTable">
+                            <thead class="thead-light" style="font-size:0.8rem;">
+                                <tr>
+                                    <th width="30"><input type="checkbox" id="ngItemCheckAll" checked></th>
+                                    <th>Item</th>
+                                    <th>QA / GRN</th>
+                                    <th>No. PO</th>
+                                    <th class="text-center">Qty Order</th>
+                                    <th class="text-center">Qty Terima</th>
+                                    <th class="text-center text-success">Pass QA</th>
+                                    <th class="text-center text-danger">NG Qty</th>
+                                    <th>NG Category</th>
+                                    <th class="text-center" style="width:110px;">Qty Return</th>
+                                </tr>
+                            </thead>
+                            <tbody id="ngItemsBody"></tbody>
+                        </table>
+                    </div>
+                    <div class="mt-2">
+                        <button type="button" class="btn btn-sm btn-outline-secondary" id="btnBackToQaList">
+                            <i class="fas fa-arrow-left"></i> Kembali
+                        </button>
+                        <button type="button" class="btn btn-danger ml-2" id="btnPullNgConfirm">
+                            <i class="fas fa-check"></i> Tambahkan ke Dokumen Return
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+// ===================== NG QA MODAL =====================
+(function(){
+    const headerId = <?= (int)$header->id ?>;
+    let ngQaData = [];
+    let ngItemsData = [];
+
+    function esc(s){ return String(s||'').replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];}); }
+    function fmt(n){ return (parseFloat(n)||0).toFixed(2); }
+
+    // Open modal and load QA list
+    const btnOpen = document.getElementById('btnPullNgQa');
+    if (btnOpen) {
+        btnOpen.addEventListener('click', function(){
+            loadNgQaList('');
+            $('#ngQaModal').modal('show');
+        });
+    }
+
+    function loadNgQaList(search) {
+        document.getElementById('ngQaTableBody').innerHTML = '<tr><td colspan="7" class="text-center"><i class="fas fa-spinner fa-spin"></i> Loading...</td></tr>';
+        document.getElementById('ngStep1').style.display = '';
+        document.getElementById('ngStep2').style.display = 'none';
+
+        fetch('<?= base_url('Warehouse_out/popup_select_ng_qa') ?>?header_id='+headerId+'&search='+encodeURIComponent(search), {
+            headers: { 'X-Requested-With': 'XMLHttpRequest' }
+        })
+        .then(r=>r.json()).then(j=>{
+            if (!j.success) { document.getElementById('ngQaTableBody').innerHTML = '<tr><td colspan="7" class="text-danger text-center">'+esc(j.message||'Error')+'</td></tr>'; return; }
+            ngQaData = j.data || [];
+            renderNgQaTable(ngQaData);
+        }).catch(err=>{ console.error(err); document.getElementById('ngQaTableBody').innerHTML = '<tr><td colspan="7" class="text-danger text-center">Gagal memuat data</td></tr>'; });
+    }
+
+    function renderNgQaTable(rows) {
+        const tbody = document.getElementById('ngQaTableBody');
+        if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" class="text-center text-muted">Tidak ada QA dengan item NG</td></tr>'; return; }
+        tbody.innerHTML = rows.map(function(r){
+            return '<tr>'
+                + '<td><input type="checkbox" class="ng-qa-check" value="'+r.id+'"></td>'
+                + '<td><strong>'+esc(r.qa_number)+'</strong></td>'
+                + '<td class="small">'+esc(r.grn_number)+'</td>'
+                + '<td class="small">'+esc(r.nama_supplier)+'</td>'
+                + '<td class="text-center small">'+(r.qa_date||'-')+'</td>'
+                + '<td class="text-center"><span class="badge badge-danger">'+r.total_ng_items+'</span></td>'
+                + '<td class="text-center text-danger font-weight-bold">'+fmt(r.total_ng_qty)+'</td>'
+                + '</tr>';
+        }).join('');
+    }
+
+    // Search
+    document.getElementById('ngQaSearch').addEventListener('input', function(){
+        const t = this.value.toLowerCase();
+        document.querySelectorAll('#ngQaTableBody tr').forEach(function(tr){
+            tr.style.display = tr.textContent.toLowerCase().indexOf(t) === -1 ? 'none' : '';
+        });
+    });
+
+    document.getElementById('btnNgSelectAll').addEventListener('click', function(){
+        document.querySelectorAll('.ng-qa-check').forEach(function(c){ c.checked = true; });
+    });
+    document.getElementById('btnNgClearAll').addEventListener('click', function(){
+        document.querySelectorAll('.ng-qa-check').forEach(function(c){ c.checked = false; });
+    });
+
+    // Load NG items from selected QAs
+    document.getElementById('btnLoadNgItems').addEventListener('click', function(){
+        const ids = Array.from(document.querySelectorAll('.ng-qa-check:checked')).map(function(c){ return parseInt(c.value); });
+        if (!ids.length) { alert('Pilih minimal satu QA.'); return; }
+        this.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Loading...';
+        this.disabled = true;
+        const self = this;
+        fetch('<?= base_url('Warehouse_out/load_ng_qa_items') ?>', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify({ qa_ids: ids })
+        })
+        .then(r=>r.json()).then(j=>{
+            self.innerHTML = '<i class="fas fa-arrow-down"></i> Load Item NG dari QA Terpilih';
+            self.disabled = false;
+            if (!j.success) { alert('Gagal: ' + (j.message||'')); return; }
+            ngItemsData = j.items || [];
+            renderNgItemsTable(ngItemsData);
+            document.getElementById('ngStep1').style.display = 'none';
+            document.getElementById('ngStep2').style.display = '';
+        }).catch(function(err){ console.error(err); self.innerHTML = '<i class="fas fa-arrow-down"></i> Load Item NG'; self.disabled = false; alert('Gagal memuat item NG'); });
+    });
+
+    function renderNgItemsTable(items) {
+        const tbody = document.getElementById('ngItemsBody');
+        if (!items.length) { tbody.innerHTML = '<tr><td colspan="10" class="text-center text-muted">Tidak ada item NG tersedia</td></tr>'; return; }
+        tbody.innerHTML = items.map(function(it, idx){
+            const avail = parseFloat(it.available_return || it.qa_reject_qty || 0);
+            const disabled = avail <= 0 ? 'disabled' : '';
+            return '<tr>'
+                + '<td><input type="checkbox" class="ng-item-check" value="'+idx+'" '+(avail>0?'checked':disabled)+'></td>'
+                + '<td><strong>'+esc(it.item_code)+'</strong><div class="small text-muted">'+esc(it.item_name)+'</div></td>'
+                + '<td class="small text-muted">'+esc(it.qa_number)+'<br>'+esc(it.grn_number)+'</td>'
+                + '<td class="small">'+esc(it.po_number||'-')+'</td>'
+                + '<td class="text-center">'+fmt(it.qty_ordered)+'</td>'
+                + '<td class="text-center">'+fmt(it.receive_qty)+'</td>'
+                + '<td class="text-center text-success">'+fmt(it.qa_pass_qty)+'</td>'
+                + '<td class="text-center text-danger font-weight-bold">'+fmt(it.qa_reject_qty)+'</td>'
+                + '<td class="small"><span class="badge badge-warning text-dark">'+esc(it.ng_category||'-')+'</span></td>'
+                + '<td><input type="number" step="0.01" min="0" max="'+avail+'" value="'+fmt(avail)+'" class="form-control form-control-sm ng-qty-return" data-idx="'+idx+'" '+disabled+'></td>'
+                + '</tr>';
+        }).join('');
+
+        // Check-all toggle
+        document.getElementById('ngItemCheckAll').addEventListener('change', function(){
+            document.querySelectorAll('.ng-item-check:not(:disabled)').forEach(function(c){ c.checked = this.checked; }.bind(this));
+        });
+    }
+
+    document.getElementById('btnBackToQaList').addEventListener('click', function(){
+        document.getElementById('ngStep1').style.display = '';
+        document.getElementById('ngStep2').style.display = 'none';
+    });
+
+    // Confirm and pull to header
+    document.getElementById('btnPullNgConfirm').addEventListener('click', function(){
+        const checked = Array.from(document.querySelectorAll('.ng-item-check:checked'));
+        if (!checked.length) { alert('Pilih minimal satu item.'); return; }
+
+        const items = [];
+        checked.forEach(function(c){
+            const idx = parseInt(c.value);
+            const it = ngItemsData[idx];
+            const qtyEl = document.querySelector('.ng-qty-return[data-idx="'+idx+'"]');
+            const qty = qtyEl ? parseFloat(qtyEl.value)||0 : 0;
+            if (qty <= 0) return;
+            items.push({
+                qa_detail_id:   it.qa_detail_id,
+                qa_header_id:   it.qa_header_id,
+                grn_header_id:  it.grn_header_id,
+                grn_detail_id:  it.grn_detail_id,
+                item_id:        it.item_id,
+                item_type:      it.item_type,
+                item_code:      it.item_code,
+                item_name:      it.item_name,
+                unit:           it.unit,
+                qty_ordered:    it.qty_ordered,
+                receive_qty:    it.receive_qty,
+                supplier_id:    it.supplier_id,
+                unit_value:     it.unit_value || 0,
+                qty_return:     qty
+            });
+        });
+
+        if (!items.length) { alert('Pastikan qty return > 0.'); return; }
+
+        const self = this;
+        self.innerHTML = '<i class="fas fa-spinner fa-spin"></i> Menyimpan...';
+        self.disabled = true;
+
+        fetch('<?= base_url('Warehouse_out/pull_ng_qa_items_to_header') ?>', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+            body: JSON.stringify({ header_id: headerId, items: items })
+        })
+        .then(r=>r.json()).then(j=>{
+            self.innerHTML = '<i class="fas fa-check"></i> Tambahkan ke Dokumen Return';
+            self.disabled = false;
+            if (j.success) {
+                $('#ngQaModal').modal('hide');
+                alert(j.message || ('Berhasil menambahkan ' + j.added + ' item'));
+                window.location.reload();
+            } else {
+                alert('Gagal: ' + (j.errors ? j.errors.join('\n') : j.message));
+            }
+        }).catch(function(err){ console.error(err); self.innerHTML = '<i class="fas fa-check"></i> Tambahkan'; self.disabled = false; alert('Error jaringan'); });
+    });
+})();
+</script>
+
 <!-- ADD ITEM MODAL -->
 <div class="modal fade" id="addItemModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Tambah Item</h5>
+                <h5 class="modal-title"><?= lang_line('warehouse_out_modal_add_item', 'Add Item'); ?></h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST" action="<?php echo base_url('warehouse_out/add_item/' . $header->id); ?>">
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label">Tipe Sumber <span class="text-danger">*</span></label>
+                        <label class="form-label"><?= lang_line('warehouse_out_label_item_source', 'Item Source Type'); ?> <span class="text-danger">*</span></label>
                         <select name="source_type" class="form-select" id="sourceType" required>
                             <option value="">-- Pilih --</option>
                             <option value="GRN">Dari GRN (Material/Semifinished)</option>
@@ -436,14 +1001,14 @@ function initSelectGrnModal(modalEl) {
 
                     <!-- GRN Source -->
                     <div class="mb-3" id="grnSection" style="display:none;">
-                        <label class="form-label">Pilih GRN <span class="text-danger">*</span></label>
+                        <label class="form-label"><?= lang_line('warehouse_out_label_choose_grn', 'Select GRN'); ?> <span class="text-danger">*</span></label>
                         <select name="grn_id" class="form-select select2" id="grnSelect">
-                            <option value="">-- Pilih GRN --</option>
+                            <option value=""><?= lang_line('warehouse_out_grn_choice', '-- Select GRN --'); ?></option>
                         </select>
                     </div>
 
                     <div class="mb-3" id="grnItemSection" style="display:none;">
-                        <label class="form-label">Item dari GRN <span class="text-danger">*</span></label>
+                        <label class="form-label"><?= lang_line('warehouse_out_label_choose_item_from_grn', 'Item from GRN'); ?> <span class="text-danger">*</span></label>
                         <select name="item_id" class="form-select select2" id="itemSelect">
                             <option value="">-- Pilih Item --</option>
                         </select>
@@ -460,31 +1025,31 @@ function initSelectGrnModal(modalEl) {
                     <div class="row">
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label class="form-label">Quantity <span class="text-danger">*</span></label>
+                                <label class="form-label"><?= lang_line('warehouse_out_label_quantity', 'Quantity'); ?> <span class="text-danger">*</span></label>
                                 <input type="number" name="qty" class="form-control" step="0.01" required>
                             </div>
                         </div>
                         <div class="col-md-6">
                             <div class="mb-3">
-                                <label class="form-label">Satuan</label>
+                                <label class="form-label"><?= lang_line('warehouse_out_label_unit', 'Unit'); ?></label>
                                 <input type="text" name="satuan" class="form-control" readonly>
                             </div>
                         </div>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Unit Value <span class="text-danger">*</span></label>
+                        <label class="form-label"><?= lang_line('warehouse_out_label_unit_value', 'Unit Value'); ?> <span class="text-danger">*</span></label>
                         <input type="number" name="unit_value" class="form-control" step="0.01" required>
                     </div>
 
                     <div class="mb-3">
-                        <label class="form-label">Catatan</label>
+                        <label class="form-label"><?= lang_line('warehouse_out_label_item_notes', 'Notes'); ?></label>
                         <textarea name="notes" class="form-control" rows="3"></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                    <button type="submit" class="btn btn-primary">Tambah Item</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><?= lang_line('warehouse_out_button_cancel', 'Cancel'); ?></button>
+                    <button type="submit" class="btn btn-primary"><?= lang_line('warehouse_out_modal_add_item', 'Add Item'); ?></button>
                 </div>
             </form>
         </div>
@@ -496,18 +1061,18 @@ function initSelectGrnModal(modalEl) {
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Approve Pengeluaran Barang</h5>
+                <h5 class="modal-title"><?= lang_line('warehouse_out_modal_approve', 'Approve Goods Issue'); ?></h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST" action="<?php echo base_url('warehouse_out/approve/' . $header->id); ?>">
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label">Catatan Approval</label>
-                        <textarea name="approval_notes" class="form-control" rows="4" placeholder="Catatan approval..."></textarea>
+                        <label class="form-label"><?= lang_line('warehouse_out_label_approval_notes', 'Approval Notes'); ?></label>
+                        <textarea name="approval_notes" class="form-control" rows="4" placeholder="<?= lang_line('warehouse_out_approval_placeholder', 'Approval notes...'); ?>"></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><?= lang_line('warehouse_out_button_cancel', 'Cancel'); ?></button>
                     <button type="submit" class="btn btn-success">Approve</button>
                 </div>
             </form>
@@ -520,19 +1085,19 @@ function initSelectGrnModal(modalEl) {
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title">Reject Pengeluaran Barang</h5>
+                <h5 class="modal-title"><?= lang_line('warehouse_out_modal_reject', 'Reject Goods Issue'); ?></h5>
                 <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
             </div>
             <form method="POST" action="<?php echo base_url('warehouse_out/reject/' . $header->id); ?>">
                 <div class="modal-body">
                     <div class="mb-3">
-                        <label class="form-label">Alasan Penolakan <span class="text-danger">*</span></label>
-                        <textarea name="rejection_notes" class="form-control" rows="4" placeholder="Alasan penolakan..." required></textarea>
+                        <label class="form-label"><?= lang_line('warehouse_out_label_rejection_reason', 'Rejection Reason'); ?> <span class="text-danger">*</span></label>
+                        <textarea name="rejection_notes" class="form-control" rows="4" placeholder="<?= lang_line('warehouse_out_rejection_placeholder', 'Rejection reason...'); ?>" required></textarea>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Batal</button>
-                    <button type="submit" class="btn btn-danger">Reject</button>
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal"><?= lang_line('warehouse_out_button_cancel', 'Cancel'); ?></button>
+                    <button type="submit" class="btn btn-danger"><?= lang_line('warehouse_out_button_reject', 'Reject'); ?></button>
                 </div>
             </form>
         </div>

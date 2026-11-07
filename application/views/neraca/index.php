@@ -7,17 +7,17 @@
         <div class="col-lg-12">
             <div class="card shadow mb-4">
                 <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">Filter Neraca</h6>
+                    <h6 class="m-0 font-weight-bold text-primary"><?= lang_line('nrc_filter_title', 'Filter Neraca') ?></h6>
                 </div>
                 <div class="card-body">
                     <form id="filterForm">
                         <div class="form-group">
-                            <label for="date">Per Tanggal</label>
+                            <label for="date"><?= lang_line('rpt_as_of', 'Per Tanggal') ?></label>
                             <input type="date" class="form-control" id="date" name="date" value="<?= date('Y-m-d') ?>">
                         </div>
-                        <button type="button" id="viewButton" class="btn btn-primary">Tampilkan</button>
-                        <button type="button" id="pdfButton" class="btn btn-danger">Export PDF</button>
-                        <button type="button" id="excelButton" class="btn btn-success">Export Excel</button>
+                        <button type="button" id="viewButton" class="btn btn-primary"><?= lang_line('rpt_show', 'Tampilkan') ?></button>
+                        <button type="button" id="pdfButton" class="btn btn-danger"><?= lang_line('rpt_export_pdf', 'Ekspor ke PDF') ?></button>
+                        <button type="button" id="excelButton" class="btn btn-success"><?= lang_line('rpt_export_excel', 'Ekspor ke Excel') ?></button>
                     </form>
                 </div>
             </div>
@@ -28,7 +28,7 @@
         <div class="col-lg-12">
             <div class="card shadow mb-4">
                 <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-primary">Laporan Neraca</h6>
+                    <h6 class="m-0 font-weight-bold text-primary"><?= lang_line('nrc_report_title', 'Laporan Neraca') ?></h6>
                 </div>
                 <div class="card-body">
                     <div class="table-responsive" id="neracaTableContainer">
@@ -42,6 +42,22 @@
 </div>
 
 <script>
+const I18N_NRC = {
+    th_account:        <?= json_encode(lang_line('nrc_account', 'Akun')) ?>,
+    th_account_name:   <?= json_encode(lang_line('nrc_account_name', 'Nama Akun')) ?>,
+    th_balance:        <?= json_encode(lang_line('nrc_balance', 'Saldo')) ?>,
+    asset_section:     <?= json_encode(lang_line('nrc_asset_section', 'Aktiva')) ?>,
+    total_asset:       <?= json_encode(lang_line('nrc_total_asset', 'Total Aktiva')) ?>,
+    liability_section: <?= json_encode(lang_line('nrc_liability_section', 'Kewajiban')) ?>,
+    total_liability:   <?= json_encode(lang_line('nrc_total_liability', 'Total Kewajiban')) ?>,
+    equity_section:    <?= json_encode(lang_line('nrc_equity_section', 'Ekuitas')) ?>,
+    total_equity:      <?= json_encode(lang_line('nrc_total_equity', 'Total Ekuitas')) ?>,
+    total_liab_eq:     <?= json_encode(lang_line('nrc_total_liab_eq', 'Total Kewajiban dan Ekuitas')) ?>,
+    status:            <?= json_encode(lang_line('nrc_status', 'STATUS')) ?>,
+    balanced:          <?= json_encode(lang_line('nrc_balanced', 'BALANCE ✓')) ?>,
+    not_balanced_tpl:  <?= json_encode(lang_line('nrc_not_balanced', 'NOT BALANCE (Selisih: %s)')) ?>
+};
+
 $(document).ready(function(){
     function loadNeraca(date) {
         $.ajax({
@@ -51,12 +67,12 @@ $(document).ready(function(){
             dataType: 'json',
             success: function(data) {
                 console.log('Neraca Data:', data); // DEBUG: Lihat data di browser console
-                
+
                 let html = '<table class="table table-bordered">';
-                html += '<thead><tr><th>Akun</th><th>Nama Akun</th><th>Saldo</th></tr></thead>';
+                html += '<thead><tr><th>'+I18N_NRC.th_account+'</th><th>'+I18N_NRC.th_account_name+'</th><th>'+I18N_NRC.th_balance+'</th></tr></thead>';
                 html += '<tbody>';
 
-                html += '<tr><td colspan="3" class="font-weight-bold">Aktiva</td></tr>';
+                html += '<tr><td colspan="3" class="font-weight-bold">'+I18N_NRC.asset_section+'</td></tr>';
                 let totalAssets = 0;
                 $.each(data.assets, function(i, item){
                     html += '<tr>';
@@ -66,9 +82,9 @@ $(document).ready(function(){
                     html += '</tr>';
                     totalAssets += parseFloat(item.balance);
                 });
-                html += '<tr><td colspan="2" class="text-right font-weight-bold">Total Aktiva</td><td class="text-right font-weight-bold">'+new Intl.NumberFormat().format(totalAssets)+'</td></tr>';
+                html += '<tr><td colspan="2" class="text-right font-weight-bold">'+I18N_NRC.total_asset+'</td><td class="text-right font-weight-bold">'+new Intl.NumberFormat().format(totalAssets)+'</td></tr>';
 
-                html += '<tr><td colspan="3" class="font-weight-bold">Kewajiban</td></tr>';
+                html += '<tr><td colspan="3" class="font-weight-bold">'+I18N_NRC.liability_section+'</td></tr>';
                 let totalLiabilities = 0;
                 $.each(data.liabilities, function(i, item){
                     html += '<tr>';
@@ -78,9 +94,9 @@ $(document).ready(function(){
                     html += '</tr>';
                     totalLiabilities += parseFloat(item.balance);
                 });
-                html += '<tr><td colspan="2" class="text-right font-weight-bold">Total Kewajiban</td><td class="text-right font-weight-bold">'+new Intl.NumberFormat().format(totalLiabilities)+'</td></tr>';
+                html += '<tr><td colspan="2" class="text-right font-weight-bold">'+I18N_NRC.total_liability+'</td><td class="text-right font-weight-bold">'+new Intl.NumberFormat().format(totalLiabilities)+'</td></tr>';
 
-                html += '<tr><td colspan="3" class="font-weight-bold">Ekuitas</td></tr>';
+                html += '<tr><td colspan="3" class="font-weight-bold">'+I18N_NRC.equity_section+'</td></tr>';
                 let totalEquity = 0;
                 $.each(data.equity, function(i, item){
                     html += '<tr>';
@@ -96,17 +112,18 @@ $(document).ready(function(){
                     html += '</tr>';
                     totalEquity += parseFloat(item.balance);
                 });
-                html += '<tr><td colspan="2" class="text-right font-weight-bold">Total Ekuitas</td><td class="text-right font-weight-bold">'+new Intl.NumberFormat().format(totalEquity)+'</td></tr>';
+                html += '<tr><td colspan="2" class="text-right font-weight-bold">'+I18N_NRC.total_equity+'</td><td class="text-right font-weight-bold">'+new Intl.NumberFormat().format(totalEquity)+'</td></tr>';
 
-                html += '<tr><td colspan="2" class="text-right font-weight-bold">Total Kewajiban dan Ekuitas</td><td class="text-right font-weight-bold">'+new Intl.NumberFormat().format(totalLiabilities + totalEquity)+'</td></tr>';
+                html += '<tr><td colspan="2" class="text-right font-weight-bold">'+I18N_NRC.total_liab_eq+'</td><td class="text-right font-weight-bold">'+new Intl.NumberFormat().format(totalLiabilities + totalEquity)+'</td></tr>';
 
                 // Status Balance Check
                 let diff = Math.abs(totalAssets - (totalLiabilities + totalEquity));
                 let status = '';
                 if (diff < 0.01) {
-                    status = '<tr class="bg-success text-white"><td colspan="2" class="text-center font-weight-bold">STATUS</td><td class="text-center font-weight-bold">BALANCE ✓</td></tr>';
+                    status = '<tr class="bg-success text-white"><td colspan="2" class="text-center font-weight-bold">'+I18N_NRC.status+'</td><td class="text-center font-weight-bold">'+I18N_NRC.balanced+'</td></tr>';
                 } else {
-                    status = '<tr class="bg-danger text-white"><td colspan="2" class="text-center font-weight-bold">STATUS</td><td class="text-center font-weight-bold">NOT BALANCE (Selisih: '+new Intl.NumberFormat().format(diff)+')</td></tr>';
+                    let notBalanced = I18N_NRC.not_balanced_tpl.replace('%s', new Intl.NumberFormat().format(diff));
+                    status = '<tr class="bg-danger text-white"><td colspan="2" class="text-center font-weight-bold">'+I18N_NRC.status+'</td><td class="text-center font-weight-bold">'+notBalanced+'</td></tr>';
                 }
                 html += status;
 

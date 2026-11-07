@@ -1,30 +1,16 @@
 <?php defined('BASEPATH') OR exit('No direct script access allowed'); ?>
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="utf-8">
-    <title><?= htmlspecialchars($title ?? 'Material Return'); ?></title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
-    <style>
-        .table th, .table td { vertical-align: middle; padding: 0.5rem; }
-        .btn-xs { padding: .125rem .25rem; font-size: .75rem; line-height: 1.5; border-radius: .2rem; }
-    </style>
-</head>
-<body id="page-top">
+<style>
+    .table th, .table td { vertical-align: middle; padding: 0.5rem; }
+    .btn-xs { padding: .125rem .25rem; font-size: .75rem; line-height: 1.5; border-radius: .2rem; }
+</style>
 
-    <div id="wrapper">
-        <?php //$this->load->view('templates/sidebar'); ?>
-        <div id="content-wrapper" class="d-flex flex-column">
-            <div id="content">
-                <?php //$this->load->view('templates/topbar'); ?>
-                <div class="container-fluid">
+<div class="container-fluid">
 
                     <div class="d-sm-flex align-items-center justify-content-between mb-4">
                         <h3 class="h4 mb-0 text-gray-800"><i class="fas fa-undo-alt text-warning mr-2"></i><?= htmlspecialchars($title); ?></h3>
                         <?php if (check_access('prod_return', 'add')): // Sesuaikan key permission jika perlu ?>
                             <a href="<?= base_url('ProdReturn/create') ?>" class="btn btn-warning shadow-sm"> <?php // Hapus btn-load ?>
-                                <i class="fas fa-plus-circle mr-1"></i> Buat Retur Baru
+                                <i class="fas fa-plus-circle mr-1"></i> <?= lang_line('prod_return_create'); ?>
                             </a>
                         <?php endif; ?>
                     </div>
@@ -33,12 +19,12 @@
                         <div class="card-body py-2">
                             <form method="get" action="<?= base_url('ProdReturn/index'); ?>" class="form-inline flex-wrap">
                                 <div class="form-group mr-3 mb-2 flex-grow-1">
-                                    <label for="search" class="sr-only">Cari</label>
-                                    <input type="text" name="search" id="search" class="form-control form-control-sm w-100" placeholder="Cari No. Retur / No. Produksi (WO)..." value="<?= htmlspecialchars($filters['search'] ?? ''); ?>">
+                                    <label for="search" class="sr-only"><?= lang_line('btn_search'); ?></label>
+                                    <input type="text" name="search" id="search" class="form-control form-control-sm w-100" placeholder="<?= lang_line('prod_return_search_placeholder'); ?>" value="<?= htmlspecialchars($filters['search'] ?? ''); ?>">
                                 </div>
                                 <div class="form-group mb-2">
-                                    <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-search fa-sm mr-1"></i> Cari</button>
-                                    <a href="<?= base_url('ProdReturn'); ?>" class="btn btn-secondary btn-sm ml-1"><i class="fas fa-redo fa-sm mr-1"></i> Reset</a>
+                                    <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-search fa-sm mr-1"></i> <?= lang_line('btn_search'); ?></button>
+                                    <a href="<?= base_url('ProdReturn'); ?>" class="btn btn-secondary btn-sm ml-1"><i class="fas fa-redo fa-sm mr-1"></i> <?= lang_line('btn_reset'); ?></a>
                                 </div>
                             </form>
                         </div>
@@ -55,13 +41,13 @@
                                 <table class="table table-striped table-hover align-middle">
                                     <thead class="thead-light text-center">
                                         <tr>
-                                            <th>No. Retur</th>
-                                            <th>Tgl Retur</th>
-                                            <th>No. Produksi (WO)</th>
-                                            <th>Diretur Oleh</th>
-                                            <th>Diterima Gudang Oleh</th>
-                                            <th>Status</th>
-                                            <th width="150">Aksi</th>
+                                            <th><?= lang_line('prod_return_number'); ?></th>
+                                            <th><?= lang_line('prod_return_date'); ?></th>
+                                            <th><?= lang_line('prod_return_wo_number'); ?></th>
+                                            <th><?= lang_line('prod_return_returned_by'); ?></th>
+                                            <th><?= lang_line('prod_return_received_by'); ?></th>
+                                            <th><?= lang_line('prod_return_status'); ?></th>
+                                            <th width="150"><?= lang_line('label_action'); ?></th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -96,18 +82,18 @@
                                                 <?php endif; ?>
                                                 <?php // Tombol Hapus hanya jika Draft ?>
                                                 <?php if ($ret->status == 'Draft' && check_access('prod_return', 'delete')): ?>
-                                                <a href="<?= base_url('ProdReturn/delete/'.$ret->id); ?>" class="btn btn-sm btn-danger btn-delete ml-1" title="Hapus" data-message="Yakin hapus Dokumen Draft <?= htmlspecialchars(addslashes($ret->return_number ?? '')); ?> ini?">
+                                                <a href="<?= base_url('ProdReturn/delete/'.$ret->id); ?>" class="btn btn-sm btn-danger btn-delete ml-1" title="<?= lang_line('btn_delete'); ?>" data-message="<?= lang_line('prod_return_delete_confirm'); ?> <?= htmlspecialchars(addslashes($ret->return_number ?? '')); ?>?">
                                                     <i class="fas fa-trash fa-fw"></i>
                                                 </a>
                                                 <?php endif; ?>
                                                 <?php // Tombol PDF selalu ada? Atau tergantung status? ?>
-                                                 <a href="<?= base_url('ProdReturn/export_pdf/'.$ret->id); ?>" target="_blank" class="btn btn-sm btn-secondary ml-1" title="Export PDF">
+                                                 <a href="<?= base_url('ProdReturn/export_pdf/'.$ret->id); ?>" target="_blank" class="btn btn-sm btn-secondary ml-1" title="<?= lang_line('prod_return_export_pdf'); ?>">
                                                      <i class="fas fa-file-pdf fa-fw"></i>
                                                  </a>
                                             </td>
                                         </tr>
                                         <?php endforeach; else: ?>
-                                            <tr><td colspan="7" class="text-center text-muted py-3">Belum ada data Retur Material</td></tr> <?php // Colspan disesuaikan ?>
+                                            <tr><td colspan="7" class="text-center text-muted py-3"><?= lang_line('prod_return_no_data'); ?></td></tr> <?php // Colspan disesuaikan ?>
                                         <?php endif; ?>
                                     </tbody>
                                 </table>
@@ -115,14 +101,10 @@
                         </div>
                     </div>
 
-                </div></div><?php //$this->load->view('templates/footer_content'); ?>
-        </div></div><a class="scroll-to-top rounded" href="#page-top"><i class="fas fa-angle-up"></i></a>
+                </div>
 
     <?php //$this->load->view('templates/logout_modal'); ?>
 
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
     $(document).ready(function() {
 
@@ -130,23 +112,23 @@
         $('body').on('click', '.btn-delete', function(e) {
             e.preventDefault(); // Mencegah link langsung dieksekusi
             const url = $(this).attr('href');
-            const message = $(this).data('message') || 'Yakin ingin menghapus data ini?';
+            const message = $(this).data('message') || '<?= lang_line('common_confirm_delete'); ?>';
 
             Swal.fire({
-                title: 'Konfirmasi Hapus',
+                title: '<?= lang_line('prod_return_delete_confirm_title'); ?>',
                 text: message,
                 icon: 'warning',
                 showCancelButton: true,
                 confirmButtonColor: '#d33',
                 cancelButtonColor: '#6c757d',
-                confirmButtonText: 'Ya, Hapus!',
-                cancelButtonText: 'Batal'
+                confirmButtonText: '<?= lang_line('prod_return_confirm_delete'); ?>',
+                cancelButtonText: '<?= lang_line('prod_return_confirm_cancel'); ?>'
             }).then((result) => {
                 if (result.isConfirmed) {
                     // Tampilkan loading sebelum redirect
                     Swal.fire({
-                        title: 'Menghapus...',
-                        text: 'Mohon tunggu...',
+                        title: '<?= lang_line('prod_return_deleting'); ?>',
+                        text: '<?= lang_line('prod_return_deleting_message'); ?>',
                         didOpen: () => { Swal.showLoading() },
                         allowOutsideClick: false, // Mencegah user menutup
                         allowEscapeKey: false    // Mencegah user menutup
@@ -162,6 +144,3 @@
 
     }); // Akhir $(document).ready()
     </script>
-
-</body>
-</html>

@@ -1,8 +1,17 @@
+<?php
+// Departemen MRF untuk tombol edit/submit (Role Level tahap 3, own/all dept).
+$mr_doc_dept = $doc_dept ?? ($header->department_code ?? null);
+?>
 <div class="container-fluid">
     <!-- Hidden fields for JavaScript -->
     <input type="hidden" id="mr_header_id" value="<?= $header->id; ?>">
     <input type="hidden" id="is_draft" value="<?= $header->status == 'Draft' ? '1' : '0'; ?>">
     <input type="hidden" id="base_url" value="<?= base_url(); ?>">
+    
+    <!-- Localization strings for JavaScript -->
+    <input type="hidden" id="lang_confirm_submit" value="<?= lang_line('material_request_confirm_submit'); ?>">
+    <input type="hidden" id="lang_confirm_unsubmit" value="<?= lang_line('material_request_confirm_unsubmit'); ?>">
+    <input type="hidden" id="lang_delete_confirm" value="<?= lang_line('material_request_delete_confirm'); ?>">
     
     <div class="d-sm-flex align-items-center justify-content-between mb-4">
         <h3 class="h4 mb-0 text-gray-800">
@@ -10,38 +19,57 @@
             <span class="badge badge-primary ml-2"><?= htmlspecialchars($header->mr_number); ?></span>
         </h3>
         <div>
-            <?php if ($header->status == 'Draft' && check_access('material_request', 'edit')): ?>
-                 <a href="<?= base_url('material_request/submit_mr/'.$header->id); ?>" class="btn btn-info btn-sm mr-1" onclick="return confirm('Yakin ingin submit MR ini ke Gudang?');">
-                    <i class="fas fa-paper-plane fa-sm"></i> Submit ke Gudang
+            <?php if ($header->status == 'Draft' && can_dept_access('material_request', 'submit', $mr_doc_dept)): ?>
+                 <a href="<?= base_url('material_request/submit_mr/'.$header->id); ?>" class="btn btn-info btn-sm mr-1 btn-submit-mr" data-confirm-key="lang_confirm_submit">
+                    <i class="fas fa-paper-plane fa-sm"></i> Submit
                  </a>
-            <?php elseif ($header->status == 'Submitted' && check_access('material_request', 'edit')): ?>
-                 <a href="<?= base_url('material_request/unsubmit_mr/'.$header->id); ?>" class="btn btn-warning btn-sm mr-1" onclick="return confirm('Yakin ingin membatalkan submit MR ini?');">
-                    <i class="fas fa-undo fa-sm"></i> Batal Submit
-                 </a>
+            <?php elseif ($header->status == 'Submitted' && can_dept_access('material_request', 'edit', $mr_doc_dept)): ?>
+                <a href="<?= base_url('material_request/unsubmit_mr/'.$header->id); ?>" class="btn btn-warning btn-sm mr-1 btn-unsubmit-mr" data-confirm-key="lang_confirm_unsubmit">
+                    <i class="fas fa-undo fa-sm"></i> <?= lang_line('material_request_cancel_submit'); ?>
+                </a>
             <?php endif; ?>
-            
+
              <a href="<?= base_url('material_request/export_pdf/'.$header->id); ?>" target="_blank" class="btn btn-danger btn-sm mr-1">
-                <i class="fas fa-file-pdf fa-sm"></i> Export PDF
+                <i class="fas fa-file-pdf fa-sm"></i> <?= lang_line('material_request_export_pdf'); ?>
             </a>
             <a href="<?= base_url('material_request'); ?>" class="btn btn-secondary btn-sm">
-                <i class="fas fa-arrow-left fa-sm mr-2"></i>Kembali
+                <i class="fas fa-arrow-left fa-sm mr-2"></i><?= lang_line('material_request_back'); ?>
             </a>
         </div>
     </div>
 
     <div class="card shadow mb-4">
         <div class="card-body">
+             <?php
+                $badge_map = [
+                    'Draft'              => 'secondary',
+                    'Submitted'          => 'info',
+                    'Approved Head Dept' => 'primary',
+                    'Endorsed'           => 'primary',
+                    'Approved'           => 'success',
+                    'Partial Issued'     => 'warning',
+                    'Issued'             => 'primary',
+                    'Received'           => 'success',
+                    'Closed'             => 'dark',
+                ];
+                $status_badge = $badge_map[$header->status] ?? 'info';
+             ?>
              <div class="row">
-                <div class="col-md-4"><strong>No. MR:</strong> <?= htmlspecialchars($header->mr_number); ?></div>
-                <div class="col-md-4"><strong>Tanggal:</strong> <?= date('d M Y', strtotime($header->request_date)); ?></div>
-                <div class="col-md-4"><strong>Status:</strong> <span class="badge badge-<?= $header->status == 'Draft' ? 'secondary' : 'info'; ?>"><?= $header->status; ?></span></div>
+                <div class="col-md-4"><strong><?= lang_line('material_request_no'); ?>:</strong> <?= htmlspecialchars($header->mr_number); ?></div>
+                <div class="col-md-4"><strong><?= lang_line('material_request_date'); ?>:</strong> <?= date('d M Y', strtotime($header->request_date)); ?></div>
+                <div class="col-md-4"><strong><?= lang_line('material_request_status'); ?>:</strong> <span class="badge badge-<?= $status_badge; ?>"><?= htmlspecialchars($header->status); ?></span></div>
              </div>
              <div class="row mt-2">
-                 <div class="col-md-4"><strong>Dibuat Oleh:</strong> <?= htmlspecialchars($header->requester_name ?? '-'); ?></div>
-                 <div class="col-md-4"><strong>Disiapkan (Gudang):</strong> <?= htmlspecialchars($header->issuer_name ?? '-'); ?></div>
-                 <div class="col-md-4"><strong>Diterima (Produksi):</strong> <?= htmlspecialchars($header->receiver_name ?? '-'); ?></div>
+                 <div class="col-md-4"><strong>Applicant:</strong> <?= htmlspecialchars($header->requester_name ?? '-'); ?></div>
+                 <div class="col-md-4"><strong>Approve by (Head of Dept):</strong> <?= htmlspecialchars($header->hod_approver_name ?? ($header->final_approver_name ?? '-')); ?>
+                    <?php if (!empty($header->hod_approved_at)): ?>
+                        <small class="text-muted d-block"><?= date('d M Y H:i', strtotime($header->hod_approved_at)); ?></small>
+                    <?php endif; ?>
+                </div>
+                <div class="col-md-4"><strong><?= lang_line('material_request_prepared_by'); ?>:</strong> <?= htmlspecialchars($header->issuer_name ?? '-'); ?></div>
+                 <div class="col-md-4"><strong><?= lang_line('material_request_received_by'); ?>:</strong> <?= htmlspecialchars($header->receiver_name ?? '-'); ?></div>
              </div>
-             <?php if($header->remarks): ?> <hr> <p class="mb-0"><strong>Catatan:</strong> <?= nl2br(htmlspecialchars($header->remarks)); ?></p> <?php endif; ?>
+             <?php if($header->remarks): ?> <hr> <p class="mb-0"><strong><?= lang_line('material_request_remarks'); ?>:</strong> <?= nl2br(htmlspecialchars($header->remarks)); ?></p> <?php endif; ?>
         </div>
     </div>
 
@@ -50,21 +78,21 @@
             <div class="card shadow mb-4">
                 <div class="card-header py-3">
                     <h6 class="m-0 font-weight-bold text-secondary">
-                        <i class="fas fa-clipboard-check mr-2"></i>Referensi Work Order
+                        <i class="fas fa-clipboard-check mr-2"></i><?= lang_line('material_request_wo_reference'); ?>
                     </h6>
                 </div>
                 <div class="card-body">
                     <?php if ($header->status == 'Draft'): ?>
                     <div class="form-group">
-                        <label>Pilih WO untuk melihat referensi BOM:</label>
+                        <label><?= lang_line('material_request_select_wo'); ?></label>
                         <select id="wo_selector" class="form-control" style="width: 100%;">
-                            <option value="">-- Cari No. Work Order --</option>
+                            <option value="">-- <?= lang_line('material_request_select_wo'); ?> --</option>
                         </select>
-                        <small class="form-text text-muted">Referensi akan tetap tampil setelah menambah item</small>
+                        <small class="form-text text-muted"><?= lang_line('material_request_wo_note'); ?></small>
                     </div>
                     <?php endif; ?>
                     <div id="wo_reference_div" class="mt-3" style="font-size: 0.9em;">
-                        <p class="text-muted text-center"><i class="fas fa-info-circle mr-2"></i>Pilih Work Order untuk menampilkan referensi BOM dan Rencana Material.</p>
+                        <p class="text-muted text-center"><i class="fas fa-info-circle mr-2"></i><?= lang_line('material_request_select_wo_help'); ?></p>
                     </div>
                 </div>
             </div>
@@ -76,18 +104,18 @@
                     <div class="row align-items-center">
                         <div class="col-md-6">
                             <h6 class="m-0 font-weight-bold text-primary">
-                                <i class="fas fa-boxes mr-2"></i>Item Permintaan Material (<span id="item_count"><?= count($details); ?></span>)
+                                <i class="fas fa-boxes mr-2"></i><?= lang_line('material_request_items'); ?> (<span id="item_count"><?= count($details); ?></span>)
                             </h6>
                         </div>
-                        <?php if ($header->status == 'Draft' && check_access('material_request', 'edit')): ?>
+                        <?php if ($header->status == 'Draft' && can_dept_access('material_request', 'edit', $mr_doc_dept)): ?>
                         <div class="col-md-6 text-right">
                             <button type="button" class="btn btn-primary btn-sm mr-2" id="btn-load-wo-materials" data-mr-id="<?= $header->id; ?>">
-                                <i class="fas fa-upload"></i> Load from WO Materials
+                                <i class="fas fa-upload"></i> <?= lang_line('material_request_load_from_wo'); ?>
                             </button>
                         </div>
                         <?php endif; ?>
                     </div>
-                    <?php if ($header->status == 'Draft' && check_access('material_request', 'edit')): ?>
+                    <?php if ($header->status == 'Draft' && can_dept_access('material_request', 'edit', $mr_doc_dept)): ?>
                     <div class="row align-items-center mt-2">
                         <div class="col-md-6">
                         </div>
@@ -95,20 +123,20 @@
                             <div class="input-group input-group-sm">
                                 <div class="input-group-prepend">
                                     <span class="input-group-text bg-primary text-white">
-                                        <i class="fas fa-clipboard-list mr-1"></i> Work Order
+                                        <i class="fas fa-clipboard-list mr-1"></i> <?= lang_line('material_request_table_wo'); ?>
                                     </span>
                                 </div>
                                 <select id="selected_wo_main" class="form-control form-control-sm" style="width: 60%;">
-                                    <option value="">-- Pilih WO --</option>
+                                    <option value="">-- <?= lang_line('material_request_select_wo'); ?> --</option>
                                 </select>
                                 <div class="input-group-append">
-                                    <button class="btn btn-sm btn-info" type="button" id="btn_apply_wo" disabled title="Terapkan WO ke baris input">
-                                        <i class="fas fa-check"></i> Terapkan
+                                    <button class="btn btn-sm btn-info" type="button" id="btn_apply_wo" disabled title="<?= lang_line('material_request_apply_wo_help'); ?>">
+                                        <i class="fas fa-check"></i> <?= lang_line('common_apply'); ?>
                                     </button>
                                 </div>
                             </div>
                             <small class="text-muted d-block mt-1">
-                                <i class="fas fa-info-circle"></i> Pilih WO sekali, otomatis terisi di baris input baru
+                                <i class="fas fa-info-circle"></i> <?= lang_line('material_request_wo_auto_fill'); ?>
                             </small>
                         </div>
                     </div>
@@ -119,14 +147,15 @@
                         <table class="table table-sm table-bordered table-hover mb-0" id="items_table">
                             <thead class="thead-light"> 
                                 <tr>
-                                    <th width="120">WO <span class="text-danger">*</span></th>
-                                    <th width="100">Kode <span class="text-danger">*</span></th>
-                                    <th>Nama Item <span class="text-danger">*</span></th>
-                                    <th width="110" class="text-center">Qty <span class="text-danger">*</span></th>
-                                    <th width="60">Unit</th>
-                                    <th width="150">Catatan</th>
-                                    <th width="70" class="text-center">Aksi</th>
-                                </tr> 
+                                    <th width="120"><?= lang_line('material_request_table_wo'); ?> <span class="text-danger">*</span></th>
+                                    <th width="100"><?= lang_line('material_request_table_code'); ?> <span class="text-danger">*</span></th>
+                                    <th><?= lang_line('material_request_table_name'); ?> <span class="text-danger">*</span></th>
+                                    <th width="110" class="text-center"><?= lang_line('material_request_table_qty'); ?> <span class="text-danger">*</span></th>
+                                    <th width="60"><?= lang_line('material_request_table_unit'); ?></th>
+                                    <th width="100" class="text-right"><?= lang_line('material_request_table_stock'); ?></th>
+                                    <th width="150"><?= lang_line('material_request_table_notes'); ?></th>
+                                    <th width="70" class="text-center"><?= lang_line('common_action'); ?></th>
+                                </tr>
                             </thead>
                             <tbody id="items_tbody">
                                 <?php if(!empty($details)): foreach($details as $d): ?>
@@ -136,9 +165,14 @@
                                     <td><small><?= htmlspecialchars($d->item_name); ?></small></td>
                                     <td class="text-right"><?= number_format($d->requested_qty, 2); ?></td>
                                     <td><small><?= htmlspecialchars($d->unit_measure ?? '-'); ?></small></td>
+                                    <?php
+                                        $stock_val = (float)($d->stock ?? 0);
+                                        $stock_class = $stock_val < (float)$d->requested_qty ? 'text-danger font-weight-bold' : 'text-success';
+                                    ?>
+                                    <td class="text-right"><small class="<?= $stock_class; ?>"><?= number_format($stock_val, 2); ?></small></td>
                                     <td><small><?= htmlspecialchars($d->notes ?? ''); ?></small></td>
                                     <td class="text-center">
-                                         <?php if ($header->status == 'Draft' && check_access('material_request', 'edit')): ?>
+                                         <?php if ($header->status == 'Draft' && can_dept_access('material_request', 'edit', $mr_doc_dept)): ?>
                                         <button class="btn btn-danger btn-xs btn-delete-item" data-id="<?= $d->id; ?>" data-name="<?= htmlspecialchars($d->item_name); ?>">
                                             <i class="fas fa-trash"></i>
                                         </button>
@@ -147,16 +181,16 @@
                                 </tr>
                                 <?php endforeach; endif; ?>
                                 
-                                <?php if ($header->status == 'Draft' && check_access('material_request', 'edit')): ?>
+                                <?php if ($header->status == 'Draft' && can_dept_access('material_request', 'edit', $mr_doc_dept)): ?>
                                 <!-- Input Row - Always visible for quick add -->
                                 <tr id="input_row" class="bg-light border-primary">
                                     <td class="p-1">
-                                        <input type="text" id="input_wo_display" class="form-control form-control-sm" readonly placeholder="Pilih WO di atas" style="background: #fff; font-size: 0.8rem;">
+                                        <input type="text" id="input_wo_display" class="form-control form-control-sm" readonly placeholder="<?= lang_line('material_request_select_wo'); ?>" style="background: #fff; font-size: 0.8rem;">
                                         <input type="hidden" id="input_wo_id">
                                     </td>
                                     <td colspan="2" class="p-1">
                                         <select id="input_component" class="form-control form-control-sm" style="width: 100%;">
-                                            <option value="">-- Cari & Pilih Material/Component --</option>
+                                            <option value="">-- <?= lang_line('material_request_search_component'); ?> --</option>
                                         </select>
                                     </td>
                                     <td class="p-1">
@@ -165,11 +199,14 @@
                                     <td class="text-center align-middle">
                                         <small id="input_unit" class="text-muted font-weight-bold">-</small>
                                     </td>
+                                    <td class="text-right align-middle">
+                                        <small id="input_stock" class="text-muted font-weight-bold">-</small>
+                                    </td>
                                     <td class="p-1">
-                                        <input type="text" id="input_notes" class="form-control form-control-sm" placeholder="Catatan...">
+                                        <input type="text" id="input_notes" class="form-control form-control-sm" placeholder="<?= lang_line('material_request_table_notes'); ?>...">
                                     </td>
                                     <td class="text-center align-middle">
-                                        <button type="button" id="btn_add_item" class="btn btn-success btn-sm" title="Tambah Item (Enter)" disabled>
+                                        <button type="button" id="btn_add_item" class="btn btn-success btn-sm" title="<?= lang_line('material_request_add_item_help'); ?>" disabled>
                                             <i class="fas fa-plus"></i>
                                         </button>
                                     </td>
@@ -178,10 +215,10 @@
                                 
                                 <?php if (empty($details)): ?>
                                 <tr id="empty_row">
-                                    <td colspan="7" class="text-center text-muted py-3" style="font-size: 0.9rem;">
+                                    <td colspan="8" class="text-center text-muted py-3" style="font-size: 0.9rem;">
                                         <i class="fas fa-inbox fa-2x mb-2 d-block text-secondary"></i>
-                                        <strong>Belum ada item.</strong><br>
-                                        <small>Pilih WO di atas, lalu isi baris biru untuk menambah item</small>
+                                        <strong><?= lang_line('material_request_no_items'); ?></strong><br>
+                                        <small><?= lang_line('material_request_select_wo_add_items'); ?></small>
                                     </td>
                                 </tr>
                                 <?php endif; ?>
@@ -201,9 +238,31 @@
 <script>
 $(document).ready(function() {
     
+    // Handle confirmation buttons with lang_line()
+    $('.btn-submit-mr, .btn-unsubmit-mr').on('click', function(e) {
+        e.preventDefault();
+        var confirmKey = $(this).data('confirm-key');
+        var confirmMsg = $('#' + confirmKey).val();
+        var href = $(this).attr('href');
+
+        if (confirm(confirmMsg)) {
+            window.location.href = href;
+        }
+    });
+
+    // Konfirmasi approval per stage (HOD / Endorsement / Final)
+    $('.btn-approve').on('click', function(e) {
+        e.preventDefault();
+        var stage = $(this).data('stage') || 'this stage';
+        var href = $(this).attr('href');
+        if (confirm('Approve MR sebagai ' + stage + '? Aksi ini tidak bisa dibatalkan.')) {
+            window.location.href = href;
+        }
+    });
+    
     // Inisialisasi Select2 untuk pencarian WO (di Referensi)
     $('#wo_selector').select2({
-        placeholder: '-- Cari No. Work Order --',
+        placeholder: '-- <?= lang_line("material_request_search_wo"); ?> --',
         minimumInputLength: 2,
         ajax: {
             url: '<?= base_url("material_request/search_open_wos"); ?>',
@@ -218,28 +277,27 @@ $(document).ready(function() {
     // Event saat WO di Referensi dipilih
     $('#wo_selector').on('change', function() {
         const woId = $(this).val();
-        $('#wo_reference_div').html('<p class="text-center text-muted">Memuat referensi...</p>');
+        $('#wo_reference_div').html('<p class="text-center text-muted"><?= lang_line("common_loading"); ?>...</p>');
         if (woId) {
             $.get('<?= base_url("material_request/get_wo_references_json"); ?>', { wo_id: woId }, function(response) {
                 if(response.success) {
                     $('#wo_reference_div').html(response.html);
                 } else {
-                    $('#wo_reference_div').html('<p class="text-center text-danger">Gagal memuat referensi.</p>');
+                    $('#wo_reference_div').html('<p class="text-center text-danger"><?= lang_line("common_error_loading"); ?></p>');
                 }
             }, 'json').fail(function(){
-                 $('#wo_reference_div').html('<p class="text-center text-danger">Error AJAX.</p>');
+                 $('#wo_reference_div').html('<p class="text-center text-danger"><?= lang_line("common_ajax_error"); ?></p>');
             });
         } else {
-             $('#wo_reference_div').html('<p class="text-muted text-center">Pilih Work Order untuk menampilkan referensi.</p>');
+             $('#wo_reference_div').html('<p class="text-muted text-center"><?= lang_line("material_request_select_wo_help"); ?></p>');
         }
     });
 
     // Inisialisasi Select2 untuk Modal Tambah Item (HANYA JIKA STATUS DRAFT)
     if ('<?= $header->status; ?>' === 'Draft') {
         
-        // ✅ FIX: Kesalahan copy-paste dihapus dari sini.
         $('#wo_selector_modal').select2({
-            placeholder: '-- Cari No. Work Order --',
+            placeholder: '-- <?= lang_line("material_request_search_wo"); ?> --',
             minimumInputLength: 2,
             ajax: {
                 url: '<?= base_url("material_request/search_open_wos"); ?>',
@@ -253,7 +311,7 @@ $(document).ready(function() {
         });
 
         $('#component_search').select2({
-            placeholder: '-- Cari Kode / Nama Komponen --',
+            placeholder: '-- <?= lang_line("material_request_search_component"); ?> --',
             minimumInputLength: 2,
             ajax: {
                 url: '<?= base_url("material_request/search_components"); ?>',
@@ -288,7 +346,7 @@ $(document).ready(function() {
 /* Style temp items */
 #temp_items_container {
     background-color: #f8f9fc;
-    border: 1px dashed #4e73df;
+    border: 1px dashed var(--brand-1);
     border-radius: 5px;
     padding: 10px;
     animation: slideDown 0.3s ease-out;
@@ -314,7 +372,7 @@ $(document).ready(function() {
 /* Input row styling */
 #input_row {
     background-color: #f0f8ff !important;
-    border-left: 3px solid #4e73df !important;
+    border-left: 3px solid var(--brand-1) !important;
 }
 #input_row:hover {
     background-color: #e3f2fd !important;
@@ -337,33 +395,34 @@ $(document).ready(function() {
     <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content">
             <div class="modal-header">
-                <h5 class="modal-title" id="modalLoadWOMaterialsLabel">Load Materials from WO</h5>
+                <h5 class="modal-title" id="modalLoadWOMaterialsLabel"><?= lang_line('material_request_load_from_wo'); ?></h5>
                 <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
-                    <label><strong>Select Work Order:</strong></label>
+                    <label><strong><?= lang_line('material_request_select_wo'); ?>:</strong></label>
                     <select id="modal_wo_selector" class="form-control" style="width: 100%;">
-                        <option value="">-- Cari No. Work Order --</option>
+                        <option value="">-- <?= lang_line('material_request_search_wo'); ?> --</option>
                     </select>
                 </div>
                 
                 <div id="modal_materials_list" class="mt-4" style="display: none;">
-                    <h6 class="font-weight-bold mb-3">Planned Materials:</h6>
+                    <h6 class="font-weight-bold mb-3"><?= lang_line('material_request_modal_planned_materials'); ?>:</h6>
                     <div class="table-responsive">
                         <table class="table table-sm table-bordered">
                             <thead class="thead-light">
                                 <tr>
                                     <th width="40" class="text-center">
-                                        <input type="checkbox" id="chk-select-all" title="Select All">
+                                        <input type="checkbox" id="chk-select-all" title="<?= lang_line('common_select_all'); ?>">
                                     </th>
-                                    <th>Code</th>
-                                    <th>Material Name</th>
-                                    <th width="100">Planned Qty</th>
-                                    <th width="100">Request Qty</th>
-                                    <th width="70">Unit</th>
+                                    <th><?= lang_line('material_request_table_code'); ?></th>
+                                    <th><?= lang_line('material_request_table_name'); ?></th>
+                                    <th width="100"><?= lang_line('material_request_table_qty'); ?></th>
+                                    <th width="100"><?= lang_line('material_request_table_stock'); ?></th>
+                                    <th width="100"><?= lang_line('material_request_table_request_qty'); ?></th>
+                                    <th width="70"><?= lang_line('material_request_table_unit'); ?></th>
                                 </tr>
                             </thead>
                             <tbody id="modal_materials_tbody">
@@ -373,13 +432,13 @@ $(document).ready(function() {
                 </div>
 
                 <div id="modal_no_materials" class="alert alert-info mt-4" style="display: none;">
-                    <i class="fas fa-info-circle mr-2"></i>Select a Work Order to view planned materials.
+                    <i class="fas fa-info-circle mr-2"></i><?= lang_line('material_request_modal_select_wo_help'); ?>
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-secondary" data-dismiss="modal"><?= lang_line('btn_cancel'); ?></button>
                 <button type="button" class="btn btn-primary" id="btn-confirm-load-materials">
-                    <i class="fas fa-check"></i> Load Selected Materials
+                    <i class="fas fa-check"></i> <?= lang_line('material_request_load_selected_materials'); ?>
                 </button>
             </div>
         </div>
@@ -396,7 +455,7 @@ $(document).ready(function() {
 $(document).ready(function() {
     // Initialize Select2 untuk modal WO selector
     $('#modal_wo_selector').select2({
-        placeholder: 'Cari No. Work Order...',
+        placeholder: '<?= lang_line("material_request_search_wo"); ?>...',
         width: '100%',
         ajax: {
             url: BASE_URL + 'material_request/search_open_wos',
@@ -428,7 +487,7 @@ $(document).ready(function() {
         // Reset modal state
         $('#modal_materials_tbody').html('');
         $('#modal_materials_list').hide();
-        $('#modal_no_materials').html('<i class="fas fa-info-circle mr-2"></i>Select a Work Order to view planned materials.').show();
+        $('#modal_no_materials').html('<i class="fas fa-info-circle mr-2"></i><?= lang_line("material_request_modal_select_wo_help"); ?>').show();
         $('#chk-select-all').prop('checked', false);
         $('#modalLoadWOMaterials').modal('show');
     });
@@ -453,6 +512,9 @@ $(document).ready(function() {
                         html += '<td><small>' + mat.code + '</small></td>';
                         html += '<td><small>' + mat.name + '</small></td>';
                         html += '<td class="text-right"><small>' + parseFloat(mat.planned_qty).toFixed(2) + '</small></td>';
+                        var stockVal = parseFloat(mat.stock || 0);
+                        var stockClass = stockVal < parseFloat(mat.planned_qty) ? 'text-danger font-weight-bold' : 'text-success';
+                        html += '<td class="text-right"><small class="' + stockClass + '">' + stockVal.toFixed(2) + '</small></td>';
                         html += '<td><input type="number" step="0.01" class="form-control form-control-sm request-qty" value="' + parseFloat(mat.planned_qty).toFixed(2) + '" min="0"></td>';
                         html += '<td><small>' + mat.unit + '</small></td>';
                         html += '</tr>';
@@ -469,7 +531,7 @@ $(document).ready(function() {
             },
             error: function() {
                 $('#modal_materials_list').hide();
-                $('#modal_no_materials').html('<i class="fas fa-exclamation-circle mr-2"></i>Error loading materials').show();
+                $('#modal_no_materials').html('<i class="fas fa-exclamation-circle mr-2"></i><?= lang_line("common_error_loading"); ?>').show();
             }
         });
     }
@@ -480,7 +542,7 @@ $(document).ready(function() {
         var wo_id = $('#modal_wo_selector').val();
         
         if (!wo_id) {
-            alert('⚠️ Please select a Work Order');
+            alert('⚠️ <?= lang_line("material_request_please_select_wo"); ?>');
             return;
         }
 
@@ -499,7 +561,7 @@ $(document).ready(function() {
         });
 
         if (selected_items.length === 0) {
-            alert('⚠️ Please select at least one material');
+            alert('⚠️ <?= lang_line("material_request_select_at_least_one"); ?>');
             return;
         }
 
@@ -522,9 +584,10 @@ $(document).ready(function() {
                 }
             },
             error: function() {
-                alert('❌ Error loading materials');
+                alert('❌ <?= lang_line("common_error_loading"); ?>');
             }
         });
     }
+
 });
 </script>

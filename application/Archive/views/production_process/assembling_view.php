@@ -62,7 +62,7 @@
 
                     <!-- Tabs -->
                     <ul class="nav nav-tabs nav-fill mb-4">
-                        <li class="nav-item"><a class="nav-link" href="<?= base_url('production_process/preparation/'.$header->id); ?>">1. Preparation</a></li>
+                        <li class="nav-item"><a class="nav-link" href="<?= base_url('production_process/preparation/'.$header->id); ?>">1. Grinding</a></li>
                         <li class="nav-item"><a class="nav-link active font-weight-bold" href="#">2. Assembling</a></li>
                         <li class="nav-item"><a class="nav-link" href="<?= base_url('production_process/finishing/'.$header->id); ?>">3. Finishing</a></li>
                     </ul>

@@ -47,7 +47,7 @@ class Subkon_out extends MY_Controller {
         $offset = ($page > 0) ? ($page - 1) * $config['per_page'] : 0;
 
         $data = [
-            'title'      => 'Daftar Pengeluaran Subkon (DO)',
+            'title'      => lang_line('title_subkon_out_index'),
             'filters'    => $filters,
             'dos'        => $this->Subkon_out_model->get_all($filters, $config['per_page'], $offset),
             'pagination' => $this->pagination->create_links(),
@@ -64,7 +64,7 @@ class Subkon_out extends MY_Controller {
     public function create() {
         if (!check_access('subkon_out', 'add')) { show_error('Akses ditolak', 403); }
         $data = [
-            'title'    => 'Buat Pengeluaran Subkon Baru',
+            'title'    => lang_line('title_subkon_out_create'),
             // KIRIM DATA BC TYPES UNTUK DROPDOWN
             'bc_types' => $this->Commoncode_model->get_by_group('BC_TYPE')
         ];
@@ -86,7 +86,7 @@ class Subkon_out extends MY_Controller {
             $this->session->set_flashdata('error', 'Validasi gagal! ' . validation_errors());
             // Kita harus kirim ulang data BC Types jika validasi gagal
             $data = [
-                'title'    => 'Buat Pengeluaran Subkon Baru',
+                'title'    => lang_line('title_subkon_out_create'),
                 'bc_types' => $this->Commoncode_model->get_by_group('BC_TYPE')
             ];
             $this->load_views('subkon_out/create', $data);
@@ -135,7 +135,7 @@ class Subkon_out extends MY_Controller {
         if (!$header) show_404();
 
         $data = [
-            'title'        => 'Detail Pengeluaran Subkon: ' . $header->subkon_out_no,
+            'title'        => sprintf(lang_line('title_subkon_out_detail'), $header->subkon_out_no),
             'header'       => $header,
             'detail_items' => $this->Subkon_out_model->get_details_by_id($id),
             'bom_needed'   => $this->Subkon_out_model->get_needed_bom_items($header->subkon_order_id)
@@ -250,7 +250,7 @@ class Subkon_out extends MY_Controller {
        KONFIRMASI & UNCONFIRM
        ========================================================== */
     public function confirm($id) {
-        if (!check_access('subkon_out', 'edit')) show_error('Akses ditolak', 403);
+        if (!check_access('subkon_out', 'confirm')) show_error('Akses ditolak', 403);
 
         $header = $this->Subkon_out_model->get_header_by_id($id);
         if (!$header || $header->status != 'Draft') {

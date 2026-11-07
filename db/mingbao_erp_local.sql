@@ -2886,8 +2886,8 @@ INSERT INTO `suppliers` (`id`, `kode_supplier`, `nama_supplier`, `jenis`, `npwp`
 (9, 'LOK-0007', 'Alfamart', 'Lokal', '', '', '', 'active', '2026-01-20 14:36:12', '2026-01-20 15:10:32'),
 (10, 'LOK-0008', 'Amindo', 'Lokal', '', '', '', 'active', '2026-01-20 14:37:44', '2026-01-20 15:10:41'),
 (11, 'LOK-0009', 'Aneka Jaya ATK', 'Lokal', '', 'Jl. Pungkuran 368, Kauman, Semarang Tengah, Kauman, Kec. Semarang Tengah, Kota Semarang', '', 'active', '2026-01-20 14:40:36', '2026-01-20 15:10:57'),
-(12, 'LOK-0010', 'Aneka Jaya Swalayan', 'Lokal', '', 'Jl. Prof. Dr. Hamka No.38A, Purwoyoso, Kec. Ngaliyan, Kota Semarang', '', 'active', '2026-01-20 14:41:15', '2026-01-20 15:11:13'),
-(13, 'LOK-0011', 'PT Anugrah Tritunggal Perkasa Sejati', 'Lokal', '', 'Kawasan Industri Candi blok 5 no 1, Purwoyoso, Kecamatan Ngaliyan Kodepos 50184, Semarang', '(024) 7607250', 'active', '2026-01-20 14:47:40', '2026-01-20 15:11:38'),
+(12, 'LOK-0010', 'Aneka Jaya Swalayan', 'Lokal', '', 'Jl. Prof. Dr. Hamka No.38A, Ngaliyan, Kec. Ngaliyan, Kota Semarang', '', 'active', '2026-01-20 14:41:15', '2026-01-20 15:11:13'),
+(13, 'LOK-0011', 'PT Anugrah Tritunggal Perkasa Sejati', 'Lokal', '', 'Kawasan Industri Candi blok 5 no 1, Ngaliyan, Kecamatan Ngaliyan Kodepos 50184, Semarang', '(024) 7607250', 'active', '2026-01-20 14:47:40', '2026-01-20 15:11:38'),
 (14, 'LOK-0012', 'Apotek Anugerah Sehat', 'Lokal', '', 'Jalan Permata Hijau Ruko Hasanudin Blok CC-1 No, RT.2, Panggung Kidul, Kec. Semarang Utara, Kota Semarang', '0878-8788-8293', 'active', '2026-01-20 14:52:51', '2026-01-20 14:52:51'),
 (15, 'LOK-0013', 'UD. Artha', 'Lokal', '', 'l. Alun-Alun Barat Depan Masjid Agung No.12, Kauman, Kec. Semarang Tengah, Kota Semarang', '0858-6684-2383', 'active', '2026-01-20 14:54:05', '2026-01-20 15:11:49'),
 (16, 'LOK-0014', 'Atlanta Elektronik', 'Lokal', '', 'Jl. MT. Haryono No.540, Jagalan, Kec. Semarang Tengah, Kota Semarang', '0877-7557-1414', 'active', '2026-01-20 14:55:11', '2026-01-20 15:12:06'),
@@ -2911,9 +2911,9 @@ INSERT INTO `suppliers` (`id`, `kode_supplier`, `nama_supplier`, `jenis`, `npwp`
 (34, 'LOK-0032', 'Jakarta Notebook', 'Lokal', '', 'Jl. Sriwijaya No.96-98, Wonodri, Kec. Semarang Sel., Kota Semarang', '0896-8567-1406', 'active', '2026-01-20 15:51:21', '2026-01-20 15:51:21'),
 (35, 'LOK-0033', 'Jaya Selang', 'Lokal', '', 'No.5 Blok D, Komplek, Jl. Komp. Pertokoan Jurnatan Jl. K.H. Agus Salim, Purwodinatan, Kec. Semarang Tengah, Kota Semarang', '0812-2272-3399', 'active', '2026-01-20 15:52:17', '2026-01-20 15:52:17'),
 (36, 'LOK-0034', 'PT Jia Hua Hua Gong', 'Lokal', '0537398091451000', 'INDUSTRI RAYA III AH NO.7, RT 000, RW 000, SUKADAMAI, CIKUPA, KAB. TANGERANG, BANTEN\r\n15710', '0857-1922-2096', 'active', '2026-01-20 15:53:16', '2026-01-20 15:53:16'),
-(37, 'LOK-0035', 'KAC Accesories', 'Lokal', '', 'Jalan Prof. Dr. Hamka Purwoyoso, Ngaliyan, Kec. Ngaliyan, Kota Semarang', '0821-2481-3562', 'active', '2026-01-20 15:54:43', '2026-01-20 15:54:43'),
+(37, 'LOK-0035', 'KAC Accesories', 'Lokal', '', 'Jalan Prof. Dr. Hamka Ngaliyan, Ngaliyan, Kec. Ngaliyan, Kota Semarang', '0821-2481-3562', 'active', '2026-01-20 15:54:43', '2026-01-20 15:54:43'),
 (38, 'LOK-0036', 'Kharisma Fotocopy', 'Lokal', '', 'Jl. Wr. Supratman, Ngemplak Simongan, Kec. Semarang Barat, Kota Semarang', '0821-4705-4070', 'active', '2026-01-20 15:55:37', '2026-01-20 15:55:37'),
-(39, 'LOK-0037', 'Lancar Ngaliyan Fotokopi', 'Lokal', '', ' Jl. Prof. Dr. Hamka No.2, Purwoyoso, Kec. Ngaliyan, Kota Semarang, Jawa Tengah 50184', '0812-2537-4260', 'active', '2026-01-20 15:56:21', '2026-01-20 15:56:21'),
+(39, 'LOK-0037', 'Lancar Ngaliyan Fotokopi', 'Lokal', '', ' Jl. Prof. Dr. Hamka No.2, Ngaliyan, Kec. Ngaliyan, Kota Semarang, Jawa Tengah 50184', '0812-2537-4260', 'active', '2026-01-20 15:56:21', '2026-01-20 15:56:21'),
 (40, 'LOK-0038', 'Laris Jaya', 'Lokal', '', 'Depan Indomaret Tambra, Jl. Tambra No.25, Purwosari, Semarang Utara, Semarang City, Central Java', '0877-4333-7339', 'active', '2026-01-20 15:57:24', '2026-01-20 15:57:24'),
 (41, 'LOK-0039', 'Listromart', 'Lokal', '', 'Jl. Raya Ngaliyan Jl. Kedungpane No.4, Ngaliyan, Kec. Ngaliyan, Kota Semarang, Jawa Tengah 50181', '0815-7890-1858', 'active', '2026-01-20 15:58:41', '2026-01-20 15:58:41'),
 (42, 'LOK-0040', 'Mahkota Jaya', 'Lokal', '', 'Gg. Besen No.73, Kranggan, Kec. Semarang Tengah, Kota Semarang, Jawa Tengah 50139', '0877-3373-3873', 'active', '2026-01-20 15:59:26', '2026-01-20 15:59:26'),
@@ -3019,7 +3019,7 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`id`, `fullname`, `username`, `password`, `email`, `role_id`, `status`, `updated_at`, `last_login`, `created_at`) VALUES
-(1, 'admin', 'admin', '$2y$10$9gm.HIQEGUaVo3qrVcgwXur51cJSBCuLq2OIQV7989PsGgqcHt3dW', 'admin@neokaber.local', 1, 'active', '2025-11-06 08:27:20', '2025-11-06 08:27:20', '2025-10-16 02:24:13'),
+(1, 'admin', 'admin', '$2y$10$9gm.HIQEGUaVo3qrVcgwXur51cJSBCuLq2OIQV7989PsGgqcHt3dW', 'admin@PT. NEW SPECIALIFE INDUSTRIES.local', 1, 'active', '2025-11-06 08:27:20', '2025-11-06 08:27:20', '2025-10-16 02:24:13'),
 (3, 'gudang', 'gudang', '$2y$10$rEHDQdNaaGm5cVbkr.m2Z.ejMBCV9YCrQMGvVx3pyIRAJy4Up4MBe', 'it@foreveroneinternational.com', 1, 'inactive', '2025-10-16 11:50:09', NULL, '2025-10-16 04:44:35'),
 (4, 'PPIC', 'PPIC', '$2y$10$m9riaMy75fWPdOikbAw2KeZlDWaji6BfKr9qK3WPLtTg/ae7CyPSy', 'it@foreveroneinternational.com', 1, 'active', '2026-02-02 07:13:30', '2026-01-30 10:34:24', '2025-10-16 04:55:11'),
 (5, 'gudang', 'gudanbg', '$2y$10$iTRT78M/mO.0/heqNdd.4eY3lWOTvmskS/VIc8sLa7tI97..fkwBS', 'it@foreveroneinternational.com', 1, 'active', '2025-10-16 14:12:43', NULL, '2025-10-16 07:12:43'),

@@ -79,6 +79,13 @@ $route['stockopname/save_counts/(:num)'] = 'StockOpname/save_counts/$1';
 $route['stockopname/view/(:num)'] = 'StockOpname/view/$1';
 $route['stockopname/confirm/(:num)'] = 'StockOpname/confirm/$1';
 $route['stockopname/delete/(:num)'] = 'StockOpname/delete/$1';
+
+// QC Production routes
+$route['qc_production'] = 'QC_production/index';
+$route['qc_production/view/(:num)'] = 'QC_production/view/$1';
+$route['qc_production/ajax_get_photo/(:num)'] = 'QC_production/ajax_get_photo/$1';
+$route['qc_production/export_pdf/(:num)'] = 'QC_production/export_pdf/$1';
+
 $route['coa'] = 'Coa/index';
 $route['coa/create'] = 'Coa/create';
 $route['coa/store'] = 'Coa/store';
@@ -97,6 +104,11 @@ $route['jurnalumum/import'] = 'JurnalUmum/import';
 $route['jurnalumum/process_import'] = 'JurnalUmum/process_import';
 $route['jurnalumum/export_excel/(:num)'] = 'JurnalUmum/export_excel/$1';
 $route['jurnalumum/export_pdf/(:num)'] = 'JurnalUmum/export_pdf/$1';
+$route['jurnalumum/export_full'] = 'JurnalUmum/export_full';
+$route['jurnalumum/import_full'] = 'JurnalUmum/import_full';
+$route['jurnalumum/process_import_full'] = 'JurnalUmum/process_import_full';
+$route['jurnalumum/clear_check'] = 'JurnalUmum/clear_check';
+$route['jurnalumum/clear_period'] = 'JurnalUmum/clear_period';
 $route['yearendclosing'] = 'YearEndClosing/index';
 $route['yearendclosing/create'] = 'YearEndClosing/create';
 $route['yearendclosing/preview'] = 'YearEndClosing/preview';
@@ -108,9 +120,14 @@ $route['apinvoice/store'] = 'ApInvoice/store';
 $route['apinvoice/view/(:num)'] = 'ApInvoice/view/$1';
 $route['apinvoice/post/(:num)'] = 'ApInvoice/post/$1';
 $route['apinvoice/delete/(:num)'] = 'ApInvoice/delete/$1';
+// Rute Ekspor AP Invoice
+$route['apinvoice/export_detail_pdf/(:num)'] = 'ApInvoice/export_detail_pdf/$1';
+$route['apinvoice/export_detail_excel/(:num)'] = 'ApInvoice/export_detail_excel/$1';
 // Rute AJAX untuk AP Invoice
 $route['apinvoice/ajax_get_pending_grn'] = 'ApInvoice/ajax_get_pending_grn';
 $route['apinvoice/ajax_get_grn_details'] = 'ApInvoice/ajax_get_grn_details';
+$route['apinvoice/ajax_get_debet_accounts'] = 'ApInvoice/ajax_get_debet_accounts';
+$route['apinvoice/ajax_get_kredit_accounts'] = 'ApInvoice/ajax_get_kredit_accounts';
 $route['settingakun'] = 'SettingAkun/index';
 $route['settingakun/save'] = 'SettingAkun/save';
 $route['appayment'] = 'ApPayment/index';
@@ -119,8 +136,14 @@ $route['appayment/store'] = 'ApPayment/store';
 $route['appayment/view/(:num)'] = 'ApPayment/view/$1';
 $route['appayment/post/(:num)'] = 'ApPayment/post/$1';
 $route['appayment/delete/(:num)'] = 'ApPayment/delete/$1';
+// Rute Ekspor AP Payment
+$route['appayment/export_detail_pdf/(:num)'] = 'ApPayment/export_detail_pdf/$1';
+$route['appayment/export_detail_excel/(:num)'] = 'ApPayment/export_detail_excel/$1';
 // Rute AJAX untuk AP Payment
 $route['appayment/ajax_get_unpaid_invoices'] = 'ApPayment/ajax_get_unpaid_invoices';
+$route['appayment/ajax_get_debet_accounts'] = 'ApPayment/ajax_get_debet_accounts';
+$route['appayment/ajax_get_kredit_accounts'] = 'ApPayment/ajax_get_kredit_accounts';
+$route['appayment/ajax_get_invoice_details'] = 'ApPayment/ajax_get_invoice_details';
 $route['arinvoice'] = 'ArInvoice/index';
 $route['arinvoice/create'] = 'ArInvoice/create';
 $route['arinvoice/store'] = 'ArInvoice/store';
@@ -144,6 +167,10 @@ $route['arreceipt/delete/(:num)'] = 'ArReceipt/delete/$1';
 // Rute AJAX untuk AR Receipt
 $route['arreceipt/ajax_get_payment_accounts'] = 'ArReceipt/ajax_get_payment_accounts';
 $route['arreceipt/ajax_get_unpaid_invoices'] = 'ArReceipt/ajax_get_unpaid_invoices';
+// Rute Ekspor AR Receipt
+$route['arreceipt/export_excel'] = 'ArReceipt/export_excel';
+$route['arreceipt/export_pdf'] = 'ArReceipt/export_pdf';
+$route['arreceipt/export_pdf_detail/(:num)'] = 'ArReceipt/export_pdf_detail/$1';
 
 // Scrap Stock routes
 $route['scrap_stock'] = 'Scrap_Stock/index';
@@ -207,3 +234,35 @@ $route['LapMutasiWIP/ajax_get_adjustment_documents'] = 'LapMutasiWIP/ajax_get_ad
 $route['LapMutasiWIP/modal_adjustment_documents/(:num)'] = 'LapMutasiWIP/modal_adjustment_documents/$1';
 $route['LapMutasiFinished/ajax_get_adjustment_documents'] = 'LapMutasiFinished/ajax_get_adjustment_documents';
 $route['LapMutasiFinished/modal_adjustment_documents/(:num)'] = 'LapMutasiFinished/modal_adjustment_documents/$1';
+
+// LapPemasukanBB - Adjustment Detail
+$route['LapPemasukanBB/ajax_get_adjustment_detail'] = 'LapPemasukanBB/ajax_get_adjustment_detail';
+$route['LapPemasukanBB/ajax_get_adjustment_documents'] = 'LapPemasukanBB/ajax_get_adjustment_documents';
+
+// ===== Stock Alert Routes (Minimum Stock Monitoring) =====
+$route['stock_alert'] = 'Stock_alert/index';
+$route['stock_alert/get_alert_count'] = 'Stock_alert/get_alert_count';
+
+// ===== BeaCukai Routes =====
+$route['BeaCukai/detail/(:any)'] = 'BeaCukai/detail/$1';
+$route['beacukai/detail/(:any)'] = 'BeaCukai/detail/$1';
+
+// ===== Initial Stock Routes =====
+$route['initial_stock'] = 'Initial_stock/index';
+$route['initial_stock/save'] = 'Initial_stock/save';
+$route['initial_stock/confirm'] = 'Initial_stock/confirm';
+$route['initial_stock/unconfirm'] = 'Initial_stock/unconfirm';
+$route['initial_stock/delete/(:num)'] = 'Initial_stock/delete/$1';
+
+// ===== Mobile Approval API (aplikasi Android ERP Acropoly) =====
+// Urutan penting: route spesifik (approve/reject/pending) harus di atas
+// route detail (:any)/(:num) supaya tidak tertangkap duluan.
+$route['api/login'] = 'api/apiauth/login';
+$route['api/logout'] = 'api/apiauth/logout';
+$route['api/me'] = 'api/apiauth/me';
+$route['api/fcm-token'] = 'api/apiauth/fcm_token';
+$route['api/dashboard'] = 'api/approvals/dashboard';
+$route['api/approvals/pending'] = 'api/approvals/pending';
+$route['api/approvals/(:any)/(:num)/approve'] = 'api/approvals/approve_doc/$1/$2';
+$route['api/approvals/(:any)/(:num)/reject'] = 'api/approvals/reject_doc/$1/$2';
+$route['api/approvals/(:any)/(:num)'] = 'api/approvals/detail/$1/$2';

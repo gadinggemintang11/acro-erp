@@ -574,7 +574,7 @@ class Master_supplier extends MY_Controller {
         </table>
         
         <div class="footer">
-            <p>Dokumen ini dihasilkan oleh Sistem ERP Mingbao pada ' . date('d-m-Y H:i:s') . '</p>
+            <p>Dokumen ini dihasilkan oleh Sistem ERP NSI pada ' . date('d-m-Y H:i:s') . '</p>
             <p>Tekan Ctrl+P (atau Cmd+P) untuk print dan save sebagai PDF</p>
         </div>
     </div>

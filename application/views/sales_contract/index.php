@@ -5,11 +5,8 @@
     <div class="d-flex justify-content-between align-items-center mb-4">
         <h3 class="text-gray-800 mb-0"><i class="fas fa-file-signature text-primary mr-2"></i><?= htmlspecialchars($title); ?></h3>
         <?php if (check_access('sales_contract', 'add')): ?>
-            <button class="btn btn-primary shadow-sm" data-toggle="modal" data-target="#addModal">
-                <i class="fas fa-plus-circle mr-1"></i> <?= lang_line('sc_create_new', 'Buat SC Baru'); ?>
-            </button>
-            <button class="btn btn-success shadow-sm ml-2" data-toggle="modal" data-target="#uploadModal">
-                <i class="fas fa-file-upload mr-1"></i> Import Excel / Template
+            <button class="btn btn-success shadow-sm" data-toggle="modal" data-target="#uploadModal">
+                <i class="fas fa-file-upload mr-1"></i> <?= lang_line('sc_import_excel', 'Import Excel / Template'); ?>
             </button>
         <?php endif; ?>
     </div>
@@ -41,7 +38,99 @@
     <?php endif; ?>
 
 
+    <?php
+        // Form dipindah dari modal jadi INLINE di halaman ini (user 2026-09-06:
+        // "sales_contract ini harusnya langsung form juga ya") — pola sama spt
+        // Create New GMPO/IRF/PRF/ERF/MRF yang begitu diklik langsung muncul
+        // form, bukan list + modal. Daftar Draft SENGAJA dipertahankan di bawah
+        // form: aksi Submit for Approval / Edit / Batalkan cuma ada di sini,
+        // menu "IPO List" sifatnya read-only (cuma tombol Detail).
+    ?>
+    <?php if (check_access('sales_contract', 'add')): ?>
+    <div class="card border-0 shadow-sm rounded mb-4">
+        <div class="card-header bg-white py-3">
+            <h6 class="m-0 font-weight-bold text-primary">
+                <i class="fas fa-plus-circle mr-1"></i> <?= lang_line('sc_create_new_modal_title', 'Buat Sales Order Number Baru'); ?>
+            </h6>
+        </div>
+        <form method="post" action="<?= base_url('sales_contract/add'); ?>" id="formAddSc">
+            <input type="hidden" name="<?= $this->security->get_csrf_token_name(); ?>" value="<?= $this->security->get_csrf_hash(); ?>">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-4 form-group">
+                        <label for="add_sc_number"><?= lang_line('sc_sc_number_label', 'Nomor Sales Order (opsional, kosongkan untuk auto)'); ?></label>
+                        <input type="text" name="sc_number" id="add_sc_number" class="form-control" placeholder="<?= lang_line('sc_sc_number_placeholder', 'Kosongkan agar auto-generate'); ?>">
+                    </div>
+                    <div class="col-md-4 form-group">
+                        <label for="add_customer_id"><?= lang_line('sc_customer', 'Pelanggan'); ?> <span class="text-danger">*</span></label>
+                        <select name="customer_id" id="add_customer_id" class="form-control" required>
+                            <option value=""><?= lang_line('sc_customer_select', '-- Pilih Pelanggan --'); ?></option>
+                            <?php foreach($customers as $c): ?>
+                                <option value="<?= $c->id; ?>"><?= htmlspecialchars($c->nama_customer); ?> (<?= htmlspecialchars($c->kode_customer); ?>)</option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                    <div class="col-md-4 form-group">
+                        <label for="add_fg_id"><?= lang_line('sc_style', 'Style'); ?> <?= lang_line('sc_finished_good_suffix', '(Finished Good)'); ?> <span class="text-danger">*</span></label>
+                        <select name="fg_id" id="add_fg_id" class="form-control" required>
+                            <option value=""><?= lang_line('sc_style_select', '-- Pilih Style --'); ?></option>
+                            <?php foreach($styles as $s): ?>
+                                <option value="<?= $s->id; ?>"><?= htmlspecialchars($s->nama_barang . ' (' . $s->kode_barang . ')'); ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-3 form-group">
+                        <label for="add_contract_date"><?= lang_line('sc_contract_date', 'Tanggal Kontrak'); ?> <span class="text-danger">*</span></label>
+                        <input type="date" name="contract_date" id="add_contract_date" class="form-control" value="<?= date('Y-m-d'); ?>" required>
+                    </div>
+                    <div class="col-md-3 form-group">
+                        <label for="add_lchd_date"><?= lang_line('sc_lchd_date', 'LCHD Date'); ?> <span class="text-danger">*</span></label>
+                        <input type="date" name="lchd_date" id="add_lchd_date" class="form-control" required>
+                    </div>
+                    <div class="col-md-3 form-group">
+                        <label for="add_po_qty"><?= lang_line('sc_po_qty', 'PO Qty'); ?> <span class="text-danger">*</span></label>
+                        <input type="number" name="po_qty" id="add_po_qty" class="form-control text-right" required min="1">
+                    </div>
+                    <div class="col-md-3 form-group">
+                        <label for="add_currency_code"><?= lang_line('sc_currency', 'Currency'); ?> <span class="text-danger">*</span></label>
+                        <select name="currency_code" id="add_currency_code" class="form-control" required>
+                            <?php foreach($currencies as $curr): ?>
+                                <option value="<?= $curr->code; ?>" <?= ($curr->code == 'USD') ? 'selected' : ''; ?>><?= $curr->code; ?></option>
+                            <?php endforeach; ?>
+                        </select>
+                    </div>
+                </div>
+                <div class="row">
+                    <div class="col-md-3 form-group">
+                        <label for="add_unit_price"><?= lang_line('sc_unit_price', 'Harga Satuan'); ?> <span class="text-danger">*</span></label>
+                        <input type="text" name="unit_price" id="add_unit_price" class="form-control autonumeric text-right" required>
+                    </div>
+                    <div class="col-md-3 form-group">
+                        <label for="add_total_price"><?= lang_line('sc_total_price', 'Total Price'); ?></label>
+                        <input type="text" id="add_total_price" class="form-control autonumeric text-right" readonly>
+                    </div>
+                    <div class="col-md-6 form-group">
+                        <label for="add_destination"><?= lang_line('sc_destination', 'Destination'); ?></label>
+                        <input type="text" name="destination" id="add_destination" class="form-control">
+                    </div>
+                </div>
+            </div>
+            <div class="card-footer bg-white">
+                <button type="submit" class="btn btn-primary btn-load"><i class="fas fa-save mr-1"></i> <?= lang_line('sc_save', 'Simpan'); ?></button>
+                <button type="reset" class="btn btn-secondary ml-1"><?= lang_line('sc_cancel', 'Batal'); ?></button>
+            </div>
+        </form>
+    </div>
+    <?php endif; ?>
+
     <div class="card border-0 shadow-sm rounded">
+        <div class="card-header bg-white py-3">
+            <h6 class="m-0 font-weight-bold text-primary">
+                <i class="fas fa-file-alt mr-1"></i> <?= lang_line('sc_draft_list_title', 'Sales Order Draft (belum disubmit)'); ?>
+            </h6>
+        </div>
         <div class="card-body">
             <div class="table-responsive">
                 <table class="table table-striped table-hover align-middle" id="dataTable"> <!-- Tambahkan ID untuk datatable jika perlu -->
@@ -67,127 +156,50 @@
                             <td class="text-right"><?= number_format($sc->po_qty); ?></td>
                             <td class="text-right"><?= htmlspecialchars($sc->currency_code) . ' ' . number_format($sc->total_price, 2, '.', ','); ?></td>
                             <td>
-                                <?php 
-                                    $status_class = 'info'; // Default
-                                    if ($sc->status == 'Closed') $status_class = 'success';
+                                <?php
+                                    $status_class = 'secondary'; // Draft
+                                    if ($sc->status == 'Open')      $status_class = 'primary';
+                                    elseif ($sc->status == 'Finish') $status_class = 'success';
+                                    elseif ($sc->status == 'Closed') $status_class = 'dark';
                                     elseif ($sc->status == 'Cancelled') $status_class = 'danger';
                                 ?>
                                 <span class="badge badge-<?= $status_class; ?>"><?= htmlspecialchars($sc->status); ?></span>
                             </td>
                             <td>
-                                <!-- REVISI: Tombol Edit diubah menjadi Link ke halaman edit -->
-                                <?php if (check_access('sales_contract', 'edit')): ?>
-                                <a href="<?= base_url('sales_contract/edit/'.$sc->id); ?>" class="btn btn-sm btn-warning text-white" title="<?= lang_line('sc_edit', 'Edit'); ?>">
-                                    <i class="fas fa-edit"></i>
+                                <a href="<?= base_url('sales_contract/detail/'.$sc->id.'?from=sales_contract'); ?>" class="btn btn-sm btn-secondary" title="<?= lang_line('sc_tooltip_view_detail'); ?>">
+                                    <i class="fas fa-eye"></i>
                                 </a>
+                                <?php if (check_access('sales_contract', 'submit') && $sc->status == 'Draft'): ?>
+                                    <a href="<?= base_url('sales_contract/submit_for_approval/'.$sc->id); ?>" class="btn btn-sm btn-success btn-confirm"
+                                       data-message="<?= lang_line('sc_submit_approval_message', 'Submit Sales Order'); ?> <?= htmlspecialchars($sc->sc_number); ?> <?= lang_line('sc_submit_approval_title', 'untuk approval?'); ?>"
+                                       data-text="<?= lang_line('sc_submit_approval_warning', 'Setelah submit, Sales Order tidak bisa diedit lagi.'); ?>"
+                                       data-confirm-text="<?= lang_line('sc_confirm_submit', 'Ya, lanjutkan!'); ?>"
+                                       data-cancel-text="<?= lang_line('sc_cancel_text', 'Batal'); ?>"
+                                       title="<?= lang_line('sc_submit_for_approval', 'Submit for Approval'); ?>">
+                                        <i class="fas fa-paper-plane"></i>
+                                    </a>
                                 <?php endif; ?>
-                                
-                                <!-- Tombol Delete (Tetap menggunakan SweetAlert) -->
-                                <?php if (check_access('sales_contract', 'delete')): ?>
-                                <a href="<?= base_url('sales_contract/delete/'.$sc->id); ?>" class="btn btn-sm btn-danger btn-delete" 
-                                   data-message="<?= lang_line('sc_confirm_cancel', 'Yakin ingin membatalkan Sales Contract'); ?> <?= htmlspecialchars($sc->sc_number); ?>?" title="<?= lang_line('sc_delete', 'Batalkan'); ?>">
+                                <?php if (check_access('sales_contract', 'edit') && $sc->status == 'Draft'): ?>
+                                    <a href="<?= base_url('sales_contract/edit/'.$sc->id); ?>" class="btn btn-sm btn-warning text-white" title="<?= lang_line('sc_edit', 'Edit'); ?>">
+                                        <i class="fas fa-edit"></i>
+                                    </a>
+                                <?php endif; ?>
+
+                                <?php if (check_access('sales_contract', 'delete') && $sc->status == 'Draft'): ?>
+                                <a href="<?= base_url('sales_contract/delete/'.$sc->id); ?>" class="btn btn-sm btn-danger btn-delete"
+                                   data-message="<?= lang_line('sc_confirm_cancel', 'Yakin ingin membatalkan Sales Order Number'); ?> <?= htmlspecialchars($sc->sc_number); ?>?" title="<?= lang_line('sc_delete', 'Batalkan'); ?>">
                                     <i class="fas fa-times-circle"></i>
                                 </a>
                                 <?php endif; ?>
                             </td>
                         </tr>
                         <?php endforeach; else: ?>
-                            <tr><td colspan="8" class="text-center text-muted py-3"><?= lang_line('sc_no_data', 'Belum ada data Sales Contract'); ?></td></tr>
+                            <tr><td colspan="8" class="text-center text-muted py-3"><?= lang_line('sc_no_draft', 'Belum ada Sales Order Draft. Isi form di atas untuk membuat Sales Order baru.'); ?></td></tr>
                         <?php endif; ?>
                     </tbody>
                 </table>
             </div>
         </div>
-    </div>
-</div>
-
-<!-- ============================================== -->
-<!-- MODAL TAMBAH (Add Modal) - REVISI CSRF & JS -->
-<!-- ============================================== -->
-<div class="modal fade" id="addModal" tabindex="-1" aria-labelledby="addModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-lg modal-dialog-centered">
-        <form method="post" action="<?= base_url('sales_contract/add'); ?>" id="formAddSc">
-             <!-- TAMBAHAN: CSRF Token -->
-            <input type="hidden" name="<?= $this->security->get_csrf_token_name(); ?>" value="<?= $this->security->get_csrf_hash(); ?>">
-            
-            <div class="modal-content border-0 shadow">
-                <div class="modal-header bg-gradient-primary text-white">
-                    <h5 class="modal-title" id="addModalLabel"><i class="fas fa-plus-circle mr-2"></i><?= lang_line('sc_create_new_modal_title', 'Buat Sales Contract Baru'); ?></h5>
-                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">&times;</button>
-                </div>
-                <div class="modal-body">
-                    <div class="row">
-                        <div class="col-md-6 form-group">
-                            <label for="add_sc_number">Nomor SC (opsional, kosongkan untuk auto)</label>
-                            <input type="text" name="sc_number" id="add_sc_number" class="form-control" placeholder="Kosongkan agar auto-generate">
-                        </div>
-                        <div class="col-md-6 form-group">
-                            <label for="add_customer_id"><?= lang_line('sc_customer', 'Pelanggan'); ?> <span class="text-danger">*</span></label>
-                            <select name="customer_id" id="add_customer_id" class="form-control" required>
-                                <option value=""><?= lang_line('sc_customer_select', '-- Pilih Pelanggan --'); ?></option>
-                                <?php foreach($customers as $c): ?>
-                                    <option value="<?= $c->id; ?>"><?= htmlspecialchars($c->nama_customer); ?> (<?= htmlspecialchars($c->kode_customer); ?>)</option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                        <div class="col-md-6 form-group">
-                            <label for="add_fg_id"><?= lang_line('sc_style', 'Style'); ?> (Finished Good) <span class="text-danger">*</span></label>
-                            <select name="fg_id" id="add_fg_id" class="form-control" required>
-                                <option value=""><?= lang_line('sc_style_select', '-- Pilih Style --'); ?></option>
-                                <?php foreach($styles as $s): ?>
-                                    <option value="<?= $s->id; ?>"><?= htmlspecialchars($s->nama_barang . ' (' . $s->kode_barang . ')'); ?></option>
-                                <?php endforeach; ?>
-                            </select>
-                        </div>
-                    </div>
-                    <div class="row">
-                         <div class="col-md-6 form-group">
-                            <label for="add_contract_date"><?= lang_line('sc_contract_date', 'Tanggal Kontrak'); ?> <span class="text-danger">*</span></label>
-                            <input type="date" name="contract_date" id="add_contract_date" class="form-control" value="<?= date('Y-m-d'); ?>" required>
-                        </div>
-                        <div class="col-md-6 form-group">
-                            <label for="add_lchd_date"><?= lang_line('sc_lchd_date', 'LCHD Date'); ?> <span class="text-danger">*</span></label>
-                            <input type="date" name="lchd_date" id="add_lchd_date" class="form-control" required>
-                        </div>
-                    </div>
-                    <div class="row">
-                         <div class="col-md-3 form-group">
-                             <label for="add_po_qty"><?= lang_line('sc_po_qty', 'PO Qty'); ?> <span class="text-danger">*</span></label>
-                            <input type="number" name="po_qty" id="add_po_qty" class="form-control text-right" required min="1">
-                        </div>
-                        <div class="col-md-3 form-group">
-                            <label for="add_currency_code"><?= lang_line('sc_currency', 'Currency'); ?> <span class="text-danger">*</span></label>
-                            <select name="currency_code" id="add_currency_code" class="form-control" required>
-                                 <?php foreach($currencies as $curr): ?>
-                                     <option value="<?= $curr->code; ?>" <?= ($curr->code == 'USD') ? 'selected' : ''; ?>><?= $curr->code; ?></option> <!-- Default ke USD -->
-                                 <?php endforeach; ?>
-                            </select>
-                        </div>
-                         <div class="col-md-3 form-group">
-                             <label for="add_unit_price"><?= lang_line('sc_unit_price', 'Harga Satuan'); ?> <span class="text-danger">*</span></label>
-                            <input type="text" name="unit_price" id="add_unit_price" class="form-control autonumeric text-right" required>
-                        </div>
-                        <div class="col-md-3 form-group">
-                            <label for="add_total_price"><?= lang_line('sc_total_price', 'Total Price'); ?></label>
-                            <input type="text" id="add_total_price" class="form-control autonumeric text-right" readonly>
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="add_destination"><?= lang_line('sc_destination', 'Destination'); ?></label>
-                        <input type="text" name="destination" id="add_destination" class="form-control">
-                    </div>
-                    <!-- Hapus field deskripsi jika tidak ada di DB -->
-                    <!-- <div class="form-group">
-                        <label for="add_description">Deskripsi</label>
-                        <textarea name="description" id="add_description" class="form-control" rows="2"></textarea>
-                    </div> -->
-                </div>
-                <div class="modal-footer">
-                    <button type="submit" class="btn btn-primary btn-load"><i class="fas fa-save mr-1"></i> <?= lang_line('sc_save', 'Simpan'); ?></button>
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal"><?= lang_line('sc_cancel', 'Batal'); ?></button>
-                </div>
-            </div>
-        </form>
     </div>
 </div>
 
@@ -200,36 +212,36 @@
             <input type="hidden" name="<?= $this->security->get_csrf_token_name(); ?>" value="<?= $this->security->get_csrf_hash(); ?>">
             <div class="modal-content border-0 shadow">
                 <div class="modal-header bg-gradient-success text-white">
-                    <h5 class="modal-title" id="uploadModalLabel"><i class="fas fa-file-upload mr-2"></i>Import Sales Contract via Excel</h5>
+                    <h5 class="modal-title" id="uploadModalLabel"><i class="fas fa-file-upload mr-2"></i><?= lang_line('sc_modal_import_title', 'Import Sales Order Number via Excel'); ?></h5>
                     <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">&times;</button>
                 </div>
                 <div class="modal-body">
                     <div class="p-3 mb-3 border rounded" style="background: linear-gradient(135deg, #e8f5e9 0%, #f0fff4 100%);">
                         <div class="d-flex align-items-center mb-2">
                             <div class="badge badge-success mr-2"><i class="fas fa-info-circle"></i></div>
-                            <strong>Petunjuk Import</strong>
+                            <strong><?= lang_line('sc_import_instructions', 'Petunjuk Import'); ?></strong>
                         </div>
-                        <div class="small text-muted mb-2">Gunakan template agar format tepat. Header baris 1:</div>
+                        <div class="small text-muted mb-2"><?= lang_line('sc_use_template_format', 'Gunakan template agar format tepat. Header baris 1:'); ?></div>
                         <ul class="small mb-2 pl-3">
-                            <li>A: <code>sc_number</code> (boleh kosong untuk auto)</li>
-                            <li>B: <code>customer_name</code> (nama supplier/customer)</li>
-                            <li>C: <code>fg_name</code> (nama barang di master FG)</li>
-                            <li>D: <code>contract_date</code> (Y-m-d), E: <code>lchd_date</code> (Y-m-d)</li>
-                            <li>F: <code>po_qty</code>, G: <code>currency_code</code>, H: <code>unit_price</code>, I: <code>destination</code></li>
+                            <li><?= lang_line('sc_col_a_desc', 'A: sc_number (boleh kosong untuk auto)'); ?></li>
+                            <li><?= lang_line('sc_col_b_desc', 'B: customer_name (nama supplier/customer)'); ?></li>
+                            <li><?= lang_line('sc_col_c_desc', 'C: fg_name (nama barang di master FG)'); ?></li>
+                            <li><?= lang_line('sc_col_d_desc', 'D: contract_date (Y-m-d), E: lchd_date (Y-m-d)'); ?></li>
+                            <li><?= lang_line('sc_col_e_desc', 'F: po_qty, G: currency_code, H: unit_price, I: destination'); ?></li>
                         </ul>
                         <a href="<?= base_url('sales_contract/download_template'); ?>" class="btn btn-sm btn-outline-success">
-                            <i class="fas fa-download mr-1"></i> Download Template
+                            <i class="fas fa-download mr-1"></i> <?= lang_line('sc_download_template', 'Download Template'); ?>
                         </a>
                     </div>
 
                     <div class="form-group mb-0">
-                        <label class="font-weight-bold">File Excel (.xlsx / .xls)</label>
+                        <label class="font-weight-bold"><?= lang_line('sc_excel_file_label', 'File Excel (.xlsx / .xls)'); ?></label>
                         <input type="file" name="excel_file" class="form-control" accept=".xlsx,.xls" required>
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="submit" class="btn btn-success"><i class="fas fa-upload mr-1"></i>Upload</button>
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-success"><i class="fas fa-upload mr-1"></i><?= lang_line('sc_upload', 'Upload'); ?></button>
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal"><?= lang_line('sc_cancel', 'Batal'); ?></button>
                 </div>
             </div>
         </form>
@@ -244,10 +256,11 @@
 <script src="https://cdn.jsdelivr.net/npm/autonumeric@4.6.0/dist/autoNumeric.min.js"></script>
 <script>
 $(document).ready(function() {
-    // --- Inisialisasi AutoNumeric untuk Modal Add ---
+    // --- Inisialisasi AutoNumeric untuk form Buat Sales Order (dulu di dalam modal,
+    // sekarang inline di halaman — id field-nya sengaja tidak diubah) ---
     let anPriceAdd, anTotalAdd;
-    
-    // Hanya inisialisasi jika modal ada
+
+    // Form cuma dirender kalau user py izin 'add', jadi tetap dijaga.
     if ($('#add_unit_price').length) {
         anPriceAdd = new AutoNumeric('#add_unit_price', AutoNumeric.getPredefinedOptions().numericPos.dotDecimalCharCommaSeparator); // Opsi format Indonesia/Eropa
         anTotalAdd = new AutoNumeric('#add_total_price', AutoNumeric.getPredefinedOptions().numericPos.dotDecimalCharCommaSeparator);
@@ -264,11 +277,10 @@ $(document).ready(function() {
     $('#add_po_qty, #add_unit_price').on('keyup change input', calculateTotalAdd);
     
     // --- SweetAlert untuk Delete ---
-    // (Pindahkan listener delete dari footer ke sini jika belum)
     $(document).on('click', '.btn-delete', function(e) {
         e.preventDefault();
         const href = $(this).attr('href');
-        const message = $(this).data('message') || 'Yakin ingin menghapus data ini?';
+        const message = $(this).data('message') || '<?= lang_line('sc_confirm_delete_default', 'Yakin ingin menghapus data ini?'); ?>';
 
         Swal.fire({
             title: '<?= lang_line("sc_confirm_delete_title", "Konfirmasi Hapus"); ?>',
@@ -281,8 +293,28 @@ $(document).ready(function() {
             cancelButtonText: '<?= lang_line("sc_confirm_no", "Batal"); ?>'
         }).then((result) => {
             if (result.isConfirmed) {
-                // Tampilkan loader jika perlu
-                // showLoader(); // Pastikan fungsi showLoader ada
+                window.location.href = href;
+            }
+        });
+    });
+
+    // --- SweetAlert untuk Confirm / Unconfirm ---
+    $(document).on('click', '.btn-confirm', function(e) {
+        e.preventDefault();
+        const href = $(this).attr('href');
+        const message = $(this).data('message') || 'Yakin melanjutkan aksi ini?';
+
+        Swal.fire({
+            title: 'Konfirmasi',
+            text: message,
+            icon: 'question',
+            showCancelButton: true,
+            confirmButtonColor: '#28a745',
+            cancelButtonColor: '#6c757d',
+            confirmButtonText: 'Ya, Lanjutkan',
+            cancelButtonText: 'Batal'
+        }).then((result) => {
+            if (result.isConfirmed) {
                 window.location.href = href;
             }
         });

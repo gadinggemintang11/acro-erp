@@ -2,8 +2,8 @@
 
 <style>
 :root {
-    --primary: #4F46E5;
-    --primary-dark: #4338CA;
+    --primary: var(--brand-1);
+    --primary-dark: var(--brand-2);
     --success: #10B981;
     --warning: #F59E0B;
     --danger: #EF4444;
@@ -227,7 +227,7 @@
     <!-- Page Header -->
     <div class="page-header-modern">
         <h1><i class="fas fa-balance-scale"></i> <?= $title; ?></h1>
-        <p>Neraca Saldo - Trial Balance Report</p>
+        <p><?= lang_line('rpt_tb_subtitle'); ?></p>
     </div>
 
     <!-- Filter Card -->
@@ -236,16 +236,16 @@
             <div class="filter-section">
                 <div class="form-group-modern">
                     <label for="as_of_date">
-                        <i class="far fa-calendar-alt"></i> Per Tanggal (As of Date)
+                        <i class="far fa-calendar-alt"></i> <?= lang_line('rpt_as_of_label'); ?>
                     </label>
                     <input type="date" class="form-control-modern" id="as_of_date" name="as_of_date" value="<?= $as_of_date; ?>" required>
                 </div>
                 <div>
                     <button type="submit" class="btn-modern primary">
-                        <i class="fa fa-search"></i> Tampilkan Laporan
+                        <i class="fa fa-search"></i> <?= lang_line('rpt_show_report'); ?>
                     </button>
                     <a href="<?= current_url(); ?>" class="btn-modern secondary">
-                        <i class="fa fa-redo"></i> Reset
+                        <i class="fa fa-redo"></i> <?= lang_line('rpt_reset'); ?>
                     </a>
                 </div>
             </div>
@@ -257,10 +257,10 @@
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
             <div>
                 <h4 style="margin: 0; color: var(--text-primary); font-weight: 700;">
-                    <i class="fas fa-file-invoice-dollar" style="color: var(--primary);"></i> Neraca Saldo
+                    <i class="fas fa-file-invoice-dollar" style="color: var(--primary);"></i> <?= lang_line('rpt_tb_heading'); ?>
                 </h4>
                 <p style="margin: 0.5rem 0 0 0; color: var(--text-secondary); font-size: 0.875rem;">
-                    Per Tanggal: <strong><?= date('d F Y', strtotime($as_of_date)); ?></strong>
+                    <?= lang_line('rpt_as_of'); ?>: <strong><?= date('d F Y', strtotime($as_of_date)); ?></strong>
                 </p>
             </div>
             <?php
@@ -270,27 +270,27 @@
             ?>
             <div class="dropdown">
                 <button class="btn-modern success dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                    <i class="fa fa-download"></i> Ekspor Laporan
+                    <i class="fa fa-download"></i> <?= lang_line('rpt_export_report'); ?>
                 </button>
                 <div class="dropdown-menu dropdown-menu-right">
                     <a class="dropdown-item" href="<?= current_url() . '?' . $queryString . '&export=pdf'; ?>" target="_blank">
-                        <i class="fa fa-file-pdf text-danger"></i> Ekspor ke PDF
+                        <i class="fa fa-file-pdf text-danger"></i> <?= lang_line('rpt_export_pdf'); ?>
                     </a>
                     <a class="dropdown-item" href="<?= current_url() . '?' . $queryString . '&export=excel'; ?>">
-                        <i class="fa fa-file-excel text-success"></i> Ekspor ke Excel
+                        <i class="fa fa-file-excel text-success"></i> <?= lang_line('rpt_export_excel'); ?>
                     </a>
                 </div>
             </div>
         </div>
-        
+
         <div class="table-responsive">
             <table class="report-table">
                 <thead>
                     <tr>
-                        <th style="text-align: left;">Kode Akun</th>
-                        <th style="text-align: left;">Nama Akun</th>
-                        <th style="text-align: right; width: 18%;">Debit (Rp)</th>
-                        <th style="text-align: right; width: 18%;">Kredit (Rp)</th>
+                        <th style="text-align: left;"><?= lang_line('rpt_account_code'); ?></th>
+                        <th style="text-align: left;"><?= lang_line('rpt_account_name'); ?></th>
+                        <th style="text-align: right; width: 18%;"><?= lang_line('rpt_tb_debit_rp'); ?></th>
+                        <th style="text-align: right; width: 18%;"><?= lang_line('rpt_tb_credit_rp'); ?></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -318,7 +318,7 @@
                 <tfoot>
                     <tr style="background: var(--light-bg); border-top: 3px solid var(--dark);">
                         <td colspan="2" style="text-align: right; font-size: 1rem;">
-                            <i class="fas fa-calculator"></i> TOTAL
+                            <i class="fas fa-calculator"></i> <?= lang_line('rpt_total'); ?>
                         </td>
                         <td style="text-align: right; color: var(--success); font-size: 1rem;">
                             <?= number_format($total_debit, 2); ?>
@@ -334,11 +334,11 @@
                         <td colspan="4" style="text-align: center; padding: 1.5rem; background: var(--light-bg); border-radius: 0 0 12px 12px;">
                             <?php if ($is_balance): ?>
                                 <span class="status-badge balance">
-                                    <i class="fas fa-check-circle"></i> BALANCE
+                                    <i class="fas fa-check-circle"></i> <?= lang_line('rpt_bs_balanced'); ?>
                                 </span>
                             <?php else: ?>
                                 <span class="status-badge not-balance">
-                                    <i class="fas fa-times-circle"></i> NOT BALANCE
+                                    <i class="fas fa-times-circle"></i> <?= lang_line('rpt_bs_not_balanced'); ?>
                                 </span>
                             <?php endif; ?>
                         </td>

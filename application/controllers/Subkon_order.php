@@ -56,7 +56,7 @@ class Subkon_order extends MY_Controller {
         $offset = ($page > 0) ? ($page - 1) * $config['per_page'] : 0;
 
         $data = [
-            'title'       => 'Daftar Kontrak Subkon (Subkon Order)',
+            'title'       => lang_line('title_subkon_order_index'),
             'filters'     => $filters,
             'orders'      => $this->Subkon_order_model->get_all($filters, $config['per_page'], $offset),
             'pagination'  => $this->pagination->create_links(),
@@ -73,7 +73,7 @@ class Subkon_order extends MY_Controller {
     public function create() {
         if (!check_access('subkon_order', 'add')) { show_error('Akses ditolak', 403); }
         $data = [
-            'title' => 'Buat Kontrak Subkon Baru'
+            'title' => lang_line('title_subkon_order_create')
         ];
         $this->load_views('subkon_order/create', $data);
     }
@@ -227,7 +227,7 @@ class Subkon_order extends MY_Controller {
         }
 
         $data = [
-            'title'             => 'Detail Kontrak Subkon: ' . $header->subkon_order_no,
+            'title'             => sprintf(lang_line('title_subkon_order_detail'), $header->subkon_order_no),
             'header'            => $header,
             'output_items'      => $output_items,
             'bom_items_grouped' => $bom_items_grouped
@@ -307,7 +307,7 @@ class Subkon_order extends MY_Controller {
      * Aksi Konfirmasi Kontrak
      */
     public function confirm($id) {
-        if (!check_access('subkon_order', 'edit')) { show_error('Akses ditolak', 403); }
+        if (!check_access('subkon_order', 'confirm')) { show_error('Akses ditolak', 403); }
         
         $output_items = $this->Subkon_order_model->get_output_details($id);
         if (empty($output_items)) {
@@ -363,7 +363,7 @@ class Subkon_order extends MY_Controller {
         }
         
         $data = [
-            'title'             => 'Kontrak Subkon ' . $header->subkon_order_no,
+            'title'             => sprintf(lang_line('title_subkon_order_contract'), $header->subkon_order_no),
             'header'            => $header,
             'output_items'      => $output_items,
             'bom_items_grouped' => $bom_items_grouped

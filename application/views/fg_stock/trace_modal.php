@@ -1,7 +1,7 @@
 <div class="modal-header bg-light border-bottom">
     <h5 class="modal-title fw-semibold">
         <i class="fas fa-file-alt text-primary me-2"></i>
-        Detail Dokumen: <?= htmlspecialchars($header['source_type'] ?? '-') . ' #' . htmlspecialchars($header['source_id'] ?? '-'); ?>
+        <?= lang_line('fg_stock_tm_title', 'Detail Dokumen'); ?>: <?= htmlspecialchars($header['source_type'] ?? '-') . ' #' . htmlspecialchars($header['source_id'] ?? '-'); ?>
     </h5>
     <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
 </div>
@@ -13,22 +13,22 @@
         <div class="card-body py-3">
             <div class="row g-3 align-items-center">
                 <div class="col-md-4">
-                    <h6 class="text-muted mb-1">Nomor Dokumen</h6>
+                    <h6 class="text-muted mb-1"><?= lang_line('fg_stock_tm_doc_number', 'Nomor Dokumen'); ?></h6>
                     <strong><?= htmlspecialchars($header['source_number'] ?? '-'); ?></strong>
                 </div>
                 <div class="col-md-3">
-                    <h6 class="text-muted mb-1">Tanggal Dokumen</h6>
+                    <h6 class="text-muted mb-1"><?= lang_line('fg_stock_tm_doc_date', 'Tanggal Dokumen'); ?></h6>
                     <strong><?= !empty($header['source_date']) ? date('d M Y', strtotime($header['source_date'])) : '-'; ?></strong>
                 </div>
                 <div class="col-md-3">
-                    <h6 class="text-muted mb-1">Tipe Dokumen</h6>
+                    <h6 class="text-muted mb-1"><?= lang_line('fg_stock_tm_doc_type', 'Tipe Dokumen'); ?></h6>
                     <span class="badge bg-primary"><?= htmlspecialchars($header['source_type'] ?? '-'); ?></span>
                 </div>
                 <div class="col-md-2 text-end">
                     <?php if (!empty($header['remarks'])): ?>
-                        <button class="btn btn-sm btn-outline-secondary" type="button" 
+                        <button class="btn btn-sm btn-outline-secondary" type="button"
                                 data-bs-toggle="collapse" data-bs-target="#remarksCollapse">
-                            <i class="fas fa-comment-dots me-1"></i> Catatan
+                            <i class="fas fa-comment-dots me-1"></i> <?= lang_line('fg_stock_tm_btn_notes', 'Catatan'); ?>
                         </button>
                     <?php endif; ?>
                 </div>
@@ -50,16 +50,16 @@
         <table class="table table-bordered table-hover align-middle mb-0" style="font-size: 0.9rem;">
             <thead class="table-light">
                 <tr>
-                    <th class="text-center" width="5%">No</th>
-                    <th width="12%">Tanggal</th>
-                    <th width="10%">Tipe</th>
-                    <th width="16%">Nomor Dokumen</th>
-                    <th width="10%">BC Type</th>
-                    <th width="12%">BC Number</th>
-                    <th width="10%" class="text-end">Qty In</th>
-                    <th width="10%" class="text-end">Qty Out</th>
-                    <th width="8%">Satuan</th>
-                    <th width="12%">Keterangan</th>
+                    <th class="text-center" width="5%"><?= lang_line('fg_stock_tm_th_no', 'No'); ?></th>
+                    <th width="12%"><?= lang_line('fg_stock_tm_th_date', 'Tanggal'); ?></th>
+                    <th width="10%"><?= lang_line('fg_stock_tm_th_type', 'Tipe'); ?></th>
+                    <th width="16%"><?= lang_line('fg_stock_tm_th_doc_no', 'Nomor Dokumen'); ?></th>
+                    <th width="10%"><?= lang_line('fg_stock_tm_th_bc_type', 'BC Type'); ?></th>
+                    <th width="12%"><?= lang_line('fg_stock_tm_th_bc_number', 'BC Number'); ?></th>
+                    <th width="10%" class="text-end"><?= lang_line('fg_stock_tm_th_qty_in', 'Qty In'); ?></th>
+                    <th width="10%" class="text-end"><?= lang_line('fg_stock_tm_th_qty_out', 'Qty Out'); ?></th>
+                    <th width="8%"><?= lang_line('fg_stock_tm_th_unit', 'Satuan'); ?></th>
+                    <th width="12%"><?= lang_line('fg_stock_tm_th_description', 'Keterangan'); ?></th>
                 </tr>
             </thead>
             <tbody>
@@ -83,7 +83,7 @@
                         </tr>
                     <?php endforeach; ?>
                 <?php else: ?>
-                    <tr><td colspan="10" class="text-center text-muted py-3">Tidak ada detail transaksi ditemukan.</td></tr>
+                    <tr><td colspan="10" class="text-center text-muted py-3"><?= lang_line('fg_stock_tm_no_trans', 'Tidak ada detail transaksi ditemukan.'); ?></td></tr>
                 <?php endif; ?>
             </tbody>
         </table>
@@ -93,6 +93,6 @@
 
 <div class="modal-footer bg-light">
     <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">
-        <i class="fas fa-times me-1"></i> Tutup
+        <i class="fas fa-times me-1"></i> <?= lang_line('fg_stock_tm_close', 'Tutup'); ?>
     </button>
 </div>

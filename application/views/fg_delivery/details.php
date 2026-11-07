@@ -29,8 +29,8 @@
                 <div id="detail-rows">
                     <div class="form-row align-items-end detail-row mb-2">
                         <div class="col-md-3">
-                            <label>Sales Contract (opsional)</label>
-                            <input type="text" name="details[0][sales_contract_id]" class="form-control sc-autocomplete" placeholder="Isi ID SC atau kosongkan">
+                            <label>Sales Order Number (opsional)</label>
+                            <input type="text" name="details[0][sales_contract_id]" class="form-control sc-autocomplete" placeholder="Isi ID Sales Order atau kosongkan">
                         </div>
                         <div class="col-md-3">
                             <label>Barang FG</label>

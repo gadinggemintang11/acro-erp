@@ -9,7 +9,7 @@ class Master_supplier extends MY_Controller {
         $this->load->model('Supplier_model');
         // ✅ Load Commoncode_model untuk data dinamis
         $this->load->model('Commoncode_model');
-        $this->load->helper(['form', 'url']);
+        $this->load->helper(['form', 'url', 'export']);
         $this->load->library('pagination');
     }
 
@@ -19,9 +19,10 @@ class Master_supplier extends MY_Controller {
             show_error('Anda tidak memiliki izin untuk melihat modul ini.', 403);
         }
 
-        // ✅ GET: search, jenis, status, page dari query string
+        // ✅ GET: search, jenis, kategori, status, page dari query string
         $search = $this->input->get('search', true);
         $jenis = $this->input->get('jenis', true);
+        $kategori = $this->input->get('kategori', true);
         $status = $this->input->get('status', true);
         $page = (int) $this->input->get('page', 0);
 
@@ -30,10 +31,10 @@ class Master_supplier extends MY_Controller {
         $offset = $page > 0 ? ($page - 1) * $limit : 0;
 
         // Count total records
-        $total_rows = $this->Supplier_model->count_all($search, $jenis, $status);
+        $total_rows = $this->Supplier_model->count_all($search, $jenis, $status, $kategori);
 
         // Get paginated data
-        $suppliers = $this->Supplier_model->get_paginated($search, $jenis, $status, $limit, $offset);
+        $suppliers = $this->Supplier_model->get_paginated($search, $jenis, $status, $limit, $offset, $kategori);
 
         // Pagination config - Sama seperti Master Material
         $config['base_url'] = site_url('master_supplier');
@@ -64,16 +65,18 @@ class Master_supplier extends MY_Controller {
         $this->pagination->initialize($config);
 
         $data = [
-            'title'     => 'Master Supplier',
-            'suppliers' => $suppliers,
-            'jenis_list' => $this->Commoncode_model->get_by_group('SUPPLIER_TYPE'),
-            'pagination' => $this->pagination->create_links(),
-            'total_rows' => $total_rows,
-            'search'     => $search,
-            'jenis'      => $jenis,
-            'status'     => $status,
-            'limit'      => $limit,
-            'offset'     => $offset
+            'title'          => lang_line('supplier_title'),
+            'suppliers'      => $suppliers,
+            'jenis_list'     => $this->Commoncode_model->get_by_group('SUPPLIER_TYPE'),
+            'kategori_list'  => $this->Commoncode_model->get_by_group('Kategori_supplier'),
+            'pagination'     => $this->pagination->create_links(),
+            'total_rows'     => $total_rows,
+            'search'         => $search,
+            'jenis'          => $jenis,
+            'kategori'       => $kategori,
+            'status'         => $status,
+            'limit'          => $limit,
+            'offset'         => $offset
         ];
 
         $this->load->view('templates/header', $data);
@@ -90,13 +93,23 @@ class Master_supplier extends MY_Controller {
         }
 
         $data = [
-            'kode_supplier' => $this->Supplier_model->generate_kode($this->input->post('jenis')),
-            'nama_supplier' => $this->input->post('nama_supplier'),
-            'jenis'         => $this->input->post('jenis'),
-            'npwp'          => $this->input->post('npwp'),
-            'alamat'        => $this->input->post('alamat'),
-            'telepon'       => $this->input->post('telepon'),
-            'status'        => 'active',
+            'kode_supplier'      => trim($this->input->post('kode_supplier')),
+            'nama_supplier'      => $this->input->post('nama_supplier'),
+            'contact_person'     => $this->input->post('contact_person'),
+            'jenis'              => $this->input->post('jenis'),
+            'kategori'           => $this->input->post('kategori'),
+            'npwp'               => $this->input->post('npwp'),
+            'alamat'             => $this->input->post('alamat'),
+            'telepon'            => $this->input->post('telepon'),
+            'bank_name'          => $this->input->post('bank_name'),
+            'bank_account'       => $this->input->post('bank_account'),
+            // Nama pemilik rekening -- dulu ditebak dari nama supplier saat
+            // cetak PRF (user 2026-10-02). Boleh kosong.
+            'bank_account_name'  => $this->input->post('bank_account_name'),
+            'pph23'              => $this->input->post('pph23') ? 1 : 0,
+            'pph23_rate'         => (float) ($this->input->post('pph23_rate') ?: 2),
+            'supply_description' => $this->input->post('supply_description'),
+            'status'             => 'active',
         ];
 
         if ($this->Supplier_model->insert($data)) {
@@ -114,12 +127,23 @@ class Master_supplier extends MY_Controller {
         }
 
         $data = [
-            'nama_supplier' => $this->input->post('nama_supplier'),
-            'jenis'         => $this->input->post('jenis'),
-            'npwp'          => $this->input->post('npwp'),
-            'alamat'        => $this->input->post('alamat'),
-            'telepon'       => $this->input->post('telepon'),
-            'status'        => $this->input->post('status'),
+            'kode_supplier'      => trim($this->input->post('kode_supplier')),
+            'nama_supplier'      => $this->input->post('nama_supplier'),
+            'contact_person'     => $this->input->post('contact_person'),
+            'jenis'              => $this->input->post('jenis'),
+            'kategori'           => $this->input->post('kategori'),
+            'npwp'               => $this->input->post('npwp'),
+            'alamat'             => $this->input->post('alamat'),
+            'telepon'            => $this->input->post('telepon'),
+            'bank_name'          => $this->input->post('bank_name'),
+            'bank_account'       => $this->input->post('bank_account'),
+            // Nama pemilik rekening -- dulu ditebak dari nama supplier saat
+            // cetak PRF (user 2026-10-02). Boleh kosong.
+            'bank_account_name'  => $this->input->post('bank_account_name'),
+            'pph23'              => $this->input->post('pph23') ? 1 : 0,
+            'pph23_rate'         => (float) ($this->input->post('pph23_rate') ?: 2),
+            'supply_description' => $this->input->post('supply_description'),
+            'status'             => $this->input->post('status'),
         ];
 
         if ($this->Supplier_model->update($id, $data)) {
@@ -154,10 +178,11 @@ class Master_supplier extends MY_Controller {
         // Get filter dari query string
         $search = $this->input->get('search', true);
         $jenis = $this->input->get('jenis', true);
+        $kategori = $this->input->get('kategori', true);
         $status = $this->input->get('status', true);
 
         // Get data untuk export
-        $suppliers = $this->Supplier_model->get_for_export($search, $jenis, $status);
+        $suppliers = $this->Supplier_model->get_for_export($search, $jenis, $status, $kategori);
 
         // Filename
         $filename = 'Supplier_' . date('Y-m-d_H-i-s') . '.xlsx';
@@ -224,7 +249,7 @@ class Master_supplier extends MY_Controller {
 
         // Header row
         $xml .= '<row r="1">' . "\n";
-        $headers = ['Kode Supplier', 'Nama Supplier', 'Jenis', 'NPWP', 'Alamat', 'Telepon', 'Status'];
+        $headers = ['Kode Supplier', 'Nama Supplier', 'Jenis', 'Kategori', 'NPWP', 'Alamat', 'Telepon', 'Nama Bank', 'No. Rekening', 'Menyuplai Apa', 'Status'];
         foreach ($headers as $col => $header) {
             $col_letter = $this->_get_excel_column_letter($col + 1);
             $xml .= '<c r="' . $col_letter . '1" t="inlineStr"><is><t>' . htmlspecialchars($header) . '</t></is></c>' . "\n";
@@ -239,9 +264,13 @@ class Master_supplier extends MY_Controller {
                 $supplier->kode_supplier,
                 $supplier->nama_supplier,
                 $supplier->jenis,
+                $this->_kategori_label($supplier->kategori ?? ''),
                 $supplier->npwp,
                 $supplier->alamat,
                 $supplier->telepon,
+                $supplier->bank_name ?? '',
+                $supplier->bank_account ?? '',
+                $supplier->supply_description ?? '',
                 strtoupper($supplier->status)
             ];
             foreach ($data as $col => $value) {
@@ -312,7 +341,7 @@ class Master_supplier extends MY_Controller {
         $xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' . "\n";
         $xml .= '<Properties xmlns="http://schemas.openxmlformats.org/officeDocument/2006/custom-properties" xmlns:vt="http://schemas.openxmlformats.org/officeDocument/2006/docPropsVTypes">' . "\n";
         $xml .= '<AppVersion>12.0000</AppVersion>' . "\n";
-        $xml .= '<Application>Mingbao ERP</Application>' . "\n";
+        $xml .= '<Application>' . htmlspecialchars(company_info('app_name'), ENT_XML1) . '</Application>' . "\n";
         $xml .= '<DocSecurity>0</DocSecurity>' . "\n";
         $xml .= '<ScaleCrop>false</ScaleCrop>' . "\n";
         $xml .= '<HeadingPairs>' . "\n";
@@ -335,8 +364,8 @@ class Master_supplier extends MY_Controller {
     private function _generate_xlsx_core_xml($temp_dir) {
         $xml = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' . "\n";
         $xml .= '<cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:dcmitype="http://purl.org/dc/dcmitype/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">' . "\n";
-        $xml .= '<dc:creator>Mingbao ERP</dc:creator>' . "\n";
-        $xml .= '<cp:lastModifiedBy>Mingbao ERP</cp:lastModifiedBy>' . "\n";
+        $xml .= '<dc:creator>' . htmlspecialchars(company_info('app_name'), ENT_XML1) . '</dc:creator>' . "\n";
+        $xml .= '<cp:lastModifiedBy>' . htmlspecialchars(company_info('app_name'), ENT_XML1) . '</cp:lastModifiedBy>' . "\n";
         $xml .= '<dcterms:created xsi:type="dcterms:W3CDTF">' . date('Y-m-d\TH:i:s\Z') . '</dcterms:created>' . "\n";
         $xml .= '<dcterms:modified xsi:type="dcterms:W3CDTF">' . date('Y-m-d\TH:i:s\Z') . '</dcterms:modified>' . "\n";
         $xml .= '</cp:coreProperties>' . "\n";
@@ -373,6 +402,12 @@ class Master_supplier extends MY_Controller {
             return true;
         }
         return false;
+    }
+
+    // Helper: Label kategori supplier untuk export Excel/PDF
+    private function _kategori_label($kategori) {
+        $labels = ['general' => 'General', 'produksi' => 'Produksi', 'jasa' => 'Jasa'];
+        return $labels[$kategori] ?? 'General';
     }
 
     // Helper: Convert number to Excel column letter (1=A, 26=Z, 27=AA, etc)
@@ -414,10 +449,11 @@ class Master_supplier extends MY_Controller {
         // Get filter dari query string
         $search = $this->input->get('search', true);
         $jenis = $this->input->get('jenis', true);
+        $kategori = $this->input->get('kategori', true);
         $status = $this->input->get('status', true);
 
         // Get data untuk export
-        $suppliers = $this->Supplier_model->get_for_export($search, $jenis, $status);
+        $suppliers = $this->Supplier_model->get_for_export($search, $jenis, $status, $kategori);
 
         // Generate PDF filename
         $filename = 'Supplier_' . date('Y-m-d_H-i-s') . '.pdf';
@@ -543,14 +579,18 @@ class Master_supplier extends MY_Controller {
         <table>
             <thead>
                 <tr>
-                    <th style="width: 5%;">No</th>
-                    <th style="width: 12%;">Kode</th>
-                    <th style="width: 20%;">Nama Supplier</th>
-                    <th style="width: 10%;">Jenis</th>
-                    <th style="width: 15%;">NPWP</th>
-                    <th style="width: 20%;">Alamat</th>
-                    <th style="width: 10%;">Telepon</th>
-                    <th style="width: 8%;">Status</th>
+                    <th style="width: 4%;">No</th>
+                    <th style="width: 9%;">Kode</th>
+                    <th style="width: 14%;">Nama Supplier</th>
+                    <th style="width: 7%;">Jenis</th>
+                    <th style="width: 8%;">Kategori</th>
+                    <th style="width: 10%;">NPWP</th>
+                    <th style="width: 13%;">Alamat</th>
+                    <th style="width: 8%;">Telepon</th>
+                    <th style="width: 9%;">Nama Bank</th>
+                    <th style="width: 10%;">No. Rekening</th>
+                    <th style="width: 10%;">Menyuplai Apa</th>
+                    <th style="width: 6%;">Status</th>
                 </tr>
             </thead>
             <tbody>';
@@ -562,9 +602,13 @@ class Master_supplier extends MY_Controller {
                 <td><strong>' . htmlspecialchars($supplier->kode_supplier) . '</strong></td>
                 <td>' . htmlspecialchars($supplier->nama_supplier) . '</td>
                 <td>' . htmlspecialchars($supplier->jenis) . '</td>
+                <td>' . $this->_kategori_label($supplier->kategori ?? '') . '</td>
                 <td>' . htmlspecialchars($supplier->npwp) . '</td>
                 <td>' . htmlspecialchars($supplier->alamat) . '</td>
                 <td>' . htmlspecialchars($supplier->telepon) . '</td>
+                <td>' . htmlspecialchars($supplier->bank_name ?? '-') . '</td>
+                <td>' . htmlspecialchars($supplier->bank_account ?? '-') . '</td>
+                <td>' . htmlspecialchars($supplier->supply_description ?? '-') . '</td>
                 <td><span style="background-color: ' . (strtoupper($supplier->status) == 'ACTIVE' ? '#28a745' : '#dc3545') . '; color: white; padding: 3px 8px; border-radius: 3px; font-size: 11px;">' . strtoupper($supplier->status) . '</span></td>
             </tr>';
             $no++;
@@ -574,7 +618,7 @@ class Master_supplier extends MY_Controller {
         </table>
         
         <div class="footer">
-            <p>Dokumen ini dihasilkan oleh Sistem ERP Mingbao pada ' . date('d-m-Y H:i:s') . '</p>
+            <p>Dokumen ini dihasilkan oleh Sistem ' . htmlspecialchars(company_info('app_name')) . ' pada ' . date('d-m-Y H:i:s') . '</p>
             <p>Tekan Ctrl+P (atau Cmd+P) untuk print dan save sebagai PDF</p>
         </div>
     </div>

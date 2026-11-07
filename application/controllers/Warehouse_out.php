@@ -27,7 +27,7 @@ class Warehouse_out extends MY_Controller {
         ];
 
         $data = [
-            'title' => 'Warehouse Out - Retur Supplier',
+            'title' => lang_line('page_warehouse_out_title'),
             'report_data' => $this->Warehouse_out_model->get_list($filters),
             'filters' => $filters,
             'bc_types' => array_column($this->Commoncode_model->get_by_group('BC_TYPE'), 'description', 'code')
@@ -53,7 +53,7 @@ class Warehouse_out extends MY_Controller {
         if (!check_access('warehouse_out', 'add')) { show_error('Akses ditolak', 403); }
 
         $data = [
-            'title' => 'Buat Retur Supplier',
+            'title' => lang_line('title_wo_create'),
             'bc_types' => $this->Commoncode_model->get_by_group('BC_TYPE')
         ];
 
@@ -130,7 +130,7 @@ class Warehouse_out extends MY_Controller {
         $details = $this->Warehouse_out_model->get_details($id);
 
         $data = [
-            'title' => 'Detail Retur - ' . ($header->out_number ?? 'Draft'),
+            'title' => sprintf(lang_line('title_wo_detail'), ($header->out_number ?? 'Draft')),
             'header' => $header,
             'details' => $details
         ];
@@ -275,9 +275,235 @@ class Warehouse_out extends MY_Controller {
         exit;
     }
 
+    // =====================================================
+    // PRODUCTION RETURN — Return to Supplier from Production QC Reject
+    // =====================================================
+
+    /**
+     * AJAX GET: List issuances with QC reject items for Production Return WO.
+     */
+    public function popup_select_production_return() {
+        header('Content-Type: application/json');
+        if (!check_access('warehouse_out', 'add') && !check_access('warehouse_out', 'edit')) {
+            echo json_encode(['success' => false, 'message' => 'Akses ditolak']); return;
+        }
+        $search    = $this->input->get('search');
+        $header_id = $this->input->get('header_id');
+        $list = $this->Warehouse_out_model->get_production_reject_issuances(['search' => $search]);
+        echo json_encode(['success' => true, 'data' => $list, 'header_id' => $header_id]);
+    }
+
+    /**
+     * AJAX POST: Load reject items from selected issuance IDs for Production Return WO.
+     * Body: { issuance_ids: [1,2,...] }
+     */
+    public function load_production_reject_items() {
+        header('Content-Type: application/json');
+        if (!check_access('warehouse_out', 'view')) {
+            echo json_encode(['success' => false, 'message' => 'Akses ditolak']); return;
+        }
+        $raw         = $this->input->raw_input_stream;
+        $payload     = json_decode($raw, true);
+        $issuance_ids = $payload['issuance_ids'] ?? $this->input->post('issuance_ids');
+        if (empty($issuance_ids) || !is_array($issuance_ids)) {
+            echo json_encode(['success' => false, 'message' => 'Pilih minimal satu issuance']); return;
+        }
+        $items = $this->Warehouse_out_model->get_production_reject_items_by_issuances($issuance_ids);
+        echo json_encode(['success' => true, 'items' => $items]);
+    }
+
+    /**
+     * AJAX POST: Attach production reject items to a Draft WO header.
+     */
+    public function pull_production_reject_items_to_header() {
+        header('Content-Type: application/json');
+        if (!check_access('warehouse_out', 'edit')) {
+            echo json_encode(['success' => false, 'message' => 'Akses ditolak']); return;
+        }
+        $raw       = $this->input->raw_input_stream;
+        $payload   = json_decode($raw, true);
+        $header_id = $payload['header_id'] ?? null;
+        $items     = $payload['items']     ?? [];
+        if (empty($header_id) || empty($items)) {
+            echo json_encode(['success' => false, 'message' => 'Data tidak valid']); return;
+        }
+        $hdr = $this->Warehouse_out_model->get_header($header_id);
+        if (!$hdr || $hdr->status !== 'Draft') {
+            echo json_encode(['success' => false, 'message' => 'Header harus berstatus Draft']); return;
+        }
+
+        $added = 0; $errors = [];
+        foreach ($items as $item) {
+            $grn_detail_id = $item['grn_detail_id'] ?? null;
+            $qty_return    = (float)($item['qty_return'] ?? 0);
+            if ($qty_return <= 0) continue;
+
+            // Cek duplikat berdasarkan grn_detail_id
+            if ($grn_detail_id && $this->Warehouse_out_model->detail_exists($header_id, $grn_detail_id)) {
+                $errors[] = ($item['item_name'] ?? 'item') . ': sudah ada'; continue;
+            }
+            $detail = [
+                'header_id'      => $header_id,
+                'grn_id'         => $item['grn_header_id'] ?? null,
+                'grn_header_id'  => $item['grn_header_id'] ?? null,
+                'grn_detail_id'  => $grn_detail_id,
+                'po_id'          => $item['po_header_id']  ?? null,
+                'item_id'        => $item['item_id']        ?? null,
+                'item_type'      => $item['item_type']      ?? 'material',
+                'item_code'      => $item['item_code']      ?? null,
+                'item_name'      => $item['item_name']      ?? null,
+                'unit'           => $item['unit']           ?? null,
+                'qty_po'         => 0,
+                'qty_received'   => (float)($item['reject_qty'] ?? 0),
+                'qty_return'     => $qty_return,
+                'unit_value_idr' => (float)($item['unit_value'] ?? 0),
+            ];
+            if ($this->Warehouse_out_model->add_detail($detail)) {
+                $added++;
+            } else {
+                $errors[] = 'Gagal tambah: ' . ($item['item_name'] ?? '-');
+            }
+        }
+
+        // Update supplier + po info di header
+        if ($added > 0) {
+            $first = reset($items);
+            $upd = [];
+            if (!empty($first['supplier_id']))   $upd['supplier_id']   = $first['supplier_id'];
+            if (!empty($first['nama_supplier']))  $upd['nama_supplier'] = $first['nama_supplier'];
+            if (!empty($upd)) $this->Warehouse_out_model->update_header($header_id, $upd);
+        }
+
+        echo json_encode(['success' => $added > 0, 'added' => $added, 'errors' => $errors,
+            'message' => $added . ' item production reject berhasil ditambahkan']);
+    }
+
+    // =====================================================
+    // NG RETURN — Return to Supplier from QA NG items
+    // =====================================================
+
+    /**
+     * AJAX: Return list of completed QA docs that have NG items (JSON).
+     */
+    public function popup_select_ng_qa() {
+        header('Content-Type: application/json');
+        if (!check_access('warehouse_out', 'add') && !check_access('warehouse_out', 'edit')) {
+            echo json_encode(['success' => false, 'message' => 'Akses ditolak']); return;
+        }
+        $search    = $this->input->get('search');
+        $header_id = $this->input->get('header_id');
+        $list = $this->Warehouse_out_model->get_ng_qa_list(['search' => $search]);
+        echo json_encode(['success' => true, 'data' => $list, 'header_id' => $header_id]);
+    }
+
+    /**
+     * AJAX POST: Load NG items from selected QA IDs.
+     * Body: { qa_ids: [1,2,...] }
+     */
+    public function load_ng_qa_items() {
+        header('Content-Type: application/json');
+        if (!check_access('warehouse_out', 'view')) {
+            echo json_encode(['success' => false, 'message' => 'Akses ditolak']); return;
+        }
+        $raw     = $this->input->raw_input_stream;
+        $payload = json_decode($raw, true);
+        $qa_ids  = $payload['qa_ids'] ?? $this->input->post('qa_ids');
+        if (empty($qa_ids) || !is_array($qa_ids)) {
+            echo json_encode(['success' => false, 'message' => 'Pilih minimal satu QA']); return;
+        }
+        $items = $this->Warehouse_out_model->get_ng_items_by_qa_ids($qa_ids);
+        echo json_encode(['success' => true, 'items' => $items]);
+    }
+
+    /**
+     * AJAX POST: Attach NG items to a Draft warehouse_out header.
+     * Body: { header_id: N, items: [...] }
+     */
+    public function pull_ng_qa_items_to_header() {
+        header('Content-Type: application/json');
+        if (!check_access('warehouse_out', 'edit')) {
+            echo json_encode(['success' => false, 'message' => 'Akses ditolak']); return;
+        }
+        $raw     = $this->input->raw_input_stream;
+        $payload = json_decode($raw, true);
+        $header_id = $payload['header_id'] ?? null;
+        $items     = $payload['items']     ?? [];
+
+        if (empty($header_id) || empty($items)) {
+            echo json_encode(['success' => false, 'message' => 'Data tidak valid']); return;
+        }
+        $hdr = $this->Warehouse_out_model->get_header($header_id);
+        if (!$hdr || $hdr->status !== 'Draft') {
+            echo json_encode(['success' => false, 'message' => 'Header harus berstatus Draft']); return;
+        }
+
+        $added = 0; $errors = [];
+        foreach ($items as $item) {
+            $qa_detail_id = $item['qa_detail_id'] ?? null;
+            $qty_return   = (float)($item['qty_return'] ?? 0);
+            if (empty($qa_detail_id) || $qty_return <= 0) continue;
+
+            if ($this->Warehouse_out_model->detail_exists_by_qa_detail($header_id, $qa_detail_id)) {
+                $errors[] = ($item['item_name'] ?? 'item') . ': sudah ada'; continue;
+            }
+            $detail = [
+                'header_id'     => $header_id,
+                'qa_detail_id'  => $qa_detail_id,
+                'grn_id'        => $item['grn_header_id'] ?? null,
+                'grn_header_id' => $item['grn_header_id'] ?? null,
+                'grn_detail_id' => $item['grn_detail_id'] ?? null,
+                'item_id'       => $item['item_id']   ?? null,
+                'item_type'     => $item['item_type']  ?? 'material',
+                'item_code'     => $item['item_code']  ?? null,
+                'item_name'     => $item['item_name']  ?? null,
+                'unit'          => $item['unit']       ?? null,
+                'qty_po'        => (float)($item['qty_ordered']  ?? 0),
+                'qty_received'  => (float)($item['receive_qty']  ?? 0),
+                'qty_return'    => $qty_return,
+                'unit_value_idr'=> (float)($item['unit_value']   ?? 0),
+            ];
+            if ($this->Warehouse_out_model->add_detail($detail)) {
+                $added++;
+            } else {
+                $errors[] = 'Gagal tambah: ' . ($item['item_name'] ?? '-');
+            }
+        }
+
+        // Update supplier di header dari QA/GRN pertama
+        if ($added > 0) {
+            $first = reset($items);
+            $upd = [];
+            $supplier_id   = $first['supplier_id']   ?? null;
+            $nama_supplier = $first['nama_supplier']  ?? null;
+
+            if (!empty($supplier_id)) {
+                $upd['supplier_id'] = $supplier_id;
+                // Prefer nama_supplier passed from item (already resolved via PO/MIR chain)
+                if (!empty($nama_supplier)) {
+                    $upd['nama_supplier'] = $nama_supplier;
+                } else {
+                    $sup = $this->db->select('nama_supplier')->from('suppliers')
+                        ->where('id', $supplier_id)->limit(1)->get()->row();
+                    if ($sup) $upd['nama_supplier'] = $sup->nama_supplier;
+                }
+            } elseif (!empty($nama_supplier)) {
+                // No supplier_id but have name — store as legacy nama_supplier
+                $upd['nama_supplier'] = $nama_supplier;
+            }
+            if (!empty($upd)) {
+                $this->Warehouse_out_model->update_header($header_id, $upd);
+            }
+        }
+
+        echo json_encode(['success' => $added > 0, 'added' => $added, 'errors' => $errors,
+            'message' => $added . ' item NG berhasil ditambahkan' . (empty($errors) ? '' : ' (' . count($errors) . ' gagal)')]);
+    }
+
+    // =====================================================
+
     // confirm and post stock ledger
     public function confirm($id) {
-        if (!check_access('warehouse_out', 'edit')) { show_error('Akses ditolak', 403); }
+        if (!check_access('warehouse_out', 'confirm')) { show_error('Akses ditolak', 403); }
         $result = $this->do_confirm($id);
         if ($result['success']) {
             $this->session->set_flashdata('success', $result['message']);
@@ -312,7 +538,17 @@ class Warehouse_out extends MY_Controller {
         if (!$update_ok) { $this->db->trans_rollback(); return ['success'=>false,'message'=>'Gagal update header saat konfirmasi']; }
 
         $this->load->model('Stock_ledger_model');
+
+        // NG (QA reject) dan Production Return tidak boleh kurangi stock_ledger.
+        // Why: item NG dari incoming QA tidak pernah masuk ledger sebagai qty_in
+        // (QA hanya insert qty_pass), jadi mengeluarkan lagi akan double-subtract.
+        // Production Return: item sudah keluar saat material issuance, retur ke supplier
+        // bukan event stok lagi — hanya dokumen fisik.
+        $skip_ledger = in_array($header->base_on, ['NG', 'Production Return'], true);
+
         foreach ($details as $d) {
+            if ($skip_ledger) { continue; }
+
             $qty_out = (float)$d->qty_return;
 
             // Determine item_type. Details table historically may not store item_type,
@@ -523,7 +759,7 @@ class Warehouse_out extends MY_Controller {
 
     // Submit a Draft header for approval (Draft -> Pending Approval)
     public function submit_for_approval($header_id = null) {
-        if (!check_access('warehouse_out', 'edit')) { show_error('Anda tidak memiliki izin.', 403); }
+        if (!check_access('warehouse_out', 'submit')) { show_error('Anda tidak memiliki izin submit.', 403); }
         if (empty($header_id)) { redirect('warehouse_out'); }
 
         $header = $this->Warehouse_out_model->get_header($header_id);
@@ -551,7 +787,7 @@ class Warehouse_out extends MY_Controller {
     public function approve($header_id = null) {
         // Debug: log approve attempts
         file_put_contents('/tmp/warehouse_out_approve_debug.log', "[approve] called header_id=".print_r($header_id, true)." POST=".json_encode($_POST)." user_id=".$this->session->userdata('user_id')."\n", FILE_APPEND);
-        if (!check_access('warehouse_out', 'edit')) { show_error('Anda tidak memiliki izin.', 403); }
+        if (!check_access('warehouse_out', 'confirm')) { show_error('Anda tidak memiliki izin.', 403); }
         if (empty($header_id)) { redirect('warehouse_out'); }
 
         $header = $this->Warehouse_out_model->get_header($header_id);
@@ -589,7 +825,7 @@ class Warehouse_out extends MY_Controller {
 
     // Reject a header (Pending Approval -> Draft or Rejected)
     public function reject($header_id = null) {
-        if (!check_access('warehouse_out', 'edit')) { show_error('Anda tidak memiliki izin.', 403); }
+        if (!check_access('warehouse_out', 'confirm')) { show_error('Anda tidak memiliki izin.', 403); }
         if (empty($header_id)) { redirect('warehouse_out'); }
 
         $header = $this->Warehouse_out_model->get_header($header_id);
@@ -629,15 +865,28 @@ class Warehouse_out extends MY_Controller {
         if (!$header || strtolower($header->status) !== 'draft') { echo json_encode(['success'=>false,'message'=>'Header harus berstatus Draft untuk mengubah detail']); exit; }
 
         $qty_return = (float)$qty_return;
-
-        // Validate qty_return does not exceed receive_qty minus already confirmed returns
-        $grn_detail_id = $detail->grn_detail_id;
-        $received_row = $this->db->select('receive_qty')->from('grn_details')->where('id', $grn_detail_id)->get()->row();
-        $received = $received_row ? (float)$received_row->receive_qty : 0.0;
-        $already_confirmed = $this->Warehouse_out_model->get_total_returned_for_grn_detail($grn_detail_id);
-        $available = $received - $already_confirmed;
         if ($qty_return < 0) { echo json_encode(['success'=>false,'message'=>'Qty retur tidak boleh negatif']); exit; }
-        if ($qty_return - $available > 0.0001) { echo json_encode(['success'=>false,'message'=>"Qty retur ({$qty_return}) melebihi tersedia ({$available})"]); exit; }
+
+        // Validate qty_return does not exceed available qty
+        $header_obj  = $this->Warehouse_out_model->get_header($detail->header_id);
+        $base_on     = $header_obj ? $header_obj->base_on : '';
+        $grn_detail_id = $detail->grn_detail_id;
+
+        if ($base_on === 'Production Return') {
+            // Untuk Production Return, batas = qty_received (= reject_qty dari QC yang disimpan saat pull)
+            $max_qty = (float)($detail->qty_received ?? 0);
+            if ($qty_return > $max_qty + 0.0001) {
+                echo json_encode(['success'=>false,'message'=>"Qty retur ({$qty_return}) melebihi reject qty ({$max_qty})"]); exit;
+            }
+        } elseif (!empty($grn_detail_id)) {
+            $received_row = $this->db->select('receive_qty')->from('grn_details')->where('id', $grn_detail_id)->get()->row();
+            $received  = $received_row ? (float)$received_row->receive_qty : 0.0;
+            $already_confirmed = $this->Warehouse_out_model->get_total_returned_for_grn_detail($grn_detail_id);
+            $available = $received - $already_confirmed;
+            if ($qty_return - $available > 0.0001) {
+                echo json_encode(['success'=>false,'message'=>"Qty retur ({$qty_return}) melebihi tersedia ({$available})"]); exit;
+            }
+        }
 
         // optionally accept unit value and currency from client
         $unit_value_input = $this->input->post('unit_value');

@@ -68,7 +68,7 @@ if (!empty($trace)) {
                     <tr><td width="35%">Partner</td><td>: <strong><?= $partner_name; ?></strong></td></tr>
                     <tr><td>No. Dokumen</td><td>: <strong><?= $doc_no; ?></strong></td></tr>
                     <tr><td>Tgl Dokumen</td><td>: <?= $doc_date; ?></td></tr>
-                    <tr><td>Sales Contract</td><td>: <?= $sales_contract_ref; ?></td></tr>
+                    <tr><td>Sales Order Number</td><td>: <?= $sales_contract_ref; ?></td></tr>
                 </table>
             </div>
         </div>

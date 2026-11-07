@@ -5,9 +5,19 @@
              <a href="<?= base_url('Scrap_In/export_excel') . '?' . http_build_query($filters); ?>" class="btn btn-sm btn-success shadow-sm mr-2">
                 <i class="fas fa-file-excel mr-1"></i> <?= lang_line('scrap_in_export', 'Export Excel'); ?>
             </a>
-            <a href="<?= base_url('Scrap_In/create') ?>" class="btn btn-success shadow-sm btn-load">
-                <i class="fas fa-recycle mr-1"></i> <?= lang_line('scrap_in_collect_new', 'Kumpulkan Scrap Baru'); ?>
-            </a>
+            <div class="btn-group" role="group">
+                <button type="button" class="btn btn-success shadow-sm dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                    <i class="fas fa-plus mr-1"></i> Buat Scrap In Baru
+                </button>
+                <div class="dropdown-menu" aria-labelledby="dropdownMenuButton">
+                    <a class="dropdown-item" href="<?= base_url('Scrap_In/create') ?>">
+                        <i class="fas fa-recycle mr-2"></i> Kumpulkan dari Produksi
+                    </a>
+                    <a class="dropdown-item" href="<?= base_url('Scrap_In/create_warehouse') ?>">
+                        <i class="fas fa-warehouse mr-2"></i> Dari Warehouse (NG/Rusak)
+                    </a>
+                </div>
+            </div>
         </div>
     </div>
 
@@ -45,7 +55,13 @@
                         <tr class="text-center">
                             <td class="font-weight-bold text-primary"><?= htmlspecialchars($doc->doc_no); ?></td>
                             <td><?= date('d M Y', strtotime($doc->doc_date)); ?></td>
-                            <td><?= lang_line('scrap_in_from_production', 'Hasil Produksi'); ?></td>
+                            <td>
+                                <?php if(!empty($doc->source_type) && $doc->source_type == 'warehouse'): ?>
+                                    <span class="badge badge-warning"><i class="fas fa-warehouse mr-1"></i>Warehouse (NG)</span>
+                                <?php else: ?>
+                                    <span class="badge badge-info"><i class="fas fa-recycle mr-1"></i>Produksi</span>
+                                <?php endif; ?>
+                            </td>
                             <td class="text-left"><?= htmlspecialchars($doc->created_by_name ?: '-'); ?></td>
                             <td>
                                 <?php

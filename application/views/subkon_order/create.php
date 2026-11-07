@@ -118,7 +118,7 @@
 <template id="tplBomRow">
 <div class="d-flex align-items-center mb-1">
     <select name="bom[PARENT_IDX][IDX][item_id_type]" class="form-control form-control-sm select2 bom-item" style="width: 55%;" required></select>
-    <input type="number" step="0.001" name="bom[PARENT_IDX][IDX][qty_per_pcs]" placeholder="Qty / pcs" class="form-control form-control-sm text-end mx-2" style="width: 25%;" required>
+    <input type="number" step="0.001" name="bom[PARENT_IDX][IDX][qty_per_pcs]" placeholder="<?= lang_line('subkon_order_bom_qty_placeholder'); ?>" class="form-control form-control-sm text-end mx-2" style="width: 25%;" required>
     <button type="button" class="btn btn-outline-danger btn-sm btn-del-bom"><i class="fas fa-times"></i></button>
 </div>
 </template>

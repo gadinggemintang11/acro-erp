@@ -20,22 +20,132 @@ class Sc_model extends CI_Model {
      * (PERBAIKAN: Hapus alias 'as customer_name' agar view tidak error)
      */
     public function get_all() { // <-- Ini kemungkinan baris 15 tempat error terdeteksi
+        return $this->_get_with_filter(null);
+    }
+
+    /**
+     * Ambil SC dengan filter status (string atau array).
+     * NULL = semua status.
+     */
+    public function get_by_status($status) {
+        return $this->_get_with_filter($status);
+    }
+
+    /**
+     * Ambil SC status Draft saja (untuk menu Create New IPO).
+     */
+    public function get_drafts() {
+        return $this->_get_with_filter('Draft');
+    }
+
+    /**
+     * Ambil SC yang menunggu endorsement (untuk user can_endorsement).
+     */
+    public function get_pending_endorsement() {
+        return $this->_get_with_filter('Pending Endorsement');
+    }
+
+    /**
+     * Ambil SC yang sudah di-endorse, menunggu approval final (untuk user can_approval).
+     */
+    public function get_pending_approval() {
+        // Approval 1 tahap (2026-11-06): semua SO yang menunggu, termasuk sisa alur lama.
+        return $this->_get_with_filter(['Submitted', 'Pending Endorsement', 'Endorsed']);
+    }
+
+    /**
+     * Helper internal: query header SC dengan filter status opsional.
+     * Mengikutkan kolom audit approval workflow + nama user (jika tabel users ada).
+     */
+    private function _get_with_filter($status = null) {
         $this->db->select('
-            sc.id, sc.sc_number, sc.contract_date, sc.po_qty, sc.total_price, sc.currency_code, sc.status,
+            sc.id, sc.sc_number, sc.contract_date, sc.lchd_date, sc.po_qty,
+            sc.total_price, sc.currency_code, sc.status, sc.destination,
+            sc.submitted_by, sc.submitted_at,
+            sc.endorsed_by, sc.endorsed_at,
+            sc.approved_by, sc.approved_at,
+            sc.rejected_by, sc.rejected_at, sc.reject_reason,
             c.nama_customer,
-            fg.nama_barang as style_name
+            fg.nama_barang as style_name,
+            us.fullname as submitted_by_name,
+            ue.fullname as endorsed_by_name,
+            ua.fullname as approved_by_name,
+            ur.fullname as rejected_by_name
         ');
         $this->db->from($this->table_sc . ' sc');
         $this->db->join($this->table_customer . ' c', 'sc.customer_id = c.id', 'left');
         $this->db->join($this->table_fg . ' fg', 'sc.fg_id = fg.id', 'left');
+        $this->db->join('users us', 'us.id = sc.submitted_by', 'left');
+        $this->db->join('users ue', 'ue.id = sc.endorsed_by', 'left');
+        $this->db->join('users ua', 'ua.id = sc.approved_by', 'left');
+        $this->db->join('users ur', 'ur.id = sc.rejected_by', 'left');
+
+        if (!empty($status)) {
+            if (is_array($status)) {
+                $this->db->where_in('sc.status', $status);
+            } else {
+                $this->db->where('sc.status', $status);
+            }
+        }
+
         $this->db->order_by('sc.id', 'DESC');
-        
+
         $query = $this->db->get();
         if (!$query) {
-             log_message('error', '[Sc_model] DB Error get_all: ' . print_r($this->db->error(), true) . ' Query: ' . $this->db->last_query());
-             return [];
-         }
+            log_message('error', '[Sc_model] DB Error _get_with_filter: ' . print_r($this->db->error(), true) . ' Query: ' . $this->db->last_query());
+            return [];
+        }
         return $query->result();
+    }
+
+    /**
+     * Submit Draft → Pending Endorsement (oleh creator).
+     */
+    public function submit_for_approval($id, $user_id) {
+        if (empty($id) || !is_numeric($id)) return false;
+        return $this->db->where('id', $id)->update($this->table_sc, [
+            'status'       => 'Submitted', // 1 tahap (2026-11-06); dulu 'Pending Endorsement'
+            'submitted_by' => $user_id,
+            'submitted_at' => date('Y-m-d H:i:s'),
+        ]);
+    }
+
+    /**
+     * Endorse: Pending Endorsement → Endorsed (oleh user can_endorsement).
+     */
+    public function endorse($id, $user_id) {
+        if (empty($id) || !is_numeric($id)) return false;
+        return $this->db->where('id', $id)->update($this->table_sc, [
+            'status'      => 'Endorsed',
+            'endorsed_by' => $user_id,
+            'endorsed_at' => date('Y-m-d H:i:s'),
+        ]);
+    }
+
+    /**
+     * Approve final: Endorsed → Open (oleh user can_approval).
+     * Pakai status 'Open' biar kompatibel dengan PR/WO/BOM/Fg_delivery existing.
+     */
+    public function approve($id, $user_id) {
+        if (empty($id) || !is_numeric($id)) return false;
+        return $this->db->where('id', $id)->update($this->table_sc, [
+            'status'      => 'Open',
+            'approved_by' => $user_id,
+            'approved_at' => date('Y-m-d H:i:s'),
+        ]);
+    }
+
+    /**
+     * Reject: status apapun → Rejected (dengan alasan).
+     */
+    public function reject($id, $user_id, $reason) {
+        if (empty($id) || !is_numeric($id)) return false;
+        return $this->db->where('id', $id)->update($this->table_sc, [
+            'status'        => 'Rejected',
+            'rejected_by'   => $user_id,
+            'rejected_at'   => date('Y-m-d H:i:s'),
+            'reject_reason' => $reason,
+        ]);
     }
 
     /**
@@ -127,6 +237,14 @@ class Sc_model extends CI_Model {
     }
 
     /**
+     * Update status Sales Contract
+     */
+    public function update_status($id, $status) {
+        if (empty($id) || !is_numeric($id)) return false;
+        return $this->db->where('id', $id)->update($this->table_sc, ['status' => $status]);
+    }
+
+    /**
      * Soft delete (mengubah status menjadi Cancelled)
      */
     public function delete($id) {
@@ -138,18 +256,8 @@ class Sc_model extends CI_Model {
      * Generate nomor SC baru
      */
     public function generate_sc_number() {
-        $prefix = 'SC/' . date('Y') . '/';
-        $this->db->like('sc_number', $prefix, 'after');
-        $this->db->order_by('id', 'DESC');
-        $last = $this->db->get($this->table_sc, 1)->row();
-
-        if ($last) {
-            $last_num = (int) substr($last->sc_number, -5);
-            $new_num = str_pad($last_num + 1, 5, '0', STR_PAD_LEFT);
-        } else {
-            $new_num = '00001';
-        }
-        return $prefix . $new_num;
+        // Format nomor diatur di config/doc_number.php (rebrand Acropoly 2026-11-05).
+        return doc_number_next('sales_order', 'sales_contracts', 'sc_number');
     }
 
     /**
@@ -294,5 +402,45 @@ class Sc_model extends CI_Model {
         }
     }
 
-    
+
+    /**
+     * Ambil daftar Finished Goods yang memiliki Sales Contract dengan status Open.
+     * Digunakan untuk dropdown "Load dari Model" di Purchase Request.
+     */
+    public function get_fg_with_open_sc() {
+        $this->db->select('fg.id, fg.kode_barang, fg.nama_barang, SUM(sc.po_qty) as total_qty, COUNT(sc.id) as sc_count');
+        $this->db->from('finished_goods fg');
+        $this->db->join('sales_contracts sc', "sc.fg_id = fg.id AND sc.status = 'Open'", 'inner');
+        $this->db->group_by('fg.id, fg.kode_barang, fg.nama_barang');
+        $this->db->order_by('fg.kode_barang', 'ASC');
+        return $this->db->get()->result();
+    }
+
+    /**
+     * Ambil total qty dari semua Sales Contract Open untuk FG tertentu.
+     * Returns object dengan total_qty dan sc_numbers (comma-separated SC numbers).
+     */
+    public function get_open_sc_total_qty_by_fg($fg_id) {
+        if (empty($fg_id) || !is_numeric($fg_id)) return null;
+        $this->db->select("SUM(po_qty) as total_qty, GROUP_CONCAT(sc_number ORDER BY sc_number SEPARATOR ', ') as sc_numbers");
+        $this->db->from('sales_contracts');
+        $this->db->where('fg_id', $fg_id);
+        $this->db->where('status', 'Open');
+        return $this->db->get()->row();
+    }
+
+    /**
+     * Ambil daftar SC Open (dengan id, sc_number, po_qty) untuk FG tertentu.
+     * Digunakan agar items hasil load-from-model memiliki sales_contract_id.
+     */
+    public function get_open_scs_by_fg($fg_id) {
+        if (empty($fg_id) || !is_numeric($fg_id)) return [];
+        $this->db->select('id, sc_number, po_qty as qty');
+        $this->db->from('sales_contracts');
+        $this->db->where('fg_id', $fg_id);
+        $this->db->where('status', 'Open');
+        $this->db->order_by('sc_number', 'ASC');
+        return $this->db->get()->result();
+    }
+
 } // End Class

@@ -8,6 +8,8 @@ class StockOpname_model extends CI_Model {
         parent::__construct();
         // Load model adjustment karena kita membutuhkannya
         $this->load->model('Adjustment_model');
+        // Load Stock_ledger_model untuk reuse get_warehouse_tx_types() — single source of truth
+        $this->load->model('Stock_ledger_model');
     }
 
     public function get_all_headers()
@@ -33,34 +35,8 @@ class StockOpname_model extends CI_Model {
 
     public function get_details_by_header_id($header_id)
     {
-        // Query ini mengambil nama barang dari tabel yang berbeda-beda
-        $sql = "
-            SELECT 
-                od.*,
-                CASE
-                    WHEN od.item_type = 'material' THEN m.nama_material
-                    WHEN od.item_type = 'semifinished' THEN sf.nama_barang
-                    WHEN od.item_type = 'finished_goods' THEN fg.nama_barang
-                    WHEN od.item_type = 'inventory' THEN i.nama_barang
-                    WHEN od.item_type = 'machine' THEN mc.nama_mesin
-                    WHEN od.item_type = 'scrap' THEN sc.scrap_name
-                    ELSE 'UNKNOWN'
-                END as item_name,
-                CASE
-                    WHEN od.item_type = 'material' THEN m.satuan
-                    WHEN od.item_type = 'semifinished' THEN sf.satuan
-                    WHEN od.item_type = 'finished_goods' THEN fg.satuan
-                    WHEN od.item_type = 'inventory' THEN i.satuan
-                    WHEN od.item_type = 'scrap' THEN sc.unit
-                    ELSE 'PCS'
-                END as item_unit
-            FROM opname_details od
-            LEFT JOIN materials m ON od.item_id = m.id AND od.item_type = 'material'
-            LEFT JOIN semifinished_goods sf ON od.item_id = sf.id AND od.item_type = 'semifinished'
-            LEFT JOIN finished_goods fg ON od.item_id = fg.id AND od.item_type = 'finished_goods'
-            LEFT JOIN inventories i ON od.item_id = i.id AND od.item_type = 'inventory'
-            LEFT JOIN machines mc ON od.item_id = mc.id AND od.item_type = 'machine'
-            LEFT JOIN master_scrap sc ON od.item_id = sc.id AND od.item_type = 'scrap'
+        // Query ini mengambil nama & kode barang dari tabel yang berbeda-beda
+        $sql = $this->_build_details_select_sql() . "
             WHERE od.opname_header_id = ?
             ORDER BY item_name ASC
         ";
@@ -70,8 +46,33 @@ class StockOpname_model extends CI_Model {
     // Method untuk pagination - mengambil data dengan limit dan offset
     public function get_details_by_header_id_paginated($header_id, $limit, $start)
     {
-        $sql = "
-            SELECT 
+        $sql = $this->_build_details_select_sql() . "
+            WHERE od.opname_header_id = ?
+            ORDER BY item_name ASC
+            LIMIT ? OFFSET ?
+        ";
+        return $this->db->query($sql, [$header_id, $limit, $start])->result();
+    }
+
+    // Hitung jumlah item yang sudah/belum dihitung untuk progress bar
+    public function get_counting_progress($header_id)
+    {
+        $total = (int)$this->db->where('opname_header_id', $header_id)
+                               ->count_all_results('opname_details');
+        $counted = (int)$this->db->where('opname_header_id', $header_id)
+                                 ->where('qty_fisik IS NOT NULL', NULL, FALSE)
+                                 ->count_all_results('opname_details');
+        return [
+            'total'    => $total,
+            'counted'  => $counted,
+            'pending'  => max(0, $total - $counted),
+        ];
+    }
+
+    private function _build_details_select_sql()
+    {
+        return "
+            SELECT
                 od.*,
                 CASE
                     WHEN od.item_type = 'material' THEN m.nama_material
@@ -83,10 +84,20 @@ class StockOpname_model extends CI_Model {
                     ELSE 'UNKNOWN'
                 END as item_name,
                 CASE
+                    WHEN od.item_type = 'material' THEN m.kode_material
+                    WHEN od.item_type = 'semifinished' THEN sf.kode_barang
+                    WHEN od.item_type = 'finished_goods' THEN fg.kode_barang
+                    WHEN od.item_type = 'inventory' THEN i.kode_barang
+                    WHEN od.item_type = 'machine' THEN mc.kode_mesin
+                    WHEN od.item_type = 'scrap' THEN sc.scrap_code
+                    ELSE ''
+                END as item_code,
+                CASE
                     WHEN od.item_type = 'material' THEN m.satuan
                     WHEN od.item_type = 'semifinished' THEN sf.satuan
                     WHEN od.item_type = 'finished_goods' THEN fg.satuan
                     WHEN od.item_type = 'inventory' THEN i.satuan
+                    WHEN od.item_type = 'machine' THEN mc.satuan
                     WHEN od.item_type = 'scrap' THEN sc.unit
                     ELSE 'PCS'
                 END as item_unit
@@ -97,11 +108,7 @@ class StockOpname_model extends CI_Model {
             LEFT JOIN inventories i ON od.item_id = i.id AND od.item_type = 'inventory'
             LEFT JOIN machines mc ON od.item_id = mc.id AND od.item_type = 'machine'
             LEFT JOIN master_scrap sc ON od.item_id = sc.id AND od.item_type = 'scrap'
-            WHERE od.opname_header_id = ?
-            ORDER BY item_name ASC
-            LIMIT ? OFFSET ?
         ";
-        return $this->db->query($sql, [$header_id, $limit, $start])->result();
     }
 
     // Method untuk mendapatkan total jumlah records
@@ -118,14 +125,8 @@ class StockOpname_model extends CI_Model {
 
     public function get_new_doc_number()
     {
-        $this->db->select('RIGHT(opname_no, 4) as kode', FALSE);
-        $this->db->order_by('opname_no', 'DESC');
-        $this->db->limit(1);
-        $query = $this->db->get_where('opname_header', ['YEAR(opname_date)' => date('Y')]);
-        
-        $kode = ($query->num_rows() > 0) ? intval($query->row()->kode) + 1 : 1;
-        $kode_max = str_pad($kode, 4, "0", STR_PAD_LEFT);
-        return "OPN/" . date('Ym') . "/" . $kode_max;
+        // Format nomor diatur di config/doc_number.php (rebrand Acropoly 2026-11-05).
+        return doc_number_next('stock_opname', 'opname_header', 'opname_no');
     }
 
     // Validasi: Cek apakah sudah ada opname aktif untuk item_type dan bulan yang sama
@@ -156,22 +157,26 @@ class StockOpname_model extends CI_Model {
     public function insert_opname_session($header_data, $item_type)
     {
         $this->db->trans_start();
-        
+
         // 1. Insert Header
         $this->db->insert('opname_header', $header_data);
         $header_id = $this->db->insert_id();
 
-        // 2. Get Item List - HANYA yang pernah ada transaksi di stock_ledger
-        $items = $this->get_items_with_transactions($item_type);
+        // 2. Get Item List - snapshot per opname_date supaya konsisten dengan tanggal opname
+        $opname_date = $header_data['opname_date'] ?? null;
+        if ($item_type === 'scrap') {
+            $items = $this->get_scrap_items_with_balance($opname_date);
+        } else {
+            $items = $this->get_items_with_transactions($item_type, $opname_date);
+        }
 
         // 3. Generate opname_details
         foreach ($items as $item) {
-            // Masukkan ke detail opname
             $detail_data = [
                 'opname_header_id' => $header_id,
                 'item_id' => $item->item_id,
                 'item_type' => $item_type,
-                'qty_sistem' => $item->current_balance,
+                'qty_sistem' => (float)$item->current_balance,
                 'qty_fisik' => NULL, // Kosongkan, tunggu input
                 'selisih' => 0
             ];
@@ -181,82 +186,156 @@ class StockOpname_model extends CI_Model {
         $this->db->trans_complete();
         return ($this->db->trans_status() === FALSE) ? FALSE : $header_id;
     }
-    
-    // Method baru: Ambil item yang sudah pernah ada transaksi
-    private function get_items_with_transactions($item_type)
+
+    /**
+     * Ambil item yang punya history transaksi gudang, beserta saldo as-of opname_date.
+     * - Daftar transaction_type konsisten dengan Stock_ledger_model::get_warehouse_tx_types()
+     *   sehingga inventory (sgr_in / OUT_CONSUMABLE / INITIAL_STOCK), machine, dst ikut terjaring.
+     * - Saldo dihitung ulang via SUM(qty_in) - SUM(qty_out) — lebih tahan terhadap
+     *   anomali pada kolom `balance` daripada sekadar baca balance baris terakhir.
+     * - Snapshot pakai `transaction_date <= opname_date 23:59:59` agar opname tanggal lampau
+     *   tetap akurat.
+     */
+    public function get_items_with_transactions($item_type, $opname_date = null)
     {
-        // Warehouse transaction types (sesuai get_warehouse_tx_types di Stock_ledger_model)
-        $warehouse_tx_types = [
-            'in', 'IN_RETURN_WIP', 'ADJ_IN', 
-            'OUT_ISSUE', 'production_out', 'OUT_SHIPMENT', 'OUT_SCRAP_BC', 'ADJ_OUT'
-        ];
-        $warehouse_tx_list = "'" . implode("','", $warehouse_tx_types) . "'";
-        
-        // PERBAIKAN: Ambil final balance dari warehouse transaction TERAKHIR
-        // Ini adalah nilai yang SEHARUSNYA ada di stock opname
-        $sql = "
-            SELECT 
-                sl.item_id,
-                sl.item_type,
-                -- Ambil balance dari warehouse tx terakhir (paling reliable)
-                (SELECT balance
-                 FROM stock_ledger sl2
-                 WHERE sl2.item_id = sl.item_id 
-                   AND sl2.item_type = sl.item_type
-                   AND sl2.transaction_type IN ($warehouse_tx_list)
-                 ORDER BY sl2.id DESC
-                 LIMIT 1) as current_balance
-            FROM (
-                SELECT DISTINCT item_id, item_type 
-                FROM stock_ledger 
-                WHERE item_type = ?
-                AND transaction_type IN ($warehouse_tx_list)
-            ) sl
-        ";
-        
-        return $this->db->query($sql, [$item_type])->result();
+        $warehouse_tx_types = $this->Stock_ledger_model->get_warehouse_tx_types();
+        $snapshot_date = $opname_date ? $opname_date . ' 23:59:59' : date('Y-m-d H:i:s');
+
+        $this->db->select("item_id, item_type, (IFNULL(SUM(qty_in),0) - IFNULL(SUM(qty_out),0)) as current_balance", FALSE);
+        $this->db->from('stock_ledger');
+        $this->db->where('item_type', $item_type);
+        $this->db->where_in('transaction_type', $warehouse_tx_types);
+        $this->db->where_not_in('transaction_type', ['wip_in', 'wip_out']);
+        $this->db->where('transaction_date <=', $snapshot_date);
+        $this->db->group_by(['item_id', 'item_type']);
+
+        return $this->db->get()->result();
     }
 
-    // Simpan hasil hitungan (qty_fisik)
+    /**
+     * Scrap tidak pakai stock_ledger — ambil saldo dari scrap_in/scrap_out yang Confirmed.
+     * Sumber kebenarannya sama dengan Adjustment_model::get_latest_balance() untuk scrap.
+     */
+    private function get_scrap_items_with_balance($opname_date = null)
+    {
+        $snapshot_date = $opname_date ? $opname_date : date('Y-m-d');
+        $sql = "
+            SELECT
+                s.id as item_id,
+                'scrap' as item_type,
+                (
+                    IFNULL((
+                        SELECT SUM(d_in.qty)
+                        FROM scrap_in_detail d_in
+                        JOIN scrap_in_header h_in ON h_in.id = d_in.header_id
+                        WHERE d_in.scrap_id = s.id
+                          AND h_in.status = 'Confirmed'
+                          AND h_in.doc_date <= ?
+                    ), 0)
+                    -
+                    IFNULL((
+                        SELECT SUM(d_out.qty)
+                        FROM scrap_out_detail d_out
+                        JOIN scrap_out_header h_out ON h_out.id = d_out.header_id
+                        WHERE d_out.scrap_id = s.id
+                          AND h_out.status = 'Confirmed'
+                          AND h_out.doc_date <= ?
+                    ), 0)
+                ) as current_balance
+            FROM master_scrap s
+            WHERE s.status = 'active'
+        ";
+        return $this->db->query($sql, [$snapshot_date, $snapshot_date])->result();
+    }
+
+    /*  \
+    *
+     * Refresh detail item untuk sesi yang belum Completed.
+     * Tambahkan item baru yang sebelumnya belum ada di detail tanpa menghapus
+     * input qty_fisik yang sudah dikerjakan user.
+     */
+    public function regenerate_items($header_id)
+    {
+        $header = $this->get_header_by_id($header_id);
+        if (!$header || in_array($header->status, ['Completed', 'Cancelled'])) {
+            return ['status' => FALSE, 'added' => 0, 'message' => 'Sesi tidak bisa di-refresh.'];
+        }
+
+        $this->db->trans_start();
+
+        if ($header->item_type === 'scrap') {
+            $items = $this->get_scrap_items_with_balance($header->opname_date);
+        } else {
+            $items = $this->get_items_with_transactions($header->item_type, $header->opname_date);
+        }
+
+        $existing = $this->db->select('item_id')
+            ->where('opname_header_id', $header_id)
+            ->get('opname_details')->result();
+        $existing_ids = array_map(function($r){ return (int)$r->item_id; }, $existing);
+
+        $added = 0;
+        foreach ($items as $item) {
+            if (in_array((int)$item->item_id, $existing_ids, true)) continue;
+            $this->db->insert('opname_details', [
+                'opname_header_id' => $header_id,
+                'item_id' => $item->item_id,
+                'item_type' => $header->item_type,
+                'qty_sistem' => (float)$item->current_balance,
+                'qty_fisik' => NULL,
+                'selisih' => 0,
+            ]);
+            $added++;
+        }
+
+        $this->db->trans_complete();
+        return [
+            'status' => $this->db->trans_status() !== FALSE,
+            'added' => $added,
+            'message' => $added . ' item baru ditambahkan.'
+        ];
+    }
+
+    // Simpan hasil hitungan (qty_fisik) — HANYA update item yang user input.
+    // Item yang tidak disentuh user tetap qty_fisik = NULL (Belum diisi) dengan selisih = 0.
+    // Ini lebih jujur secara data: hanya item yang benar-benar dihitung yang dianggap "counted".
+    // Filter selisih != 0 saat confirm akan otomatis skip item NULL (selisih masih 0).
     public function update_counts($header_id, $details_data)
     {
-        $this->db->trans_start();
-        
-        // Update hanya item yang ada di details_data (yang memang diinput user)
-        foreach ($details_data as $detail_id => $data) {
-            $qty_fisik_input = $data['qty_fisik'];
-            $qty_fisik = ($qty_fisik_input === NULL || $qty_fisik_input === '') ? NULL : (float)$qty_fisik_input;
-            $notes = $data['notes'] ?? '';
-            
-            $detail = $this->db->get_where('opname_details', ['id' => $detail_id])->row();
-            if ($detail) {
-                if ($qty_fisik !== NULL) {
-                    // Jika diisi, hitung selisih normal
-                    $selisih = $qty_fisik - $detail->qty_sistem;
-                } else {
-                    // Jika tidak diisi, set qty_fisik = qty_sistem (tidak ada selisih)
-                    $qty_fisik = $detail->qty_sistem;
-                    $selisih = 0;
-                }
-                
-                $this->db->where('id', $detail_id);
-                $this->db->update('opname_details', [
-                    'qty_fisik' => $qty_fisik,
-                    'notes' => $notes,
-                    'selisih' => $selisih
-                ]);
-            }
+        if (empty($details_data)) {
+            return TRUE;
         }
-        
-        // PENTING: Untuk item yang tidak ada di details_data (tidak pernah ditouch user)
-        // Set qty_fisik = qty_sistem dan selisih = 0
-        $this->db->query("
-            UPDATE opname_details 
-            SET qty_fisik = qty_sistem, selisih = 0 
-            WHERE opname_header_id = ? 
-            AND id NOT IN (" . (empty($details_data) ? "0" : implode(',', array_keys($details_data))) . ")
-        ", [$header_id]);
-        
+
+        $this->db->trans_start();
+
+        foreach ($details_data as $detail_id => $data) {
+            $detail_id = (int)$detail_id; // SQL safety
+            if ($detail_id <= 0) continue;
+
+            $qty_fisik_input = $data['qty_fisik'] ?? '';
+            $notes = isset($data['notes']) ? trim($data['notes']) : '';
+
+            $detail = $this->db->get_where('opname_details',
+                        ['id' => $detail_id, 'opname_header_id' => $header_id])->row();
+            if (!$detail) continue;
+
+            if ($qty_fisik_input === NULL || $qty_fisik_input === '') {
+                // User clear field — anggap belum dihitung
+                $qty_fisik = NULL;
+                $selisih   = 0;
+            } else {
+                $qty_fisik = (float)$qty_fisik_input;
+                $selisih   = $qty_fisik - (float)$detail->qty_sistem;
+            }
+
+            $this->db->where('id', $detail_id);
+            $this->db->update('opname_details', [
+                'qty_fisik' => $qty_fisik,
+                'notes'     => $notes,
+                'selisih'   => $selisih,
+            ]);
+        }
+
         $this->db->trans_complete();
         return $this->db->trans_status();
     }

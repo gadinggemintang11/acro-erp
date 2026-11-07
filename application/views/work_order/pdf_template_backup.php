@@ -232,7 +232,7 @@
 <body>
     <div class="container">
         <div class="header">
-            <div class="company-name">PT MINGBAO LIANCHUANG INTERNATIONAL</div>
+            <div class="company-name"><?= htmlspecialchars(company_info('company_name')); ?></div>
             <h1>Work Order</h1>
             <div class="doc-number"><?= htmlspecialchars($header->wo_number); ?></div>
         </div>

@@ -4,11 +4,11 @@
     <div class="row mb-3">
         <div class="col-md-8">
             <h1 class="h3 mb-0"><?= $title ?></h1>
-            <p class="text-muted small">Daftar transaksi Return Supplier (RTN). Gunakan tombol aksi di kanan untuk melihat atau menindaklanjuti.</p>
+            <p class="text-muted small"><?= lang_line('warehouse_out_subtitle', 'Daftar transaksi Return Supplier (RTN). Gunakan tombol aksi di kanan untuk melihat atau menindaklanjuti.'); ?></p>
         </div>
         <div class="col-md-4 text-end">
             <a href="<?= base_url('Warehouse_out/create') ?>" class="btn btn-gradient btn-primary">
-                <i class="fas fa-plus-circle"></i> Buat Retur Baru
+                <i class="fas fa-plus-circle"></i> <?= lang_line('warehouse_out_button_create', 'Create Return'); ?>
             </a>
         </div>
     </div>
@@ -19,13 +19,13 @@
                 <div class="col-md-4 mb-2 mb-md-0">
                     <div class="input-group">
                         <span class="input-group-text bg-white"><i class="fas fa-search"></i></span>
-                        <input id="tableSearch" type="search" class="form-control form-control-sm" placeholder="Cari Nomor, Supplier, BC...">
-                        <button id="clearSearch" class="btn btn-sm btn-outline-secondary" type="button">Clear</button>
+                        <input id="tableSearch" type="search" class="form-control form-control-sm" placeholder="<?= lang_line('warehouse_out_search_placeholder', 'Cari Nomor, Supplier, BC...'); ?>">
+                        <button id="clearSearch" class="btn btn-sm btn-outline-secondary" type="button"><?= lang_line('text_clear', 'Clear'); ?></button>
                     </div>
                 </div>
                 <div class="col-md-4 mb-2 mb-md-0">
                     <select id="filterStatus" class="form-select form-select-sm">
-                        <option value="">Semua Status</option>
+                        <option value=""><?= lang_line('text_all_status'); ?></option>
                         <option value="Draft">Draft</option>
                         <option value="Pending">Pending</option>
                         <option value="Confirmed">Confirmed</option>
@@ -33,8 +33,8 @@
                 </div>
                 <div class="col-md-4 text-end">
                     <div class="btn-group">
-                        <a href="<?= base_url('Warehouse_out/export_excel_all') ?>" class="btn btn-sm btn-outline-success"><i class="fas fa-file-excel"></i> Export Excel</a>
-                        <a href="<?= base_url('Warehouse_out/export_pdf_all') ?>" class="btn btn-sm btn-outline-secondary"><i class="fas fa-file-pdf"></i> Export PDF</a>
+                        <a href="<?= base_url('Warehouse_out/export_excel_all') ?>" class="btn btn-sm btn-outline-success"><i class="fas fa-file-excel"></i> <?= lang_line('text_excel'); ?></a>
+                        <a href="<?= base_url('Warehouse_out/export_pdf_all') ?>" class="btn btn-sm btn-outline-secondary"><i class="fas fa-file-pdf"></i> <?= lang_line('text_pdf'); ?></a>
                     </div>
                 </div>
             </div>
@@ -44,13 +44,13 @@
                     <thead class="table-light">
                         <tr>
                             <th style="width:40px;">#</th>
-                            <th>Nomor</th>
-                            <th>Tanggal</th>
-                            <th>Supplier</th>
-                            <th>BC</th>
-                            <th>Qty Items</th>
-                            <th>Status</th>
-                            <th class="text-end">Aksi</th>
+                            <th><?= lang_line('warehouse_out_number'); ?></th>
+                            <th><?= lang_line('warehouse_out_date'); ?></th>
+                            <th><?= lang_line('warehouse_out_supplier', 'Supplier'); ?></th>
+                            <th><?= lang_line('warehouse_out_bc', 'BC'); ?></th>
+                            <th><?= lang_line('warehouse_out_qty_items', 'Qty Items'); ?></th>
+                            <th><?= lang_line('warehouse_out_status', 'Status'); ?></th>
+                            <th class="text-end"><?= lang_line('warehouse_out_actions'); ?></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -74,22 +74,22 @@
                             </td>
                             <td class="text-end">
                                 <div class="btn-group btn-group-sm" role="group">
-                                    <a href="<?= base_url('Warehouse_out/export_excel/'.$r->id) ?>" class="btn btn-outline-success" title="Excel"><i class="fas fa-file-excel"></i></a>
-                                    <a href="<?= base_url('Warehouse_out/export_pdf/'.$r->id) ?>" class="btn btn-outline-secondary" title="PDF"><i class="fas fa-file-pdf"></i></a>
+                                    <a href="<?= base_url('Warehouse_out/export_excel/'.$r->id) ?>" class="btn btn-outline-success" title="<?= lang_line('warehouse_out_tooltip_excel'); ?>"><i class="fas fa-file-excel"></i></a>
+                                    <a href="<?= base_url('Warehouse_out/export_pdf/'.$r->id) ?>" class="btn btn-outline-secondary" title="<?= lang_line('warehouse_out_tooltip_pdf'); ?>"><i class="fas fa-file-pdf"></i></a>
                                     <?php if (check_access('warehouse_out', 'edit')): ?>
-                                        <a href="<?= base_url('Warehouse_out/detail/'.$r->id) ?>" class="btn btn-outline-primary" title="Detail"><i class="fas fa-eye"></i></a>
+                                        <a href="<?= base_url('Warehouse_out/detail/'.$r->id) ?>" class="btn btn-outline-primary" title="<?= lang_line('warehouse_out_tooltip_detail'); ?>"><i class="fas fa-eye"></i></a>
                                     <?php endif; ?>
                                     <button class="btn btn-outline-dark dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false"></button>
                                     <ul class="dropdown-menu dropdown-menu-end">
                                         <?php if (($r->status ?? '') === 'Draft' && check_access('warehouse_out', 'delete')): ?>
                                             <li>
-                                                <form method="post" action="<?= base_url('Warehouse_out/delete_header/'.$r->id) ?>" onsubmit="return confirm('Hapus header retur ini? Pastikan tidak ada detail di dalamnya.');">
-                                                    <button type="submit" class="dropdown-item text-danger">Delete</button>
+                                                <form method="post" action="<?= base_url('Warehouse_out/delete_header/'.$r->id) ?>" onsubmit="return confirm('<?= lang_line('warehouse_out_delete_header_confirm', 'Delete this return header? Make sure there are no details inside it.'); ?>');">
+                                                    <button type="submit" class="dropdown-item text-danger"><?= lang_line('text_delete', 'Delete'); ?></button>
                                                 </form>
                                             </li>
                                         <?php endif; ?>
                                         <?php if (($r->status ?? '') !== 'Confirmed' && check_access('warehouse_out', 'confirm')): ?>
-                                            <li><a class="dropdown-item" href="<?= base_url('Warehouse_out/confirm/'.$r->id) ?>">Confirm</a></li>
+                                            <li><a class="dropdown-item" href="<?= base_url('Warehouse_out/confirm/'.$r->id) ?>"><?= lang_line('warehouse_out_button_confirm', 'Confirm'); ?></a></li>
                                         <?php endif; ?>
                                     </ul>
                                 </div>
@@ -118,7 +118,7 @@ document.addEventListener('DOMContentLoaded', function(){
             ],
             language: {
                 search: "",
-                searchPlaceholder: "Cari...",
+                searchPlaceholder: "<?= lang_line('warehouse_out_table_search', 'Search...'); ?>",
                 paginate: {
                     previous: "<",
                     next: ">"

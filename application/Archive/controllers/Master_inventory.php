@@ -20,7 +20,7 @@ class Master_inventory extends MY_Controller {
         }
 
         $data = [
-            'title'         => 'Master Inventaris (ATK, Furniture, Tools)',
+            'title'         => 'Master HRGA (ATK, Furniture, Tools)',
             'inventaris'    => $this->Inventory_model->get_all(),
             'kategori_list' => $this->Inventory_model->get_kategori_list(), // Ambil dari Inventory_model
             'kondisi_list'  => $this->Commoncode_model->get_by_group('INVENTORY_CONDITION'),

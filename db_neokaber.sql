@@ -18,7 +18,7 @@ SET time_zone = "+00:00";
 /*!40101 SET NAMES utf8mb4 */;
 
 --
--- Database: `neokabersis_db`
+-- Database: `PT. NEW SPECIALIFE INDUSTRIESsis_db`
 --
 
 -- --------------------------------------------------------
@@ -1971,7 +1971,7 @@ CREATE TABLE `users` (
 --
 
 INSERT INTO `users` (`id`, `fullname`, `username`, `password`, `email`, `role_id`, `status`, `updated_at`, `last_login`, `created_at`) VALUES
-(1, 'admin', 'admin', '$2y$10$9gm.HIQEGUaVo3qrVcgwXur51cJSBCuLq2OIQV7989PsGgqcHt3dW', 'admin@neokaber.local', 1, 'active', '2025-11-06 08:27:20', '2025-11-06 08:27:20', '2025-10-16 02:24:13'),
+(1, 'admin', 'admin', '$2y$10$9gm.HIQEGUaVo3qrVcgwXur51cJSBCuLq2OIQV7989PsGgqcHt3dW', 'admin@PT. NEW SPECIALIFE INDUSTRIES.local', 1, 'active', '2025-11-06 08:27:20', '2025-11-06 08:27:20', '2025-10-16 02:24:13'),
 (3, 'gudang', 'gudang', '$2y$10$rEHDQdNaaGm5cVbkr.m2Z.ejMBCV9YCrQMGvVx3pyIRAJy4Up4MBe', 'it@foreveroneinternational.com', 1, 'inactive', '2025-10-16 11:50:09', NULL, '2025-10-16 04:44:35'),
 (4, 'PPIC', 'PPIC', '$2y$10$NtjeQbga0g6AfkD1PqIhFe8lr4Ng4gylaimEMCHNcnn.O8gtxnnj2', 'it@foreveroneinternational.com', 3, 'active', '2025-11-25 11:43:01', '2025-11-25 11:43:01', '2025-10-16 04:55:11'),
 (5, 'gudang', 'gudanbg', '$2y$10$iTRT78M/mO.0/heqNdd.4eY3lWOTvmskS/VIc8sLa7tI97..fkwBS', 'it@foreveroneinternational.com', 1, 'active', '2025-10-16 14:12:43', NULL, '2025-10-16 07:12:43'),

@@ -65,7 +65,7 @@ class Reports extends MY_Controller {
         $data['end_date'] = $endDate;
         
         // Data untuk template
-        $data['title'] = lang_line('reports_profit_loss', 'Laporan Laba Rugi');
+        $data['title'] = lang_line('title_reports_pl', 'Laporan Laba Rugi');
 
         if ($export) {
             $this->_export_data('accounting/reports/laba_rugi', $data, $export);
@@ -96,7 +96,7 @@ class Reports extends MY_Controller {
         $data['as_of_date'] = $asOfDate;
         
         // Data untuk template
-        $data['title'] = lang_line('reports_balance_sheet', 'Laporan Neraca');
+        $data['title'] = lang_line('title_reports_bs', 'Laporan Neraca');
 
         if ($export) {
             $this->_export_data('accounting/reports/neraca', $data, $export);
@@ -139,7 +139,7 @@ class Reports extends MY_Controller {
             $data['end_date'] = $endDate;
             
             // Data untuk template
-            $data['title'] = 'Buku Besar: ' . $data['report_data']['info_akun']->account_name;
+            $data['title'] = sprintf(lang_line('title_reports_gl', 'Buku Besar: %s'), $data['report_data']['info_akun']->account_name);
             $data['subtitle'] = $data['report_data']['info_akun']->account_code;
 
             if ($export) {
@@ -176,7 +176,7 @@ class Reports extends MY_Controller {
         $data['as_of_date'] = $asOfDate;
         
         // Data untuk template
-        $data['title'] = lang_line('reports_trial_balance', 'Laporan Neraca Saldo (Trial Balance)');
+        $data['title'] = lang_line('title_reports_tb', 'Laporan Neraca Saldo (Trial Balance)');
 
         if ($export) {
             $this->_export_data('accounting/reports/trial_balance', $data, $export);
@@ -212,7 +212,7 @@ class Reports extends MY_Controller {
         $data['end_date'] = $endDate;
         
         // Data untuk template
-        $data['title'] = lang_line('reports_cash_flow', 'Laporan Arus Kas (Metode Langsung)');
+        $data['title'] = lang_line('title_reports_cf', 'Laporan Arus Kas (Metode Langsung)');
 
         if ($export) {
             $this->_export_data('accounting/reports/cash_flow', $data, $export);

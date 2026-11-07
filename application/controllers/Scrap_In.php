@@ -10,17 +10,17 @@ class Scrap_In extends MY_Controller {
 
     public function __construct() {
         parent::__construct();
+        check_login(); // 2026-11-05: halaman ini sebelumnya bisa dibuka TANPA login
         $this->load->model('Scrap_In_model');
+        $this->load->model('Stock_ledger_model');
         $this->load->library('form_validation');
-        $this->load->library('session'); // Pastikan session di-load
+        $this->load->library('session');
         $this->load->helper('url');
-        // $this->load->helper('auth_helper');
-        // check_login();
     }
 
     public function index() {
         // if (!check_access('scrap_in', 'view')) redirect('denied');
-        $data['title'] = lang_line('scrap_in_title', 'Penerimaan Scrap');
+        $data['title'] = lang_line('title_si_index');
         
         // Ambil filter
         $filters = ['search' => $this->input->get('search')];
@@ -35,10 +35,10 @@ class Scrap_In extends MY_Controller {
         $this->load->view('templates/footer');
     }
 
-    // --- REVISI: create() ---
+    // --- REVISI: create() - Production Scrap ---
     public function create() {
         // if (!check_access('scrap_in', 'add')) redirect('denied');
-        $data['title'] = lang_line('scrap_in_create_new', 'Kumpulkan Scrap dari Produksi');
+        $data['title'] = lang_line('title_si_collect');
         // Ambil data scrap PER BARIS production_outputs
         $data['uncollected_scrap_rows'] = $this->Scrap_In_model->get_uncollected_production_scrap();
         $data['doc_no'] = $this->Scrap_In_model->generate_doc_no();
@@ -48,6 +48,122 @@ class Scrap_In extends MY_Controller {
         $this->load->view('templates/topbar', $data);
         $this->load->view('scrap_in/collect_form', $data); 
         $this->load->view('templates/footer');
+    }
+
+    // --- FUNGSI BARU: create_warehouse() - Warehouse Scrap (NEW) ---
+    public function create_warehouse() {
+        // if (!check_access('scrap_in', 'add')) redirect('denied');
+        $data['title'] = lang_line('title_si_warehouse');
+        $data['doc_no'] = $this->Scrap_In_model->generate_doc_no();
+        $data['master_scrap'] = $this->Scrap_In_model->get_master_scrap();
+
+        // Get warehouse items dengan stock terkini (struktur array asosiatif untuk view)
+        $data['master_items'] = [
+            'material' => $this->_get_items_with_stock('material'),
+            'semifinished' => $this->_get_items_with_stock('semifinished'),
+            'finished_goods' => $this->_get_items_with_stock('finished_goods'),
+            'inventory' => $this->_get_items_with_stock('inventory')
+        ];
+
+        // Juga pass warehouse_items untuk kompatibilitas
+        $data['warehouse_items'] = array_merge(
+            $data['master_items']['material'] ?? [],
+            $data['master_items']['semifinished'] ?? [],
+            $data['master_items']['finished_goods'] ?? [],
+            $data['master_items']['inventory'] ?? []
+        );
+
+        $this->load->view('templates/header', $data);
+        $this->load->view('templates/sidebar', $data);
+        $this->load->view('templates/topbar', $data);
+        $this->load->view('scrap_in/warehouse_form', $data);
+        $this->load->view('templates/footer');
+    }
+
+    // --- FUNGSI HELPER: ambil items dengan stock ---
+    private function _get_items_with_stock($item_type) {
+        $items = [];
+
+        // Query dengan status filter (case-insensitive)
+        switch ($item_type) {
+            case 'material':
+                $items = $this->db->select('id, kode_material as code, nama_material as name, satuan')
+                    ->where_in('status', ['Active', 'active'])
+                    ->get('materials')->result_array();
+                break;
+            case 'semifinished':
+                $items = $this->db->select('id, kode_barang as code, nama_barang as name, satuan')
+                    ->where_in('status', ['Active', 'active'])
+                    ->get('semifinished_goods')->result_array();
+                break;
+            case 'finished_goods':
+                $items = $this->db->select('id, kode_barang as code, nama_barang as name, satuan')
+                    ->where_in('status', ['Active', 'active'])
+                    ->get('finished_goods')->result_array();
+                break;
+            case 'inventory':
+                $items = $this->db->select('id, kode_barang as code, nama_barang as name, satuan')
+                    ->where_in('status', ['Active', 'active'])
+                    ->get('inventories')->result_array();
+                break;
+        }
+
+        // Jika tidak ada item, ambil semua tanpa filter status
+        if (empty($items)) {
+            switch ($item_type) {
+                case 'material':
+                    $items = $this->db->select('id, kode_material as code, nama_material as name, satuan')
+                        ->get('materials')->result_array();
+                    break;
+                case 'semifinished':
+                    $items = $this->db->select('id, kode_barang as code, nama_barang as name, satuan')
+                        ->get('semifinished_goods')->result_array();
+                    break;
+                case 'finished_goods':
+                    $items = $this->db->select('id, kode_barang as code, nama_barang as name, satuan')
+                        ->get('finished_goods')->result_array();
+                    break;
+                case 'inventory':
+                    $items = $this->db->select('id, kode_barang as code, nama_barang as name, satuan')
+                        ->get('inventories')->result_array();
+                    break;
+            }
+        }
+
+        // Tambah stock terkini untuk setiap item - direct query dari stock_ledger
+        foreach ($items as &$item) {
+            $stock = 0;
+
+            // Method 1: coba dengan model
+            try {
+                $balance = $this->Stock_ledger_model->get_last_balance($item['id'], $item_type);
+                if ($balance !== null && $balance !== false) {
+                    $stock = (float)$balance;
+                }
+            } catch (Exception $e) {
+                log_message('error', 'Error get_last_balance: ' . $e->getMessage());
+            }
+
+            // Method 2: jika method 1 gagal, coba direct query
+            if ($stock == 0) {
+                $row = $this->db->select('balance')
+                    ->where('item_id', $item['id'])
+                    ->where('item_type', $item_type)
+                    ->order_by('id', 'DESC')
+                    ->limit(1)
+                    ->get('stock_ledger')
+                    ->row();
+
+                if ($row && isset($row->balance)) {
+                    $stock = (float)$row->balance;
+                }
+            }
+
+            $item['stock'] = $stock;
+            $item['type'] = $item_type;
+        }
+
+        return $items;
     }
 
     // --- REVISI: process_collection() ---
@@ -81,6 +197,7 @@ class Scrap_In extends MY_Controller {
             'doc_date' => $this->input->post('doc_date'),
             'notes' => $this->input->post('notes'),
             'status' => 'Draft',
+            'source_type' => 'production',
             'created_by' => $this->session->userdata('user_id'),
         ];
         
@@ -100,6 +217,48 @@ class Scrap_In extends MY_Controller {
         }
     }
 
+    // --- FUNGSI BARU: store_warehouse() - Save warehouse scrap draft ---
+    public function store_warehouse() {
+        // if (!check_access('scrap_in', 'add')) redirect('denied');
+
+        $this->form_validation->set_rules('doc_date', 'Tanggal Dokumen', 'required');
+
+        $warehouse_items = $this->input->post('warehouse_items'); // JSON dari frontend
+
+        if (!$this->form_validation->run() || empty($warehouse_items)) {
+            $this->session->set_flashdata('error', 'Tanggal tidak valid atau tidak ada item yang diinput.');
+            redirect('Scrap_In/create_warehouse');
+            return;
+        }
+
+        // Parse JSON dari frontend
+        $items_array = json_decode($warehouse_items, true);
+        if (empty($items_array) || !is_array($items_array)) {
+            $this->session->set_flashdata('error', 'Format data item tidak valid.');
+            redirect('Scrap_In/create_warehouse');
+            return;
+        }
+
+        $header_data = [
+            'doc_no' => $this->input->post('doc_no'),
+            'doc_date' => $this->input->post('doc_date'),
+            'notes' => $this->input->post('notes'),
+            'status' => 'Draft',
+            'source_type' => 'warehouse',
+            'created_by' => $this->session->userdata('user_id'),
+        ];
+
+        $result = $this->Scrap_In_model->create_draft_warehouse($header_data, $items_array);
+
+        if ($result) {
+            $this->session->set_flashdata('success', 'Draft scrap warehouse ' . $header_data['doc_no'] . ' berhasil dibuat.');
+            redirect('Scrap_In');
+        } else {
+            $this->session->set_flashdata('error', 'Gagal membuat draft warehouse.');
+            redirect('Scrap_In/create_warehouse');
+        }
+    }
+
     // --- view(), confirm(), delete() tetap sama ---
     public function view($id) {
         // if (!check_access('scrap_in', 'view')) redirect('denied');
@@ -108,7 +267,7 @@ class Scrap_In extends MY_Controller {
             $this->session->set_flashdata('error', 'Data tidak ditemukan.');
             redirect('Scrap_In');
         }
-        $data['title'] = 'View Penerimaan Scrap: ' . $data['data']['header']->doc_no;
+        $data['title'] = sprintf(lang_line('title_si_view'), $data['data']['header']->doc_no);
         
         $this->load->view('templates/header', $data);
         $this->load->view('templates/sidebar', $data);
@@ -120,6 +279,14 @@ class Scrap_In extends MY_Controller {
     public function confirm($id) {
         // if (!check_access('scrap_in', 'confirm')) redirect('denied');
         $result = $this->Scrap_In_model->confirm_scrap_in($id, $this->session->userdata('user_id'));
+        if ($result['status']) { $this->session->set_flashdata('success', $result['message']); } 
+        else { $this->session->set_flashdata('error', $result['message']); }
+        redirect('Scrap_In/view/' . $id);
+    }
+
+    public function unconfirm($id) {
+        // if (!check_access('scrap_in', 'edit')) redirect('denied');
+        $result = $this->Scrap_In_model->unconfirm_scrap_in($id);
         if ($result['status']) { $this->session->set_flashdata('success', $result['message']); } 
         else { $this->session->set_flashdata('error', $result['message']); }
         redirect('Scrap_In/view/' . $id);
@@ -141,7 +308,7 @@ class Scrap_In extends MY_Controller {
             redirect('Scrap_In');
         }
         
-        $data['title'] = 'Bukti Penerimaan Scrap - ' . $data['data']['header']->doc_no;
+        $data['title'] = sprintf(lang_line('title_si_proof'), $data['data']['header']->doc_no);
         $html = $this->load->view('scrap_in/print_pdf', $data, TRUE);
         
         // Configure Mpdf with writable temp directory

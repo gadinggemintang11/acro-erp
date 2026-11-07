@@ -90,7 +90,7 @@ CI_ENVIRONMENT=development  # development | production | testing
 
 #### 🌐 Application
 ```bash
-APP_NAME="ERP Mingbao"
+APP_NAME="ERP Acropoly"
 APP_BASE_URL=http://localhost/erp_mingbao/
 APP_INDEX_PAGE=                    # Kosongkan untuk clean URL
 APP_ENCRYPTION_KEY=                # Generate random key
@@ -136,7 +136,7 @@ MAIL_PORT=587
 MAIL_USERNAME=your@email.com
 MAIL_PASSWORD=your_password
 MAIL_FROM_EMAIL=noreply@yourdomain.com
-MAIL_FROM_NAME=ERP Mingbao
+MAIL_FROM_NAME=ERP Acropoly
 ```
 
 ---

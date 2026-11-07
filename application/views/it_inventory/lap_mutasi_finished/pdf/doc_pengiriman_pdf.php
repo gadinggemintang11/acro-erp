@@ -28,7 +28,7 @@
         <div class="card-header">Info Dokumen Pendukung</div>
         <div class="card-body">
             <table class="table table-noborder">
-                <tr><td style="width:30%;">Sales Contract:</td><td><strong><?= $detail->sc_number; ?></strong></td></tr>
+                <tr><td style="width:30%;">Sales Order Number:</td><td><strong><?= $detail->sc_number; ?></strong></td></tr>
                 <tr><td>Jenis BC:</td><td><strong><?= $detail->bc_type_description; ?> (<?= $detail->bc_type_id; ?>)</strong></td></tr>
                 <tr><td>No. BC:</td><td><strong><?= $detail->bc_number; ?></strong></td></tr>
                 <tr><td>Tgl. BC:</td><td><strong><?= $detail->bc_date ? date('d M Y', strtotime($detail->bc_date)) : '-'; ?></strong></td></tr>

@@ -39,14 +39,21 @@ class Supplier_model extends CI_Model {
         return $prefix . '-' . $new_number;
     }
     public function get_all_suppliers() {
-        $this->db->select('id, nama_supplier, jenis');
+        // bank_account_name baru ada setelah migration_supplier_account_name.sql;
+        // dijaga supaya DB yang belum dimigrasi tidak membuat query gagal.
+        $this->db->select('id, nama_supplier, jenis, bank_name, bank_account'
+            . (db_has_column('suppliers', 'bank_account_name') ? ', bank_account_name' : ''));
         $this->db->where('status', 'active');
         $this->db->order_by('nama_supplier', 'ASC');
         return $this->db->get('suppliers')->result();
     }
 
+    public function get_by_id($id) {
+        return $this->db->where('id', $id)->get($this->table)->row();
+    }
+
     // ✅ BARU: Pagination dengan Search & Filter
-    public function get_paginated($search = '', $jenis = '', $status = '', $limit = 10, $offset = 0) {
+    public function get_paginated($search = '', $jenis = '', $status = '', $limit = 10, $offset = 0, $kategori = '') {
         $query = $this->db->select('*')
             ->from($this->table);
 
@@ -65,6 +72,11 @@ class Supplier_model extends CI_Model {
             $query->where('jenis', $jenis);
         }
 
+        // Filter: kategori (general / produksi)
+        if (!empty($kategori)) {
+            $query->where('kategori', $kategori);
+        }
+
         // Filter: status
         if (!empty($status)) {
             $query->where('status', $status);
@@ -80,7 +92,7 @@ class Supplier_model extends CI_Model {
     }
 
     // ✅ BARU: Count total records (untuk pagination)
-    public function count_all($search = '', $jenis = '', $status = '') {
+    public function count_all($search = '', $jenis = '', $status = '', $kategori = '') {
         $query = $this->db->select('id')
             ->from($this->table);
 
@@ -99,6 +111,11 @@ class Supplier_model extends CI_Model {
             $query->where('jenis', $jenis);
         }
 
+        // Filter: kategori (general / produksi)
+        if (!empty($kategori)) {
+            $query->where('kategori', $kategori);
+        }
+
         // Filter: status
         if (!empty($status)) {
             $query->where('status', $status);
@@ -110,8 +127,11 @@ class Supplier_model extends CI_Model {
     }
 
     // ✅ BARU: Get untuk export (all records)
-    public function get_for_export($search = '', $jenis = '', $status = '') {
-        $query = $this->db->select('kode_supplier, nama_supplier, jenis, npwp, alamat, telepon, status')
+    public function get_for_export($search = '', $jenis = '', $status = '', $kategori = '') {
+        // Nama Akun ikut diekspor kalau kolomnya sudah ada (migrasi sudah jalan).
+        $query = $this->db->select('kode_supplier, nama_supplier, jenis, kategori, npwp, alamat, telepon, bank_name, bank_account'
+                . (db_has_column('suppliers', 'bank_account_name') ? ', bank_account_name' : '')
+                . ', supply_description, status')
             ->from($this->table);
 
         // Search
@@ -127,6 +147,11 @@ class Supplier_model extends CI_Model {
         // Filter: jenis
         if (!empty($jenis)) {
             $query->where('jenis', $jenis);
+        }
+
+        // Filter: kategori (general / produksi)
+        if (!empty($kategori)) {
+            $query->where('kategori', $kategori);
         }
 
         // Filter: status

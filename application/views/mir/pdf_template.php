@@ -50,7 +50,7 @@
         <thead>
             <tr>
                 <th style="width:5%">No</th>
-                <th style="width:15%">Sales Contract</th>
+                <th style="width:15%">Sales Order Number</th>
                 <th style="width:15%">Kode Item</th>
                 <th>Nama Item</th>
                 <th style="width:10%">Qty</th>
@@ -72,10 +72,56 @@
             <?php endif; ?>
         </tbody>
     </table>
-    
+
      <?php if($header->remarks): ?>
          <p style="margin-top: 20px;"><strong>Keterangan:</strong><br><?= nl2br(htmlspecialchars($header->remarks)); ?></p>
      <?php endif; ?>
+
+     <?php
+     $requester_sig = '';
+     $approver_sig = '';
+
+     if (!empty($header->requester_signature)) {
+         $sig_path = FCPATH . $header->requester_signature;
+         if (file_exists($sig_path)) {
+             $requester_sig = '<img src="' . $sig_path . '" style="height: 40px; width: auto;" />';
+         }
+     }
+
+     if (!empty($header->approver_signature)) {
+         $sig_path = FCPATH . $header->approver_signature;
+         if (file_exists($sig_path)) {
+             $approver_sig = '<img src="' . $sig_path . '" style="height: 40px; width: auto;" />';
+         }
+     }
+     ?>
+
+     <table class="item-table" style="margin-top: 40px; border-collapse: collapse; width: 100%;">
+        <tr>
+            <td style="width: 50%; text-align: center; padding: 10px; border: 1px solid #999;">
+                <strong>Pemohon</strong>
+            </td>
+            <td style="width: 50%; text-align: center; padding: 10px; border: 1px solid #999;">
+                <strong>Disetujui Oleh</strong>
+            </td>
+        </tr>
+        <tr>
+            <td style="width: 50%; text-align: center; padding: 15px; border: 1px solid #999; height: 80px; vertical-align: bottom;">
+                <?= $requester_sig; ?>
+            </td>
+            <td style="width: 50%; text-align: center; padding: 15px; border: 1px solid #999; height: 80px; vertical-align: bottom;">
+                <?= $approver_sig; ?>
+            </td>
+        </tr>
+        <tr>
+            <td style="width: 50%; text-align: center; padding: 10px; border: 1px solid #999; font-size: 9px;">
+                <?= htmlspecialchars($header->requester_name ?? '_________________'); ?>
+            </td>
+            <td style="width: 50%; text-align: center; padding: 10px; border: 1px solid #999; font-size: 9px;">
+                <?= htmlspecialchars($header->approver_name ?? '_________________'); ?>
+            </td>
+        </tr>
+     </table>
 
     <div class="footer">
         Dicetak pada: <?= date('d/m/Y H:i:s'); ?> | Halaman <span class="page"></span>

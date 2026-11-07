@@ -15,7 +15,7 @@
                  </button>
             <?php elseif ($header->status == 'Approved' && check_access('mir', 'edit')): ?>
                  <a href="<?= base_url('mir/unapprove_mir/'.$header->id); ?>" class="btn btn-danger btn-sm mr-1" onclick="return confirm('<?= lang_line('mir_confirm_unapprove', 'Yakin ingin membatalkan approval MIR ini? Pastikan belum ada penerimaan barang.'); ?>');">
-                    <i class="fas fa-undo fa-sm"></i> <?= lang_line('mir_unapprove', 'Unapprove'); ?> (Back to Draft)
+                    <i class="fas fa-undo fa-sm"></i> <?= lang_line('mir_unapprove', 'Unapprove'); ?> <?= lang_line('mir_d_back_to_draft'); ?>
                 </a>
             <?php endif; ?>
             <a href="<?= base_url('mir/export_pdf/'.$header->id); ?>" target="_blank" class="btn btn-danger btn-sm mr-1">
@@ -51,13 +51,13 @@
                             <span class="badge badge-<?= $color; ?>"><?= htmlspecialchars($header->status); ?></span></td>
                         </tr>
                         <?php if($header->status == 'Approved' || $header->approved_by): ?>
-                        <tr><td><strong>Approved By</strong></td><td>: <?= htmlspecialchars($header->approver_name ?? '-'); ?></td></tr>
-                         <tr><td><strong>Approved At</strong></td><td>: <?= $header->approved_at ? date('d M Y H:i', strtotime($header->approved_at)) : '-'; ?></td></tr>
+                        <tr><td><strong><?= lang_line('mir_d_approved_by'); ?></strong></td><td>: <?= htmlspecialchars($header->approver_name ?? '-'); ?></td></tr>
+                         <tr><td><strong><?= lang_line('mir_d_approved_at'); ?></strong></td><td>: <?= $header->approved_at ? date('d M Y H:i', strtotime($header->approved_at)) : '-'; ?></td></tr>
                         <?php endif; ?>
                          </table>
                 </div>
             </div>
-             <?php if($header->remarks): ?> <hr><p class="mb-0"><strong>Remarks:</strong><br> <?= nl2br(htmlspecialchars($header->remarks)); ?></p><?php endif; ?>
+             <?php if($header->remarks): ?> <hr><p class="mb-0"><strong><?= lang_line('mir_d_remarks_colon'); ?></strong><br> <?= nl2br(htmlspecialchars($header->remarks)); ?></p><?php endif; ?>
         </div>
     </div>
 
@@ -65,26 +65,25 @@
     <div class="card shadow mb-4">
         <div class="card-header py-3">
             <h6 class="m-0 font-weight-bold text-success">
-                <i class="fas fa-magic mr-1"></i><?= lang_line('mir_load_from_bom', 'Quick Load dari Sales Contract BOM'); ?>
+                <i class="fas fa-magic mr-1"></i><?= lang_line('mir_load_from_bom', 'Quick Load dari Sales Order Number BOM'); ?>
             </h6>
         </div>
         <div class="card-body">
             <div class="alert alert-info mb-3">
                 <i class="fas fa-info-circle mr-1"></i>
-                <small>Pilih Sales Contract untuk memuat semua material dari BOM Finished Goods yang ada di SC tersebut. 
-                Quantity akan otomatis dihitung: <strong>BOM Qty × SC Qty</strong></small>
+                <small><?= lang_line('mir_d_bom_info'); ?> <strong><?= lang_line('mir_d_bom_formula'); ?></strong></small>
             </div>
             <form id="loadBomForm" class="form-inline">
                 <div class="form-group mr-2" style="flex: 1; min-width: 300px;">
                     <select id="sc_select_for_bom" class="form-control form-control-sm w-100">
-                        <option value=""><?= lang_line('mir_select_sc', '-- Pilih Sales Contract --'); ?></option>
+                        <option value=""><?= lang_line('mir_select_sc', '-- Pilih Sales Order Number --'); ?></option>
                         <?php foreach($open_contracts as $sc): ?>
                             <option value="<?= $sc->id; ?>"><?= htmlspecialchars($sc->sc_number . ' - ' . ($sc->customer_name ?? 'N/A')); ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
                 <button type="button" id="btnLoadBom" class="btn btn-success btn-sm" disabled>
-                    <i class="fas fa-download mr-1"></i><?= lang_line('mir_load_from_bom', 'Load BOM'); ?> dari SC
+                    <i class="fas fa-download mr-1"></i><?= lang_line('mir_d_load_bom_from_sc'); ?>
                 </button>
             </form>
         </div>
@@ -97,7 +96,7 @@
             <?php // Tombol Tambah Item hanya jika Draft ?>
             <?php if ($header->status == 'Draft' && check_access('mir', 'edit')): ?>
             <button type="button" class="btn btn-success btn-sm" id="btnShowAddItemRow">
-                <i class="fas fa-plus fa-sm"></i> <?= lang_line('mir_add_item', 'Tambah Item'); ?> Manual
+                <i class="fas fa-plus fa-sm"></i> <?= lang_line('mir_d_add_item_manual'); ?>
             </button>
             <?php endif; ?>
         </div>
@@ -110,15 +109,15 @@
                             <th rowspan="2"><?= lang_line('mir_item_code', 'Kode Item'); ?></th>
                             <th rowspan="2"><?= lang_line('mir_item_name', 'Nama Item'); ?></th>
                             <th rowspan="2"><?= lang_line('mir_item_type', 'Tipe'); ?></th>
-                            <th rowspan="2"><?= lang_line('mir_sales_contract', 'Sales Contract'); ?></th>
-                            <th colspan="3">Quantity</th>
-                            <th rowspan="2">Nilai Satuan</th>
-                            <th rowspan="2">Total Harga</th>
-                            <th rowspan="2">Remarks</th>
+                            <th rowspan="2"><?= lang_line('mir_sales_contract', 'Sales Order Number'); ?></th>
+                            <th colspan="3"><?= lang_line('mir_d_th_quantity'); ?></th>
+                            <th rowspan="2"><?= lang_line('mir_d_th_unit_value'); ?></th>
+                            <th rowspan="2"><?= lang_line('mir_d_th_total_price'); ?></th>
+                            <th rowspan="2"><?= lang_line('mir_d_th_remarks'); ?></th>
                             <th rowspan="2"><?= lang_line('mir_actions', 'Aksi'); ?></th>
                         </tr>
                         <tr>
-                            <th><?= lang_line('mir_qty', 'Qty'); ?> Request</th>
+                            <th><?= lang_line('mir_d_th_qty_request'); ?></th>
                             <th><?= lang_line('mir_allowance', 'Allowance'); ?></th>
                             <th><?= lang_line('mir_total_qty', 'Total Qty'); ?></th>
                         </tr>
@@ -129,11 +128,11 @@
                         <tr id="addItemRow" style="display: none; background-color: #e8f5e9;">
                             <td class="text-center"><i class="fas fa-plus text-success"></i></td>
                             <td>
-                                <input type="text" id="newItemCode" class="form-control form-control-sm" readonly placeholder="Auto" style="background: #f8f9fa;">
+                                <input type="text" id="newItemCode" class="form-control form-control-sm" readonly placeholder="<?= lang_line('mir_d_ph_auto'); ?>" style="background: #f8f9fa;">
                             </td>
                             <td>
                                 <select id="newItemSelect" class="form-control form-control-sm" style="width: 100%;">
-                                    <option value=""><?= lang_line('mir_search_items', '-- Cari dan Pilih Item --'); ?></option>
+                                    <option value=""><?= lang_line('mir_d_ph_search_select_item'); ?></option>
                                 </select>
                             </td>
                             <td>
@@ -156,13 +155,13 @@
                                 <input type="text" id="newItemTotalValue" class="form-control form-control-sm" readonly style="width: 130px; background: #f8f9fa; font-weight: bold;">
                             </td>
                             <td>
-                                <input type="text" id="newItemRemarks" class="form-control form-control-sm" placeholder="Remarks (opsional)">
+                                <input type="text" id="newItemRemarks" class="form-control form-control-sm" placeholder="<?= lang_line('mir_d_ph_remarks_opt'); ?>">
                             </td>
                             <td class="text-center text-nowrap">
-                                <button type="button" class="btn btn-success btn-xs" id="btnSaveNewItem" title="Simpan">
+                                <button type="button" class="btn btn-success btn-xs" id="btnSaveNewItem" title="<?= lang_line('mir_d_tt_save'); ?>">
                                     <i class="fas fa-check"></i>
                                 </button>
-                                <button type="button" class="btn btn-secondary btn-xs" id="btnCancelNewItem" title="Batal">
+                                <button type="button" class="btn btn-secondary btn-xs" id="btnCancelNewItem" title="<?= lang_line('mir_d_tt_cancel'); ?>">
                                     <i class="fas fa-times"></i>
                                 </button>
                             </td>
@@ -207,15 +206,15 @@
                              <td><?= htmlspecialchars($d->remarks); ?></td>
                              <td class="text-center">
                                  <?php if ($header->status == 'Draft' && $can_edit): ?>
-                                 <button type="button" class="btn btn-warning btn-xs btn-edit-qty" data-id="<?= $d->id; ?>" title="Edit Qty, Allowance, Nilai Satuan & Total Harga"> <i class="fas fa-edit"></i> </button>
-                                 <button type="button" class="btn btn-success btn-xs btn-save-qty" data-id="<?= $d->id; ?>" style="display: none;" title="Simpan"> <i class="fas fa-check"></i> </button>
-                                 <button type="button" class="btn btn-secondary btn-xs btn-cancel-qty" data-id="<?= $d->id; ?>" style="display: none;" title="Batal"> <i class="fas fa-times"></i> </button>
-                                 <a href="<?= base_url('mir/delete_item/'.$d->mir_header_id.'/'.$d->id); ?>" class="btn btn-danger btn-xs btn-delete" title="Hapus Item"> <i class="fas fa-trash"></i> </a>
+                                 <button type="button" class="btn btn-warning btn-xs btn-edit-qty" data-id="<?= $d->id; ?>" title="<?= lang_line('mir_d_tt_edit_inline'); ?>"> <i class="fas fa-edit"></i> </button>
+                                 <button type="button" class="btn btn-success btn-xs btn-save-qty" data-id="<?= $d->id; ?>" style="display: none;" title="<?= lang_line('mir_d_tt_save'); ?>"> <i class="fas fa-check"></i> </button>
+                                 <button type="button" class="btn btn-secondary btn-xs btn-cancel-qty" data-id="<?= $d->id; ?>" style="display: none;" title="<?= lang_line('mir_d_tt_cancel'); ?>"> <i class="fas fa-times"></i> </button>
+                                 <a href="<?= base_url('mir/delete_item/'.$d->mir_header_id.'/'.$d->id); ?>" class="btn btn-danger btn-xs btn-delete" title="<?= lang_line('mir_d_tt_delete_item'); ?>"> <i class="fas fa-trash"></i> </a>
                                  <?php else: echo '-'; endif; ?>
                              </td>
                         </tr>
                         <?php endforeach; else: ?>
-                            <tr id="noDataRow"><td colspan="12" class="text-center text-muted py-5">Belum ada item detail.</td></tr>
+                            <tr id="noDataRow"><td colspan="12" class="text-center text-muted py-5"><?= lang_line('mir_d_no_item_detail'); ?></td></tr>
                         <?php endif; ?>
                     </tbody>
                 </table>
@@ -231,49 +230,49 @@
         <form method="post" action="<?= base_url('mir/update_header/'.$header->id); ?>">
              <div class="modal-content border-0 shadow">
                 <div class="modal-header bg-warning text-dark">
-                    <h5 class="modal-title"><i class="fas fa-edit mr-2"></i>Edit Header MIR</h5>
+                    <h5 class="modal-title"><i class="fas fa-edit mr-2"></i><?= lang_line('mir_d_edit_header_title'); ?></h5>
                     <button type="button" class="close text-dark" data-dismiss="modal">&times;</button>
                 </div>
                 <div class="modal-body">
                     <div class="row">
-                        <div class="col-md-6 form-group"><label>Nomor MIR</label><input type="text" class="form-control" value="<?= htmlspecialchars($header->mir_number); ?>" disabled></div>
-                        <div class="col-md-6 form-group"><label>Tanggal Request <span class="text-danger">*</span></label><input type="date" name="request_date" class="form-control" value="<?= $header->request_date; ?>" required></div>
+                        <div class="col-md-6 form-group"><label><?= lang_line('mir_number'); ?></label><input type="text" class="form-control" value="<?= htmlspecialchars($header->mir_number); ?>" disabled></div>
+                        <div class="col-md-6 form-group"><label><?= lang_line('mir_d_request_date_req'); ?> <span class="text-danger">*</span></label><input type="date" name="request_date" class="form-control" value="<?= $header->request_date; ?>" required></div>
                     </div>
                      <div class="row">
                          <div class="col-md-6 form-group">
-                            <label for="supplier_id">Supplier <span class="text-danger">*</span></label>
+                            <label for="supplier_id"><?= lang_line('mir_supplier'); ?> <span class="text-danger">*</span></label>
                             <select name="supplier_id" class="form-control select2-modal-edit" required style="width: 100%;">
-                                <option value="">-- Pilih Supplier --</option>
+                                <option value=""><?= lang_line('mir_supplier_select'); ?></option>
                                 <?php foreach ($suppliers as $supplier): ?>
                                     <option value="<?= $supplier->id; ?>" <?= $header->supplier_id == $supplier->id ? 'selected' : ''; ?>><?= htmlspecialchars($supplier->nama_supplier); ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                        <div class="col-md-6 form-group"><label>Requester</label><input type="text" class="form-control" value="<?= htmlspecialchars($header->requester_name); ?>" disabled></div>
+                        <div class="col-md-6 form-group"><label><?= lang_line('mir_requester'); ?></label><input type="text" class="form-control" value="<?= htmlspecialchars($header->requester_name); ?>" disabled></div>
                     </div>
                     <div class="row">
-                        <div class="col-md-6 form-group"><label>Tipe Pembayaran</label>
+                        <div class="col-md-6 form-group"><label><?= lang_line('mir_d_payment_type'); ?></label>
                             <select name="payment_type_code" class="form-control">
-                                <option value="">-- Pilih Tipe --</option>
+                                <option value=""><?= lang_line('mir_d_payment_type_select'); ?></option>
                                 <?php foreach($payment_types as $pt): ?>
                                     <option value="<?= $pt->code; ?>" <?= $header->payment_type_code == $pt->code ? 'selected' : ''; ?>><?= htmlspecialchars($pt->description); ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
-                         <div class="col-md-6 form-group"><label>Mata Uang</label>
+                         <div class="col-md-6 form-group"><label><?= lang_line('mir_d_currency'); ?></label>
                             <select name="currency_code" class="form-control">
-                                <option value="">-- Pilih Currency --</option>
+                                <option value=""><?= lang_line('mir_d_currency_select'); ?></option>
                                  <?php foreach($currencies as $curr): ?>
                                     <option value="<?= $curr->code; ?>" <?= $header->currency_code == $curr->code ? 'selected' : ''; ?>><?= htmlspecialchars($curr->description); ?></option>
                                 <?php endforeach; ?>
                             </select>
                         </div>
                     </div>
-                    <div class="form-group"><label>Remarks</label><textarea name="remarks" class="form-control" rows="2"><?= htmlspecialchars($header->remarks); ?></textarea></div>
+                    <div class="form-group"><label><?= lang_line('mir_remarks'); ?></label><textarea name="remarks" class="form-control" rows="2"><?= htmlspecialchars($header->remarks); ?></textarea></div>
                 </div>
                 <div class="modal-footer">
-                    <button type="submit" class="btn btn-warning btn-load"><i class="fas fa-save mr-1"></i> Simpan Perubahan</button>
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-warning btn-load"><i class="fas fa-save mr-1"></i> <?= lang_line('mir_d_save_changes'); ?></button>
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal"><?= lang_line('btn_cancel'); ?></button>
                 </div>
             </div>
         </form>
@@ -287,22 +286,22 @@
         <form id="addItemForm" method="post" action="<?= base_url('mir/add_item/'.$header->id); ?>">
             <div class="modal-content border-0 shadow">
                  <div class="modal-header bg-success text-white">
-                    <h5 class="modal-title"><i class="fas fa-plus mr-2"></i>Pilih Item untuk Ditambahkan ke MIR</h5>
+                    <h5 class="modal-title"><i class="fas fa-plus mr-2"></i><?= lang_line('mir_d_modal_select_title'); ?></h5>
                     <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
                 </div>
                 <div class="modal-body">
                     <div class="alert alert-info mb-3">
                         <i class="fas fa-info-circle mr-1"></i>
-                        <small>Centang item yang ingin ditambahkan. Item yang sudah ada di MIR akan dilewati otomatis.</small>
+                        <small><?= lang_line('mir_d_modal_select_info'); ?></small>
                     </div>
-                    
+
                     <!-- Filter Pencarian -->
                     <div class="form-group">
                         <div class="input-group">
                             <div class="input-group-prepend">
                                 <span class="input-group-text"><i class="fas fa-search"></i></span>
                             </div>
-                            <input type="text" id="itemFilterSearch" class="form-control" placeholder="Cari berdasarkan kode atau nama item...">
+                            <input type="text" id="itemFilterSearch" class="form-control" placeholder="<?= lang_line('mir_d_modal_search_ph'); ?>">
                         </div>
                     </div>
 
@@ -310,27 +309,27 @@
                     <ul class="nav nav-tabs mb-3" id="itemTypeTabs" role="tablist">
                         <li class="nav-item">
                             <a class="nav-link active" data-toggle="tab" href="#allItems" role="tab">
-                                <i class="fas fa-list"></i> Semua (<?= count($available_items); ?>)
+                                <i class="fas fa-list"></i> <?= lang_line('mir_d_tab_all'); ?> (<?= count($available_items); ?>)
                             </a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link" data-toggle="tab" href="#materialItems" role="tab">
-                                <i class="fas fa-box"></i> Material
+                                <i class="fas fa-box"></i> <?= lang_line('mir_d_tab_material'); ?>
                             </a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link" data-toggle="tab" href="#semifinishedItems" role="tab">
-                                <i class="fas fa-cubes"></i> Semi-Finished
+                                <i class="fas fa-cubes"></i> <?= lang_line('mir_d_tab_semifinished'); ?>
                             </a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link" data-toggle="tab" href="#machineItems" role="tab">
-                                <i class="fas fa-cogs"></i> Mesin
+                                <i class="fas fa-cogs"></i> <?= lang_line('mir_d_tab_machine'); ?>
                             </a>
                         </li>
                         <li class="nav-item">
                             <a class="nav-link" data-toggle="tab" href="#inventoryItems" role="tab">
-                                <i class="fas fa-warehouse"></i> Inventory
+                                <i class="fas fa-warehouse"></i> <?= lang_line('mir_d_tab_inventory'); ?>
                             </a>
                         </li>
                     </ul>
@@ -342,12 +341,12 @@
                                 <table class="table table-sm table-hover">
                                     <thead class="thead-light">
                                         <tr>
-                                            <th width="50"><input type="checkbox" id="selectAllItems"> Semua</th>
-                                            <th>Kode</th>
-                                            <th>Nama Item</th>
-                                            <th>Tipe</th>
-                                            <th>Unit</th>
-                                            <th width="100">Qty</th>
+                                            <th width="50"><input type="checkbox" id="selectAllItems"> <?= lang_line('mir_d_th_select_all'); ?></th>
+                                            <th><?= lang_line('mir_d_th_code'); ?></th>
+                                            <th><?= lang_line('mir_item_name'); ?></th>
+                                            <th><?= lang_line('mir_d_th_type'); ?></th>
+                                            <th><?= lang_line('mir_d_th_unit'); ?></th>
+                                            <th width="100"><?= lang_line('mir_d_th_qty'); ?></th>
                                         </tr>
                                     </thead>
                                     <tbody id="itemListBody">
@@ -382,16 +381,16 @@
 
                     <div class="mt-3">
                         <small class="text-muted">
-                            <i class="fas fa-check-circle text-success"></i> 
-                            <span id="selectedCount">0</span> item dipilih
+                            <i class="fas fa-check-circle text-success"></i>
+                            <span id="selectedCount">0</span> <?= lang_line('mir_d_items_selected_suffix'); ?>
                         </small>
                     </div>
                 </div>
                 <div class="modal-footer">
                      <button type="submit" class="btn btn-success btn-load" id="btnSubmitItems" disabled>
-                        <i class="fas fa-plus mr-1"></i> Tambahkan <span id="submitCount">0</span> Item
+                        <i class="fas fa-plus mr-1"></i> <?= lang_line('mir_d_btn_add_items'); ?> <span id="submitCount">0</span> <?= lang_line('mir_d_btn_add_items_suffix'); ?>
                     </button>
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal"><?= lang_line('btn_cancel'); ?></button>
                 </div>
 </div>
 <?php endif; ?>
@@ -403,6 +402,23 @@
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 <script>
+const I18N_MIR_D = {
+  select_sc_first:   <?= json_encode(lang_line('mir_d_js_select_sc_first'), JSON_UNESCAPED_UNICODE); ?>,
+  loading_bom:       <?= json_encode(lang_line('mir_d_js_loading_bom'), JSON_UNESCAPED_UNICODE); ?>,
+  loading_bom_text:  <?= json_encode(lang_line('mir_d_js_loading_bom_text'), JSON_UNESCAPED_UNICODE); ?>,
+  success:           <?= json_encode(lang_line('mir_d_js_success'), JSON_UNESCAPED_UNICODE); ?>,
+  load_bom_error:    <?= json_encode(lang_line('mir_d_js_load_bom_error'), JSON_UNESCAPED_UNICODE); ?>,
+  select_item_first: <?= json_encode(lang_line('mir_d_js_select_item_first'), JSON_UNESCAPED_UNICODE); ?>,
+  qty_required:      <?= json_encode(lang_line('mir_d_js_qty_required'), JSON_UNESCAPED_UNICODE); ?>,
+  saving:            <?= json_encode(lang_line('mir_d_js_saving'), JSON_UNESCAPED_UNICODE); ?>,
+  item_added:        <?= json_encode(lang_line('mir_d_js_item_added'), JSON_UNESCAPED_UNICODE); ?>,
+  error_generic:     <?= json_encode(lang_line('mir_d_js_error_generic'), JSON_UNESCAPED_UNICODE); ?>,
+  item_updated:      <?= json_encode(lang_line('mir_d_js_item_updated'), JSON_UNESCAPED_UNICODE); ?>,
+  update_failed:     <?= json_encode(lang_line('mir_d_js_update_failed'), JSON_UNESCAPED_UNICODE); ?>,
+  select2_ph_name:   <?= json_encode(lang_line('mir_d_js_select2_ph_name'), JSON_UNESCAPED_UNICODE); ?>,
+  select_sc_ph:      <?= json_encode(lang_line('mir_select_sc'), JSON_UNESCAPED_UNICODE); ?>,
+  error_title:       <?= json_encode(lang_line('mir_d_js_error_title'), JSON_UNESCAPED_UNICODE); ?>
+};
 $(document).ready(function() {
     const currentStatus = '<?= $header->status; ?>';
 
@@ -416,7 +432,7 @@ $(document).ready(function() {
         // Select2 untuk SC selection di Load BOM
         if ($('#sc_select_for_bom').length) {
             $('#sc_select_for_bom').select2({
-                placeholder: '-- Pilih Sales Contract --',
+                placeholder: I18N_MIR_D.select_sc_ph,
                 allowClear: true,
                 width: '100%'
             });
@@ -431,13 +447,13 @@ $(document).ready(function() {
         $('#btnLoadBom').on('click', function() {
             const scId = $('#sc_select_for_bom').val();
             if (!scId) {
-                Swal.fire('Error', 'Pilih Sales Contract terlebih dahulu', 'error');
+                Swal.fire(I18N_MIR_D.error_title, I18N_MIR_D.select_sc_first, 'error');
                 return;
             }
 
             Swal.fire({
-                title: 'Memuat BOM...',
-                text: 'Mengambil data material dari BOM Finished Goods...',
+                title: I18N_MIR_D.loading_bom,
+                text: I18N_MIR_D.loading_bom_text,
                 allowOutsideClick: false,
                 didOpen: () => { Swal.showLoading(); }
             });
@@ -452,19 +468,19 @@ $(document).ready(function() {
                     if (response.success) {
                         Swal.fire({
                             icon: 'success',
-                            title: 'Berhasil!',
+                            title: I18N_MIR_D.success,
                             text: response.message,
                             confirmButtonText: 'OK'
                         }).then(() => {
                             location.reload(); // Reload halaman untuk menampilkan item baru
                         });
                     } else {
-                        Swal.fire('Error', response.message, 'error');
+                        Swal.fire(I18N_MIR_D.error_title, response.message, 'error');
                     }
                 },
                 error: function(xhr) {
                     Swal.close();
-                    Swal.fire('Error', 'Terjadi kesalahan saat memuat BOM: ' + xhr.responseText, 'error');
+                    Swal.fire(I18N_MIR_D.error_title, I18N_MIR_D.load_bom_error + xhr.responseText, 'error');
                 }
             });
         });
@@ -503,7 +519,7 @@ $(document).ready(function() {
 
         // Initialize Select2 for item selection
         $('#newItemSelect').select2({
-            placeholder: '-- Cari Nama Item --',
+            placeholder: I18N_MIR_D.select2_ph_name,
             minimumInputLength: 2,
             ajax: {
                 url: '<?= base_url("mir/search_items"); ?>',
@@ -565,17 +581,17 @@ $(document).ready(function() {
             console.log('Saving item with:', {qty: qty, allowance: allowance, unit_value: unit_value, remarks: remarks});
 
             if (!newItemData.item_id) {
-                Swal.fire('Error', 'Pilih item terlebih dahulu', 'error');
+                Swal.fire(I18N_MIR_D.error_title, I18N_MIR_D.select_item_first, 'error');
                 return;
             }
 
             if (!qty || qty <= 0) {
-                Swal.fire('Error', 'Quantity harus lebih dari 0', 'error');
+                Swal.fire(I18N_MIR_D.error_title, I18N_MIR_D.qty_required, 'error');
                 return;
             }
 
             Swal.fire({
-                title: 'Menyimpan...',
+                title: I18N_MIR_D.saving,
                 allowOutsideClick: false,
                 didOpen: () => { Swal.showLoading(); }
             });
@@ -601,20 +617,20 @@ $(document).ready(function() {
                     if (response.success) {
                         Swal.fire({
                             icon: 'success',
-                            title: 'Berhasil!',
-                            text: 'Item berhasil ditambahkan',
+                            title: I18N_MIR_D.success,
+                            text: I18N_MIR_D.item_added,
                             timer: 1500,
                             showConfirmButton: false
                         }).then(() => {
                             location.reload();
                         });
                     } else {
-                        Swal.fire('Error', response.message, 'error');
+                        Swal.fire(I18N_MIR_D.error_title, response.message, 'error');
                     }
                 },
                 error: function(xhr) {
                     Swal.close();
-                    Swal.fire('Error', 'Terjadi kesalahan: ' + xhr.responseText, 'error');
+                    Swal.fire(I18N_MIR_D.error_title, I18N_MIR_D.error_generic + xhr.responseText, 'error');
                 }
             });
         });
@@ -676,12 +692,12 @@ $(document).ready(function() {
             console.log('Updating item', id, 'with qty:', newQty, 'allowance:', newAllowance, 'unit_value:', newUnitValue);
 
             if (!newQty || newQty <= 0) {
-                Swal.fire('Error', 'Quantity harus lebih dari 0', 'error');
+                Swal.fire(I18N_MIR_D.error_title, I18N_MIR_D.qty_required, 'error');
                 return;
             }
 
             Swal.fire({
-                title: 'Menyimpan...',
+                title: I18N_MIR_D.saving,
                 allowOutsideClick: false,
                 didOpen: () => { Swal.showLoading(); }
             });
@@ -706,20 +722,20 @@ $(document).ready(function() {
                         // Reload untuk update total qty (karena computed column)
                         Swal.fire({
                             icon: 'success',
-                            title: 'Berhasil!',
-                            text: 'Data item berhasil diupdate',
+                            title: I18N_MIR_D.success,
+                            text: I18N_MIR_D.item_updated,
                             timer: 1500,
                             showConfirmButton: false
                         }).then(() => {
                             location.reload();
                         });
                     } else {
-                        Swal.fire('Error', response.message || 'Gagal update data item', 'error');
+                        Swal.fire(I18N_MIR_D.error_title, response.message || I18N_MIR_D.update_failed, 'error');
                     }
                 },
                 error: function(xhr) {
                     Swal.close();
-                    Swal.fire('Error', 'Terjadi kesalahan: ' + xhr.responseText, 'error');
+                    Swal.fire(I18N_MIR_D.error_title, I18N_MIR_D.error_generic + xhr.responseText, 'error');
                 }
             });
         });

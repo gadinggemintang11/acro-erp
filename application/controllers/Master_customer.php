@@ -10,7 +10,7 @@ class Master_customer extends MY_Controller {
         $this->load->model('Customer_model');
         // ✅ Load Commoncode_model untuk data dinamis
         $this->load->model('Commoncode_model');
-        $this->load->helper(['form', 'url']);
+        $this->load->helper(['form', 'url', 'export']);
     }
 
     public function index() {
@@ -20,7 +20,7 @@ class Master_customer extends MY_Controller {
         }
 
         $data = [
-            'title'     => 'Master Pelanggan',
+            'title'     => lang_line('customer_title'),
             'customers' => $this->Customer_model->get_all(),
             // ✅ DINAMIS: Mengambil data jenis pelanggan dari common code
             'jenis_list' => $this->Commoncode_model->get_by_group('CUSTOMER_TYPE') // Pastikan grup ini ada
@@ -115,5 +115,50 @@ class Master_customer extends MY_Controller {
             $this->session->set_flashdata('error', 'Gagal menonaktifkan data!');
         }
         redirect('master_customer');
+    }
+
+    public function export_excel() {
+        if (!check_access('master_customer', 'view')) {
+            show_error('Anda tidak memiliki izin untuk export data.', 403);
+        }
+
+        $data = $this->Customer_model->get_all();
+        $headers = ['Kode', 'Nama Customer', 'Jenis', 'Status'];
+        
+        $export_data = [];
+        foreach ($data as $row) {
+            $export_data[] = [
+                $row->kode_customer,
+                $row->nama_customer,
+                $row->jenis,
+                $row->is_active ? 'Aktif' : 'Tidak Aktif'
+            ];
+        }
+
+        $filename = 'Master_Customer_' . date('YmdHis');
+        export_to_excel($headers, $export_data, $filename);
+    }
+
+    public function export_pdf() {
+        if (!check_access('master_customer', 'view')) {
+            show_error('Anda tidak memiliki izin untuk export data.', 403);
+        }
+
+        $data = $this->Customer_model->get_all();
+        $headers = ['Kode', 'Nama Customer', 'Jenis', 'Status'];
+        
+        $export_data = [];
+        foreach ($data as $row) {
+            $export_data[] = [
+                $row->kode_customer,
+                $row->nama_customer,
+                $row->jenis,
+                $row->is_active ? 'Aktif' : 'Tidak Aktif'
+            ];
+        }
+
+        $filename = 'Master_Customer_' . date('YmdHis');
+        $title = 'Master Customer - ' . date('Y-m-d H:i:s');
+        export_to_pdf($headers, $export_data, $filename, $title);
     }
 }

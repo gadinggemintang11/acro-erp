@@ -81,13 +81,34 @@
             </tbody>
         </table>
 
+        <?php
+        $created_sig = '';
+        $confirmed_sig = '';
+
+        if (!empty($header->created_by_signature)) {
+            $sig_path = FCPATH . $header->created_by_signature;
+            if (file_exists($sig_path)) {
+                $created_sig = '<img src="' . $sig_path . '" style="height: 40px; width: auto; margin-bottom: 5px;" />';
+            }
+        }
+
+        if (!empty($header->confirmed_by_signature)) {
+            $sig_path = FCPATH . $header->confirmed_by_signature;
+            if (file_exists($sig_path)) {
+                $confirmed_sig = '<img src="' . $sig_path . '" style="height: 40px; width: auto; margin-bottom: 5px;" />';
+            }
+        }
+        ?>
+
         <div class="signatures clearfix">
             <div class="sig-box">
                 <p>Dibuat Oleh,</p>
+                <?= $created_sig; ?>
                 ( <?= htmlspecialchars($header->created_by_name ?: '. . . . . . . . . .'); ?> )
             </div>
             <div class="sig-box" style="float: right;">
                  <p>Dikonfirmasi Oleh,</p>
+                <?= $confirmed_sig; ?>
                 ( <?= htmlspecialchars($header->confirmed_by_name ?: '. . . . . . . . . .'); ?> )
             </div>
         </div>

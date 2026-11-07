@@ -74,7 +74,7 @@ class LapMutasiMesin extends MY_Controller {
         $sheet->setTitle('Mutasi Mesin');
 
         // --- Header dengan Company Name ---
-        $sheet->setCellValue('A1', 'PT MINGBAO LIANCHUANG INTERNATIONAL');
+        $sheet->setCellValue('A1', 'PT NEW SPECIALIFE INDUSTRIES');
         $sheet->mergeCells('A1:H1');
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(11);
         $sheet->getStyle('A1')->getAlignment()->setHorizontal('center');

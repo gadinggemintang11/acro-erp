@@ -91,7 +91,7 @@ $autoload['drivers'] = array();
 |	$autoload['helper'] = array('url', 'file');
 */
 // application/config/autoload.php
-$autoload['helper'] = array('url', 'file', 'form', 'auth', 'security', 'log', 'language'); // Tambahkan 'language'
+$autoload['helper'] = array('url', 'file', 'form', 'auth', 'security', 'log', 'language', 'irf', 'document_pdf', 'site_asset', 'ui_column', 'sidebar_order', 'approval_history', 'pdf_layout', 'dept_scope', 'ng', 'ppn', 'doc_number'); // Tambahkan 'language', 'site_asset', 'ui_column' & 'sidebar_order' (Developer Mode), 'approval_history' (Riwayat Approval Saya)
 
 
 

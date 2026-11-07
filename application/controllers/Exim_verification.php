@@ -18,7 +18,7 @@ class Exim_verification extends MY_Controller {
         // Get statistics
         $data['incoming_stats'] = $this->Exim_verification_model->get_incoming_stats();
         $data['outgoing_stats'] = $this->Exim_verification_model->get_outgoing_stats();
-        $data['title'] = 'EXIM Verification';
+        $data['title'] = lang_line('title_exv_index');
         
         $this->load->view('templates/header', $data);
         $this->load->view('templates/sidebar', $data);
@@ -49,7 +49,7 @@ class Exim_verification extends MY_Controller {
         $data['suppliers'] = $this->Exim_verification_model->get_suppliers();
         $data['bc_types'] = $this->Exim_verification_model->get_bc_types();
         $data['filters'] = $filters;
-        $data['title'] = 'EXIM Verification - Pemasukan Barang';
+        $data['title'] = lang_line('title_exv_incoming');
         
         $this->load->view('templates/header', $data);
         $this->load->view('templates/sidebar', $data);
@@ -79,7 +79,7 @@ class Exim_verification extends MY_Controller {
         $data['outgoing_list'] = $this->Exim_verification_model->get_outgoing_list($filters);
         $data['bc_types'] = $this->Exim_verification_model->get_bc_types();
         $data['filters'] = $filters;
-        $data['title'] = 'EXIM Verification - Pengeluaran Barang';
+        $data['title'] = lang_line('title_exv_outgoing');
         
         $this->load->view('templates/header', $data);
         $this->load->view('templates/sidebar', $data);

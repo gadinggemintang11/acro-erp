@@ -79,20 +79,43 @@
 
      <?php if($header->remarks): ?> <p style="margin-top: 15px;"><strong>Catatan Header:</strong><br><?= nl2br(htmlspecialchars($header->remarks)); ?></p> <?php endif; ?>
 
-     <table class="signature-table">
+     <?php
+     $creator_sig = '';
+     $confirmer_sig = '';
+
+     if (!empty($header->creator_signature)) {
+         $sig_path = FCPATH . $header->creator_signature;
+         if (file_exists($sig_path)) {
+             $creator_sig = '<img src="' . $sig_path . '" style="height: 40px; width: auto;" />';
+         }
+     }
+
+     if (!empty($header->confirmer_signature)) {
+         $sig_path = FCPATH . $header->confirmer_signature;
+         if (file_exists($sig_path)) {
+             $confirmer_sig = '<img src="' . $sig_path . '" style="height: 40px; width: auto;" />';
+         }
+     }
+     ?>
+
+     <table class="signature-table" style="border-collapse: collapse; width: 100%;">
         <tr>
-            <td class="label">Diterima Oleh</td><td class="label">Diperiksa Oleh</td><td class="label">Mengetahui</td>
+            <td class="label" style="width: 33%; border: 1px solid #777; text-align: center; vertical-align: middle; padding: 8px;">Diterima Oleh</td>
+            <td class="label" style="width: 33%; border: 1px solid #777; text-align: center; vertical-align: middle; padding: 8px;">Diperiksa Oleh</td>
+            <td class="label" style="width: 34%; border: 1px solid #777; text-align: center; vertical-align: middle; padding: 8px;">Mengetahui</td>
         </tr>
          <tr>
-            <td class="name">
+            <td class="name" style="width: 33%; border: 1px solid #777; text-align: center; vertical-align: bottom; padding: 10px; height: 80px;">
+                <?= $creator_sig; ?>
                 <?= htmlspecialchars($header->creator_name ?? '(.......................)'); ?><br>
                 <small><?= $header->created_at ? date('d/m/Y H:i', strtotime($header->created_at)) : ''; ?></small>
             </td>
-            <td class="name">
+            <td class="name" style="width: 33%; border: 1px solid #777; text-align: center; vertical-align: bottom; padding: 10px; height: 80px;">
+                <?= $confirmer_sig; ?>
                 <?= htmlspecialchars($header->confirmer_name ?? '(.......................)'); ?><br>
                 <small><?= $header->confirmed_at ? date('d/m/Y H:i', strtotime($header->confirmed_at)) : ''; ?></small>
             </td>
-            <td class="name">(.......................)</td>
+            <td class="name" style="width: 34%; border: 1px solid #777; text-align: center; vertical-align: bottom; padding: 10px; height: 80px;">(.......................</td>
         </tr>
      </table>
     <div class="footer">Dicetak pada: <?= date('d/m/Y H:i:s'); ?> | Hal <span class="page"></span></div>

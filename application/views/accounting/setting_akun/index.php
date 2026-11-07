@@ -2,12 +2,12 @@
 
 <style>
     .modern-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--brand-1) 0%, var(--brand-2) 100%);
         color: white;
         padding: 2rem;
         border-radius: 12px;
         margin-bottom: 1.5rem;
-        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+        box-shadow: 0 4px 12px rgba(var(--brand-rgb), 0.3);
     }
     
     .modern-title {
@@ -33,7 +33,7 @@
     }
     
     .modern-card-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--brand-1) 0%, var(--brand-2) 100%);
         border: none;
         padding: 1.5rem;
     }
@@ -50,14 +50,14 @@
     
     .info-box {
         background: linear-gradient(135deg, #f6f9fc 0%, #e9f0f5 100%);
-        border-left: 4px solid #667eea;
+        border-left: 4px solid var(--brand-1);
         padding: 1.25rem;
         border-radius: 8px;
         margin-bottom: 1.5rem;
     }
     
     .info-box i {
-        color: #667eea;
+        color: var(--brand-1);
         font-size: 1.2rem;
         margin-right: 0.75rem;
     }
@@ -74,7 +74,7 @@
     }
     
     #settingTable thead {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--brand-1) 0%, var(--brand-2) 100%);
     }
     
     #settingTable thead th {
@@ -127,8 +127,8 @@
     
     .select2-container--default .select2-selection--single:focus,
     .select2-container--default.select2-container--focus .select2-selection--single {
-        border-color: #667eea;
-        box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        border-color: var(--brand-1);
+        box-shadow: 0 0 0 3px rgba(var(--brand-rgb), 0.1);
     }
     
     .select2-container--default .select2-selection--single .select2-selection__rendered {
@@ -148,7 +148,7 @@
     }
     
     .select2-container--default .select2-results__option--highlighted[aria-selected] {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--brand-1) 0%, var(--brand-2) 100%);
     }
     
     .modern-footer {
@@ -158,7 +158,7 @@
     }
     
     .btn-save {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--brand-1) 0%, var(--brand-2) 100%);
         color: white;
         border: none;
         padding: 0.75rem 2rem;
@@ -172,7 +172,7 @@
     
     .btn-save:hover {
         transform: translateY(-2px);
-        box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+        box-shadow: 0 6px 20px rgba(var(--brand-rgb), 0.4);
         color: white;
     }
     
@@ -181,7 +181,7 @@
     }
     
     .currency-badge {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--brand-1) 0%, var(--brand-2) 100%);
         color: white;
         padding: 0.5rem 0.75rem;
         border-radius: 6px;
@@ -211,7 +211,7 @@
             <i class="fas fa-cogs mr-3"></i><?= $title; ?>
         </div>
         <div class="modern-subtitle">
-            <i class="fas fa-info-circle mr-2"></i>Konfigurasi akun COA untuk transaksi otomatis berdasarkan mata uang
+            <i class="fas fa-info-circle mr-2"></i><?= lang_line('sa_subtitle'); ?>
         </div>
     </div>
     
@@ -222,14 +222,14 @@
             <div class="card modern-card mb-4">
                 <div class="modern-card-header">
                     <h6 class="modern-card-title">
-                        <i class="fas fa-list-alt mr-2"></i>Pengaturan Akun Otomatis
+                        <i class="fas fa-list-alt mr-2"></i><?= lang_line('sa_card_title'); ?>
                     </h6>
                 </div>
                 <form action="<?= base_url('settingakun/save'); ?>" method="POST">
                     <div class="card-body">
                         <div class="info-box">
                             <i class="fas fa-lightbulb"></i>
-                            <p>Pilih akun COA yang sesuai untuk setiap transaksi otomatis berdasarkan mata uang. Akun yang dipilih harus berjenis <strong>Detail (Postable)</strong>.</p>
+                            <p><?= lang_line('sa_info_box'); ?></p>
                         </div>
                         
                         <div class="table-wrapper">
@@ -237,7 +237,7 @@
                                 <thead>
                                     <tr>
                                         <th class="align-middle" style="width: 25%;">
-                                            <i class="fas fa-tag mr-2"></i>Nama Setting
+                                            <i class="fas fa-tag mr-2"></i><?= lang_line('sa_th_setting_name'); ?>
                                         </th>
                                         <?php foreach($currencies as $curr): ?>
                                             <th class="text-center">
@@ -264,7 +264,7 @@
                                         <td style="min-width: 300px;">
                                             <?php if($current_setting): ?>
                                             <select name="setting[<?= $key; ?>][<?= $curr->code; ?>]" class="form-control form-control-sm select-akun">
-                                                <option value="">-- Pilih Akun (<?= $curr->code; ?>) --</option>
+                                                <option value=""><?= sprintf(lang_line('sa_select_account_with_curr'), $curr->code); ?></option>
                                                 <?php foreach($accounts as $acc): ?>
                                                     <?php // Hanya tampilkan akun yang mata uangnya SAMA ?>
                                                     <?php if($acc->currency == $curr->code): ?> 
@@ -276,7 +276,7 @@
                                             </select>
                                             <?php else: ?>
                                                 <div class="not-applicable">
-                                                    <i class="fas fa-minus-circle"></i> Tidak Berlaku
+                                                    <i class="fas fa-minus-circle"></i> <?= lang_line('sa_not_applicable'); ?>
                                                 </div>
                                             <?php endif; ?>
                                         </td>
@@ -289,13 +289,15 @@
                     </div>
                     <div class="modern-footer text-right">
                         <button type="submit" class="btn btn-save">
-                            <i class="fas fa-save"></i> Simpan Pengaturan
+                            <i class="fas fa-save"></i> <?= lang_line('sa_btn_save'); ?>
                         </button>
                     </div>
                 </form>
             </div>
         </div>
     </div>
+
+    <?php $this->load->view('accounting/setting_akun/_item_map'); ?>
 </div>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
@@ -303,15 +305,15 @@
     $(document).ready(function() {
         // Initialize Select2 with custom styling
         $('.select-akun').select2({
-            placeholder: "-- Pilih Akun --",
+            placeholder: <?= json_encode(lang_line('sa_select_account_generic')); ?>,
             allowClear: true,
             width: '100%',
             theme: 'default'
         });
-        
+
         // Add animation on form submit
         $('form').on('submit', function() {
-            $('.btn-save').html('<i class="fas fa-spinner fa-spin mr-2"></i>Menyimpan...');
+            $('.btn-save').html('<i class="fas fa-spinner fa-spin mr-2"></i>' + <?= json_encode(lang_line('sa_saving')); ?>);
             $('.btn-save').prop('disabled', true);
         });
         

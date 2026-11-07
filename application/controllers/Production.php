@@ -17,7 +17,7 @@ class Production extends MY_Controller {
      * Konfirmasi dokumen produksi dari Draft -> In Progress
      */
     public function confirm($id) {
-        if (!check_access('production', 'edit')) { show_error('Anda tidak memiliki izin.', 403); }
+        if (!check_access('production', 'confirm')) { show_error('Anda tidak memiliki izin.', 403); }
         if (empty($id) || !is_numeric($id)) show_404();
 
         $header = $this->Production_model->get_header_by_id($id);

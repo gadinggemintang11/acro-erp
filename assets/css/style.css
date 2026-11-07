@@ -137,8 +137,101 @@
   .no-print {
     display: none !important;
   }
-  
+
   #content-wrapper {
     margin-left: 0 !important;
   }
+}
+
+/* ====================================================
+   SIDEBAR: PERBESAR FONT (revisi 2026-09-02)
+   Override sb-admin-2.css yang defaultnya kekecilan.
+   Cuma target sidebar dalam kondisi terbuka (bukan .toggled),
+   supaya mode ikon-saja saat di-collapse tidak ikut membesar.
+
+   --sb-font-scale: diset oleh JS drag-resize di templates/footer.php
+   (1 = lebar minimum, sampai ~1.12 di lebar maksimum) — jadi font ikut
+   sedikit membesar saat sidebar ditarik lebih lebar. Fallback 1 kalau
+   JS-nya belum jalan/dinonaktifkan.
+   ==================================================== */
+.sidebar {
+  --sb-font-scale: 1;
+}
+.sidebar:not(.toggled) .sidebar-heading {
+  font-size: calc(0.75rem * var(--sb-font-scale));
+}
+.sidebar:not(.toggled) .nav-item .collapse-inner .collapse-item,
+.sidebar:not(.toggled) .nav-item .collapse-header {
+  font-size: calc(0.9rem * var(--sb-font-scale));
+}
+.sidebar:not(.toggled) > .nav-item > .nav-link {
+  font-size: calc(0.95rem * var(--sb-font-scale));
+}
+.sidebar:not(.toggled) .nav-item .nav-link[data-toggle="collapse"] {
+  font-size: calc(0.95rem * var(--sb-font-scale));
+}
+/* Biar nav-link ikut melebar mengikuti .sidebar yang di-resize (bukan
+   mentok di 14rem bawaan sb-admin-2.css yang di-set tanpa !important). */
+.sidebar:not(.toggled) .nav-item > .nav-link {
+  width: 100%;
+}
+
+/* ====================================================
+   Button "Kembali/Back" — floating beneran (revisi 2026-09-02, rev.3)
+   Class ditambahkan otomatis oleh JS di templates/footer.php.
+   PAKAI position:fixed, BUKAN sticky — parent tombol ini biasanya cuma
+   baris judul yang pendek (mis. d-flex justify-content-between mb-4),
+   jadi kalau sticky, area "nempel"-nya cuma setinggi baris itu lalu
+   lepas lagi begitu discroll lewat — makanya kelihatan cuma geser
+   sedikit. Fixed = selalu di posisi yang sama di layar, titik.
+   rev.3: dipindah ke KANAN ATAS (bukan kanan bawah) atas permintaan user.
+   top:90px supaya tidak numpuk sama topbar (tinggi topbar 4.375rem=70px).
+   ==================================================== */
+.btn-back-floating {
+  position: fixed !important;
+  top: 90px;
+  right: 24px;
+  /* Beberapa tombol sumber pakai class Bootstrap `btn-block` (width:100%,
+     display:block) — di bawah position:fixed, 100% itu ngacu ke lebar
+     VIEWPORT (jadi selebar layar, bukan lagi sekecil tombol). Reset paksa
+     di sini supaya floating button-nya tetap sekecil isinya di mana pun. */
+  width: auto !important;
+  max-width: calc(100vw - 48px);
+  display: inline-block !important;
+  z-index: 1030;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
+}
+
+/* ====================================================
+   Sidebar resize handle (revisi 2026-09-02, rev.2)
+   Elemen dibuat otomatis oleh JS, disisipkan tepat setelah .sidebar
+   sebagai flex sibling di dalam #wrapper (yang sudah display:flex),
+   jadi tidak perlu atur margin #content-wrapper secara manual.
+   Lebar aktual di-drag di-set lewat JS pakai setProperty(...,'important')
+   karena sb-admin-2.css nge-set ".sidebar{width:14rem!important}" di
+   desktop — inline style biasa kalah lawan itu.
+   ==================================================== */
+#sidebarResizeHandle {
+  flex-shrink: 0;
+  width: 8px;
+  margin-left: -4px; /* area grab lebih lebar dari garis yg kelihatan */
+  cursor: col-resize;
+  background: transparent;
+  position: relative;
+  z-index: 20;
+  transition: background 0.15s ease;
+}
+#sidebarResizeHandle::after {
+  content: "";
+  position: absolute;
+  top: 0; bottom: 0; left: 3px;
+  width: 2px;
+  background: rgba(255, 255, 255, 0.15);
+}
+#sidebarResizeHandle:hover,
+#sidebarResizeHandle:active {
+  background: rgba(78, 115, 223, 0.4); /* aksen primary SB Admin 2 */
+}
+@media (max-width: 767.98px) {
+  #sidebarResizeHandle { display: none; }
 }

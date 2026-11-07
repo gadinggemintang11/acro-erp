@@ -1,5 +1,5 @@
 /**
- * Mobile Responsive Enhancement for Neokaber ERP
+ * Mobile Responsive Enhancement for PT. ACROPOLY INTERNATIONAL ERP
  * Handles mobile-specific interactions and optimizations
  */
 

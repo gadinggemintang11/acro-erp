@@ -13,12 +13,8 @@ class Subkon_out_model extends CI_Model {
     // ========================================================================
     
     public function generate_do_no() {
-        $prefix = 'DO-SUB/' . date('Ym') . '/';
-        $this->db->like('subkon_out_no', $prefix, 'after');
-        $this->db->order_by('id', 'DESC');
-        $last = $this->db->get($this->table_header, 1)->row();
-        $new_num = $last ? (int) substr($last->subkon_out_no, strlen($prefix)) + 1 : 1;
-        return $prefix . str_pad($new_num, 4, '0', STR_PAD_LEFT);
+        // Format nomor diatur di config/doc_number.php (rebrand Acropoly 2026-11-05).
+        return doc_number_next('subkon_out', 'subkon_out_header', 'subkon_out_no');
     }
 
     public function insert_header($data) {
@@ -171,6 +167,14 @@ class Subkon_out_model extends CI_Model {
         foreach ($details as $item) {
             $ledger_type = ($item->item_type == 'material') ? 'production_out' : 'wip_out';
             
+            // === STEP 1: Restore stock_on_hand if used ===
+            if (!empty($item->stock_on_hand_id)) {
+                $this->db->where('id', $item->stock_on_hand_id)
+                    ->set('available_qty', 'available_qty + ' . (float)$item->qty_kirim, FALSE)
+                    ->update('stock_on_hand');
+            }
+            
+            // === STEP 2: Delete ledger entries ===
             if (!$this->Stock_ledger_model->delete_by_transaction_id($item->id, $ledger_type)) {
                 $this->db->trans_rollback();
                 return false;

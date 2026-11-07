@@ -7,7 +7,7 @@
 
     <?php if (check_access('commoncode', 'add')): ?>
       <button class="btn btn-primary shadow-sm" data-toggle="modal" data-target="#addGroupModal">
-        <i class="fas fa-plus-circle mr-1"></i> Tambah Group
+        <i class="fas fa-plus-circle mr-1"></i> <?= lang_line('cc_btn_add_group'); ?>
       </button>
     <?php endif; ?>
   </div>
@@ -17,7 +17,7 @@
   <script>
     Swal.fire({
       icon: 'success',
-      title: 'Berhasil!',
+      title: <?= json_encode(lang_line('cc_swal_success_title'), JSON_UNESCAPED_UNICODE); ?>,
       text: '<?= $this->session->flashdata('success'); ?>',
       timer: 2000,
       showConfirmButton: false
@@ -33,10 +33,10 @@
           <thead class="thead-light">
             <tr class="text-center">
               <th style="width:5%">#</th>
-              <th>Group Code</th>
-              <th>Description</th>
-              <th>Total Codes</th>
-              <th width="180">Aksi</th>
+              <th><?= lang_line('cc_th_group_code'); ?></th>
+              <th><?= lang_line('cc_th_description'); ?></th>
+              <th><?= lang_line('cc_th_total_codes'); ?></th>
+              <th width="180"><?= lang_line('cc_th_action'); ?></th>
             </tr>
           </thead>
           <tbody>
@@ -47,21 +47,21 @@
               <td><?= htmlspecialchars($row->group_description); ?></td>
               <td class="text-center">
                 <span class="badge badge-info px-3 py-1">
-                  <?= $row->total_codes; ?> code(s)
+                  <?= $row->total_codes; ?> <?= lang_line('cc_codes_suffix'); ?>
                 </span>
               </td>
               <td class="text-center">
-                <a href="<?= base_url('commoncode/detail/'.$row->group_code); ?>" 
-                   class="btn btn-sm btn-info text-white" 
-                   title="Lihat Detail">
-                  <i class="fas fa-folder-open"></i> Detail
+                <a href="<?= base_url('commoncode/detail/'.$row->group_code); ?>"
+                   class="btn btn-sm btn-info text-white"
+                   title="<?= lang_line('cc_tt_view_detail'); ?>">
+                  <i class="fas fa-folder-open"></i> <?= lang_line('cc_btn_detail'); ?>
                 </a>
 
                 <?php if (check_access('commoncode', 'edit')): ?>
-                <button class="btn btn-sm btn-warning text-white" 
-                        data-toggle="modal" 
+                <button class="btn btn-sm btn-warning text-white"
+                        data-toggle="modal"
                         data-target="#editGroupModal<?= $row->id; ?>"
-                        title="Edit Group">
+                        title="<?= lang_line('cc_tt_edit_group'); ?>">
                   <i class="fas fa-edit"></i>
                 </button>
                 <?php endif; ?>
@@ -69,7 +69,7 @@
                 <?php if (check_access('commoncode', 'delete')): ?>
                 <a href="<?= base_url('commoncode/delete_group/'.$row->group_code); ?>"
                    class="btn btn-sm btn-danger btn-delete"
-                   title="Hapus Group">
+                   title="<?= lang_line('cc_tt_delete_group'); ?>">
                    <i class="fas fa-trash-alt"></i>
                 </a>
                 <?php endif; ?>
@@ -82,26 +82,26 @@
                 <form method="post" action="<?= base_url('commoncode/update_group/'.$row->group_code); ?>">
                   <div class="modal-content border-0 shadow">
                     <div class="modal-header bg-gradient-warning text-white">
-                      <h5 class="modal-title"><i class="fas fa-edit mr-2"></i>Edit Group Code</h5>
+                      <h5 class="modal-title"><i class="fas fa-edit mr-2"></i><?= lang_line('cc_modal_edit_group_title'); ?></h5>
                       <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
                         <span aria-hidden="true">&times;</span>
                       </button>
                     </div>
                     <div class="modal-body">
                       <div class="form-group">
-                        <label>Group Code <span class="text-danger">*</span></label>
+                        <label><?= lang_line('cc_label_group_code'); ?> <span class="text-danger">*</span></label>
                         <input type="text" name="group_code" class="form-control" value="<?= htmlspecialchars($row->group_code); ?>" required>
-                        <small class="form-text text-muted">Gunakan huruf kapital dan underscore (_)</small>
+                        <small class="form-text text-muted"><?= lang_line('cc_hint_group_code'); ?></small>
                       </div>
                       <div class="form-group">
-                        <label>Group Description <span class="text-danger">*</span></label>
+                        <label><?= lang_line('cc_label_group_desc'); ?> <span class="text-danger">*</span></label>
                         <input type="text" name="group_description" class="form-control" value="<?= htmlspecialchars($row->group_description); ?>" required>
-                        <small class="form-text text-muted">Deskripsi untuk group/header</small>
+                        <small class="form-text text-muted"><?= lang_line('cc_hint_group_desc'); ?></small>
                       </div>
                     </div>
                     <div class="modal-footer">
-                      <button type="submit" class="btn btn-success btn-load"><i class="fas fa-save mr-1"></i> Update</button>
-                      <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                      <button type="submit" class="btn btn-success btn-load"><i class="fas fa-save mr-1"></i> <?= lang_line('cc_btn_update'); ?></button>
+                      <button type="button" class="btn btn-secondary" data-dismiss="modal"><?= lang_line('cc_btn_cancel'); ?></button>
                     </div>
                   </div>
                 </form>
@@ -121,24 +121,24 @@
     <form method="post" action="<?= base_url('commoncode/add_group'); ?>">
       <div class="modal-content border-0 shadow">
         <div class="modal-header bg-gradient-primary text-white">
-          <h5 class="modal-title"><i class="fas fa-plus-circle mr-2"></i>Tambah Group Code Baru</h5>
+          <h5 class="modal-title"><i class="fas fa-plus-circle mr-2"></i><?= lang_line('cc_modal_add_group_title'); ?></h5>
           <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
         </div>
         <div class="modal-body">
           <div class="form-group">
-            <label>Group Code <span class="text-danger">*</span></label>
-            <input type="text" name="group_code" class="form-control" placeholder="Contoh: BC_TYPE" required>
-            <small class="form-text text-muted">Gunakan huruf kapital dan underscore (_)</small>
+            <label><?= lang_line('cc_label_group_code'); ?> <span class="text-danger">*</span></label>
+            <input type="text" name="group_code" class="form-control" placeholder="<?= lang_line('cc_ph_group_code'); ?>" required>
+            <small class="form-text text-muted"><?= lang_line('cc_hint_group_code'); ?></small>
           </div>
           <div class="form-group">
-            <label>Group Description <span class="text-danger">*</span></label>
-            <input type="text" name="group_description" class="form-control" placeholder="Contoh: Jenis Dokumen BC" required>
-            <small class="form-text text-muted">Deskripsi untuk group/header</small>
+            <label><?= lang_line('cc_label_group_desc'); ?> <span class="text-danger">*</span></label>
+            <input type="text" name="group_description" class="form-control" placeholder="<?= lang_line('cc_ph_group_desc'); ?>" required>
+            <small class="form-text text-muted"><?= lang_line('cc_hint_group_desc'); ?></small>
           </div>
         </div>
         <div class="modal-footer">
-          <button type="submit" class="btn btn-primary btn-load"><i class="fas fa-save mr-1"></i> Simpan</button>
-          <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+          <button type="submit" class="btn btn-primary btn-load"><i class="fas fa-save mr-1"></i> <?= lang_line('cc_btn_save'); ?></button>
+          <button type="button" class="btn btn-secondary" data-dismiss="modal"><?= lang_line('cc_btn_cancel'); ?></button>
         </div>
       </div>
     </form>
@@ -161,18 +161,24 @@
 </style>
 
 <script>
+const I18N_CC_IDX = {
+  confirm_title:  <?= json_encode(lang_line('cc_swal_confirm_title'), JSON_UNESCAPED_UNICODE); ?>,
+  confirm_text:   <?= json_encode(lang_line('cc_swal_confirm_group_txt'), JSON_UNESCAPED_UNICODE); ?>,
+  confirm_yes:    <?= json_encode(lang_line('cc_swal_confirm_yes'), JSON_UNESCAPED_UNICODE); ?>,
+  confirm_cancel: <?= json_encode(lang_line('cc_swal_confirm_cancel'), JSON_UNESCAPED_UNICODE); ?>
+};
 $(document).on('click', '.btn-delete', function(e){
   e.preventDefault();
   const url = $(this).attr('href');
   Swal.fire({
-    title: 'Anda yakin?',
-    text: "Semua code dalam group ini akan terhapus!",
+    title: I18N_CC_IDX.confirm_title,
+    text: I18N_CC_IDX.confirm_text,
     icon: 'warning',
     showCancelButton: true,
     confirmButtonColor: '#d33',
     cancelButtonColor: '#3085d6',
-    confirmButtonText: 'Ya, hapus!',
-    cancelButtonText: 'Batal'
+    confirmButtonText: I18N_CC_IDX.confirm_yes,
+    cancelButtonText: I18N_CC_IDX.confirm_cancel
   }).then((result) => {
     if (result.isConfirmed) {
       window.location.href = url;

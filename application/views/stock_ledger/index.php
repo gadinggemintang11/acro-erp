@@ -28,7 +28,7 @@
         
         /* Page Header */
         .page-header {
-            background: linear-gradient(135deg, var(--primary-color) 0%, #6366F1 100%);
+            background: linear-gradient(135deg, var(--brand-1) 0%, var(--brand-2) 100%);
             color: white;
             padding: 2rem;
             border-radius: 12px;
@@ -477,11 +477,11 @@
                                     'search' => $filters['search'] ?? null
                                 ]);
                             ?>
-                            <a href="<?= base_url('stock_ledger/export_excel?' . $export_query_string); ?>" target="_blank" class="btn btn-success btn-sm shadow" title="Download Excel">
-                                <i class="fas fa-file-excel mr-1"></i> Excel
+                            <a href="<?= base_url('stock_ledger/export_excel?' . $export_query_string); ?>" target="_blank" class="btn btn-success btn-sm shadow" title="<?= lang_line('stock_ledger_download_excel'); ?>">
+                                <i class="fas fa-file-excel mr-1"></i> <?= lang_line('text_excel'); ?>
                             </a>
-                            <a href="<?= base_url('stock_ledger/export_pdf?' . $export_query_string); ?>" target="_blank" class="btn btn-danger btn-sm shadow" title="Download PDF">
-                                <i class="fas fa-file-pdf mr-1"></i> PDF
+                            <a href="<?= base_url('stock_ledger/export_pdf?' . $export_query_string); ?>" target="_blank" class="btn btn-danger btn-sm shadow" title="<?= lang_line('stock_ledger_download_pdf'); ?>">
+                                <i class="fas fa-file-pdf mr-1"></i> <?= lang_line('text_pdf'); ?>
                             </a>
                         </div>
                     </div>
@@ -496,7 +496,7 @@
                             <div class="row">
                                 <div class="col-md-2">
                                     <div class="form-group">
-                                        <label class="small font-weight-600"><i class="far fa-calendar-alt mr-1"></i>Bulan</label>
+                                        <label class="small font-weight-600"><i class="far fa-calendar-alt mr-1"></i><?= lang_line('stock_ledger_month'); ?></label>
                                         <select name="month" id="month" class="form-control form-control-sm">
                                             <?php for ($m = 1; $m <= 12; $m++):
                                                 $val = str_pad($m, 2, '0', STR_PAD_LEFT);
@@ -509,7 +509,7 @@
                                 </div>
                                 <div class="col-md-2">
                                     <div class="form-group">
-                                        <label class="small font-weight-600">Tahun</label>
+                                        <label class="small font-weight-600"><?= lang_line('stock_ledger_year'); ?></label>
                                         <select name="year" id="year" class="form-control form-control-sm">
                                             <?php $currYear = date('Y'); ?>
                                             <?php for ($y = $currYear + 1; $y >= $currYear - 5; $y--): ?>
@@ -520,9 +520,9 @@
                                 </div>
                                 <div class="col-md-2">
                                     <div class="form-group">
-                                        <label class="small font-weight-600"><i class="fas fa-warehouse mr-1"></i>Gudang</label>
+                                        <label class="small font-weight-600"><i class="fas fa-warehouse mr-1"></i><?= lang_line('stock_ledger_warehouse_type'); ?></label>
                                         <select name="warehouse_type" id="warehouse_type" class="form-control form-control-sm">
-                                            <option value="">Semua</option>
+                                            <option value=""><?= lang_line('text_all', 'Semua'); ?></option>
                                             <?php if (!empty($item_types)): foreach ($item_types as $key => $label): ?>
                                                 <option value="<?= htmlspecialchars($key); ?>" <?= (isset($filters['warehouse_type']) && $filters['warehouse_type'] == $key) ? 'selected' : ''; ?>><?= htmlspecialchars($label); ?></option>
                                             <?php endforeach; endif; ?>
@@ -531,14 +531,14 @@
                                 </div>
                                 <div class="col-md-3">
                                     <div class="form-group">
-                                        <label class="small font-weight-600"><i class="fas fa-search mr-1"></i>Cari Barang</label>
-                                        <input type="text" name="search" id="global_search" class="form-control form-control-sm" placeholder="Kode/Nama..." value="<?= htmlspecialchars($filters['search'] ?? ''); ?>">
+                                        <label class="small font-weight-600"><i class="fas fa-search mr-1"></i><?= lang_line('stock_ledger_search'); ?></label>
+                                        <input type="text" name="search" id="global_search" class="form-control form-control-sm" placeholder="<?= lang_line('stock_ledger_search_placeholder', 'Kode/Nama...'); ?>" value="<?= htmlspecialchars($filters['search'] ?? ''); ?>">
                                     </div>
                                 </div>
                                 <div class="col-md-3 d-flex align-items-end">
                                     <div class="btn-group btn-group-sm w-100">
-                                        <button type="submit" class="btn btn-primary"><i class="fas fa-search mr-1"></i>Terapkan</button>
-                                        <a href="<?= base_url('stock_ledger/index'); ?>" class="btn btn-outline-secondary"><i class="fas fa-undo mr-1"></i>Reset</a>
+                                        <button type="submit" class="btn btn-primary"><i class="fas fa-search mr-1"></i><?= lang_line('stock_ledger_apply_filter'); ?></button>
+                                        <a href="<?= base_url('stock_ledger/index'); ?>" class="btn btn-outline-secondary"><i class="fas fa-undo mr-1"></i><?= lang_line('stock_ledger_reset'); ?></a>
                                     </div>
                                 </div>
                             </div>
@@ -559,6 +559,7 @@
                                         <th style="width: 110px; padding: 14px 8px; font-weight: 600; font-size: 13px; border: none; vertical-align: middle; border-right: 1px solid rgba(255,255,255,0.1);"><?= lang_line('stock_ledger_warehouse_col', 'Gudang'); ?></th>
                                         <th style="width: 120px; padding: 14px 8px; font-weight: 600; font-size: 13px; border: none; vertical-align: middle; border-right: 1px solid rgba(255,255,255,0.1);"><?= lang_line('stock_ledger_item_code', 'Kode Barang'); ?></th>
                                         <th style="min-width: 220px; padding: 14px 12px; font-weight: 600; font-size: 13px; border: none; vertical-align: middle; border-right: 1px solid rgba(255,255,255,0.1);" class="text-left"><?= lang_line('stock_ledger_item_name', 'Nama Barang'); ?></th>
+                                        <th style="width: 130px; padding: 14px 8px; font-weight: 600; font-size: 13px; border: none; vertical-align: middle; border-right: 1px solid rgba(255,255,255,0.1);" title="Saldo per gudang sampai akhir periode filter"><?= lang_line('stock_ledger_warehouse_cat', 'Kategori Gudang'); ?></th>
                                         <th style="width: 80px; padding: 14px 8px; font-weight: 600; font-size: 13px; border: none; vertical-align: middle; border-right: 1px solid rgba(255,255,255,0.1);"><?= lang_line('stock_ledger_unit', 'Satuan'); ?></th>
                                         <th style="width: 100px; padding: 14px 8px; font-weight: 600; font-size: 13px; border: none; vertical-align: middle; border-right: 1px solid rgba(255,255,255,0.1);"><?= lang_line('stock_ledger_opening_stock', 'Stok Awal'); ?></th>
                                         <th style="width: 100px; padding: 14px 8px; font-weight: 600; font-size: 13px; border: none; vertical-align: middle; border-right: 1px solid rgba(255,255,255,0.1);"><?= lang_line('stock_ledger_in_grn', 'Masuk (GRN)'); ?></th>
@@ -572,10 +573,11 @@
                                 <tfoot>
                                     <tr class="bg-light">
                                         <th></th>
-                                        <th><input type="text" class="column-search" placeholder="Gudang"></th>
-                                        <th><input type="text" class="column-search" placeholder="Kode"></th>
-                                        <th><input type="text" class="column-search" placeholder="Nama"></th>
-                                        <th><input type="text" class="column-search" placeholder="Satuan"></th>
+                                        <th><input type="text" class="column-search" placeholder="<?= lang_line('stock_ledger_th_search_warehouse'); ?>"></th>
+                                        <th><input type="text" class="column-search" placeholder="<?= lang_line('stock_ledger_th_search_code'); ?>"></th>
+                                        <th><input type="text" class="column-search" placeholder="<?= lang_line('stock_ledger_th_search_name'); ?>"></th>
+                                        <th><input type="text" class="column-search" placeholder="<?= lang_line('stock_ledger_th_search_unit'); ?>"></th>
+                                        <th></th>
                                         <th></th>
                                         <th></th>
                                         <th></th>
@@ -587,7 +589,7 @@
                                 </tfoot>
                                 <tbody>
                                     <?php if (empty($report)): ?>
-                                        <tr><td colspan="12" class="text-center text-muted py-5">
+                                        <tr><td colspan="13" class="text-center text-muted py-5">
                                             <i class="fas fa-inbox fa-3x mb-3 d-block text-muted"></i>
                                             <strong><?= lang_line('stock_ledger_no_data', 'Tidak ada data stok untuk filter yang dipilih.'); ?></strong>
                                         </td></tr>
@@ -597,6 +599,23 @@
                                             <td class="text-center" style="padding: 12px 8px; vertical-align: middle;"><span class="badge badge-secondary px-2 py-1" style="font-size: 11px; font-weight: 600;"><?= htmlspecialchars($item_types[$row->item_type] ?? ucfirst($row->item_type)); ?></span></td>
                                             <td class="font-weight-bold text-dark" style="padding: 12px 8px; font-size: 13px; vertical-align: middle; font-family: 'Courier New', monospace;"><?= htmlspecialchars($row->item_code); ?></td>
                                             <td class="text-left" style="padding: 12px 12px; font-size: 13px; vertical-align: middle; color: #2c3e50;"><?= htmlspecialchars($row->item_name); ?></td>
+                                            <?php
+                                                // Saldo per gudang (General / Produksi). '-' = barang yang memang tidak
+                                                // dipisah kategori (material & semifinished di gudang produksi).
+                                                $kat_raw   = trim((string) ($row->category_breakdown ?? ''));
+                                                $kat_parts = $kat_raw === '' ? [] : explode('|', $kat_raw);
+                                            ?>
+                                            <td class="text-center" style="padding: 12px 8px; font-size: 12px; vertical-align: middle;">
+                                                <?php if (empty($kat_parts)): ?>
+                                                    <span class="text-muted">-</span>
+                                                <?php else: foreach ($kat_parts as $kp):
+                                                    [$k_nama, $k_saldo] = array_pad(explode(':', $kp, 2), 2, '0');
+                                                    $k_label = ($k_nama === '-') ? lang_line('stock_ledger_wh_material', 'Gd. Material') : $k_nama;
+                                                    $k_class = ($k_nama === 'Produksi') ? 'badge-dark' : (($k_nama === 'General') ? 'badge-info' : 'badge-secondary');
+                                                ?>
+                                                    <span class="badge <?= $k_class ?> d-block mb-1"><?= htmlspecialchars($k_label) ?>: <?= number_format((float) $k_saldo, 2, ',', '.') ?></span>
+                                                <?php endforeach; endif; ?>
+                                            </td>
                                             <td class="text-center" style="padding: 12px 8px; font-size: 12px; vertical-align: middle; color: #7f8c8d;"><?= htmlspecialchars($row->item_unit); ?></td>
                                             <td class="text-right text-number text-dark" style="padding: 12px 8px; font-size: 13px; vertical-align: middle; font-weight: 500;"><?= number_format($row->opening_stock, 2, ',', '.'); ?></td>
                                             <td class="text-right text-number <?= $row->receive_qty > 0 ? 'num-positive' : 'num-neutral'; ?>" style="padding: 12px 8px; font-size: 13px; vertical-align: middle; font-weight: 500;"><?= number_format($row->receive_qty, 2, ',', '.'); ?></td>
@@ -651,7 +670,7 @@
             </div>
             <div class="modal-footer bg-light">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">
-                    <i class="fas fa-times mr-1"></i> Tutup
+                    <i class="fas fa-times mr-1"></i> <?= lang_line('stock_ledger_close'); ?>
                 </button>
             </div>
         </div>
@@ -659,6 +678,13 @@
 </div>
 
 <script>
+const I18N_SL_IDX = {
+  loading_short: <?= json_encode(lang_line('stock_ledger_js_loading_short'), JSON_UNESCAPED_UNICODE); ?>,
+  load_failed:   <?= json_encode(lang_line('stock_ledger_js_load_failed'), JSON_UNESCAPED_UNICODE); ?>,
+  server_error:  <?= json_encode(lang_line('stock_ledger_js_server_error'), JSON_UNESCAPED_UNICODE); ?>,
+  err_500:       <?= json_encode(lang_line('stock_ledger_js_500_error'), JSON_UNESCAPED_UNICODE); ?>,
+  err_404:       <?= json_encode(lang_line('stock_ledger_js_404_error'), JSON_UNESCAPED_UNICODE); ?>
+};
 $(document).ready(function() {
     // Fungsi format tanggal (dd/mm/YYYY)
     function formatDateSimple(dateStr) {
@@ -688,7 +714,7 @@ $(document).ready(function() {
         // Set info modal
         $('#detailItemName').text(btn.data('itemname') + ' (' + dataParams.item_type + ')');
         $('#detailPeriode').text(formatDateSimple(dataParams.start_date) + ' - ' + formatDateSimple(dataParams.end_date));
-        $('#detailContent').html('<div class="text-center py-5"><div class="spinner-border text-info"></div><p>Memuat data histori...</p></div>');
+        $('#detailContent').html('<div class="text-center py-5"><div class="spinner-border text-info"></div><p>' + I18N_SL_IDX.loading_short + '</p></div>');
         $('#detailModal').modal('show'); // Tampilkan modal
 
         console.log("Fetching details for:", dataParams);
@@ -704,18 +730,18 @@ $(document).ready(function() {
                 if (res && res.success) {
                     $('#detailContent').html(res.html);
                 } else {
-                    let errorMsg = res.message || 'Gagal memuat data. Format respons tidak dikenal.';
+                    let errorMsg = res.message || I18N_SL_IDX.load_failed;
                     console.error("Failed to load details:", errorMsg);
                     $('#detailContent').html('<div class="alert alert-danger">' + errorMsg + '</div>');
                 }
             },
             error: function(xhr, status, error) {
                 console.error("AJAX Error:", status, error, xhr.responseText);
-                let errorMsg = 'Terjadi kesalahan saat menghubungi server.';
+                let errorMsg = I18N_SL_IDX.server_error;
                 if (xhr.status === 500) {
-                    errorMsg = 'Terjadi error di server (500). Cek log aplikasi.';
+                    errorMsg = I18N_SL_IDX.err_500;
                 } else if (xhr.status === 404) {
-                     errorMsg = 'Endpoint tidak ditemukan (404).';
+                     errorMsg = I18N_SL_IDX.err_404;
                 }
                 $('#detailContent').html('<div class="alert alert-danger">' + errorMsg + '</div>');
             }
@@ -724,7 +750,7 @@ $(document).ready(function() {
 
     // Reset modal saat ditutup
     $('#detailModal').on('hidden.bs.modal', function (e) {
-         $('#detailContent').html('<div class="text-center py-5"><div class="spinner-border text-info"></div><p><?= lang_line('stock_ledger_modal_loading', 'Memuat data histori...'); ?></p></div>');
+         $('#detailContent').html('<div class="text-center py-5"><div class="spinner-border text-info"></div><p>' + I18N_SL_IDX.loading_short + '</p></div>');
          $('#detailItemName').text('');
          $('#detailPeriode').text('');
     });

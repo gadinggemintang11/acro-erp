@@ -1,4 +1,4 @@
-# Panduan Setup ERP Mingbao - Local & cPanel
+# Panduan Setup ERP Acropoly - Local & cPanel
 
 ## 🔧 BAGIAN 1: Setup di Local (XAMPP)
 
@@ -119,7 +119,7 @@ EOF
 git add .
 
 # Commit pertama
-git commit -m "Initial commit - ERP Mingbao"
+git commit -m "Initial commit - ERP Acropoly"
 ```
 
 ### Step 2: Setup Remote Repository

@@ -171,7 +171,7 @@ class LapMutasiFinished extends MY_Controller {
         $sheet->setTitle('Mutasi Barang Jadi');
         
         // --- Header dengan Company Name ---
-        $sheet->setCellValue('A1', 'PT MINGBAO LIANCHUANG INTERNATIONAL');
+        $sheet->setCellValue('A1', company_info('company_name'));
         $sheet->mergeCells('A1:L1');
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(11);
         $sheet->getStyle('A1')->getAlignment()->setHorizontal('center');
@@ -277,7 +277,7 @@ class LapMutasiFinished extends MY_Controller {
         $sheet->setTitle('Detail Mutasi');
         
         // --- Header dengan Company Name ---
-        $sheet->setCellValue('A1', 'PT MINGBAO LIANCHUANG INTERNATIONAL');
+        $sheet->setCellValue('A1', company_info('company_name'));
         $sheet->mergeCells('A1:G1');
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(11);
         $sheet->getStyle('A1')->getAlignment()->setHorizontal('center');

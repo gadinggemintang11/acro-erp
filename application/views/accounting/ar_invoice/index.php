@@ -3,7 +3,7 @@
         <h1 class="h3 mb-0 text-gray-800"><?= $title; ?></h1>
         <a href="<?= base_url('arinvoice/create'); ?>" class="btn btn-primary btn-icon-split">
             <span class="icon text-white-50"><i class="fas fa-plus"></i></span>
-            <span class="text">Buat Faktur Baru</span>
+            <span class="text"><?= lang_line('ar_invoice_create_btn'); ?></span>
         </a>
     </div>
 
@@ -11,13 +11,13 @@
 
     <div class="card shadow mb-4">
         <div class="card-header py-3 d-flex justify-content-between align-items-center">
-            <h6 class="m-0 font-weight-bold text-primary">Daftar Faktur Customer (Piutang)</h6>
+            <h6 class="m-0 font-weight-bold text-primary"><?= lang_line('ar_invoice_list_title'); ?></h6>
             <div>
                 <a href="<?= base_url('arinvoice/export_excel'); ?>" class="btn btn-success btn-sm">
-                    <i class="fas fa-file-excel"></i> Ekspor Excel
+                    <i class="fas fa-file-excel"></i> <?= lang_line('text_excel'); ?>
                 </a>
                 <a href="<?= base_url('arinvoice/export_pdf'); ?>" target="_blank" class="btn btn-danger btn-sm">
-                    <i class="fas fa-file-pdf"></i> Ekspor PDF
+                    <i class="fas fa-file-pdf"></i> <?= lang_line('text_pdf'); ?>
                 </a>
             </div>
         </div>
@@ -26,15 +26,15 @@
                 <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
                     <thead>
                         <tr>
-                            <th>No. Faktur</th>
-                            <th>Tgl. Faktur</th>
-                            <th>Customer</th>
-                            <th>Tipe</th>
-                            <th class="text-right">Total Tagihan</th>
-                            <th class="text-right">Sisa Piutang</th>
-                            <th>Status Bayar</th>
-                            <th>Status Jurnal</th>
-                            <th>Aksi</th>
+                            <th><?= lang_line('ar_invoice_no'); ?></th>
+                            <th><?= lang_line('ar_invoice_date'); ?></th>
+                            <th><?= lang_line('ar_invoice_customer'); ?></th>
+                            <th><?= lang_line('text_type'); ?></th>
+                            <th class="text-right"><?= lang_line('ar_invoice_total_bill'); ?></th>
+                            <th class="text-right"><?= lang_line('text_amount'); ?> <?= lang_line('ar_receipt_no'); ?></th>
+                            <th><?= lang_line('ar_invoice_payment_status'); ?></th>
+                            <th><?= lang_line('journal_status'); ?></th>
+                            <th><?= lang_line('label_action'); ?></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -48,13 +48,13 @@
                             <td><?= date('d-m-Y', strtotime($inv->invoice_date)); ?></td>
                             <td><?= $inv->nama_customer; ?></td>
                             <td>
-                                <?php 
+                                <?php
                                     if ($inv->source_type == 'SCRAP_OUT') {
-                                        echo '<span class="badge badge-warning">Scrap Out</span>';
+                                        echo '<span class="badge badge-warning">' . lang_line('arinv_type_scrap_out') . '</span>';
                                     } else {
-                                        echo ($inv->customer_type == 'Lokal') 
-                                            ? '<span class="badge badge-primary">FG (Lokal)</span>' 
-                                            : '<span class="badge badge-info">FG (Ekspor)</span>';
+                                        echo ($inv->customer_type == 'Lokal')
+                                            ? '<span class="badge badge-primary">' . lang_line('arinv_type_fg_local') . '</span>'
+                                            : '<span class="badge badge-info">' . lang_line('arinv_type_fg_export') . '</span>';
                                     }
                                 ?>
                             </td>
@@ -74,11 +74,11 @@
                                 </span>
                             </td>
                             <td class="text-center">
-                                <a href="<?= base_url('arinvoice/view/' . $inv->id); ?>" class="btn btn-info btn-circle btn-sm" title="Lihat Detail">
+                                <a href="<?= base_url('arinvoice/view/' . $inv->id); ?>" class="btn btn-info btn-circle btn-sm" title="<?= lang_line('btn_detail'); ?>">
                                     <i class="fas fa-eye"></i>
                                 </a>
                                 <?php if($inv->status == 'Draft'): ?>
-                                <a href="<?= base_url('arinvoice/delete/' . $inv->id); ?>" class="btn btn-danger btn-circle btn-sm" title="Hapus" onclick="return confirm('Anda yakin ingin menghapus faktur DRAFT ini?');">
+                                <a href="<?= base_url('arinvoice/delete/' . $inv->id); ?>" class="btn btn-danger btn-circle btn-sm" title="<?= lang_line('acct_delete_btn'); ?>" onclick="return confirm('<?= addslashes(lang_line('acct_confirm_delete_draft_invoice')); ?>');">
                                     <i class="fas fa-trash"></i>
                                 </a>
                                 <?php endif; ?>

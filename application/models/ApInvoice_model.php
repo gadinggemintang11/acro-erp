@@ -8,6 +8,7 @@ class ApInvoice_model extends CI_Model {
         parent::__construct();
         $this->load->model('JurnalUmum_model', 'jurnal');
         $this->load->model('Coa_model', 'coa');
+        $this->load->model('Ap_auto_model');
     }
 
     /**
@@ -34,6 +35,14 @@ class ApInvoice_model extends CI_Model {
     }
 
     /**
+     * Generate Invoice Number (format: INV/202504/0001)
+     */
+    public function generate_invoice_number() {
+        // Format nomor diatur di config/doc_number.php (rebrand Acropoly 2026-11-05).
+        return doc_number_next('ap_invoice', 'ap_invoice_header', 'invoice_no');
+    }
+
+    /**
      * ======================================
      * FUNGSI UNTUK HALAMAN CREATE
      * ======================================
@@ -53,35 +62,27 @@ class ApInvoice_model extends CI_Model {
     }
 
     /**
-     * ✨ NEW: Ambil list akun persediaan untuk pilihan debet saat pembuatan invoice
-     * Filter akun dengan kode: 1.105, 1.106, 1.107, 1.108, 1.109 (Persediaan)
+     * Ambil semua akun yang bisa diposting (non-header & aktif) untuk pilihan debet.
+     * Tidak lagi memfilter kode tertentu agar tetap tampil meski struktur COA berubah.
      */
     public function get_debet_accounts()
     {
         $this->db->select('id, account_code, account_name');
         $this->db->where('is_header', 0);
         $this->db->where('status', 'active');
-        $this->db->group_start();
-        $this->db->like('account_code', '1.105', 'after');
-        $this->db->or_like('account_code', '1.106', 'after');
-        $this->db->or_like('account_code', '1.107', 'after');
-        $this->db->or_like('account_code', '1.108', 'after');
-        $this->db->or_like('account_code', '1.109', 'after');
-        $this->db->group_end();
         $this->db->order_by('account_code', 'ASC');
         return $this->db->get('chart_of_accounts')->result();
     }
 
     /**
-     * ✨ NEW: Ambil list akun utang untuk pilihan kredit saat pembuatan invoice
-     * Filter hanya akun dengan kode yang dimulai dengan 2.1 (Utang)
+     * Ambil semua akun yang bisa diposting (non-header & aktif) untuk pilihan kredit.
+     * Tidak lagi memfilter kode tertentu agar tetap tampil meski struktur COA berubah.
      */
     public function get_kredit_accounts()
     {
         $this->db->select('id, account_code, account_name');
         $this->db->where('is_header', 0);
         $this->db->where('status', 'active');
-        $this->db->like('account_code', '2.1', 'after'); // Filter akun hutang
         $this->db->order_by('account_code', 'ASC');
         return $this->db->get('chart_of_accounts')->result();
     }
@@ -142,22 +143,29 @@ class ApInvoice_model extends CI_Model {
         
         $this->db->where("(mh.payment_type_code != 'FOC' OR mh.payment_type_code IS NULL)", NULL, FALSE);
 
-        return $this->db->get()->result();
+        $rows = $this->db->get()->result();
+        // Sembunyikan GRN yang barangnya sudah ditagih semua lewat jalur lain
+        // (AP berbasis PO / Payment Request) -- cegah hutang tercatat dua kali.
+        return array_values(array_filter($rows, function ($g) {
+            return count($this->get_details_from_grn([(int) $g->id])) > 0;
+        }));
     }
 
     public function get_details_from_grn($grn_ids = [])
     {
         $select = "gd.id as grn_detail_id, 
+            gd.grn_header_id, gd.source_doc_type, gd.source_doc_detail_id,
             gd.item_id, 
             gd.item_type, 
             gd.receive_qty as qty, 
             gd.unit_value as unit_price, 
             gd.total_value as total_price,
-            CASE 
+            CASE
                 WHEN gd.item_type = 'material' THEN m.nama_material
                 WHEN gd.item_type = 'machine' THEN mc.nama_mesin
                 WHEN gd.item_type = 'inventory' THEN inv.nama_barang
-                ELSE 'Unknown Item' 
+                WHEN gd.item_type = 'jasa' THEN j.nama_jasa
+                ELSE 'Unknown Item'
             END as description";
         // Pass FALSE to avoid Query Builder escaping the CASE expression as an identifier
         $this->db->select($select, FALSE);
@@ -165,16 +173,102 @@ class ApInvoice_model extends CI_Model {
         $this->db->join('materials m', "gd.item_id = m.id AND gd.item_type = 'material'", 'left');
         $this->db->join('machines mc', "gd.item_id = mc.id AND gd.item_type = 'machine'", 'left');
         $this->db->join('inventories inv', "gd.item_id = inv.id AND gd.item_type = 'inventory'", 'left');
+        $this->db->join('jasa j', "gd.item_id = j.id AND gd.item_type = 'jasa'", 'left');
         $this->db->where_in('gd.grn_header_id', $grn_ids);
-        return $this->db->get()->result();
+        $this->db->order_by('gd.grn_header_id', 'ASC')->order_by('gd.id', 'ASC');
+        $rows = $this->db->get()->result();
+
+        // Batasi qty baris berbasis PO ke sisa yang belum ditagih (Ap_auto_model).
+        $po_ids = [];
+        foreach ($rows as $r) {
+            if ($r->source_doc_type === 'PO' && !empty($r->source_doc_detail_id)) {
+                $po_ids[] = (int) $this->db->select('po_header_id')->where('id', (int) $r->source_doc_detail_id)->get('po_details')->row('po_header_id');
+            }
+        }
+        $left = [];
+        if ($po_ids) {
+            foreach ($this->Ap_auto_model->po_line_status($po_ids) as $pdid => $st) $left[$pdid] = $st->remaining_qty;
+        }
+        // Sisa tagihan per baris PO dialokasikan ke penerimaan TERBARU dulu (tagihan
+        // lain -- AP berbasis PO / Payment Request -- dianggap melunasi penerimaan
+        // paling lama). Jadi GRN lama yang barangnya sudah ditagih tidak muncul lagi.
+        $allowed = [];
+        if ($left) {
+            $cand = $this->db->query("
+                SELECT gd.id, gd.source_doc_detail_id, gd.receive_qty
+                FROM grn_details gd JOIN grn_header gh ON gh.id = gd.grn_header_id
+                WHERE gd.source_doc_type = 'PO' AND gh.status = 'Completed'
+                  AND gd.source_doc_detail_id IN (" . implode(',', array_map('intval', array_keys($left))) . ")
+                  AND NOT EXISTS (SELECT 1 FROM ap_invoice_header ap
+                                  WHERE JSON_SEARCH(ap.grn_ids, 'one', CAST(gh.id AS CHAR)) IS NOT NULL
+                                    AND ap.status != 'Cancelled')
+                ORDER BY gh.grn_date DESC, gh.id DESC, gd.id DESC")->result();
+            foreach ($cand as $g) {
+                $pd = (int) $g->source_doc_detail_id;
+                $a  = min((float) $g->receive_qty, max(0, (float) ($left[$pd] ?? 0)));
+                $left[$pd] = ($left[$pd] ?? 0) - $a;
+                $allowed[(int) $g->id] = $a;
+            }
+        }
+        $out = [];
+        foreach ($rows as $r) {
+            if ($r->source_doc_type === 'PO' && !empty($r->source_doc_detail_id)) {
+                $allow = min((float) $r->qty, (float) ($allowed[(int) $r->grn_detail_id] ?? 0));
+                if ($allow <= Ap_auto_model::QTY_EPS) continue;
+                $r->qty = round($allow, 4);
+                $r->total_price = round($allow * (float) $r->unit_price, 2);
+            }
+            $acc = $this->Ap_auto_model->resolve_item_account($r->item_type, $r->item_id);
+            $r->default_account_id = $acc['account_id'];
+            $out[] = $r;
+        }
+        return $out;
     }
 
     public function insert_invoice($post_data)
     {
-        $this->db->trans_start();
-
         $details = $post_data['details'];
         $invoice_type = $post_data['invoice_type'];
+        $po_header_id = null;
+
+        // Batas tagih dicek di server (form bisa dimanipulasi / data berubah).
+        if ($invoice_type == 'GRN_BASED') {
+            $allowed = [];
+            foreach ($this->get_details_from_grn(array_map('intval', (array) ($post_data['grn_ids'] ?? []))) as $r) {
+                $allowed[(int) $r->grn_detail_id] = $r;
+            }
+            foreach ($details as $k => $d) {
+                $a = $allowed[(int) ($d['grn_detail_id'] ?? 0)] ?? null;
+                if (!$a) throw new Exception('Baris GRN ' . ($d['description'] ?? '') . ' sudah ditagih / tidak valid. Muat ulang GRN.');
+                if ((float) $d['qty'] > (float) $a->qty + Ap_auto_model::QTY_EPS) {
+                    throw new Exception('Qty ' . $a->description . ' melebihi sisa yang belum ditagih (' . (float) $a->qty . ').');
+                }
+            }
+        } elseif ($invoice_type == 'PO_BASED') {
+            $want = [];
+            foreach ($details as $d) $want[(int) ($d['po_detail_id'] ?? 0)] = ($want[(int) ($d['po_detail_id'] ?? 0)] ?? 0) + (float) ($d['qty'] ?? 0);
+            unset($want[0]);
+            if (empty($want)) throw new Exception('Tidak ada baris PO yang ditagih.');
+            $po_ids = array_map(function ($r) { return (int) $r->po_header_id; }, $this->db->select('po_header_id')->where_in('id', array_keys($want))->get('po_details')->result());
+            $status = $this->Ap_auto_model->po_line_status($po_ids);
+            foreach ($want as $pdid => $qty) {
+                $st = $status[$pdid] ?? null;
+                if (!$st || (int) $st->supplier_id !== (int) $post_data['supplier_id']) throw new Exception('Baris PO tidak valid untuk supplier ini.');
+                if ($qty <= 0 || $qty > $st->remaining_qty + Ap_auto_model::QTY_EPS) {
+                    throw new Exception('Qty ' . $st->description . ' (PO ' . $st->po_number . ') melebihi sisa yang bisa ditagih (' . (float) $st->remaining_qty . ').');
+                }
+            }
+            foreach ($details as $k => $d) {
+                $st = $status[(int) $d['po_detail_id']];
+                $details[$k]['unit_price'] = $st->dpp_unit_price;   // harga dikunci ke PO (tanpa PPN)
+                $details[$k]['item_id'] = $st->item_id;
+                $details[$k]['item_type'] = $st->item_type;
+                if (empty($d['description'])) $details[$k]['description'] = $st->description;
+            }
+            if (count(array_unique($po_ids)) === 1) $po_header_id = (int) reset($po_ids);
+        }
+
+        $this->db->trans_start();
         $ppn_rate = (float) ($post_data['ppn_rate'] ?? 0);
         $pph_rate = (float) ($post_data['pph_rate'] ?? 0);
         
@@ -192,7 +286,13 @@ class ApInvoice_model extends CI_Model {
                 'total_price' => $total_price
             ];
 
-            if ($invoice_type == 'GRN_BASED') {
+            if ($invoice_type == 'PO_BASED') {
+                $detail_data['po_detail_id'] = (int) $d['po_detail_id'];
+                $detail_data['item_id'] = $d['item_id'];
+                $detail_data['item_type'] = $d['item_type'];
+                $detail_data['debet_account_id'] = !empty($d['debet_account_id']) ? $d['debet_account_id'] : null;
+                $detail_data['account_id'] = $detail_data['debet_account_id'];
+            } elseif ($invoice_type == 'GRN_BASED') {
                 $detail_data['grn_detail_id'] = $d['grn_detail_id'];
                 $detail_data['item_id'] = $d['item_id'];
                 $detail_data['item_type'] = $d['item_type'];
@@ -220,6 +320,7 @@ class ApInvoice_model extends CI_Model {
             'supplier_id' => $post_data['supplier_id'],
             'invoice_type' => $invoice_type,
             'grn_ids' => ($invoice_type == 'GRN_BASED') ? json_encode($post_data['grn_ids']) : NULL,
+            'po_header_id' => $po_header_id,
             'subtotal' => $subtotal,
             'ppn_amount' => $ppn_amount,
             'pph_amount' => $pph_amount,
@@ -251,6 +352,8 @@ class ApInvoice_model extends CI_Model {
     public function get_invoice_header_by_id($id)
     {
         $this->db->select('ap.*, s.nama_supplier, s.jenis as supplier_type,
+                          (SELECT prf.prf_number FROM prf_header prf WHERE prf.id = ap.prf_header_id) as prf_number,
+                          (SELECT GROUP_CONCAT(DISTINCT ph.po_number SEPARATOR ", ") FROM ap_invoice_details x JOIN po_details pd ON pd.id = x.po_detail_id JOIN po_header ph ON ph.id = pd.po_header_id WHERE x.ap_invoice_header_id = ap.id) as po_numbers,
                           (SELECT GROUP_CONCAT(DISTINCT gh.base_on) 
                            FROM grn_header gh 
                            WHERE JSON_SEARCH(ap.grn_ids, "one", gh.id) IS NOT NULL

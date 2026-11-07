@@ -23,24 +23,24 @@ class Exim_verification_model extends CI_Model {
             grn.status,
             grn.exim_verified,
             grn.exim_verified_at,
-            CASE 
-                WHEN grn.base_on = "PO" THEN s.nama_supplier
-                WHEN grn.base_on = "MIR" THEN s_mir.nama_supplier
-                ELSE NULL
-            END AS nama_supplier,
+            COALESCE(s_grn.nama_supplier, s_po.nama_supplier, s_mir.nama_supplier, "-") as nama_supplier,
             u.fullname as verified_by_name,
             COUNT(DISTINCT grnd.id) as num_items,
             SUM(grnd.receive_qty) as total_qty
         ', FALSE);
         $this->db->from('grn_header grn');
-        // JOIN untuk supplier PO
-        $this->db->join('suppliers s', 'grn.supplier_id = s.id', 'left');
-        // JOIN untuk supplier MIR (melalui grn_details, mir_header, dan suppliers)
-        $this->db->join('grn_details grnd_temp', 'grn.id = grnd_temp.grn_header_id AND grnd_temp.source_doc_type = "MIR"', 'left');
-        $this->db->join('mir_header mh', 'grnd_temp.source_doc_header_id = mh.id', 'left');
-        $this->db->join('suppliers s_mir', 'mh.supplier_id = s_mir.id', 'left');
+        // JOIN supplier dari grn_header.supplier_id (paling reliable — di-set saat
+        // Goods Return load atau add_item dari PO/MIR; cover semua base_on termasuk
+        // Goods Return dari NG QA & Production Return).
+        $this->db->join('suppliers s_grn', 'grn.supplier_id = s_grn.id', 'left');
         // JOIN untuk items details
         $this->db->join('grn_details grnd', 'grn.id = grnd.grn_header_id', 'left');
+        // Fallback: supplier PO (jika base_on = PO dan grn_header.supplier_id null)
+        $this->db->join('po_header ph', 'grnd.source_doc_type = "PO" AND grnd.source_doc_header_id = ph.id', 'left');
+        $this->db->join('suppliers s_po', 'ph.supplier_id = s_po.id', 'left');
+        // Fallback: supplier MIR (jika base_on = MIR dan grn_header.supplier_id null)
+        $this->db->join('mir_header mh', 'grnd.source_doc_type = "MIR" AND grnd.source_doc_header_id = mh.id', 'left');
+        $this->db->join('suppliers s_mir', 'mh.supplier_id = s_mir.id', 'left');
         // JOIN untuk verified_by user
         $this->db->join('users u', 'grn.exim_verified_by = u.id', 'left');
 

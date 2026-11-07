@@ -100,8 +100,8 @@
     
     <!-- Page Header -->
     <div class="page-header">
-        <h1><i class="fas fa-chart-line me-2"></i>Reports</h1>
-        <p><i class="fas fa-info-circle me-2"></i>Pilih laporan yang ingin Anda lihat</p>
+        <h1><i class="fas fa-chart-line me-2"></i><?= lang_line('reports_title'); ?></h1>
+        <p><i class="fas fa-info-circle me-2"></i><?= lang_line('reports_subtitle'); ?></p>
     </div>
 
     <!-- Report Cards -->
@@ -113,8 +113,8 @@
                 <div class="report-icon primary">
                     <i class="fas fa-chart-line"></i>
                 </div>
-                <h3 class="report-title">Laba Rugi</h3>
-                <p class="report-description">Laporan pendapatan, biaya, dan laba/rugi periode tertentu</p>
+                <h3 class="report-title"><?= lang_line('reports_profit_loss'); ?></h3>
+                <p class="report-description"><?= lang_line('reports_profit_loss_desc'); ?></p>
             </a>
         </div>
 
@@ -124,8 +124,8 @@
                 <div class="report-icon success">
                     <i class="fas fa-balance-scale"></i>
                 </div>
-                <h3 class="report-title">Neraca</h3>
-                <p class="report-description">Posisi aset, kewajiban, dan ekuitas perusahaan</p>
+                <h3 class="report-title"><?= lang_line('reports_balance_sheet'); ?></h3>
+                <p class="report-description"><?= lang_line('reports_balance_sheet_desc'); ?></p>
             </a>
         </div>
 
@@ -135,8 +135,8 @@
                 <div class="report-icon info">
                     <i class="fas fa-list-alt"></i>
                 </div>
-                <h3 class="report-title">Neraca Saldo</h3>
-                <p class="report-description">Saldo debit dan kredit semua akun pada periode tertentu</p>
+                <h3 class="report-title"><?= lang_line('reports_trial_balance'); ?></h3>
+                <p class="report-description"><?= lang_line('reports_trial_balance_desc'); ?></p>
             </a>
         </div>
 
@@ -146,8 +146,8 @@
                 <div class="report-icon warning">
                     <i class="fas fa-money-bill-wave"></i>
                 </div>
-                <h3 class="report-title">Arus Kas</h3>
-                <p class="report-description">Laporan arus kas masuk dan keluar perusahaan</p>
+                <h3 class="report-title"><?= lang_line('reports_cash_flow'); ?></h3>
+                <p class="report-description"><?= lang_line('reports_cash_flow_desc'); ?></p>
             </a>
         </div>
 
@@ -157,8 +157,8 @@
                 <div class="report-icon danger">
                     <i class="fas fa-file-invoice-dollar"></i>
                 </div>
-                <h3 class="report-title">Detail Arus Kas</h3>
-                <p class="report-description">Rincian transaksi arus kas dengan detail lengkap</p>
+                <h3 class="report-title"><?= lang_line('reports_cash_flow_detail'); ?></h3>
+                <p class="report-description"><?= lang_line('reports_cash_flow_detail_desc'); ?></p>
             </a>
         </div>
 
@@ -168,8 +168,8 @@
                 <div class="report-icon primary">
                     <i class="fas fa-book"></i>
                 </div>
-                <h3 class="report-title">Buku Besar</h3>
-                <p class="report-description">Lihat Chart of Accounts untuk memilih akun buku besar</p>
+                <h3 class="report-title"><?= lang_line('reports_general_ledger'); ?></h3>
+                <p class="report-description"><?= lang_line('reports_general_ledger_desc'); ?></p>
             </a>
         </div>
 
@@ -180,7 +180,7 @@
         <div class="col-12">
             <div class="alert" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.1), rgba(59, 130, 246, 0.05)); border: 1px solid rgba(59, 130, 246, 0.2); border-radius: 16px; color: #3B82F6;">
                 <i class="fas fa-info-circle me-2"></i>
-                <strong>Info:</strong> Semua laporan dapat diekspor ke format PDF atau Excel. Gunakan filter tanggal untuk menyesuaikan periode laporan.
+                <strong><?= lang_line('label_info'); ?></strong> <?= lang_line('reports_info'); ?>
             </div>
         </div>
     </div>

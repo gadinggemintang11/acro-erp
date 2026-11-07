@@ -29,7 +29,7 @@ class Fg_stock extends MY_Controller {
         $stock_summary = $this->Fg_stock_ledger_model->get_current_stock_summary($filters);
 
         $data = [
-            'title'         => 'Ringkasan Stok Barang Jadi (FG)',
+            'title'         => lang_line('title_fgs_index'),
             'filters'       => $filters,
             'stock_summary' => $stock_summary
         ];
@@ -71,7 +71,7 @@ class Fg_stock extends MY_Controller {
         $ledger_data = $this->Fg_stock_ledger_model->get_ledger($filters);
 
         $data = [
-            'title'              => 'Kartu Stok - ' . htmlspecialchars($fg_info->nama_barang),
+            'title'              => sprintf(lang_line('title_fgs_card'), htmlspecialchars($fg_info->nama_barang)),
             'filters'            => $filters,
             'fg_info'            => $fg_info,
             'opening_balance'    => $opening_balance,
@@ -114,7 +114,7 @@ class Fg_stock extends MY_Controller {
         $ledger_data = $this->Fg_stock_ledger_model->get_ledger($filters);
 
         $data = [
-            'title'           => 'Kartu Stok Barang Jadi',
+            'title'           => lang_line('title_fgs_card_fg'),
             'filters'         => $filters,
             'fg_info'         => $fg_info,
             'opening_balance' => $opening_balance,

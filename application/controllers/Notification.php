@@ -32,9 +32,10 @@ class Notification extends MY_Controller {
                 return;
             }
             
-            // Get all recent notifications (not filtered by user for now)
-            $notifications = $this->Notification_model->get_notifications(null, $limit);
-            $unread_count = $this->Notification_model->count_unread(null);
+            // Filter by user's role: only show activity in modules the user can view,
+            // and exclude the user's own activity.
+            $notifications = $this->Notification_model->get_notifications($user_id, $limit);
+            $unread_count  = $this->Notification_model->count_unread($user_id);
             
             echo json_encode(array(
                 'status' => true,

@@ -9,7 +9,7 @@ class Master_fg extends MY_Controller {
         $this->load->model('Fg_model');
         // ✅ Load Commoncode_model untuk data dinamis
         $this->load->model('Commoncode_model');
-        $this->load->helper(['form', 'url']);
+        $this->load->helper(['form', 'url', 'export']);
     }
 
     public function index() {
@@ -19,12 +19,9 @@ class Master_fg extends MY_Controller {
         }
 
         $data = [
-            'title'         => 'Master Finished Goods',
+            'title'         => lang_line('title_mst_fg'),
             'fg'            => $this->Fg_model->get_all(),
-            'satuan_list'   => $this->Commoncode_model->get_by_group('SATUAN'),
-            'kategori_list' => $this->Commoncode_model->get_by_group('FINISHED_CATEGORY'),
-            // ✅ DINAMIS: Mengambil data asal dari common code
-            'asal_list'     => $this->Commoncode_model->get_by_group('BUYER')
+            'satuan_list'   => $this->Commoncode_model->get_by_group('SATUAN')
         ];
 
         $this->load->view('templates/header', $data);
@@ -45,12 +42,21 @@ class Master_fg extends MY_Controller {
             return;
         }
 
+        $kode_barang = $this->input->post('kode_barang');
+        $nama_barang = $this->input->post('nama_barang');
+        $satuan = $this->input->post('satuan');
+        $konversi_satuan = $this->input->post('konversi_satuan');
+
+        if (empty($kode_barang) || empty($nama_barang)) {
+            $this->session->set_flashdata('error', 'Kode barang dan nama barang (model) wajib diisi.');
+            return redirect('master_fg');
+        }
+
         $data = [
-            'kode_barang' => $this->Fg_model->generate_kode($this->input->post('kategori'), $this->input->post('asal')),
-            'nama_barang' => $this->input->post('nama_barang'),
-            'kategori'    => $this->input->post('kategori'),
-            'asal'        => $this->input->post('asal'),
-            'satuan'      => $this->input->post('satuan'),
+            'kode_barang' => $kode_barang,
+            'nama_barang' => $nama_barang,
+            'satuan'      => $satuan,
+            'konversi_satuan' => $konversi_satuan,
             'status'      => 'active',
         ];
 
@@ -70,10 +76,10 @@ class Master_fg extends MY_Controller {
         if (empty($id)) show_404(); // ✅ Pengecekan ID
 
         $data = [
+            'kode_barang' => $this->input->post('kode_barang'),
             'nama_barang' => $this->input->post('nama_barang'),
-            'kategori'    => $this->input->post('kategori'),
-            'asal'        => $this->input->post('asal'),
             'satuan'      => $this->input->post('satuan'),
+            'konversi_satuan' => $this->input->post('konversi_satuan'),
             'status'      => $this->input->post('status'),
         ];
 
@@ -99,5 +105,52 @@ class Master_fg extends MY_Controller {
             $this->session->set_flashdata('error', 'Gagal menonaktifkan data!');
         }
         redirect('master_fg');
+    }
+
+    public function export_excel() {
+        if (!check_access('master_fg', 'view')) {
+            show_error('Anda tidak memiliki izin untuk export data.', 403);
+        }
+
+        $data = $this->Fg_model->get_all();
+        $headers = ['Kode', 'Model', 'Satuan', 'Konversi Satuan', 'Status'];
+        
+        $export_data = [];
+        foreach ($data as $row) {
+            $export_data[] = [
+                $row->kode_barang,
+                $row->nama_barang,
+                $row->satuan,
+                $row->konversi_satuan,
+                $row->is_active ? 'Aktif' : 'Tidak Aktif'
+            ];
+        }
+
+        $filename = 'Master_FG_' . date('YmdHis');
+        export_to_excel($headers, $export_data, $filename);
+    }
+
+    public function export_pdf() {
+        if (!check_access('master_fg', 'view')) {
+            show_error('Anda tidak memiliki izin untuk export data.', 403);
+        }
+
+        $data = $this->Fg_model->get_all();
+        $headers = ['Kode', 'Model', 'Satuan', 'Konversi Satuan', 'Status'];
+        
+        $export_data = [];
+        foreach ($data as $row) {
+            $export_data[] = [
+                $row->kode_barang,
+                $row->nama_barang,
+                $row->satuan,
+                $row->konversi_satuan,
+                $row->is_active ? 'Aktif' : 'Tidak Aktif'
+            ];
+        }
+
+        $filename = 'Master_FG_' . date('YmdHis');
+        $title = 'Master Finished Goods - ' . date('Y-m-d H:i:s');
+        export_to_pdf($headers, $export_data, $filename, $title);
     }
 }

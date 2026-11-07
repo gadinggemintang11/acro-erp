@@ -75,6 +75,7 @@
         }
         .details-table {
             width: 100%;
+            table-layout: fixed; /* lebar % di bawah -- dulu px tetap, tabel meluber keluar kertas A4 */
             border-collapse: collapse;
             margin-top: 15px;
             border: 1px solid #1e293b;
@@ -84,19 +85,20 @@
             border-bottom: 2px solid #1e293b;
         }
         .details-table th {
-            padding: 12px 10px;
+            padding: 7px 4px;
             text-align: center;
             font-weight: 700;
             text-transform: uppercase;
-            font-size: 9pt;
-            letter-spacing: 0.5px;
+            font-size: 7.5pt;
+            letter-spacing: 0;
             border: 1px solid #1e293b;
             color: #1e293b;
         }
         .details-table td {
             border: 1px solid #cbd5e1;
-            padding: 10px;
-            font-size: 10pt;
+            padding: 6px 4px;
+            font-size: 8.5pt;
+            word-wrap: break-word;
             color: #1e293b;
             background: white;
         }
@@ -104,12 +106,12 @@
             background-color: #f8fafc;
         }
         .details-table .no {
-            width: 40px;
+            width: 5%;
             text-align: center;
             font-weight: 600;
         }
         .details-table .item-code {
-            width: 110px;
+            width: 12%;
             font-family: 'Courier New', monospace;
             font-weight: 600;
         }
@@ -117,24 +119,24 @@
             font-weight: 500;
         }
         .details-table .qty {
-            width: 100px;
+            width: 9%;
             text-align: right;
             font-weight: 600;
             font-variant-numeric: tabular-nums;
         }
         .details-table .uom {
-            width: 70px;
+            width: 7%;
             text-align: center;
             font-weight: 500;
         }
-        .details-table .notes {
+        .details-table td.notes {
             font-size: 9pt;
         }
         .details-table .ref {
-            width: 80px;
+            width: 12%;
             text-align: center;
             font-family: 'Courier New', monospace;
-            font-size: 9pt;
+            font-size: 7.5pt;
         }
         .details-table .empty-row td {
             text-align: center;
@@ -233,12 +235,12 @@
                 <tr>
                     <td class="label">Tgl Terima</td>
                     <td class="value">: <strong><?= date('d F Y', strtotime($receipt_header->receipt_date)); ?></strong></td>
-                    <td class="label">No. Produksi</td>
-                    <td class="value">: <strong><?= htmlspecialchars($receipt_header->production_number); ?></strong></td>
+                    <td class="label">Barang Jadi</td>
+                    <td class="value">: <strong><?= htmlspecialchars(($receipt_header->fg_code ?? '') . ' - ' . ($receipt_header->fg_name ?? '-')); ?></strong></td>
                 </tr>
                 <tr>
-                    <td class="label">No. WO</td>
-                    <td class="value">: <?= htmlspecialchars($receipt_header->wo_number); ?></td>
+                    <td class="label">No. Penerimaan</td>
+                    <td class="value">: <?= htmlspecialchars($receipt_header->receipt_number); ?></td>
                     <td class="label">Status</td>
                     <td class="value">: <span class="badge-status"><?= htmlspecialchars($receipt_header->status); ?></span></td>
                 </tr>
@@ -258,28 +260,32 @@
             <thead>
                 <tr>
                     <th class="no">No</th>
+                    <th class="ref">No. WO</th>
+                    <th class="ref">No. Sales Order</th>
+                    <th class="ref">No. Produksi</th>
                     <th class="item-code">Kode FG</th>
                     <th class="item-name">Nama Barang Jadi</th>
                     <th class="qty">Qty Terima</th>
                     <th class="uom">Unit</th>
                     <th class="notes">Keterangan</th>
-                    <th class="ref">Ref</th>
                 </tr>
             </thead>
             <tbody>
                 <?php if (!empty($receipt_details)): $no = 1; foreach($receipt_details as $detail): ?>
                 <tr>
                     <td class="no"><?= $no++; ?></td>
+                    <td class="ref"><?= htmlspecialchars($detail->wo_number ?: '-'); ?></td>
+                    <td class="ref"><?= htmlspecialchars($detail->ipo_number ?: '-'); ?></td>
+                    <td class="ref"><?= htmlspecialchars($detail->production_number ?: '-'); ?></td>
                     <td class="item-code"><?= htmlspecialchars($detail->fg_code); ?></td>
                     <td class="item-name"><?= htmlspecialchars($detail->fg_name); ?></td>
                     <td class="qty"><?= number_format($detail->qty_received, 2); ?></td>
                     <td class="uom"><?= htmlspecialchars($detail->uom ?: $detail->fg_uom); ?></td>
                     <td class="notes"><?= htmlspecialchars($detail->notes ?: '-'); ?></td>
-                    <td class="ref"><?= $detail->prod_output_id ?: '-'; ?></td>
                 </tr>
                 <?php endforeach; else: ?>
                 <tr class="empty-row">
-                    <td colspan="7">Tidak ada item detail.</td>
+                    <td colspan="9">Tidak ada item detail.</td>
                 </tr>
                 <?php endif; ?>
             </tbody>
@@ -287,27 +293,26 @@
 
         <div class="signature-section">
             <?php
-                $receiver_name = htmlspecialchars($receipt_header->receiver_name ?: '-');
-                $confirmer_name = htmlspecialchars($receipt_header->confirmer_name ?: '-');
+                // 2 kolom (2026-11-06): Dibuat & Disetujui (approval 1 tahap Head of Dept).
+                $sig_cols = [
+                    ['label' => 'Dibuat',    'slot' => $sig_made ?? []],
+                    ['label' => 'Disetujui', 'slot' => $sig_approved ?? []],
+                ];
             ?>
             <table class="signature-table">
                 <tr>
+                    <?php foreach ($sig_cols as $col): $slot = $col['slot']; ?>
                     <td>
                         <div class="sig-box">
-                            <div class="sig-label">Diterima Oleh<br>(Gudang FG)</div>
+                            <div class="sig-label"><?= $col['label']; ?></div>
+                            <div style="height: 58px;"><?= $slot['html'] ?? ''; ?></div>
                             <div class="sig-line">
-                                <div class="sig-name"><?= $receiver_name; ?></div>
+                                <div class="sig-name"><?= htmlspecialchars($slot['name'] ?? '-'); ?></div>
+                                <div style="font-size: 9px; color: #555;"><?= !empty($slot['date']) ? date('d/m/Y', strtotime($slot['date'])) : '&nbsp;'; ?></div>
                             </div>
                         </div>
                     </td>
-                    <td>
-                        <div class="sig-box">
-                            <div class="sig-label">Dikonfirmasi Oleh<br>(Manager)</div>
-                            <div class="sig-line">
-                                <div class="sig-name"><?= $confirmer_name; ?></div>
-                            </div>
-                        </div>
-                    </td>
+                    <?php endforeach; ?>
                 </tr>
             </table>
         </div>

@@ -50,6 +50,8 @@
                         <th rowspan="2">Kode Barang</th>
                         <th rowspan="2">Nama Barang</th>
                         <th rowspan="2">Jumlah</th>
+                        <th rowspan="2">Adjustment</th>
+                        <th rowspan="2">Total Qty</th>
                         <th rowspan="2">Satuan</th>
                         <th rowspan="2">Mata Uang</th>
                         <th rowspan="2">Nilai Barang</th>
@@ -66,14 +68,14 @@
                 <tbody>
                     <?php if (empty($report_data)): ?>
                         <tr>
-                            <td colspan="14" class="text-center text-muted py-3">
+                            <td colspan="16" class="text-center text-muted py-3">
                                 <i class="fas fa-info-circle me-1"></i> Tidak ada data untuk periode ini.
                             </td>
                         </tr>
                     <?php else: ?>
                         <?php foreach ($report_data as $row): ?>
                             <tr>
-                                <td class="text-center"><?= $start_no++; ?></td>
+                                <td class="text-center row-number"></td>
                                 <td><?= htmlspecialchars($row['bc_type_code'] ?? '-'); ?></td>
                                 <td><?= htmlspecialchars($row['bc_number'] ?? '-'); ?></td>
                                 <td><?= isset($row['bc_date']) ? date('d/m/Y', strtotime($row['bc_date'])) : '-'; ?></td>
@@ -83,6 +85,28 @@
                                 <td><?= htmlspecialchars($row['item_code'] ?? '-'); ?></td>
                                 <td><?= htmlspecialchars($row['item_name'] ?? '-'); ?></td>
                                 <td class="text-end"><?= isset($row['qty_in']) ? number_format($row['qty_in'], 2) : '-'; ?></td>
+                                <?php
+                                    $adj_qty  = isset($row['adj_qty'])  ? (float)$row['adj_qty']  : 0;
+                                    $total_qty = isset($row['total_qty']) ? (float)$row['total_qty'] : (float)($row['qty_in'] ?? 0);
+                                    $adj_class = $adj_qty > 0 ? 'text-success' : ($adj_qty < 0 ? 'text-danger' : 'text-muted');
+                                    $has_adj   = $adj_qty != 0;
+                                ?>
+                                <td class="text-end <?= $adj_class; ?>">
+                                    <?php if ($has_adj): ?>
+                                        <button class="btn btn-link btn-sm p-0 btn-adj-detail <?= $adj_class; ?>"
+                                            data-itemid="<?= $row['item_id'] ?? ''; ?>"
+                                            data-itemtype="<?= htmlspecialchars($row['item_type'] ?? ''); ?>"
+                                            data-itemname="<?= htmlspecialchars($row['item_name'] ?? 'Item'); ?>"
+                                            data-startdate="<?= htmlspecialchars($filters['start_date'] ?? ''); ?>"
+                                            data-enddate="<?= htmlspecialchars($filters['end_date'] ?? ''); ?>"
+                                            title="Lihat Detail Adjustment">
+                                            <?= ($adj_qty > 0 ? '+' : '') . number_format($adj_qty, 2); ?>
+                                        </button>
+                                    <?php else: ?>
+                                        <span class="text-muted">-</span>
+                                    <?php endif; ?>
+                                </td>
+                                <td class="text-end font-weight-bold"><?= number_format($total_qty, 2); ?></td>
                                 <td class="text-center"><?= htmlspecialchars($row['item_unit'] ?? '-'); ?></td>
                                 <td class="text-center"><?= htmlspecialchars($row['currency_code'] ?? 'IDR'); ?></td>
                                 <td class="text-end"><?= isset($row['unit_value_idr']) ? number_format($row['unit_value_idr'], 2) : '-'; ?></td>
@@ -92,6 +116,8 @@
                                             data-ledgerid="<?= $row['ledger_id']; ?>"
                                             data-itemid="<?= $row['item_id'] ?? ''; ?>"
                                             data-itemname="<?= htmlspecialchars($row['item_name'] ?? 'Item'); ?>"
+                                            data-startdate="<?= htmlspecialchars($filters['start_date'] ?? ''); ?>"
+                                            data-enddate="<?= htmlspecialchars($filters['end_date'] ?? ''); ?>"
                                             data-toggle="modal" data-target="#traceabilityModal" 
                                             title="Lihat Riwayat (Trace)">
                                             <i class="fas fa-eye"></i>
@@ -143,14 +169,44 @@
     </div>
 </div>
 
+<!-- Modal Adjustment Detail -->
+<div class="modal fade" id="adjustmentDetailModal" tabindex="-1" role="dialog" aria-labelledby="adjustmentDetailModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable" role="document">
+        <div class="modal-content border-0 shadow">
+            <div class="modal-header bg-warning text-dark">
+                <h5 class="modal-title fw-bold">
+                    <i class="fas fa-balance-scale me-2"></i> Detail Adjustment - 
+                    <span id="adjItemName"></span>
+                </h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body bg-light">
+                <div id="adjContent">
+                    <div class="text-center py-5">
+                        <div class="spinner-border text-warning mb-2" role="status"></div>
+                        <p class="text-muted mb-0">Memuat data...</p>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-footer bg-light">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">Tutup</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <!-- ✅ JS original tetap dipertahankan agar tombol berfungsi -->
 <script>
 $(document).ready(function() {
     $('.btn-trace').on('click', function() {
-        var button = $(this);
-        var ledgerId = button.data('ledgerid');
-        var itemId = button.data('itemid');
-        var itemName = button.data('itemname');
+        var button    = $(this);
+        var ledgerId  = button.data('ledgerid');
+        var itemId    = button.data('itemid');
+        var itemName  = button.data('itemname');
+        var startDate = button.data('startdate');
+        var endDate   = button.data('enddate');
 
         $('#traceItemName').text(itemName);
         $('#traceContent').html('<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2">Memuat data...</p></div>');
@@ -161,7 +217,7 @@ $(document).ready(function() {
             url: traceUrl,
             type: "GET",
             dataType: "json",
-            data: { ledger_id: ledgerId, item_id: itemId },
+            data: { ledger_id: ledgerId, item_id: itemId, start_date: startDate, end_date: endDate },
             success: function(response) {
                 if (response.success) {
                     $('#traceContent').html(response.html);
@@ -179,6 +235,72 @@ $(document).ready(function() {
         $('#traceContent').html('<div class="text-center py-5"><div class="spinner-border text-primary" role="status"></div><p class="mt-2">Memuat data...</p></div>');
         $('#traceItemName').text('');
     });
+
+    // === Dokumen Adjustment dari baris Traceability ===
+    $(document).on('click', '.btn-adj-trace-doc', function(e) {
+        e.stopPropagation();
+        var adjId = $(this).data('adjid');
+        var adjUrl = "<?= base_url('LapPemasukanBB/ajax_get_adjustment_documents'); ?>";
+
+        $('#adjItemName').text('Dokumen Adjustment');
+        $('#adjContent').html('<div class="text-center py-5"><div class="spinner-border text-warning" role="status"></div><p class="mt-2">Memuat data...</p></div>');
+        $('#adjustmentDetailModal').modal('show');
+
+        $.ajax({
+            url: adjUrl,
+            type: 'GET',
+            dataType: 'json',
+            data: { adj_id: adjId },
+            success: function(response) {
+                if (response.success) {
+                    $('#adjContent').html(response.html);
+                } else {
+                    $('#adjContent').html('<div class="alert alert-warning"><i class="fas fa-info-circle me-1"></i>' + (response.message || 'Tidak ada data.') + '</div>');
+                }
+            },
+            error: function(xhr) {
+                $('#adjContent').html('<div class="alert alert-danger">Error ' + xhr.status + ': ' + xhr.statusText + '</div>');
+            }
+        });
+    });
+
+    // === Adjustment Detail Handler ===
+    $(document).on('click', '.btn-adj-detail', function() {
+        var btn       = $(this);
+        var itemId    = btn.data('itemid');
+        var itemType  = btn.data('itemtype');
+        var itemName  = btn.data('itemname');
+        var startDate = btn.data('startdate');
+        var endDate   = btn.data('enddate');
+
+        $('#adjItemName').text(itemName);
+        $('#adjContent').html('<div class="text-center py-5"><div class="spinner-border text-warning" role="status"></div><p class="mt-2">Memuat data...</p></div>');
+        $('#adjustmentDetailModal').modal('show');
+
+        var adjUrl = "<?= base_url($this->uri->segment(1) . '/ajax_get_adjustment_detail'); ?>";
+
+        $.ajax({
+            url: adjUrl,
+            type: "GET",
+            dataType: "json",
+            data: { item_id: itemId, item_type: itemType, start_date: startDate, end_date: endDate },
+            success: function(response) {
+                if (response.success) {
+                    $('#adjContent').html(response.html);
+                } else {
+                    $('#adjContent').html('<div class="alert alert-warning"><i class="fas fa-info-circle me-1"></i>' + (response.message || 'Tidak ada data.') + '</div>');
+                }
+            },
+            error: function(xhr) {
+                $('#adjContent').html('<div class="alert alert-danger">Error ' + xhr.status + ': ' + xhr.statusText + '</div>');
+            }
+        });
+    });
+
+    $('#adjustmentDetailModal').on('hidden.bs.modal', function () {
+        $('#adjContent').html('<div class="text-center py-5"><div class="spinner-border text-warning" role="status"></div><p class="mt-2">Memuat data...</p></div>');
+        $('#adjItemName').text('');
+    });
 });
 </script>
 <script src="https://code.jquery.com/jquery-3.7.0.js"></script>
@@ -191,12 +313,36 @@ $(document).ready(function() {
 
 
     $(document).ready(function() {
-        $('#reportDataTable').DataTable({
+        var table = $('#reportDataTable').DataTable({
             "language": {
                 "url": "//cdn.datatables.net/plug-ins/1.13.7/i18n/id.json"
             },
-            responsive: true
+            responsive: true,
+            "columnDefs": [
+                {
+                    "targets": 0,           // Kolom NO: tidak bisa disort manual
+                    "orderable": false,
+                    "searchable": false
+                },
+                {
+                    "targets": -1,          // Kolom Aksi (terakhir) tidak bisa disort
+                    "orderable": false
+                },
+                {
+                    "targets": -5,          // Kolom Adjustment (tombol link) tidak disort via header
+                    "orderable": false
+                }
+            ],
+            "order": [[1, 'asc']]           // Default sort by Jenis BC (kolom 1)
         });
+
+        // Isi ulang nomor baris setiap kali tabel di-render (sort, search, page)
+        table.on('draw.dt', function() {
+            var info = table.page.info();
+            table.column(0, { search: 'applied', order: 'applied', page: 'current' }).nodes().each(function(cell, i) {
+                cell.innerHTML = info.start + i + 1;
+            });
+        }).draw();
     });
 </script>
 <style>

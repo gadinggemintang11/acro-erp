@@ -30,7 +30,7 @@ $is_pdf = isset($is_pdf) ? $is_pdf : false;
                 <td>: <?= htmlspecialchars($wo_number) ?></td>
             </tr>
              <tr>
-                <td><strong>No. SC</strong></td>
+                <td><strong>No. Sales Order</strong></td>
                 <td>: <?= htmlspecialchars($sc_number) ?></td>
             </tr>
             <tr>
@@ -47,7 +47,7 @@ $is_pdf = isset($is_pdf) ? $is_pdf : false;
             <dl class="dl-horizontal">
                 <dt>No. WO</dt>
                 <dd><?= htmlspecialchars($wo_number) ?></dd>
-                <dt>No. SC</dt>
+                <dt>No. Sales Order</dt>
                 <dd><?= htmlspecialchars($sc_number) ?></dd>
                 <dt>Barang Jadi</dt>
                 <dd><?= htmlspecialchars($fg_name) ?> (<?= htmlspecialchars($fg_code) ?>)</dd>

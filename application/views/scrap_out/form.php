@@ -5,29 +5,29 @@
             <i class="fas fa-plus-circle text-danger mr-2"></i><?= htmlspecialchars($title); ?>
         </h3>
         <a href="<?= base_url('Scrap_Out'); ?>" class="btn btn-secondary btn-sm btn-load">
-            <i class="fas fa-arrow-left mr-1"></i> Kembali ke List
+            <i class="fas fa-arrow-left mr-1"></i> <?= lang_line('scrap_out_back_to_list', 'Kembali ke List'); ?>
         </a>
     </div>
 
     <form action="<?= base_url('Scrap_Out/store'); ?>" method="post" id="scrapOutForm">
         <div class="card shadow mb-4 border-0">
             <div class="card-header py-3 bg-light">
-                <h6 class="m-0 font-weight-bold text-danger"><i class="fas fa-file-invoice mr-2"></i>Header Dokumen</h6>
+                <h6 class="m-0 font-weight-bold text-danger"><i class="fas fa-file-invoice mr-2"></i><?= lang_line('scrap_out_header_doc', 'Header Dokumen'); ?></h6>
             </div>
             <div class="card-body pb-2">
                 <div class="row">
                     <div class="col-md-4 form-group">
-                        <label><b>No. Dokumen</b></label>
+                        <label><b><?= lang_line('scrap_out_doc_number', 'No. Dokumen'); ?></b></label>
                         <input type="text" name="doc_no" class="form-control" value="<?= $doc_no; ?>" readonly>
                     </div>
                     <div class="col-md-4 form-group">
-                        <label><b>Tgl Dokumen</b></label>
+                        <label><b><?= lang_line('scrap_out_doc_date', 'Tgl Dokumen'); ?></b></label>
                         <input type="date" name="doc_date" class="form-control" value="<?= date('Y-m-d'); ?>" required>
                     </div>
                     <div class="col-md-4 form-group">
-                        <label><b>Tipe BC</b></label>
+                        <label><b><?= lang_line('scrap_out_bc_type', 'Tipe BC'); ?></b></label>
                         <select name="bc_type_code" class="form-control select2" required>
-                            <option value="">-- Pilih Tipe BC --</option>
+                            <option value=""><?= lang_line('scrap_out_bc_type_placeholder', '-- Pilih Tipe BC --'); ?></option>
                             <?php foreach($bc_types as $bc): ?>
                                 <option value="<?= htmlspecialchars($bc['code']); ?>">
                                     <?= htmlspecialchars($bc['code'] . ' - ' . $bc['description']); ?>
@@ -39,17 +39,17 @@
 
                 <div class="row">
                     <div class="col-md-4 form-group">
-                        <label><b>No. BC</b></label>
-                        <input type="text" name="bc_number" class="form-control" placeholder="Contoh: 099812">
+                        <label><b><?= lang_line('scrap_out_no_bc', 'No. BC'); ?></b></label>
+                        <input type="text" name="bc_number" class="form-control" placeholder="<?= lang_line('scrap_out_bc_number_placeholder', 'Contoh: 099812'); ?>">
                     </div>
                     <div class="col-md-4 form-group">
-                        <label><b>Tgl BC</b></label>
+                        <label><b><?= lang_line('scrap_out_date_bc', 'Tgl BC'); ?></b></label>
                         <input type="date" name="bc_date" class="form-control">
                     </div>
                     <div class="col-md-4 form-group">
-                        <label><b>Tujuan (Customer/Buyer)</b></label>
+                        <label><b><?= lang_line('scrap_out_destination_full', 'Tujuan (Customer/Buyer)'); ?></b></label>
                         <select name="destination" class="form-control select2" required>
-                            <option value="">-- Pilih Customer --</option>
+                            <option value=""><?= lang_line('scrap_out_select_customer', '-- Pilih Customer --'); ?></option>
                             <?php foreach($customers as $cust): ?>
                                 <option value="<?= $cust['id']; ?>">
                                     <?= htmlspecialchars($cust['nama_customer']); ?>
@@ -60,17 +60,17 @@
                 </div>
 
                 <div class="form-group mb-0">
-                    <label><b>Catatan</b></label>
-                    <textarea name="notes" class="form-control" rows="2" placeholder="Tambahkan catatan jika diperlukan..."></textarea>
+                    <label><b><?= lang_line('scrap_out_notes', 'Catatan'); ?></b></label>
+                    <textarea name="notes" class="form-control" rows="2" placeholder="<?= lang_line('scrap_out_notes_placeholder', 'Tambahkan catatan jika diperlukan...'); ?>"></textarea>
                 </div>
             </div>
         </div>
-        
+
         <div class="card shadow mb-4 border-0">
             <div class="card-header py-3 d-flex justify-content-between align-items-center bg-light">
-                <h6 class="m-0 font-weight-bold text-danger"><i class="fas fa-cogs mr-2"></i>Detail Item Scrap (Ambil dari Stok)</h6>
+                <h6 class="m-0 font-weight-bold text-danger"><i class="fas fa-cogs mr-2"></i><?= lang_line('scrap_out_detail_items', 'Detail Item Scrap (Ambil dari Stok)'); ?></h6>
                 <button type="button" class="btn btn-danger btn-sm" data-toggle="modal" data-target="#modal-add-item">
-                    <i class="fas fa-plus mr-1"></i> Tambah Item dari Stok
+                    <i class="fas fa-plus mr-1"></i> <?= lang_line('scrap_out_add_item_from_stock', 'Tambah Item dari Stok'); ?>
                 </button>
             </div>
             <div class="card-body">
@@ -78,25 +78,26 @@
                     <table class="table table-bordered table-sm mb-0">
                         <thead class="thead-light text-center">
                             <tr>
-                                <th>Scrap Item</th>
-                                <th width="120">Stok Tersedia</th>
-                                <th width="130">Qty Keluar</th>
-                                <th width="100">Satuan</th>
-                                <th width="150">Nilai Jual / Unit (IDR)</th> <th width="60">Aksi</th>
+                                <th><?= lang_line('scrap_out_table_scrap_item', 'Scrap Item'); ?></th>
+                                <th width="120"><?= lang_line('scrap_out_table_available_stock', 'Stok Tersedia'); ?></th>
+                                <th width="130"><?= lang_line('scrap_out_table_qty_out', 'Qty Keluar'); ?></th>
+                                <th width="100"><?= lang_line('scrap_out_table_unit', 'Satuan'); ?></th>
+                                <th width="150"><?= lang_line('scrap_out_table_sales_value', 'Nilai Jual / Unit (IDR)'); ?></th>
+                                <th width="60"><?= lang_line('scrap_out_table_action', 'Aksi'); ?></th>
                             </tr>
                         </thead>
                         <tbody id="item-table-body">
-                            <tr class="text-center text-muted"><td colspan="6">Belum ada item.</td></tr>
+                            <tr class="text-center text-muted"><td colspan="6"><?= lang_line('scrap_out_no_item', 'Belum ada item.'); ?></td></tr>
                         </tbody>
                     </table>
                 </div>
             </div>
             <div class="card-footer d-flex justify-content-between align-items-center">
                 <small class="text-muted">
-                    Total Item: <span id="total-item" class="font-weight-bold">0</span>
+                    <?= lang_line('scrap_out_total_item', 'Total Item:'); ?> <span id="total-item" class="font-weight-bold">0</span>
                 </small>
                 <button type="submit" class="btn btn-danger btn-sm btn-load">
-                    <i class="fas fa-save mr-1"></i> Simpan Draft
+                    <i class="fas fa-save mr-1"></i> <?= lang_line('scrap_out_save_draft', 'Simpan Draft'); ?>
                 </button>
             </div>
         </div>
@@ -107,7 +108,7 @@
     <div class="modal-dialog modal-lg" role="document">
         <div class="modal-content shadow">
             <div class="modal-header bg-danger text-white">
-                <h5 class="modal-title"><i class="fas fa-recycle mr-2"></i>Pilih Item Scrap (Stok Tersedia)</h5>
+                <h5 class="modal-title"><i class="fas fa-recycle mr-2"></i><?= lang_line('scrap_out_modal_title', 'Pilih Item Scrap (Stok Tersedia)'); ?></h5>
                 <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
@@ -117,15 +118,15 @@
                     <table class="table table-hover table-sm mb-0">
                         <thead class="thead-light text-center">
                             <tr>
-                                <th>Kode</th>
-                                <th>Nama Scrap</th>
-                                <th>Satuan</th>
-                                <th>Qty Stok</th>
-                                <th>Aksi</th>
+                                <th><?= lang_line('scrap_out_table_code', 'Kode Scrap'); ?></th>
+                                <th><?= lang_line('scrap_out_table_name', 'Nama Scrap'); ?></th>
+                                <th><?= lang_line('scrap_out_table_unit', 'Satuan'); ?></th>
+                                <th><?= lang_line('scrap_out_table_qty_stock', 'Qty Stok'); ?></th>
+                                <th><?= lang_line('scrap_out_table_action', 'Aksi'); ?></th>
                             </tr>
                         </thead>
                         <tbody id="stock-table-body">
-                            <tr><td colspan="5" class="text-center text-muted">Memuat stok...</td></tr>
+                            <tr><td colspan="5" class="text-center text-muted"><?= lang_line('scrap_out_loading_stock', 'Memuat stok...'); ?></td></tr>
                         </tbody>
                     </table>
                 </div>
@@ -135,35 +136,39 @@
 </div>
 
 <script>
+const SO_I18N = {
+    bcType: <?= json_encode(lang_line('scrap_out_bc_type_placeholder', '-- Pilih Tipe BC --')); ?>,
+    selectCustomer: <?= json_encode(lang_line('scrap_out_select_customer', '-- Pilih Customer --')); ?>,
+    loadingStock: <?= json_encode(lang_line('scrap_out_loading_stock', 'Memuat stok...')); ?>,
+    noStock: <?= json_encode(lang_line('scrap_out_no_stock', 'Tidak ada stok scrap tersedia.')); ?>,
+    loadFailed: <?= json_encode(lang_line('scrap_out_load_failed', 'Gagal memuat data stok.')); ?>,
+    duplicated: <?= json_encode(lang_line('scrap_out_item_duplicated', 'Item ini sudah ditambahkan.')); ?>,
+    pilihBtn: <?= json_encode(lang_line('scrap_out_pilih_btn', 'Pilih')); ?>,
+    noItem: <?= json_encode(lang_line('scrap_out_no_item', 'Belum ada item.')); ?>,
+    minOne: <?= json_encode(lang_line('scrap_out_min_one_item', 'Minimal harus ada satu item scrap.')); ?>
+};
+
 document.addEventListener('DOMContentLoaded', function() {
     const tableBody = document.getElementById('item-table-body');
     const modalStockBody = document.getElementById('stock-table-body');
     const modal = $('#modal-add-item');
     const totalItemDisplay = document.getElementById('total-item');
-    
-    // === FIX KRITIS: INISIALISASI SELECT2 DENGAN DROPDOWN PARENT ===
-    
-    // Inisialisasi Tipe BC
+
     $('select[name="bc_type_code"]').select2({
-        placeholder: '-- Pilih Tipe BC --',
-        // Menggunakan 'body' sebagai parent agar tidak terpotong oleh form atau modal
-        dropdownParent: document.body, 
+        placeholder: SO_I18N.bcType,
+        dropdownParent: document.body,
         width: '100%'
     });
-    
-    // Inisialisasi Tujuan (Customer)
+
     $('select[name="destination"]').select2({
-        placeholder: '-- Pilih Customer --',
-        dropdownParent: document.body, // Menggunakan 'body' agar dropdown tampil di atas semua elemen
+        placeholder: SO_I18N.selectCustomer,
+        dropdownParent: document.body,
         width: '100%'
     });
-    // === AKHIR INISIALISASI SELECT2 ===
 
-
-    // === Load stok saat modal dibuka ===
     modal.on('show.bs.modal', function () {
-        modalStockBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Memuat stok...</td></tr>';
-        
+        modalStockBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">' + SO_I18N.loadingStock + '</td></tr>';
+
         fetch('<?= base_url("Scrap_Out/ajax_get_scrap_stock") ?>')
             .then(response => response.json())
             .then(result => {
@@ -183,27 +188,26 @@ document.addEventListener('DOMContentLoaded', function() {
                                         data-name="${item.scrap_name}"
                                         data-satuan="${item.satuan_desc}"
                                         data-stok="${item.available_qty}">
-                                        Pilih
+                                        ${SO_I18N.pilihBtn}
                                     </button>
                                 </td>
                             </tr>
                         `);
                     });
                 } else {
-                    modalStockBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">Tidak ada stok scrap tersedia.</td></tr>';
+                    modalStockBody.innerHTML = '<tr><td colspan="5" class="text-center text-muted">' + SO_I18N.noStock + '</td></tr>';
                 }
             })
-            .catch(() => modalStockBody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">Gagal memuat data stok.</td></tr>');
+            .catch(() => modalStockBody.innerHTML = '<tr><td colspan="5" class="text-center text-danger">' + SO_I18N.loadFailed + '</td></tr>');
     });
 
-    // === Tambah item ke tabel utama (Event Delegation) ===
     modalStockBody.addEventListener('click', function(e) {
         const btn = e.target.closest('.btn-pilih');
         if (btn) {
             const id = btn.dataset.id;
 
             if (document.querySelector(`input[name="scrap_id[]"][value="${id}"]`)) {
-                alert('Item ini sudah ditambahkan.');
+                alert(SO_I18N.duplicated);
                 return;
             }
 
@@ -218,12 +222,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     </td>
                     <td class="text-right">${parseFloat(btn.dataset.stok).toFixed(2)}</td>
                     <td>
-                        <input type="number" name="qty[]" class="form-control form-control-sm text-right" 
+                        <input type="number" name="qty[]" class="form-control form-control-sm text-right"
                             step="0.0001" min="0.0001" max="${btn.dataset.stok}" required>
                     </td>
                     <td class="text-center">${btn.dataset.satuan}</td>
                     <td>
-                        <input type="number" name="sales_value_per_unit[]" class="form-control form-control-sm text-right" 
+                        <input type="number" name="sales_value_per_unit[]" class="form-control form-control-sm text-right"
                             step="0.01" min="0" value="0.00">
                     </td>
                     <td class="text-center">
@@ -239,30 +243,27 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
 
-    // === Hapus item ===
     tableBody.addEventListener('click', function(e) {
         const btn = e.target.closest('.btn-remove-item');
         if (btn) {
             btn.closest('tr').remove();
             if (tableBody.children.length === 0) {
-                tableBody.innerHTML = '<tr class="text-center text-muted"><td colspan="6">Belum ada item.</td></tr>';
+                tableBody.innerHTML = '<tr class="text-center text-muted"><td colspan="6">' + SO_I18N.noItem + '</td></tr>';
             }
             updateTotalItem();
         }
     });
 
-    // === Update total item ===
     function updateTotalItem() {
         const count = document.querySelectorAll('input[name="scrap_id[]"]').length;
         totalItemDisplay.textContent = count;
     }
 
-    // === Validasi form sebelum submit ===
     document.getElementById('scrapOutForm').addEventListener('submit', function(e) {
         const items = document.querySelectorAll('input[name="scrap_id[]"]');
         if (items.length === 0) {
             e.preventDefault();
-            alert('Minimal harus ada satu item scrap.');
+            alert(SO_I18N.minOne);
         }
     });
 });

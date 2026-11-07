@@ -45,7 +45,9 @@ class Wo_model extends CI_Model {
             fg.kode_barang as fg_code, fg.nama_barang as fg_name,
             c.nama_customer,
             creator.fullname as creator_name,
-            confirmer.fullname as confirmer_name
+            creator.signature_path as creator_signature,
+            confirmer.fullname as confirmer_name,
+            confirmer.signature_path as confirmer_signature
         ');
         $this->db->from($this->table_header . ' wo');
         $this->db->join('sales_contracts sc', 'wo.sales_contract_id = sc.id', 'left');
@@ -97,12 +99,8 @@ class Wo_model extends CI_Model {
     }
 
     public function generate_wo_number() {
-        $prefix = 'WO/' . date('Ym') . '/';
-        $this->db->like('wo_number', $prefix, 'after');
-        $this->db->order_by('id', 'DESC');
-        $last = $this->db->get($this->table_header, 1)->row();
-        $new_num = $last ? (int) substr($last->wo_number, -4) + 1 : 1;
-        return $prefix . str_pad($new_num, 4, '0', STR_PAD_LEFT);
+        // Format nomor diatur di config/doc_number.php (rebrand Acropoly 2026-11-05).
+        return doc_number_next('work_order', 'wo_header', 'wo_number');
     }
 
     // === DETAILS MATERIAL ===
@@ -139,6 +137,10 @@ class Wo_model extends CI_Model {
         return $this->db->where('id', $id)->delete($this->table_details);
     }
 
+    public function update_material($id, $data) {
+        return $this->db->where('id', $id)->update($this->table_details, $data);
+    }
+
     /**
      * ✅ NEW: Ambil BOM details dengan satuan dari master material/semifinished
      */
@@ -161,6 +163,114 @@ class Wo_model extends CI_Model {
         $this->db->where('bd.bom_header_id', $bom_header_id);
         $this->db->order_by('bd.quantity_required', 'ASC');
         return $this->db->get()->result();
+    }
+
+    /**
+     * Baris untuk modal "Load from BOM" di halaman detail Work Order.
+     *
+     * Modal ini dulu hanya pratinjau baca-saja: semua komponen BOM ditarik
+     * sekaligus dengan qty hasil hitungan, tanpa bisa dipilih atau diubah
+     * (user 2026-09-30: "sebaiknya kasih checkbox di modal nya dan
+     * informasinya mungkin bisa di tambahi dan qty mungkin bisa di edit").
+     *
+     * Tiap baris dilengkapi:
+     *   - suggested_qty : planned_qty WO x quantity_required BOM (usulan awal,
+     *                     tetap bisa diubah user di modal)
+     *   - already_qty   : qty komponen ini yang SUDAH ada di WO tsb. Dipakai
+     *                     modal untuk menandai & mengunci baris yang sudah
+     *                     ditambahkan, sehingga modal bisa dibuka lagi untuk
+     *                     menarik sisanya tanpa menduplikasi.
+     *   - stock_qty     : stok tersedia sekarang, supaya kekurangan material
+     *                     ketahuan sejak tahap perencanaan.
+     */
+    public function get_bom_rows_for_wo($fg_id, $planned_qty, $wo_header_id = null) {
+        $components = $this->get_bom_components_detailed($fg_id);
+        if (empty($components)) return [];
+
+        // Komponen yang sudah tercatat di WO ini (kalau ada).
+        $already = [];
+        if (!empty($wo_header_id)) {
+            $rows = $this->db->select('component_item_id, component_item_type, SUM(planned_qty) AS qty', FALSE)
+                             ->from($this->table_details)
+                             ->where('wo_header_id', (int) $wo_header_id)
+                             ->group_by('component_item_id, component_item_type')
+                             ->get()->result();
+            foreach ($rows as $r) {
+                $already[$r->component_item_type . ':' . (int) $r->component_item_id] = (float) $r->qty;
+            }
+        }
+
+        $this->load->model('Stock_ledger_model');
+
+        $out = [];
+        foreach ($components as $c) {
+            $key  = $c->component_item_type . ':' . (int) $c->component_item_id;
+            $code = '';
+            if ($c->component_item_type === 'material') {
+                $m = $this->db->select('kode_material')->where('id', $c->component_item_id)->get('materials')->row();
+                $code = $m ? $m->kode_material : '';
+            } else {
+                $s = $this->db->select('kode_barang')->where('id', $c->component_item_id)->get('semifinished_goods')->row();
+                $code = $s ? $s->kode_barang : '';
+            }
+
+            $out[] = (object) [
+                'component_item_id'   => (int) $c->component_item_id,
+                'component_item_type' => $c->component_item_type,
+                'item_code'           => $code,
+                'item_name'           => $c->item_name,
+                'unit_measure'        => $c->unit_measure ?: 'PCS',
+                'qty_per_fg'          => (float) $c->quantity_required,
+                'suggested_qty'       => (float) $planned_qty * (float) $c->quantity_required,
+                'already_qty'         => $already[$key] ?? 0.0,
+                'stock_qty'           => (float) $this->Stock_ledger_model->get_current_stock(
+                                            $c->component_item_id, $c->component_item_type),
+            ];
+        }
+        return $out;
+    }
+
+    /**
+     * Simpan material terpilih dari modal "Load from BOM".
+     *
+     * Berbeda dengan auto_populate_materials() yang menelan SELURUH BOM:
+     * di sini user memilih baris mana saja dan boleh mengubah qty-nya.
+     * Komponen yang sudah ada di WO dilewati (bukan ditimpa) supaya membuka
+     * modal dua kali tidak menghasilkan baris ganda.
+     *
+     * @return array ['inserted' => int, 'skipped' => int]
+     */
+    public function add_materials_from_bom($wo_header_id, $items) {
+        $existing = [];
+        foreach ($this->db->select('component_item_id, component_item_type')
+                          ->where('wo_header_id', (int) $wo_header_id)
+                          ->get($this->table_details)->result() as $r) {
+            $existing[$r->component_item_type . ':' . (int) $r->component_item_id] = true;
+        }
+
+        $inserted = 0; $skipped = 0;
+        $this->db->trans_start();
+        foreach ($items as $it) {
+            $item_id = (int) ($it['item_id'] ?? 0);
+            $type    = ($it['item_type'] ?? '') === 'semifinished' ? 'semifinished' : 'material';
+            $qty     = (float) ($it['qty'] ?? 0);
+
+            if ($item_id <= 0 || $qty <= 0) { $skipped++; continue; }
+            if (isset($existing[$type . ':' . $item_id])) { $skipped++; continue; }
+
+            $this->insert_material([
+                'wo_header_id'        => (int) $wo_header_id,
+                'component_item_id'   => $item_id,
+                'component_item_type' => $type,
+                'planned_qty'         => $qty,
+            ]);
+            $existing[$type . ':' . $item_id] = true;
+            $inserted++;
+        }
+        $this->db->trans_complete();
+
+        if ($this->db->trans_status() === FALSE) return ['inserted' => 0, 'skipped' => count($items)];
+        return ['inserted' => $inserted, 'skipped' => $skipped];
     }
 
     /**
@@ -210,6 +320,68 @@ class Wo_model extends CI_Model {
         $this->db->group_end();
         $this->db->limit(10);
         return $this->db->get()->result();
+    }
+
+    /**
+     * Daftar IPO (Sales Contract) berstatus Open untuk modal "Pilih dari
+     * Daftar IPO" di form Buat Work Order.
+     *
+     * Sebelumnya user harus mengetik nomor IPO di select2 — tidak tahu mana
+     * yang masih bisa dibuat WO tanpa menghafal nomornya (user 2026-09-30:
+     * "jadi user bisa tau tanpa susah cuma ngetik nomor ipo nya, jadi kaya
+     * modal tarik PR di PO").
+     *
+     * Tiap baris dilengkapi:
+     *   - qty_on_wo : total qty rencana WO yang sudah dibuat untuk IPO ini
+     *                 (status Cancelled tidak dihitung)
+     *   - qty_left  : sisa qty IPO yang belum tertutup WO
+     *   - has_bom   : ada/tidak BOM Active untuk FG-nya. Tanpa BOM, "Tarik
+     *                 Material dari BOM" di halaman detail WO tidak
+     *                 menghasilkan apa-apa — lebih baik ketahuan di sini.
+     *
+     * IPO yang sisanya sudah 0 TETAP ditampilkan (ditandai di tampilan saja);
+     * sistem memang tidak melarang WO kedua, jadi daftarnya tidak menyembunyikan
+     * apa pun — biar user yang memutuskan.
+     */
+    public function get_open_sales_contracts_for_wo($filters = []) {
+        $this->db->select("
+                sc.id, sc.sc_number, sc.contract_date, sc.po_qty,
+                sc.fg_id, fg.kode_barang AS fg_code, fg.nama_barang AS fg_name, fg.satuan AS fg_unit,
+                COALESCE(c.nama_customer, '') AS customer_name,
+                COALESCE((
+                    SELECT SUM(w.planned_qty) FROM wo_header w
+                     WHERE w.sales_contract_id = sc.id AND w.status <> 'Cancelled'
+                ), 0) AS qty_on_wo,
+                COALESCE((
+                    SELECT COUNT(*) FROM wo_header w
+                     WHERE w.sales_contract_id = sc.id AND w.status <> 'Cancelled'
+                ), 0) AS wo_count,
+                COALESCE((
+                    SELECT COUNT(*) FROM bom_header b
+                     WHERE b.fg_id = sc.fg_id AND b.status = 'Active'
+                ), 0) AS has_bom
+            ", FALSE)
+            ->from('sales_contracts sc')
+            ->join('finished_goods fg', 'fg.id = sc.fg_id', 'left')
+            ->join('customers c', 'c.id = sc.customer_id', 'left')
+            ->where('sc.status', 'Open');
+
+        if (!empty($filters['search'])) {
+            $term = $this->db->escape_like_str($filters['search']);
+            $this->db->where("(sc.sc_number LIKE '%{$term}%'"
+                          . " OR fg.nama_barang LIKE '%{$term}%'"
+                          . " OR fg.kode_barang LIKE '%{$term}%'"
+                          . " OR c.nama_customer LIKE '%{$term}%')", null, FALSE);
+        }
+        if (!empty($filters['date_from'])) $this->db->where('sc.contract_date >=', $filters['date_from']);
+        if (!empty($filters['date_to']))   $this->db->where('sc.contract_date <=', $filters['date_to']);
+
+        $rows = $this->db->order_by('sc.contract_date', 'DESC')->order_by('sc.sc_number', 'DESC')->get()->result();
+
+        foreach ($rows as $r) {
+            $r->qty_left = max(0, (float) $r->po_qty - (float) $r->qty_on_wo);
+        }
+        return $rows;
     }
 
     public function get_sc_details_for_wo($sc_id) {

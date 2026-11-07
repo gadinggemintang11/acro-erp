@@ -31,7 +31,9 @@ class BeaCukai extends MY_Controller {
         $doc_type = null;
 
         // Deteksi apakah ini GRN number (format: GRN/YYYYMM/XXXX)
-        if (preg_match('/^GRN\/\d{6}\/\d{4}$/', $identifier)) {
+        // Kenali nomor GRN dari prefix-nya (config/doc_number.php). Dulu pola
+        // tetap GRN/YYYYMM/XXXX -- sejak format Acropoly jadi GRN/ACRO/YYMM0001.
+        if (strpos($identifier, explode('/', doc_number_prefix('grn'))[0] . '/') === 0) {
             // Ini adalah GRN number - cari berdasarkan grn_number
             $this->db->select('
                 h.id,
@@ -211,40 +213,53 @@ class BeaCukai extends MY_Controller {
 
         // Jika belum ketemu di GRN atau SCRAP, cek apakah BC berasal dari RTN (warehouse_out_header)
         if (empty($doc)) {
-            $this->db->select('h.id, h.out_number, h.out_date, h.bc_type_code, h.bc_number, h.bc_date, h.created_by, h.created_at, h.supplier_id, COALESCE(s.nama_supplier, h.nama_supplier) as nama_supplier');
-            $this->db->from('warehouse_out_header h');
-            $this->db->join('suppliers s', 's.id = h.supplier_id', 'left');
-            // Accept either BC number or RTN out_number as identifier
-            $this->db->group_start();
-            $this->db->where('h.bc_number', $identifier);
-            $this->db->or_where('h.out_number', $identifier);
-            $this->db->group_end();
-            $rtn = $this->db->get()->row_array();
+            try {
+                $this->db->select('h.id, h.out_number, h.out_date, h.bc_type_code, h.bc_number, h.bc_date, h.created_by, h.created_at, h.supplier_id, COALESCE(s.nama_supplier, h.nama_supplier) as nama_supplier');
+                $this->db->from('warehouse_out_header h');
+                $this->db->join('suppliers s', 's.id = h.supplier_id', 'left');
+                // Accept either BC number or RTN out_number as identifier
+                $this->db->group_start();
+                $this->db->where('h.bc_number', $identifier);
+                $this->db->or_where('h.out_number', $identifier);
+                $this->db->group_end();
+                $rtn = $this->db->get()->row_array();
+            } catch (Exception $e) {
+                // Table warehouse_out_header may not exist on this server yet
+                $rtn = null;
+            }
 
             if (!empty($rtn)) {
                 $doc = $rtn;
                 $doc_type = 'RTN_SUPPLIER';
                 $doc['type'] = 'OUT';
                 // Ambil detail items dari warehouse_out_details
-                $doc['details'] = $this->db->select('wod.id, wod.item_type, COALESCE(wod.qty_return, wod.qty_received, wod.qty_po) AS qty, COALESCE(m.kode_material, mc.kode_mesin) AS item_code, COALESCE(m.nama_material, mc.nama_mesin) AS item_name, COALESCE(m.satuan, mc.satuan) as unit')
-                    ->from('warehouse_out_details wod')
-                    ->join('materials m', 'm.id = wod.item_id AND wod.item_type = "material"', 'left')
-                    ->join('machines mc', 'mc.id = wod.item_id AND wod.item_type = "machine"', 'left')
-                    ->where('wod.header_id', $doc['id'])
-                    ->get()
-                    ->result_array();
+                try {
+                    $doc['details'] = $this->db->select('wod.id, wod.item_type, COALESCE(wod.qty_return, wod.qty_received, wod.qty_po) AS qty, COALESCE(m.kode_material, mc.kode_mesin) AS item_code, COALESCE(m.nama_material, mc.nama_mesin) AS item_name, COALESCE(m.satuan, mc.satuan) as unit')
+                        ->from('warehouse_out_details wod')
+                        ->join('materials m', 'm.id = wod.item_id AND wod.item_type = "material"', 'left')
+                        ->join('machines mc', 'mc.id = wod.item_id AND wod.item_type = "machine"', 'left')
+                        ->where('wod.header_id', $doc['id'])
+                        ->get()
+                        ->result_array();
+                } catch (Exception $e) {
+                    $doc['details'] = [];
+                }
 
                 // Ensure nama_supplier present
                 if (empty($doc['nama_supplier']) || $doc['nama_supplier'] === null) {
                     // Try to derive supplier from linked GRN (warehouse_out_details -> grn_header)
-                    $supplier_fallback = $this->db->select('sg.nama_supplier AS nama_supplier')
-                        ->from('warehouse_out_details wod')
-                        ->join('grn_header gh', 'gh.id = wod.grn_id', 'left')
-                        ->join('suppliers sg', 'sg.id = gh.supplier_id', 'left')
-                        ->where('wod.header_id', $doc['id'])
-                        ->limit(1)
-                        ->get()
-                        ->row_array();
+                    try {
+                        $supplier_fallback = $this->db->select('sg.nama_supplier AS nama_supplier')
+                            ->from('warehouse_out_details wod')
+                            ->join('grn_header gh', 'gh.id = wod.grn_id', 'left')
+                            ->join('suppliers sg', 'sg.id = gh.supplier_id', 'left')
+                            ->where('wod.header_id', $doc['id'])
+                            ->limit(1)
+                            ->get()
+                            ->row_array();
+                    } catch (Exception $e) {
+                        $supplier_fallback = null;
+                    }
 
                     if (!empty($supplier_fallback) && !empty($supplier_fallback['nama_supplier'])) {
                         $doc['nama_supplier'] = $supplier_fallback['nama_supplier'];

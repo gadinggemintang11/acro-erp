@@ -29,12 +29,13 @@ class Production_process extends MY_Controller {
     }
 
     // Halaman index (daftar proses produksi)
+
     public function index() {
         if (!check_access('production_process', 'view')) { show_error('Tidak ada izin.', 403); return; }
 
         $filters = ['search' => $this->input->get('search')];
         $data = [
-            'title'     => 'Proses Produksi',
+            'title'     => lang_line('title_pp_main'),
             'processes' => $this->Production_model->get_all($filters),
             'filters'   => $filters
         ];
@@ -51,6 +52,142 @@ class Production_process extends MY_Controller {
         echo json_encode($wo_details ? ['success' => true, 'details' => $wo_details] : ['success' => false, 'message' => 'WO Details not found']);
     }
 
+    // Get scrap sources and available inputs
+    public function ajax_get_scrap_sources() {
+        header('Content-Type: application/json');
+        $output_id = $this->input->get('output_id');
+        $stage = $this->input->get('stage');
+        if (!$output_id) {
+            echo json_encode(['error' => 'Invalid output ID']);
+            exit;
+        }
+
+        // Get scrap output info
+        $output = $this->db->get_where('production_outputs', ['id' => $output_id])->row();
+        if (!$output) {
+            echo json_encode(['error' => 'Scrap not found']);
+            exit;
+        }
+
+        try {
+            // Get scrap item name
+            $item_name = 'Scrap Item';
+            if ($output->item_type == 'scrap') {
+                $scrap_item = $this->db->get_where('master_scrap', ['id' => $output->item_id])->row();
+                if ($scrap_item) {
+                    $item_name = $scrap_item->scrap_name ?? 'Scrap Item';
+                }
+            }
+
+            // Get scrap sources + info MR yang terkait (untuk block create MR duplikat)
+            $sources = $this->db->query("
+                SELECT pss.*, pi.item_id, pi.item_type,
+                       COALESCE(NULLIF(m.nama_material, ''), COALESCE(NULLIF(sf.nama_barang, ''), 'Unknown')) as source_item_name,
+                       COALESCE(NULLIF(m.kode_material, ''), COALESCE(NULLIF(sf.kode_barang, ''), '')) as source_item_code,
+                       pi.qty_used as source_qty_input,
+                       mh.id        as mr_header_id,
+                       mh.mr_number as mr_number,
+                       mh.status    as mr_status
+                FROM production_scrap_sources pss
+                JOIN production_inputs pi ON pss.source_input_id = pi.id
+                LEFT JOIN materials m ON pi.item_id = m.id AND pi.item_type = 'material'
+                LEFT JOIN semifinished_goods sf ON pi.item_id = sf.id AND pi.item_type = 'semifinished'
+                LEFT JOIN mr_details md ON pss.mr_detail_id = md.id
+                LEFT JOIN mr_header mh ON md.mr_header_id = mh.id
+                WHERE pss.production_output_id = ?
+                ORDER BY pss.id
+            ", [$output_id])->result();
+
+            // Get available inputs - ONLY from current stage for traceability
+            $available = $this->db->query("
+                SELECT pi.id as input_id, pi.item_id, pi.item_type, pi.qty_used,
+                       COALESCE(NULLIF(m.nama_material, ''), COALESCE(NULLIF(sf.nama_barang, ''), 'Unknown')) as item_name,
+                       COALESCE(NULLIF(m.kode_material, ''), COALESCE(NULLIF(sf.kode_barang, ''), '')) as item_code,
+                       (pi.qty_used - COALESCE((SELECT SUM(source_qty) FROM production_scrap_sources
+                                                WHERE source_input_id = pi.id AND production_output_id = ?), 0)) as remaining_qty
+                FROM production_inputs pi
+                LEFT JOIN materials m ON pi.item_id = m.id AND pi.item_type = 'material'
+                LEFT JOIN semifinished_goods sf ON pi.item_id = sf.id AND pi.item_type = 'semifinished'
+                WHERE pi.production_header_id = ? AND pi.stage_name = ?
+                HAVING remaining_qty > 0
+                ORDER BY pi.id
+            ", [$output_id, $output->production_header_id, $stage])->result();
+
+            // Total qty MATERIAL yang ditunjuk sebagai asal scrap.
+            $total_scrap = 0;
+            if ($sources) {
+                foreach ($sources as $src) {
+                    $total_scrap += (float)$src->source_qty;
+                }
+            }
+
+            // Qty scrap = qty output scrap itu sendiri (barang scrap yang
+            // dihasilkan). Dulu dipakai max(qty_produced, total_scrap) — angka
+            // qty MATERIAL ikut terpakai sebagai qty barang scrap padahal beda
+            // hal & beda satuan (user 2026-09-21: "padahal qty material yang
+            // jadi scrap 10", sementara scrap yang dihasilkan 1 Housing).
+            $qty_scrap = (float) $output->qty_produced;
+
+            echo json_encode([
+                'success' => true,
+                'item_name' => $item_name,
+                'qty_scrap' => $qty_scrap,
+                'total_source_qty' => $total_scrap,
+                'sources' => $sources,
+                'available_inputs' => $available
+            ]);
+        } catch (Exception $e) {
+            echo json_encode([
+                'success' => false,
+                'error' => 'Database error: ' . $e->getMessage()
+            ]);
+        }
+        exit;
+    }
+
+    /**
+     * Isi modal "Pilih dari Daftar" Work Order pada form Buat Proses Produksi.
+     * Mengembalikan SELURUH WO yang relevan (tidak dipotong limit seperti
+     * select2), termasuk yang belum memenuhi syarat beserta alasannya.
+     */
+    public function ajax_selectable_wo_list() {
+        header('Content-Type: application/json');
+
+        if (!check_access('production_process', 'add')) {
+            echo json_encode(['success' => false, 'message' => 'Tidak ada izin.']);
+            return;
+        }
+
+        $rows = $this->Production_model->get_selectable_wos([
+            'search' => trim((string) $this->input->get('search', TRUE)),
+        ]);
+
+        $out = [];
+        foreach ($rows as $r) {
+            $out[] = [
+                'id'                 => (int) $r->id,
+                'wo_number'          => $r->wo_number,
+                'sc_number'          => $r->sc_number,
+                'fg_code'            => $r->fg_code,
+                'fg_name'            => $r->fg_name,
+                'planned_qty'        => (float) $r->planned_qty,
+                'planned_start_date' => $r->planned_start_date,
+                'wo_status'          => $r->wo_status,
+                'material_count'     => (int) $r->material_count,
+                'eligible'           => (bool) $r->eligible,
+                'reason'             => $r->reason,
+            ];
+        }
+
+        echo json_encode(['success' => true, 'rows' => $out]);
+    }
+
+    /**
+     * TIDAK DIPAKAI LAGI sejak modal "Pilih dari Daftar" (2026-09-30):
+     * form Buat Proses Produksi dulu memakai select2 yang menembak endpoint
+     * ini sambil user mengetik. Digantikan ajax_selectable_wo_list().
+     * Dibiarkan ada kalau-kalau masih ada pemanggil di luar repo ini.
+     */
     public function search_open_wos() {
         header('Content-Type: application/json');
         $term = $this->input->get('q');
@@ -149,7 +286,7 @@ class Production_process extends MY_Controller {
             $this->_log('CREATE', $deskripsi);
             // --- END LOG ---
             log_message('info', 'Production Header created successfully. ID: ' . $new_prod_id . ' Number: ' . $prod_number);
-            redirect('production_process/preparation/' . $new_prod_id);
+            redirect('production_process/grinding/' . $new_prod_id);
         } else {
             log_message('error', 'Gagal membuat Production Header. DB Error: ' . print_r($this->db->error(), true) . ' Data: ' . json_encode($data));
             $this->session->set_flashdata('error', 'Gagal membuat Proses Produksi! Terjadi kesalahan database.');
@@ -165,16 +302,16 @@ class Production_process extends MY_Controller {
         if (!$header) { show_404(); return; }
 
         $data = [
-            'title'           => 'Proses Produksi - ' . ucfirst($current_stage),
+            'title'           => sprintf(lang_line('title_pp_stage'), lang_line('pp_stage_' . $current_stage)),
             'header'          => $header,
             'current_stage'   => $current_stage,
         ];
 
         // Data spesifik per stage
-        if ($current_stage == 'preparation') {
+        if ($current_stage == 'grinding') {
             $data['available_batches'] = $this->Production_model->get_wip_materials_with_remaining($header->wo_header_id);
-            $data['preparation_inputs'] = $this->Production_model->get_production_inputs($id, 'preparation');
-            $data['preparation_outputs'] = $this->Production_model->get_production_outputs($id, 'preparation');
+            $data['grinding_inputs'] = $this->Production_model->get_production_inputs($id, 'grinding');
+            $data['grinding_outputs'] = $this->Production_model->get_production_outputs($id, 'grinding');
         } else {
             $data['available_previous_outputs'] = $this->Production_model->get_available_previous_stage_outputs($id, $current_stage, $previous_stage);
             $data['available_batches'] = $this->Production_model->get_wip_materials_with_remaining($header->wo_header_id); // Material tambahan
@@ -192,8 +329,8 @@ class Production_process extends MY_Controller {
         $this->_load_views('production_process/' . $current_stage . '_view', $data);
     }
 
-    public function preparation($id) { $this->_show_stage_view($id, 'preparation'); }
-    public function assembling($id) { $this->_show_stage_view($id, 'assembling', 'preparation'); }
+    public function grinding($id) { $this->_show_stage_view($id, 'grinding'); }
+    public function assembling($id) { $this->_show_stage_view($id, 'assembling', 'grinding'); }
     public function finishing($id)
     {
         // ================= VALIDASI AKSES =================
@@ -216,7 +353,7 @@ class Production_process extends MY_Controller {
 
         // ================= AMBIL DATA FINISHING =================
         $data = [
-            'title'                 => 'Proses Produksi - Finishing',
+            'title'                 => lang_line('title_pp_finishing'),
             'header'                => $header,
             'current_stage'         => 'finishing',
             'available_previous_outputs' => $this->Production_model->get_available_previous_stage_outputs($id, 'finishing', 'assembling'),
@@ -480,6 +617,14 @@ class Production_process extends MY_Controller {
             $this->_send_response($response, $is_ajax, $current_stage, $prod_id); return;
         }
 
+        // Kalau output-nya Barang Jadi, harus sama dgn FG pada Work Order —
+        // aturannya satu tempat di Production_model::check_output_fg().
+        $fg_check = $this->Production_model->check_output_fg($prod_id, $item_id, $item_type);
+        if (!$fg_check['ok']) {
+            $response['message'] = $fg_check['message'];
+            $this->_send_response($response, $is_ajax, $current_stage, $prod_id); return;
+        }
+
         // Data Siap Disimpan
         $data = [
             'production_header_id' => $prod_id, 'stage_name' => $current_stage,
@@ -526,12 +671,12 @@ class Production_process extends MY_Controller {
     // FUNGSI KHUSUS PER STAGE (Panggil fungsi generic)
     // ======================================================
 
-    // --- Preparation (formerly Cutting) ---
-    public function save_preparation_material_usage($prod_id) { $this->_save_stage_additional_input($prod_id, 'preparation'); }
-    public function save_preparation_output($prod_id) { $this->_save_stage_output($prod_id, 'preparation', ['semifinished', 'scrap']); }
+    // --- Grinding (formerly Cutting) ---
+    public function save_grinding_material_usage($prod_id) { $this->_save_stage_additional_input($prod_id, 'grinding'); }
+    public function save_grinding_output($prod_id) { $this->_save_stage_output($prod_id, 'grinding', ['semifinished', 'scrap']); }
 
     // --- Assembling ---
-    public function save_assembling_preparation_input($prod_id) { $this->_save_stage_input_from_output($prod_id, 'assembling', 'preparation'); }
+    public function save_assembling_grinding_input($prod_id) { $this->_save_stage_input_from_output($prod_id, 'assembling', 'grinding'); }
     public function save_assembling_additional_input($prod_id) { $this->_save_stage_additional_input($prod_id, 'assembling'); }
     public function save_assembling_output($prod_id) { $this->_save_stage_output($prod_id, 'assembling', ['semifinished', 'scrap']); }
 
@@ -556,6 +701,15 @@ class Production_process extends MY_Controller {
             return;
         }
 
+        // Dokumen harus ada & masih Draft. Sebelumnya TIDAK dicek sama sekali di
+        // sini -- output bisa ditambahkan ke produksi yang sudah dikonfirmasi.
+        $header = $this->Production_model->get_header_by_id($production_id);
+        if (!$header || $header->status != 'Draft') {
+            $this->session->set_flashdata('error', 'Hanya produksi berstatus Draft yang bisa ditambah output.');
+            redirect('production_process/finishing/' . $production_id);
+            return;
+        }
+
         // Parse ID dan tipe item
         $item_id = null;
         $item_type = null;
@@ -564,6 +718,19 @@ class Production_process extends MY_Controller {
         } else {
             $item_id = $item_id_raw;
             $item_type = 'finished_goods';
+        }
+
+        // Barang Jadi WAJIB sama dengan FG pada Work Order.
+        // Sebelum ini FG dipilih bebas dari master: kalau WO-nya FG A tapi
+        // operator memilih FG B, hasil produksi tidak pernah ketemu dengan
+        // kebutuhan di WO/IPO dan tidak ada apa pun yang menahannya
+        // (user 2026-09-30). Tampilan sudah dikunci, tapi form ini tetap bisa
+        // di-POST langsung -- jadi dijaga juga di sini.
+        $fg_check = $this->Production_model->check_output_fg($production_id, $item_id, $item_type);
+        if (!$fg_check['ok']) {
+            $this->session->set_flashdata('error', $fg_check['message']);
+            redirect('production_process/finishing/' . $production_id);
+            return;
         }
 
         // Susun JSON breakdown size
@@ -657,6 +824,291 @@ class Production_process extends MY_Controller {
     }
 
     // --- QC Actions ---
+
+    // Save QC with description and photo
+    private function _save_qc($prod_id, $output_id, $stage) {
+        if (!check_access('production_process', 'add')) {
+            $this->session->set_flashdata('error', 'Tidak ada izin.');
+            redirect('production_process/' . $stage . '/' . $prod_id);
+            return;
+        }
+
+        $user_id = $this->session->userdata('user_id');
+        if (!$user_id) {
+            $this->session->set_flashdata('error', 'Session tidak valid.');
+            redirect('production_process/' . $stage . '/' . $prod_id);
+            return;
+        }
+
+        $qc_description = $this->input->post('qc_description');
+        $qc_photo_url = $this->input->post('qc_photo_url');
+
+        $update_data = [
+            'qc_checked_by' => $user_id,
+            'qc_checked_at' => date('Y-m-d H:i:s'),
+            'qc_description' => $qc_description,
+            'qc_photo_url' => $qc_photo_url
+        ];
+
+        $success = $this->db->where('id', $output_id)->update('production_outputs', $update_data);
+        if ($success) {
+            $this->session->set_flashdata('success', 'QC berhasil disimpan untuk tahap ' . ucfirst($stage) . '.');
+        } else {
+            $this->session->set_flashdata('error', 'Gagal menyimpan QC.');
+        }
+
+        redirect('production_process/' . $stage . '/' . $prod_id);
+    }
+
+    public function save_qc_cutting($prod_id, $output_id) { $this->_save_qc($prod_id, $output_id, 'cutting'); }
+    public function save_qc_sewing($prod_id, $output_id) { $this->_save_qc($prod_id, $output_id, 'sewing'); }
+    public function save_qc_assembling($prod_id, $output_id) { $this->_save_qc($prod_id, $output_id, 'assembling'); }
+    public function save_qc_finishing($prod_id, $output_id) { $this->_save_qc($prod_id, $output_id, 'finishing'); }
+    public function save_qc_grinding($prod_id, $output_id) { $this->_save_qc($prod_id, $output_id, 'grinding'); }
+
+    // Save scrap source (trace scrap asal dari material input)
+    public function save_scrap_source($prod_id, $output_id, $stage = null) {
+        $is_ajax = $this->input->is_ajax_request();
+
+        if (!check_access('production_process', 'edit')) {
+            if ($is_ajax) {
+                header('Content-Type: application/json');
+                echo json_encode(['status' => 'error', 'message' => 'Tidak ada izin']);
+                return;
+            }
+            $this->session->set_flashdata('error', 'Tidak ada izin.');
+            redirect('production_process/' . ($stage ?? 'grinding') . '/' . $prod_id);
+            return;
+        }
+
+        $source_input_id = $this->input->post('source_input_id');
+        $source_qty = (float)$this->input->post('source_qty');
+        if (!$stage) {
+            $stage = $this->input->post('stage', true);
+        }
+
+        if (!$source_input_id || $source_qty <= 0) {
+            if ($is_ajax) {
+                header('Content-Type: application/json');
+                echo json_encode(['status' => 'error', 'message' => 'Data tidak valid']);
+                return;
+            }
+            $this->session->set_flashdata('error', 'Data tidak valid.');
+            redirect('production_process/' . $stage . '/' . $prod_id);
+            return;
+        }
+
+        $data = [
+            'production_output_id' => $output_id,
+            'source_input_id' => $source_input_id,
+            'source_qty' => $source_qty
+        ];
+
+        // Rincian NG (4 kategori penyebab + kode NG + remark) -- lihat
+        // ng_helper.php. Murni catatan untuk Daily Material NG Report, tidak
+        // menyentuh stok. Dilewati diam-diam kalau migrasi belum dijalankan.
+        $data += ng_collect_post($this->input->post(), $source_qty, 'production_scrap_sources');
+        if (db_has_column('production_scrap_sources', 'notes')) {
+            $remark = trim((string) $this->input->post('ng_remark', true));
+            if ($remark !== '') $data['notes'] = substr($remark, 0, 255);
+        }
+
+        $ok = (bool) $this->db->insert('production_scrap_sources', $data);
+
+        if ($is_ajax) {
+            header('Content-Type: application/json');
+            echo json_encode([
+                'status'  => $ok ? 'success' : 'error',
+                'message' => $ok ? 'Asal scrap berhasil ditambahkan.' : 'Gagal menyimpan asal scrap.'
+            ]);
+            return;
+        }
+
+        $this->session->set_flashdata($ok ? 'success' : 'error', $ok ? 'Asal scrap berhasil ditambahkan.' : 'Gagal menyimpan asal scrap.');
+        redirect('production_process/' . $stage . '/' . $prod_id);
+    }
+
+    /**
+     * Create MR otomatis dari asal scrap yang dipilih (untuk menutup kekurangan material akibat scrap).
+     * POST: scrap_source_ids[] = array id production_scrap_sources
+     *
+     * Hasil: 1 MR header dengan status 'Submitted' (pending HoD approval), details = 1 per scrap source yang dipilih.
+     * Qty di-request = source_qty (qty material yang menjadi scrap).
+     */
+    public function create_mr_from_scrap($prod_id) {
+        header('Content-Type: application/json');
+
+        if (!check_access('material_request', 'create') && !check_access('material_request', 'edit')) {
+            echo json_encode(['status' => 'error', 'message' => 'Tidak ada izin create Material Request']);
+            return;
+        }
+
+        if (empty($prod_id) || !is_numeric($prod_id)) {
+            echo json_encode(['status' => 'error', 'message' => 'Invalid production ID']);
+            return;
+        }
+
+        $scrap_source_ids = $this->input->post('scrap_source_ids');
+        if (!is_array($scrap_source_ids) || empty($scrap_source_ids)) {
+            echo json_encode(['status' => 'error', 'message' => 'Pilih minimal satu asal scrap']);
+            return;
+        }
+
+        // Get production header → wo_header_id
+        $prod_header = $this->db->get_where('production_header', ['id' => $prod_id])->row();
+        if (!$prod_header || empty($prod_header->wo_header_id)) {
+            echo json_encode(['status' => 'error', 'message' => 'Production header tidak ditemukan / belum link ke WO']);
+            return;
+        }
+
+        // Gabung scrap_sources + production_inputs + cek apakah sudah punya MR aktif (status != Draft/Rejected)
+        $ids_placeholder = implode(',', array_map('intval', $scrap_source_ids));
+        $rows = $this->db->query("
+            SELECT pss.id as scrap_source_id, pss.source_qty, pss.mr_detail_id,
+                   pi.item_id, pi.item_type, pi.production_header_id,
+                   mh.mr_number AS existing_mr_number,
+                   mh.status    AS existing_mr_status
+            FROM production_scrap_sources pss
+            JOIN production_inputs pi ON pss.source_input_id = pi.id
+            LEFT JOIN mr_details md ON pss.mr_detail_id = md.id
+            LEFT JOIN mr_header mh ON md.mr_header_id = mh.id
+            WHERE pss.id IN ($ids_placeholder)
+              AND pi.production_header_id = ?
+        ", [$prod_id])->result();
+
+        if (empty($rows)) {
+            echo json_encode(['status' => 'error', 'message' => 'Data asal scrap tidak valid untuk produksi ini']);
+            return;
+        }
+
+        // Block scrap source yang sudah punya MR aktif (bukan Draft/Rejected)
+        $blocked = [];
+        foreach ($rows as $r) {
+            if (!empty($r->existing_mr_status) && !in_array($r->existing_mr_status, ['Draft', 'Rejected'], true)) {
+                $blocked[] = $r->existing_mr_number . ' (' . $r->existing_mr_status . ')';
+            }
+        }
+        if (!empty($blocked)) {
+            echo json_encode([
+                'status'  => 'error',
+                'message' => 'Beberapa asal scrap sudah punya MR aktif: ' . implode(', ', array_unique($blocked)) . '. Refresh modal lalu pilih ulang.'
+            ]);
+            return;
+        }
+
+        $this->db->trans_start();
+
+        try {
+            // Generate MR number + insert header sebagai Draft (insert_item Mr_model hanya allow saat Draft)
+            $mr_number = $this->Mr_model->generate_mr_number();
+            $user_id   = $this->session->userdata('user_id');
+
+            $header_data = [
+                'mr_number'    => $mr_number,
+                'request_date' => date('Y-m-d'),
+                'status'       => 'Draft',
+                'remarks'      => 'Auto-generated dari asal scrap Production #' . $prod_id
+                                  . ' untuk menutup kekurangan material',
+            ];
+
+            $mr_header_id = $this->Mr_model->insert_header($header_data);
+            if (!$mr_header_id) {
+                throw new Exception('Gagal insert MR header');
+            }
+
+            // Insert details (allowed karena header status masih Draft) + link FK ke scrap_source
+            $inserted = 0;
+            foreach ($rows as $r) {
+                $detail_data = [
+                    'mr_header_id'        => $mr_header_id,
+                    'wo_header_id'        => $prod_header->wo_header_id,
+                    'component_item_id'   => $r->item_id,
+                    'component_item_type' => $r->item_type,
+                    'requested_qty'       => $r->source_qty,
+                    'notes'               => 'Kekurangan akibat scrap (scrap source #' . $r->scrap_source_id . ')',
+                ];
+                $mr_detail_id = $this->Mr_model->insert_item($detail_data);
+                if ($mr_detail_id) {
+                    $inserted++;
+                    // Link production_scrap_sources → mr_details untuk mencegah create MR duplikat
+                    $this->db->where('id', $r->scrap_source_id)
+                             ->update('production_scrap_sources', ['mr_detail_id' => $mr_detail_id]);
+                }
+            }
+
+            if ($inserted === 0) {
+                throw new Exception('Tidak ada detail MR yang berhasil diinsert');
+            }
+
+            // Promote ke Submitted (set requester_id + requested_at via update_status)
+            if (!$this->Mr_model->update_status($mr_header_id, 'Submitted', $user_id)) {
+                throw new Exception('Gagal submit MR ke approval');
+            }
+
+            $this->db->trans_complete();
+
+            if ($this->db->trans_status() === FALSE) {
+                throw new Exception('Transaction failed saat create MR');
+            }
+
+            echo json_encode([
+                'status'    => 'success',
+                'message'   => 'MR ' . $mr_number . ' berhasil dibuat (' . $inserted . ' item) dan submitted untuk approval HoD.',
+                'mr_number' => $mr_number,
+                'mr_id'     => $mr_header_id,
+            ]);
+            return;
+
+        } catch (Exception $e) {
+            $this->db->trans_complete();
+            log_message('error', 'create_mr_from_scrap: ' . $e->getMessage());
+            echo json_encode(['status' => 'error', 'message' => $e->getMessage()]);
+            return;
+        }
+    }
+
+    // Delete scrap source
+    public function delete_scrap_source($source_id, $prod_id) {
+        $is_ajax = $this->input->is_ajax_request();
+
+        if (!check_access('production_process', 'delete')) {
+            if ($is_ajax) {
+                header('Content-Type: application/json');
+                echo json_encode(['status' => 'error', 'message' => 'Tidak ada izin']);
+                return;
+            }
+            $this->session->set_flashdata('error', 'Tidak ada izin.');
+            redirect('production_process');
+            return;
+        }
+
+        $source = $this->db->get_where('production_scrap_sources', ['id' => $source_id])->row();
+        if (!$source) {
+            if ($is_ajax) {
+                header('Content-Type: application/json');
+                echo json_encode(['status' => 'error', 'message' => 'Asal scrap tidak ditemukan']);
+                return;
+            }
+            $this->session->set_flashdata('error', 'Asal scrap tidak ditemukan.');
+            redirect('production_process');
+            return;
+        }
+
+        $ok = (bool) $this->db->delete('production_scrap_sources', ['id' => $source_id]);
+
+        if ($is_ajax) {
+            header('Content-Type: application/json');
+            echo json_encode([
+                'status'  => $ok ? 'success' : 'error',
+                'message' => $ok ? 'Asal scrap berhasil dihapus.' : 'Gagal menghapus asal scrap.'
+            ]);
+            return;
+        }
+
+        $this->session->set_flashdata($ok ? 'success' : 'error', $ok ? 'Asal scrap berhasil dihapus.' : 'Gagal menghapus asal scrap.');
+        redirect('production_process');
+    }
+
     private function _confirm_qc($prod_id, $output_id, $stage) {
         // 🔒 Gunakan izin 'add' untuk QC (bukan 'edit')
         if (!check_access('production_process', 'add')) {
@@ -687,6 +1139,12 @@ class Production_process extends MY_Controller {
 
         redirect('production_process/' . $stage . '/' . $prod_id);
     }
+    /**
+     * TIDAK DIPAKAI LAGI sejak Barang Jadi dikunci ke FG milik Work Order
+     * (2026-09-30): form Finishing dulu memakai select2 yang menembak endpoint
+     * ini dan menampilkan SELURUH FG aktif di master. Dibiarkan ada (tidak
+     * dihapus) kalau-kalau masih ada pemanggil di luar repo ini.
+     */
     public function search_finished_goods()
     {
         $q = trim($this->input->get('q', true));
@@ -789,10 +1247,20 @@ class Production_process extends MY_Controller {
     // ======================================================
     // FUNGSI KHUSUS PER STAGE QC/DELETE (Panggil generic)
     // ======================================================
-    public function confirm_qc_preparation($prod_id, $output_id) { $this->_confirm_qc($prod_id, $output_id, 'preparation'); }
-    public function unconfirm_qc_preparation($prod_id, $output_id) { $this->_unconfirm_qc($prod_id, $output_id, 'preparation'); }
+    public function confirm_qc_cutting($prod_id, $output_id) { $this->_confirm_qc($prod_id, $output_id, 'cutting'); }
+    public function unconfirm_qc_cutting($prod_id, $output_id) { $this->_unconfirm_qc($prod_id, $output_id, 'cutting'); }
+    public function delete_cutting_input($prod_id, $input_id) { $this->_delete_input($prod_id, $input_id, 'cutting'); }
+    public function delete_cutting_output($prod_id, $output_id) { $this->_delete_output($prod_id, $output_id, 'cutting'); }
+
+    public function confirm_qc_sewing($prod_id, $output_id) { $this->_confirm_qc($prod_id, $output_id, 'sewing'); }
+    public function unconfirm_qc_sewing($prod_id, $output_id) { $this->_unconfirm_qc($prod_id, $output_id, 'sewing'); }
+    public function delete_sewing_input($prod_id, $input_id) { $this->_delete_input($prod_id, $input_id, 'sewing'); }
+    public function delete_sewing_output($prod_id, $output_id) { $this->_delete_output($prod_id, $output_id, 'sewing'); }
+
+    public function confirm_qc_grinding($prod_id, $output_id) { $this->_confirm_qc($prod_id, $output_id, 'grinding'); }
+    public function unconfirm_qc_grinding($prod_id, $output_id) { $this->_unconfirm_qc($prod_id, $output_id, 'grinding'); }
     public function delete_material_usage($prod_id, $input_id) { $this->_delete_input($prod_id, $input_id, $this->_get_stage_from_referer()); } // Cek referer
-    public function delete_preparation_output($prod_id, $output_id) { $this->_delete_output($prod_id, $output_id, 'preparation'); }
+    public function delete_grinding_output($prod_id, $output_id) { $this->_delete_output($prod_id, $output_id, 'grinding'); }
 
     public function confirm_qc_assembling($prod_id, $output_id) { $this->_confirm_qc($prod_id, $output_id, 'assembling'); }
     public function unconfirm_qc_assembling($prod_id, $output_id) { $this->_unconfirm_qc($prod_id, $output_id, 'assembling'); }
@@ -805,7 +1273,7 @@ class Production_process extends MY_Controller {
     public function delete_finishing_output($prod_id, $output_id) { $this->_delete_output($prod_id, $output_id, 'finishing'); }
 
     // Helper untuk menentukan stage saat delete material usage
-    private function _get_stage_from_referer($default = 'preparation') {
+    private function _get_stage_from_referer($default = 'grinding') {
         $referer = $this->agent->is_referral() ? $this->agent->referrer() : '';
         if(strpos($referer, '/assembling/') !== false) return 'assembling';
         if(strpos($referer, '/finishing/') !== false) return 'finishing';
@@ -828,7 +1296,7 @@ class Production_process extends MY_Controller {
             // --- END LOG ---
             return $this->Production_model->confirm_production($id, $user_id);
         };
-        $this->_perform_action_and_respond($callback, $id, $current_stage, 'Proses Produksi dikonfirmasi (Status: In Progress).', 'Gagal mengonfirmasi status.', 'Draft', 'edit');
+        $this->_perform_action_and_respond($callback, $id, $current_stage, 'Proses Produksi dikonfirmasi (Status: In Progress).', 'Gagal mengonfirmasi status.', 'Draft', 'confirm');
     }
 
     // Batal Konfirmasi Seluruh Proses Produksi
@@ -842,7 +1310,7 @@ class Production_process extends MY_Controller {
             // --- END LOG ---
             return $this->Production_model->unconfirm_production($id);
         };
-        $this->_perform_action_and_respond($callback, $id, $current_stage, 'Konfirmasi dibatalkan (Status: Draft).', 'Gagal membatalkan konfirmasi.', 'In Progress', 'edit');
+        $this->_perform_action_and_respond($callback, $id, $current_stage, 'Konfirmasi dibatalkan (Status: Draft).', 'Gagal membatalkan konfirmasi.', 'In Progress', 'confirm');
     }
 
     // Hapus Header Proses Produksi (Ini redirect ke index, bukan stage)
@@ -988,16 +1456,16 @@ class Production_process extends MY_Controller {
         }
     }
 
-    public function export_preparation_pdf($id) {
+    public function export_grinding_pdf($id) {
         if (!check_access('production_process', 'view')) { show_error('Tidak ada izin.', 403); }
         $header = $this->Production_model->get_header_by_id($id);
         if (!$header) show_404();
         $data = [
             'header'              => $header,
-            'preparation_inputs'  => $this->Production_model->get_production_inputs_for_trace($id, 'preparation'), // Pakai trace agar ada info GRN
-            'preparation_outputs' => $this->Production_model->get_production_outputs($id, 'preparation'),
+            'grinding_inputs'  => $this->Production_model->get_production_inputs_for_trace($id, 'grinding'), // Pakai trace agar ada info GRN
+            'grinding_outputs' => $this->Production_model->get_production_outputs($id, 'grinding'),
         ];
-        $this->_generate_pdf('production_process/preparation_pdf_template', $data, "ProdPreparation_".str_replace('/', '-', $header->production_number));
+        $this->_generate_pdf('production_process/grinding_pdf_template', $data, "ProdGrinding_".str_replace('/', '-', $header->production_number));
     }
 
      public function export_assembling_pdf($id) {

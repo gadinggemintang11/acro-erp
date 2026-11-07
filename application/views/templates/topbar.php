@@ -1,18 +1,15 @@
-<nav class="navbar navbar-expand navbar-light bg-white topbar mb-4 static-top shadow">
+<nav class="navbar navbar-expand navbar-light topbar brand-topbar mb-4 static-top shadow">
 
   <!-- Sidebar Toggle (Mobile) - Always visible on mobile -->
   <button id="sidebarToggleTop" class="btn btn-link rounded-circle mr-3 d-lg-none">
-    <i class="fa fa-bars text-gray-600" style="font-size: 1.25rem;"></i>
+    <i class="fa fa-bars" style="font-size: 1.25rem; color: #fff;"></i>
   </button>
 
-  <!-- Logo -->
-  <a class="btn-load navbar-brand d-flex align-items-center" href="<?= base_url('dashboard'); ?>" style="text-decoration: none;">
-    <img src="<?= base_url('assets/img/logo_mini.png'); ?>" alt="Logo" style="height: 40px; width: auto; margin-right: 12px;">
-    <div class="d-none d-md-block">
-      <div style="font-size: 16px; font-weight: 700; color: #5a5c69; line-height: 1.2;">PT MINGBAO LIANCHUANG INTERNATIONAL</div>
-      <div style="font-size: 11px; color: #858796; font-weight: 500;">Enterprise Resource Planning</div>
-    </div>
-  </a>
+  <!-- Live Clock -->
+  <div id="topbar-clock" class="topbar-clock d-flex align-items-center" aria-live="polite">
+    <i class="far fa-clock mr-2" style="font-size: 1rem;"></i>
+    <span id="topbar-clock-text">--</span>
+  </div>
 
   <!-- Topbar Navbar -->
   <ul class="navbar-nav ml-auto">
@@ -81,6 +78,16 @@
 
     <div class="topbar-divider d-none d-sm-block"></div>
 
+    <!-- Dark Mode Toggle Button -->
+    <li class="nav-item dropdown no-arrow">
+      <button id="dark-mode-toggle-topbar" class="nav-link d-flex align-items-center justify-content-center" title="Toggle Dark/Light Mode" style="padding: 0.5rem 0.75rem; background: none; border: none; cursor: pointer; height: 4.375rem; display: flex !important;">
+        <i class="fas fa-moon fa-fw text-info" style="font-size: 1.1rem;"></i>
+        <span class="d-none d-lg-inline ml-2 text-gray-700 small font-weight-500" id="dark-mode-label">Dark Mode</span>
+      </button>
+    </li>
+
+    <div class="topbar-divider d-none d-sm-block"></div>
+
     <!-- User Information -->
     <li class="nav-item dropdown no-arrow">
       <a class="nav-link dropdown-toggle d-flex align-items-center" href="#" id="userDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" style="padding: 0.5rem 1rem;">
@@ -89,7 +96,14 @@
             <?= $this->session->userdata('username') ?? 'Administrator'; ?>
           </span>
           <span class="d-block text-gray-600" style="font-size: 0.75rem;">
-            <?= $this->session->userdata('role_name') ?? 'Superadmin'; ?>
+            <?php
+              // Semua role user (Role Level 2026-09-15). Versi lama mencetak
+              // SELURUH isi session (termasuk session_token) ke HTML kalau
+              // role_name kosong -- dihapus.
+              $role_names = function_exists('current_role_names') ? current_role_names() : [];
+              $role_label = $role_names ? $role_names[0] . (count($role_names) > 1 ? ' +' . (count($role_names) - 1) : '') : ($this->session->userdata('role_name') ?: '-');
+            ?>
+            <span title="<?= htmlspecialchars(implode(', ', $role_names)); ?>"><?= htmlspecialchars($role_label); ?></span>
           </span>
         </div>
         <div class="rounded-circle bg-gradient-primary d-flex align-items-center justify-content-center" style="width: 38px; height: 38px;">
@@ -102,15 +116,15 @@
         <div class="dropdown-header bg-gradient-primary text-white">
           <i class="fas fa-user-circle mr-2"></i>Account
         </div>
-        <a class="dropdown-item" href="#" style="padding: 0.75rem 1.25rem; transition: all 0.2s ease;">
+        <a class="dropdown-item btn-load" href="<?= base_url('account/profile'); ?>" style="padding: 0.75rem 1.25rem; transition: all 0.2s ease;">
           <i class="fas fa-user fa-sm fa-fw mr-2 text-gray-400"></i>
           My Profile
         </a>
-        <a class="dropdown-item" href="#" style="padding: 0.75rem 1.25rem; transition: all 0.2s ease;">
+        <a class="dropdown-item btn-load" href="<?= base_url('account/settings'); ?>" style="padding: 0.75rem 1.25rem; transition: all 0.2s ease;">
           <i class="fas fa-cogs fa-sm fa-fw mr-2 text-gray-400"></i>
           Settings
         </a>
-        <a class="dropdown-item" href="#" style="padding: 0.75rem 1.25rem; transition: all 0.2s ease;">
+        <a class="dropdown-item btn-load" href="<?= base_url('log_activity'); ?>" style="padding: 0.75rem 1.25rem; transition: all 0.2s ease;">
           <i class="fas fa-list fa-sm fa-fw mr-2 text-gray-400"></i>
           Activity Log
         </a>
@@ -124,6 +138,70 @@
 
   </ul>
 </nav>
+
+<?php // "Developer Mode" — banner aktif (ERP Revision Notes, user 2026-09-03).
+      // User klarifikasi: masuknya lewat klik menu sidebar "Developer Mode"
+      // (langsung nyalain & bawa ke tampilan ERP asli, BUKAN halaman terpisah
+      // dulu), keluarnya lewat tombol "Akhiri Developer Mode" yang jelas
+      // kelihatan — bukan toggle kecil di topbar (makanya toggle lama di
+      // topbar dihapus, diganti banner ini). Lihat templates/sidebar.php
+      // (link entry point) & footer.php (overlay klik-teks-nya). ?>
+<?php if (devmode_active()): ?>
+<?php
+    // id="devmodeBanner" dipakai footer.php buat MENGECUALIKAN kontrol banner
+    // ini dari overlay klik-utk-edit (beda dari isi halaman yang MEMANG harus
+    // bisa diklik-edit) — tanpa ini, klik "Atur Kolom" dkk malah kebuka jadi
+    // popover edit teks (bug ditemukan user 2026-09-03).
+    //
+    // 2026-09-06: banner ini sekarang jadi PEMILIH MODE. Developer Mode nyala
+    // TIDAK langsung mengaktifkan overlay edit teks — user pilih dulu mau
+    // mengedit apa, dan hanya SATU mode inline yang aktif dalam satu waktu
+    // (user: "supaya saat mau edit kolom tidak terganggu mode edit teks").
+    $dm_mode   = devmode_mode();
+    $dm_back   = urlencode(current_url() . (!empty($_SERVER['QUERY_STRING']) ? '?' . $_SERVER['QUERY_STRING'] : ''));
+    $dm_modes  = [
+        'text'   => ['icon' => 'fa-font',    'label' => lang_line('devmode_mode_text', 'Edit Teks'),
+                     'hint' => lang_line('devmode_mode_text_hint', 'Klik teks mana pun di halaman untuk mengubahnya.')],
+        'column' => ['icon' => 'fa-table',   'label' => lang_line('devmode_mode_column', 'Atur Kolom'),
+                     'hint' => lang_line('devmode_mode_column_hint', 'Tombol "Atur Kolom" muncul di halaman-halaman list.')],
+    ];
+?>
+<div id="devmodeBanner" class="px-3 py-2" style="background:#f6c23e;color:#5a4400;">
+    <div class="d-flex align-items-center justify-content-between flex-wrap">
+        <div class="d-flex align-items-center flex-wrap">
+            <strong class="mr-3">
+                <i class="fas fa-pencil-alt mr-1"></i><?= lang_line('devmode_banner_title', 'Developer Mode Aktif'); ?>
+            </strong>
+            <span class="mr-2 small"><?= lang_line('devmode_mode_pick', 'Mau mengedit apa?'); ?></span>
+            <?php foreach ($dm_modes as $mk => $mv): $on = ($dm_mode === $mk); ?>
+                <a href="<?= base_url('developer_mode/set_mode?mode=' . $mk . '&redirect=' . $dm_back); ?>"
+                   class="btn btn-sm mr-2 <?= $on ? 'btn-dark' : 'btn-outline-dark'; ?>"
+                   title="<?= htmlspecialchars($mv['hint']); ?>">
+                    <i class="fas <?= $mv['icon']; ?> mr-1"></i><?= htmlspecialchars($mv['label']); ?>
+                    <?php if ($on): ?><i class="fas fa-check ml-1"></i><?php endif; ?>
+                </a>
+            <?php endforeach; ?>
+        </div>
+        <a href="<?= base_url('developer_mode/toggle?redirect=' . $dm_back); ?>" class="btn btn-sm btn-dark">
+            <i class="fas fa-power-off mr-1"></i> <?= lang_line('devmode_banner_end', 'Akhiri Developer Mode'); ?>
+        </a>
+    </div>
+    <div class="small mt-1" style="opacity:.9">
+        <?php if ($dm_mode === ''): ?>
+            <i class="fas fa-info-circle mr-1"></i><?= lang_line('devmode_mode_none_hint', 'Belum ada mode aktif — halaman berperilaku normal. Pilih salah satu tombol di atas untuk mulai mengedit.'); ?>
+        <?php else: ?>
+            <i class="fas fa-info-circle mr-1"></i><?= $dm_modes[$dm_mode]['hint']; ?>
+            <?= lang_line('devmode_mode_off_hint', 'Klik lagi tombol modenya untuk mematikan.'); ?>
+        <?php endif; ?>
+        <span class="ml-2">
+            <a href="<?= base_url('developer_mode'); ?>" style="color:#5a4400;text-decoration:underline;"><?= lang_line('devmode_banner_manage_link', 'Kelola semua teks'); ?></a>
+            <a href="<?= base_url('developer_mode/assets'); ?>" class="ml-2" style="color:#5a4400;text-decoration:underline;"><?= lang_line('devmode_banner_manage_assets_link', 'Kelola logo & gambar'); ?></a>
+            <a href="<?= base_url('developer_mode/columns'); ?>" class="ml-2" style="color:#5a4400;text-decoration:underline;"><?= lang_line('devmode_banner_manage_columns_link', 'Kelola kolom list'); ?></a>
+            <a href="<?= base_url('developer_mode/sidebar_order'); ?>" class="ml-2" style="color:#5a4400;text-decoration:underline;"><?= lang_line('devmode_banner_manage_sidebar_order_link', 'Atur urutan sidebar'); ?></a>
+        </span>
+    </div>
+</div>
+<?php endif; ?>
 
 <style>
 /* Icon Circle for Notifications */
@@ -143,8 +221,8 @@
 }
 
 .dropdown-item.active {
-  background-color: #e3f2fd !important;
-  color: #1e88e5 !important;
+  background-color: var(--brand-soft) !important;
+  color: var(--brand-1) !important;
 }
 
 /* Badge Counter Animation */
@@ -186,13 +264,13 @@
 }
 
 .notification-item:hover {
-  background-color: #f8f9fc !important;
-  border-left-color: #4e73df;
+  background-color: var(--brand-soft) !important;
+  border-left-color: var(--brand-1);
 }
 
 .notification-item.unread {
-  background-color: #f0f7ff;
-  border-left-color: #4e73df;
+  background-color: #fef2f2;
+  border-left-color: var(--brand-1);
 }
 
 .notification-item .icon-circle {
@@ -213,6 +291,148 @@
 .notification-type-warning { border-left-color: #f6c23e !important; }
 .notification-type-danger { border-left-color: #e74a3b !important; }
 .notification-type-info { border-left-color: #36b9cc !important; }
+
+/* Dark Mode Toggle Button Styling */
+#dark-mode-toggle-topbar {
+  display: flex !important;
+  align-items: center;
+  justify-content: center;
+  height: 4.375rem;
+  line-height: 4.375rem;
+  color: #858796;
+  transition: all 0.2s ease;
+}
+
+#dark-mode-toggle-topbar:hover {
+  color: var(--brand-1);
+  text-decoration: none;
+}
+
+#dark-mode-toggle-topbar:focus {
+  outline: none;
+}
+
+/* Dark Mode Label */
+#dark-mode-label {
+  font-weight: 500;
+  margin-left: 0.5rem;
+}
+
+/* Dark Mode - Button Styling in Dark Mode */
+body.dark-mode #dark-mode-toggle-topbar {
+  color: var(--color-text-primary);
+}
+
+body.dark-mode #dark-mode-toggle-topbar:hover {
+  color: #7fb3ff;
+}
+
+body.dark-mode #dark-mode-toggle-topbar i {
+  color: #ffc107 !important;
+}
+
+body.dark-mode #dark-mode-label {
+  color: var(--color-text-primary) !important;
+}
+
+/* ============================================
+   BRAND RED TOPBAR THEME
+   ============================================ */
+.brand-topbar {
+  background: linear-gradient(90deg, var(--brand-1) 0%, var(--brand-2) 100%) !important;
+  color: #fff !important;
+  border-bottom: 0 !important;
+}
+
+/* Live clock */
+.topbar-clock {
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.95rem;
+  letter-spacing: 0.5px;
+  padding: 0.5rem 1rem;
+  text-transform: uppercase;
+}
+.topbar-clock #topbar-clock-text { white-space: nowrap; }
+
+/* Nav link defaults: white text on red */
+.brand-topbar .nav-link,
+.brand-topbar .nav-link i,
+.brand-topbar #dark-mode-toggle-topbar,
+.brand-topbar #dark-mode-toggle-topbar i,
+.brand-topbar #dark-mode-label {
+  color: #fff !important;
+}
+.brand-topbar .nav-link:hover,
+.brand-topbar .nav-link:hover i {
+  background-color: rgba(255,255,255,0.12) !important;
+  color: #fff !important;
+}
+
+/* Hide colored circle accents on icons (was yellow bell, blue moon, etc) */
+.brand-topbar .nav-link .text-success,
+.brand-topbar .nav-link .text-warning,
+.brand-topbar .nav-link .text-info,
+.brand-topbar .nav-link .text-primary,
+.brand-topbar #dark-mode-toggle-topbar .text-info,
+.brand-topbar #dark-mode-toggle-topbar .text-warning {
+  color: #fff !important;
+}
+
+/* User block text — only on direct nav-link children, NOT inside dropdowns */
+.brand-topbar > ul > li > .nav-link .text-gray-800,
+.brand-topbar > ul > li > .nav-link .text-gray-700,
+.brand-topbar > ul > li > .nav-link .text-gray-600 {
+  color: #fff !important;
+}
+
+/* Notification & dropdown content keeps dark text */
+.brand-topbar .dropdown-menu .text-gray-800 { color: #1f2937 !important; }
+.brand-topbar .dropdown-menu .text-gray-700 { color: #374151 !important; }
+.brand-topbar .dropdown-menu .text-gray-600 { color: #4b5563 !important; }
+.brand-topbar .dropdown-menu .text-gray-500 { color: #6b7280 !important; }
+.brand-topbar .dropdown-menu .notification-item .font-weight-bold { color: #1f2937 !important; }
+
+/* User avatar circle */
+.brand-topbar .navbar-nav .rounded-circle.bg-gradient-primary {
+  background: rgba(255,255,255,0.18) !important;
+  border: 2px solid rgba(255,255,255,0.35);
+}
+
+/* Divider on red bg */
+.brand-topbar .topbar-divider {
+  border-left: 1px solid rgba(255,255,255,0.25) !important;
+}
+
+/* Notification badge: merah = arti "perlu perhatian" (dulu kuning krn
+   topbar-nya merah; sejak topbar abu-abu merah justru paling menonjol). */
+.brand-topbar #notificationBadge {
+  background: var(--brand-2) !important;
+  color: #fff !important;
+  font-weight: 700;
+}
+
+/* Dropdown panels remain white (readable) */
+.brand-topbar .dropdown-menu {
+  color: var(--text-primary, #1f2937);
+}
+.brand-topbar .dropdown-menu .dropdown-item { color: #333 !important; }
+.brand-topbar .dropdown-menu .dropdown-item:hover { color: var(--brand-1) !important; background: var(--brand-soft) !important; }
+.brand-topbar .dropdown-menu .dropdown-header.bg-gradient-primary,
+.brand-topbar .dropdown-menu .dropdown-header.bg-gradient-warning {
+  background: linear-gradient(90deg, var(--brand-1), var(--brand-2)) !important;
+}
+
+/* Mobile: clock smaller */
+@media (max-width: 576px) {
+  .topbar-clock { font-size: 0.78rem; padding: 0.35rem 0.6rem; }
+  .topbar-clock i { display: none; }
+}
+
+/* Dark mode override (warna tema, versi redup) */
+body.dark-mode .brand-topbar {
+  background: linear-gradient(90deg, var(--brand-dm-1) 0%, var(--brand-dm-2) 100%) !important;
+}
 </style>
 
 <script>
@@ -226,6 +446,16 @@ $(document).ready(function() {
   // Load notifications when dropdown is opened
   $('#alertsDropdown').on('show.bs.dropdown', function() {
     loadNotifications();
+  });
+
+  // Klik 1 notifikasi -> tandai dibaca + navigasi ke link-nya (kalau ada).
+  // Delegated ke #notificationList (bukan .notification-item langsung) krn
+  // isinya di-render ulang tiap loadNotifications() — elemen lama sudah
+  // dibuang tiap refresh, delegated listener tetap kepakai ke elemen baru.
+  $('#notificationList').on('click', '.notification-item', function() {
+    const id = $(this).data('id');
+    const link = $(this).data('link');
+    markNotificationRead(id, link ? '<?= base_url(); ?>' + link : null);
   });
 });
 
@@ -285,7 +515,8 @@ function renderNotifications(notifications) {
     const timeAgo = formatTimeAgo(notification.created_at);
     
     html += `
-      <div class="dropdown-item notification-item ${unreadClass} ${typeClass} d-flex align-items-center border-bottom" 
+      <div class="dropdown-item notification-item ${unreadClass} ${typeClass} d-flex align-items-center border-bottom"
+           data-id="${notification.id}" data-link="${notification.link || ''}"
            style="padding: 0.75rem 1rem; cursor: pointer;">
         <div class="mr-3">
           <div class="icon-circle ${iconColor}">
@@ -357,6 +588,25 @@ function markAllAsRead() {
     }
   });
 }
+
+// Live clock
+(function startTopbarClock() {
+  var el = document.getElementById('topbar-clock-text');
+  if (!el) return;
+  var months = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+  function tick() {
+    var d = new Date();
+    var day = d.getDate();
+    var ord = (day % 10 === 1 && day !== 11) ? 'st' : (day % 10 === 2 && day !== 12) ? 'nd' : (day % 10 === 3 && day !== 13) ? 'rd' : 'th';
+    var hh = d.getHours();
+    var ampm = hh >= 12 ? 'PM' : 'AM';
+    hh = hh % 12; if (hh === 0) hh = 12;
+    var mm = String(d.getMinutes()).padStart(2, '0');
+    el.textContent = months[d.getMonth()] + ' ' + day + ord + ', ' + d.getFullYear() + ', ' + hh + ':' + mm + ' ' + ampm;
+  }
+  tick();
+  setInterval(tick, 30000);
+})();
 
 // Delete notification
 function deleteNotification(id) {

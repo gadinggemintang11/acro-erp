@@ -6,9 +6,9 @@
 <footer class="sticky-footer bg-white shadow-sm">
   <div class="container my-auto text-center py-2">
     <span class="text-muted small">
-      <i class="far fa-copyright"></i> <?= date('Y'); ?> ERP MINGBAO | Made By 
+      <i class="far fa-copyright"></i> <?= date('Y'); ?> ERP NSI | Made By 
       <span class="font-weight-bold text-primary" style="transition: color 0.3s ease;" onmouseover="this.style.color='#224abe'" onmouseout="this.style.color=''">
-        PT MINGBAO LIANCHUANG INTERNATIONAL
+        PT NEW SPECIALIFE INDUSTRIES
       </span>
     </span>
   </div>

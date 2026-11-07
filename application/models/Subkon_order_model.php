@@ -13,13 +13,8 @@ class Subkon_order_model extends CI_Model {
     // ========================================================================
 
     public function generate_order_no() {
-        $prefix = 'SK/' . date('Y') . '/';
-        $this->db->like('subkon_order_no', $prefix, 'after');
-        $this->db->order_by('id', 'DESC');
-        $last = $this->db->get($this->table_header, 1)->row();
-        
-        $new_num = $last ? (int) substr($last->subkon_order_no, strlen($prefix)) + 1 : 1;
-        return $prefix . str_pad($new_num, 5, '0', STR_PAD_LEFT);
+        // Format nomor diatur di config/doc_number.php (rebrand Acropoly 2026-11-05).
+        return doc_number_next('subkon_order', 'subkon_order_header', 'subkon_order_no');
     }
 
     public function insert_header($data) {

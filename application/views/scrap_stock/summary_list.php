@@ -7,16 +7,16 @@
                 <i class="fas fa-database text-info mr-2"></i>
                 <?= htmlspecialchars($title); ?>
             </h3>
-            <small class="text-muted ml-4">Menampilkan ringkasan total stok scrap yang tersedia.</small>
+            <small class="text-muted ml-4"><?= lang_line('scrs_subtitle_summary'); ?></small>
         </div>
         <div class="text-right">
-            <a href="<?= base_url('scrap_stock/export_excel'); ?>" 
+            <a href="<?= base_url('scrap_stock/export_excel'); ?>"
                class="btn btn-success btn-sm shadow-sm mr-2 no-loader" target="_blank">
-                <i class="fas fa-file-excel mr-1"></i> Excel
+                <i class="fas fa-file-excel mr-1"></i> <?= lang_line('scrs_btn_excel'); ?>
             </a>
-            <a href="<?= base_url('scrap_stock/export_pdf'); ?>" 
+            <a href="<?= base_url('scrap_stock/export_pdf'); ?>"
                class="btn btn-danger btn-sm shadow-sm no-loader" target="_blank">
-                <i class="fas fa-file-pdf mr-1"></i> PDF
+                <i class="fas fa-file-pdf mr-1"></i> <?= lang_line('scrs_btn_pdf'); ?>
             </a>
         </div>
     </div>
@@ -25,9 +25,9 @@
     <div class="card shadow-sm border-0 rounded-lg">
         <div class="card-header bg-light py-3 d-flex justify-content-between align-items-center">
             <h6 class="m-0 font-weight-bold text-primary">
-                <i class="fas fa-list mr-2"></i> Ringkasan Stok Scrap
+                <i class="fas fa-list mr-2"></i> <?= lang_line('scrs_card_summary'); ?>
             </h6>
-            <span class="badge badge-info badge-pill"><?= count($stock_summary); ?> Item</span>
+            <span class="badge badge-info badge-pill"><?= count($stock_summary); ?> <?= lang_line('scrs_item_count'); ?></span>
         </div>
 
         <div class="card-body p-0">
@@ -35,21 +35,21 @@
                 <table class="table table-striped table-hover table-sm align-middle mb-0">
                     <thead class="thead-light text-center">
                         <tr>
-                            <th width="5%">No</th>
-                            <th width="120">Kode Scrap</th>
-                            <th>Nama Scrap</th>
-                            <th width="90">Satuan</th>
-                            <th width="110">Qty Masuk</th>
-                            <th width="110">Qty Keluar</th>
-                            <th width="120">Qty Tersedia</th>
-                            <th width="90">Aksi</th>
+                            <th width="5%"><?= lang_line('scrs_th_no'); ?></th>
+                            <th width="120"><?= lang_line('scrs_th_code'); ?></th>
+                            <th><?= lang_line('scrs_th_name'); ?></th>
+                            <th width="90"><?= lang_line('scrs_th_unit'); ?></th>
+                            <th width="110"><?= lang_line('scrs_th_qty_in'); ?></th>
+                            <th width="110"><?= lang_line('scrs_th_qty_out'); ?></th>
+                            <th width="120"><?= lang_line('scrs_th_qty_avail'); ?></th>
+                            <th width="90"><?= lang_line('scrs_th_action'); ?></th>
                         </tr>
                     </thead>
                     <tbody>
-                        <?php 
+                        <?php
                             $start_no = $this->uri->segment(3) ? $this->uri->segment(3) + 1 : 1;
                             if (!empty($stock_summary)):
-                                foreach ($stock_summary as $row): 
+                                foreach ($stock_summary as $row):
                                     $qty_in  = (float)($row->total_in ?? 0);
                                     $qty_out = (float)($row->total_out ?? 0);
                                     $qty_avail = (float)($row->total_available ?? 0);
@@ -69,8 +69,8 @@
                                 </span>
                             </td>
                             <td class="text-center">
-                                <a href="<?= base_url('scrap_stock/detail/' . ($row->scrap_id ?? 0)); ?>" 
-                                   class="btn btn-sm btn-outline-info btn-load" title="Lihat Detail">
+                                <a href="<?= base_url('scrap_stock/detail/' . ($row->scrap_id ?? 0)); ?>"
+                                   class="btn btn-sm btn-outline-info btn-load" title="<?= lang_line('scrs_btn_detail'); ?>">
                                     <i class="fas fa-search"></i>
                                 </a>
                             </td>
@@ -78,7 +78,7 @@
                         <?php endforeach; else: ?>
                             <tr>
                                 <td colspan="8" class="text-center text-muted py-3">
-                                    Tidak ada data stok scrap tersedia.
+                                    <?= lang_line('scrs_no_data'); ?>
                                 </td>
                             </tr>
                         <?php endif; ?>

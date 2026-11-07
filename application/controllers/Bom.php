@@ -28,7 +28,7 @@ class Bom extends MY_Controller {
 
         $filters = ['search' => $this->input->get('search')];
         $data = [
-            'title' => 'Bill of Materials (BOM)',
+            'title' => lang_line('title_bom_index'),
             'boms'  => $this->Bom_model->get_all($filters),
             'available_fgs' => $this->Fg_model->get_fgs_without_bom(),
             'filters' => $filters
@@ -94,7 +94,7 @@ class Bom extends MY_Controller {
         if (!$header) show_404();
 
         $data = [
-            'title'   => 'Detail Bill of Materials',
+            'title'   => lang_line('title_bom_detail'),
             'header'  => $header,
             'details' => $this->Bom_model->get_details_by_header_id($id)
         ];
@@ -124,9 +124,14 @@ class Bom extends MY_Controller {
         if (!check_access('bom', 'edit')) { show_error('Tidak ada izin.', 403); return;}
         if (empty($bom_header_id) || !is_numeric($bom_header_id)) show_404();
 
+        $is_ajax = $this->input->is_ajax_request();
         $header = $this->Bom_model->get_header_by_id($bom_header_id);
         if (!$header || strtoupper(trim($header->status)) != 'DRAFT') {
-             $this->session->set_flashdata('error', 'Komponen hanya bisa ditambahkan saat status BOM Draft!');
+             $msg = 'Komponen hanya bisa ditambahkan saat status BOM Draft!';
+             if ($is_ajax) {
+                 return $this->output->set_content_type('application/json')->set_output(json_encode(['success' => false, 'message' => $msg]));
+             }
+             $this->session->set_flashdata('error', $msg);
              redirect('bom/detail/' . $bom_header_id);
              return;
         }
@@ -136,14 +141,22 @@ class Bom extends MY_Controller {
         $this->form_validation->set_rules('quantity_required', 'Kuantitas', 'required|numeric|greater_than[0]');
 
         if ($this->form_validation->run() == FALSE) {
-             $this->session->set_flashdata('error', validation_errors());
+             $msg = validation_errors();
+             if ($is_ajax) {
+                 return $this->output->set_content_type('application/json')->set_output(json_encode(['success' => false, 'message' => $msg]));
+             }
+             $this->session->set_flashdata('error', $msg);
              redirect('bom/detail/' . $bom_header_id);
              return;
         }
 
         $item_data = explode('|', $this->input->post('component_id'));
         if (count($item_data) < 2) {
-             $this->session->set_flashdata('error', 'Komponen yang dipilih tidak valid!');
+             $msg = 'Komponen yang dipilih tidak valid!';
+             if ($is_ajax) {
+                 return $this->output->set_content_type('application/json')->set_output(json_encode(['success' => false, 'message' => $msg]));
+             }
+             $this->session->set_flashdata('error', $msg);
              redirect('bom/detail/' . $bom_header_id);
              return;
         }
@@ -157,6 +170,7 @@ class Bom extends MY_Controller {
             'component_item_id'   => $item_id,
             'component_item_type' => $item_type,
             'quantity_required'   => $quantity,
+            'specification'       => $this->input->post('specification'),
         ];
 
         if ($this->Bom_model->insert_item($data)) {
@@ -165,9 +179,17 @@ class Bom extends MY_Controller {
             $this->_log('UPDATE', $deskripsi);
             // --- END LOG ---
 
-            $this->session->set_flashdata('success', 'Komponen berhasil ditambahkan.');
+            $msg = 'Komponen berhasil ditambahkan.';
+            if ($is_ajax) {
+                return $this->output->set_content_type('application/json')->set_output(json_encode(['success' => true, 'message' => $msg]));
+            }
+            $this->session->set_flashdata('success', $msg);
         } else {
-            $this->session->set_flashdata('error', 'Gagal menambah komponen (mungkin sudah ada atau item tidak valid?).');
+            $msg = 'Gagal menambah komponen (mungkin sudah ada atau item tidak valid?).';
+            if ($is_ajax) {
+                return $this->output->set_content_type('application/json')->set_output(json_encode(['success' => false, 'message' => $msg]));
+            }
+            $this->session->set_flashdata('error', $msg);
         }
         redirect('bom/detail/' . $bom_header_id);
     }
@@ -178,12 +200,17 @@ class Bom extends MY_Controller {
     public function update_item($bom_header_id, $detail_id) {
         if (!check_access('bom', 'edit')) { show_error('Tidak ada izin.', 403); return;}
         if (empty($bom_header_id) || empty($detail_id) || !is_numeric($bom_header_id) || !is_numeric($detail_id)) show_404();
-        
+
+        $is_ajax = $this->input->is_ajax_request();
         $input_name = 'quantity_required_' . $detail_id;
         $new_quantity_str = $this->input->post($input_name);
 
         if ($new_quantity_str === null || !is_numeric($new_quantity_str) || (float)$new_quantity_str <= 0) {
-             $this->session->set_flashdata('error', 'Kuantitas harus berupa angka positif!');
+             $msg = 'Kuantitas harus berupa angka positif!';
+             if ($is_ajax) {
+                 return $this->output->set_content_type('application/json')->set_output(json_encode(['success' => false, 'message' => $msg]));
+             }
+             $this->session->set_flashdata('error', $msg);
              redirect('bom/detail/' . $bom_header_id);
              return;
         }
@@ -196,10 +223,18 @@ class Bom extends MY_Controller {
             $deskripsi = "Update kuantitas item (Detail ID: $detail_id) menjadi $new_quantity pada BOM ID: $bom_header_id";
             $this->_log('UPDATE', $deskripsi);
             // --- END LOG ---
-            
-            $this->session->set_flashdata('success', 'Kuantitas komponen berhasil diperbarui.');
+
+            $msg = 'Kuantitas komponen berhasil diperbarui.';
+            if ($is_ajax) {
+                return $this->output->set_content_type('application/json')->set_output(json_encode(['success' => true, 'message' => $msg]));
+            }
+            $this->session->set_flashdata('success', $msg);
         } else {
-            $this->session->set_flashdata('error', 'Gagal memperbarui kuantitas (BOM mungkin tidak lagi Draft).');
+            $msg = 'Gagal memperbarui kuantitas (BOM mungkin tidak lagi Draft).';
+            if ($is_ajax) {
+                return $this->output->set_content_type('application/json')->set_output(json_encode(['success' => false, 'message' => $msg]));
+            }
+            $this->session->set_flashdata('error', $msg);
         }
         redirect('bom/detail/' . $bom_header_id);
     }
@@ -210,24 +245,37 @@ class Bom extends MY_Controller {
         if (!check_access('bom', 'edit')) { show_error('Tidak ada izin.', 403); return;}
         if (empty($bom_header_id) || empty($detail_id) || !is_numeric($bom_header_id) || !is_numeric($detail_id)) show_404();
 
+        $is_ajax = $this->input->is_ajax_request();
         $header = $this->Bom_model->get_header_by_id($bom_header_id);
         if (!$header || strtoupper(trim($header->status)) != 'DRAFT') {
-             $this->session->set_flashdata('error', 'Komponen hanya bisa dihapus saat status BOM Draft!');
+             $msg = 'Komponen hanya bisa dihapus saat status BOM Draft!';
+             if ($is_ajax) {
+                 return $this->output->set_content_type('application/json')->set_output(json_encode(['success' => false, 'message' => $msg]));
+             }
+             $this->session->set_flashdata('error', $msg);
              redirect('bom/detail/' . $bom_header_id);
              return;
         }
-        
-        $item_info = $this->Bom_model->get_detail_item_by_id($detail_id); 
+
+        $item_info = $this->Bom_model->get_detail_item_by_id($detail_id);
 
         if ($this->Bom_model->delete_item($detail_id)) {
             // --- LOGGING (UPDATE) ---
             $deskripsi = "Menghapus item (Detail ID: $detail_id, Tipe: " . ($item_info->component_item_type ?? 'N/A') . ") dari BOM ID: $bom_header_id";
-            $this->_log('UPDATE', $deskripsi); 
+            $this->_log('UPDATE', $deskripsi);
             // --- END LOG ---
-            
-            $this->session->set_flashdata('success', 'Komponen berhasil dihapus.');
+
+            $msg = 'Komponen berhasil dihapus.';
+            if ($is_ajax) {
+                return $this->output->set_content_type('application/json')->set_output(json_encode(['success' => true, 'message' => $msg]));
+            }
+            $this->session->set_flashdata('success', $msg);
         } else {
-            $this->session->set_flashdata('error', 'Gagal menghapus komponen.');
+            $msg = 'Gagal menghapus komponen.';
+            if ($is_ajax) {
+                return $this->output->set_content_type('application/json')->set_output(json_encode(['success' => false, 'message' => $msg]));
+            }
+            $this->session->set_flashdata('error', $msg);
         }
         redirect('bom/detail/' . $bom_header_id);
     }
@@ -259,7 +307,7 @@ class Bom extends MY_Controller {
 
     // Proses Konfirmasi/Aktivasi BOM (Draft -> Active)
     public function confirm_bom($id) {
-        if (!check_access('bom', 'edit')) { show_error('Anda tidak memiliki izin.', 403); return; } 
+        if (!check_access('bom', 'confirm')) { show_error('Anda tidak memiliki izin.', 403); return; }
         if (empty($id) || !is_numeric($id)) show_404();
 
         $header = $this->Bom_model->get_header_by_id($id);
@@ -352,6 +400,86 @@ class Bom extends MY_Controller {
         $dompdf->render();
         $filename = "BOM_".str_replace(['/','\\'], '-', ($header->fg_code ?? $header->fg_id)).".pdf";
         $dompdf->stream($filename, ["Attachment" => 0]);
+        exit;
+    }
+
+    // === DOCUMENTS ===
+
+    public function upload_document($bom_id) {
+        if (!$this->input->is_ajax_request()) show_404();
+        if (!check_access('bom', 'edit')) return $this->_json(['success' => false, 'message' => 'Akses ditolak']);
+
+        $header = $this->Bom_model->get_header_by_id($bom_id);
+        if (!$header || strtoupper(trim($header->status)) != 'DRAFT') {
+            return $this->_json(['success' => false, 'message' => 'BOM harus dalam status Draft']);
+        }
+
+        $this->load->library('upload');
+        $this->lang->load('upload', 'english');
+
+        $config = [
+            'upload_path' => FCPATH . 'uploads/bom_documents/',
+            'allowed_types' => 'pdf|jpg|jpeg|png|gif',
+            'max_size' => 10240,
+            'encrypt_name' => TRUE
+        ];
+
+        $this->upload->initialize($config);
+
+        if (!$this->upload->do_upload('document')) {
+            return $this->_json(['success' => false, 'message' => 'Upload gagal: ' . $this->upload->display_errors()]);
+        }
+
+        $upload_data = $this->upload->data();
+
+        $doc_data = [
+            'bom_header_id' => $bom_id,
+            'file_name' => $upload_data['orig_name'],
+            'file_path' => 'uploads/bom_documents/' . $upload_data['file_name'],
+            'file_type' => $upload_data['file_type'],
+            'file_size' => $upload_data['file_size'],
+            'description' => $this->input->post('description'),
+            'uploaded_by' => $this->session->userdata('user_id')
+        ];
+
+        $insert_result = $this->Bom_model->insert_document($doc_data);
+
+        if ($insert_result) {
+            error_log('[BOM Upload] File uploaded: ' . $upload_data['file_name'] . ' for BOM ID: ' . $bom_id);
+            return $this->_json(['success' => true, 'message' => 'Dokumen berhasil diupload']);
+        } else {
+            error_log('[BOM Upload] Failed to insert document record for BOM ID: ' . $bom_id);
+            return $this->_json(['success' => false, 'message' => 'Gagal menyimpan data dokumen']);
+        }
+    }
+
+    public function delete_document($doc_id) {
+        if (!$this->input->is_ajax_request()) show_404();
+        if (!check_access('bom', 'edit')) return $this->_json(['success' => false, 'message' => 'Akses ditolak']);
+
+        $doc = $this->Bom_model->get_document_by_id($doc_id);
+        if (!$doc) return $this->_json(['success' => false, 'message' => 'Dokumen tidak ditemukan']);
+
+        if ($this->Bom_model->delete_document($doc_id)) {
+            @unlink(FCPATH . $doc->file_path);
+            return $this->_json(['success' => true, 'message' => 'Dokumen berhasil dihapus']);
+        }
+        return $this->_json(['success' => false, 'message' => 'Gagal menghapus dokumen']);
+    }
+
+    public function get_documents($bom_id) {
+        if (!$this->input->is_ajax_request()) show_404();
+        if (!check_access('bom', 'view')) return $this->_json(['success' => false, 'message' => 'Akses ditolak']);
+
+        $documents = $this->Bom_model->get_documents_by_bom($bom_id);
+        return $this->_json(['success' => true, 'documents' => $documents]);
+    }
+
+    // Helper: Return JSON response
+    private function _json($data) {
+        while (ob_get_level()) ob_end_clean();
+        header('Content-Type: application/json; charset=utf-8');
+        echo json_encode($data);
         exit;
     }
 

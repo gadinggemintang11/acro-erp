@@ -6,15 +6,16 @@ class Neraca extends MY_Controller {
     public function __construct()
     {
         parent::__construct();
+        check_login(); // 2026-11-05: halaman ini sebelumnya bisa dibuka TANPA login
         $this->load->model('Neraca_model');
         $this->load->library('form_validation');
     }
 
     public function index()
     {
-        $data['title'] = 'Neraca';
+        $data['title'] = lang_line('title_neraca', 'Neraca');
         $data['users'] = $this->db->get_where('users', ['email' => $this->session->userdata('email')])->row_array();
-        
+
         $this->load->view('templates/header', $data);
         $this->load->view('templates/sidebar', $data);
         $this->load->view('templates/topbar', $data);
@@ -31,7 +32,7 @@ class Neraca extends MY_Controller {
 
     public function detail($account_id, $date)
     {
-        $data['title'] = 'Detail Ledger';
+        $data['title'] = lang_line('title_neraca_detail', 'Detail Ledger');
         $data['users'] = $this->db->get_where('users', ['email' => $this->session->userdata('email')])->row_array();
         $data['detail'] = $this->Neraca_model->get_detail_ledger($account_id, $date);
         

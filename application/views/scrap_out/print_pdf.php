@@ -42,6 +42,29 @@
             <?php endforeach; ?>
         </tbody>
     </table>
+
+    <?php
+    $created_sig = '';
+
+    if (!empty($header->created_by_signature)) {
+        $sig_path = FCPATH . $header->created_by_signature;
+        if (file_exists($sig_path)) {
+            $created_sig = '<img src="' . $sig_path . '" style="height: 40px; width: auto; margin-bottom: 5px;" />';
+        }
+    }
+    ?>
+
+    <table style="margin-top: 40px; border: none;">
+        <tr style="border: none;">
+            <td style="border: 1px solid #333; text-align: center; padding: 15px; vertical-align: bottom; height: 100px; width: 50%;">
+                <div><?= $created_sig; ?></div>
+                <strong><?= htmlspecialchars($header->created_by_name ?: '_________________'); ?></strong>
+                <div style="font-size: 10px;">Dibuat Oleh</div>
+            </td>
+            <td style="border: none;"></td>
+        </tr>
+    </table>
+
     <p style="margin-top:30px; text-align:right;">Dicetak pada <?= date('d-m-Y H:i:s'); ?></p>
 </body>
 </html>

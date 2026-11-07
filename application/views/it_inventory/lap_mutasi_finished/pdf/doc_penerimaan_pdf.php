@@ -19,7 +19,7 @@
             <table class="table table-noborder">
                 <tr><td style="width:30%;">No. Produksi:</td><td><strong><?= $detail->production_number; ?></strong></td></tr>
                 <tr><td>No. Work Order:</td><td><strong><?= $detail->wo_number; ?></strong></td></tr>
-                <tr><td>No. Sales Contract:</td><td><strong><?= $detail->sc_number; ?></strong></td></tr>
+                <tr><td>No. Sales Order:</td><td><strong><?= $detail->sc_number; ?></strong></td></tr>
             </table>
         </div>
     </div>

@@ -1,31 +1,17 @@
 <?php defined('BASEPATH') OR exit('No direct script access allowed'); ?>
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="utf-8">
-    <title><?= htmlspecialchars($title ?? 'Buat Material Return'); ?></title>
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap4-theme@1.0.0/dist/select2-bootstrap4.min.css">
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/sweetalert2@11/dist/sweetalert2.min.css">
-    <style>
-        .select2-container { width: 100% !important; }
-        .select2-container--bootstrap4 .select2-selection--single { height: calc(1.5em + .75rem + 2px) !important; padding: .375rem .75rem !important; line-height: 1.5; border-radius: .25rem; }
-        .table th, .table td { vertical-align: middle; padding: 0.5rem; }
-        .is-invalid + .select2-container--bootstrap4 .select2-selection--single { border-color: #e74a3b; }
-        input[type=number]::-webkit-inner-spin-button,
-        input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
-        input[type=number] { -moz-appearance: textfield; }
-    </style>
-</head>
-<body id="page-top">
+<link href="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/css/select2.min.css" rel="stylesheet" />
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/select2-bootstrap4-theme@1.0.0/dist/select2-bootstrap4.min.css">
+<style>
+    .select2-container { width: 100% !important; }
+    .select2-container--bootstrap4 .select2-selection--single { height: calc(1.5em + .75rem + 2px) !important; padding: .375rem .75rem !important; line-height: 1.5; border-radius: .25rem; }
+    .table th, .table td { vertical-align: middle; padding: 0.5rem; }
+    .is-invalid + .select2-container--bootstrap4 .select2-selection--single { border-color: #e74a3b; }
+    input[type=number]::-webkit-inner-spin-button,
+    input[type=number]::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+    input[type=number] { -moz-appearance: textfield; }
+</style>
 
-    <div id="wrapper">
-        <?php //$this->load->view('templates/sidebar'); ?>
-        <div id="content-wrapper" class="d-flex flex-column">
-            <div id="content">
-                <?php //$this->load->view('templates/topbar'); ?>
-                <div class="container-fluid">
+<div class="container-fluid">
 
                     <div class="d-sm-flex align-items-center justify-content-between mb-4">
                         <h3 class="h4 mb-0 text-gray-800"><i class="fas fa-undo-alt text-warning mr-2"></i><?= htmlspecialchars($title); ?></h3>
@@ -107,15 +93,11 @@
                                 <a href="<?= base_url('ProdReturn'); ?>" class="btn btn-secondary"> <?= lang_line('prodreturn_cancel', 'Batal'); ?> </a>
                             </div>
                         </form>
-                    </div> </div></div><?php //$this->load->view('templates/footer_content'); ?>
-        </div></div><a class="scroll-to-top rounded" href="#page-top"><i class="fas fa-angle-up"></i></a>
+                    </div>
+</div>
 
     <?php //$this->load->view('templates/logout_modal'); ?>
 
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
     <script>
     $(document).ready(function() {
 
@@ -138,7 +120,7 @@
                 return;
             }
 
-            tableBody.html('<tr><td colspan="5" class="text-center text-muted py-3"><i class="fas fa-spinner fa-spin mr-2"></i>Memuat data sisa material...</td></tr>');
+            tableBody.html('<tr><td colspan="5" class="text-center text-muted py-3"><i class="fas fa-spinner fa-spin mr-2"></i><?= lang_line('prtn_js_loading_wip', 'Memuat data sisa material...'); ?></td></tr>');
 
             console.log("Fetching WIP details for WO ID:", woId);
             $.ajax({
@@ -193,7 +175,7 @@
                 error: function(xhr, status, error) {
                     console.error('Error fetching WIP data:', status, error, xhr.responseText);
                     tableBody.html('<tr><td colspan="5" class="text-center text-danger py-3">Gagal memuat data sisa material. Periksa koneksi atau log server.</td></tr>');
-                    Swal.fire('Error', 'Gagal memuat data sisa material. Status: ' + status, 'error');
+                    Swal.fire('Error', <?= json_encode(lang_line('prtn_js_err_load_wip', 'Gagal memuat data sisa material. Status: ')); ?> + status, 'error');
                 }
             });
         });
@@ -267,8 +249,8 @@
                 console.warn("Form submission prevented due to validation errors.");
                 event.preventDefault();
                 Swal.fire({
-                    title: 'Input Tidak Valid',
-                    text: 'Harap periksa kembali field yang wajib diisi dan Qty Retur.',
+                    title: <?= json_encode(lang_line('prtn_js_invalid_title', 'Input Tidak Valid')); ?>,
+                    text: <?= json_encode(lang_line('prtn_js_invalid_form_text', 'Harap periksa kembali field yang wajib diisi dan Qty Retur.')); ?>,
                     icon: 'warning',
                     toast: true,
                     position: 'top-end',
@@ -279,11 +261,8 @@
             }
 
             console.log("Form data seems valid. Submitting form...");
-            $(this).find('button[type="submit"]').prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> Menyimpan...');
+            $(this).find('button[type="submit"]').prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> <?= lang_line('prtn_js_saving', 'Menyimpan...'); ?>');
         });
 
     }); // Akhir $(document).ready()
     </script>
-
-</body>
-</html>

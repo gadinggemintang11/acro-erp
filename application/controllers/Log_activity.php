@@ -10,15 +10,28 @@ class Log_activity extends MY_Controller {
         $this->load->library('pagination');
     }
 
+    /**
+     * Super Admin TIDAK boleh melihat transaksi milik user Executive
+     * (permintaan user 2026-09-06). Dipasang sebagai filter query, bukan
+     * disembunyikan di view, supaya ikut berlaku ke pagination & export.
+     * Untuk tipe user lain tidak ada penyaringan apa pun.
+     */
+    private function _apply_visibility_filter() {
+        // Dulu: Super Admin tidak boleh melihat log user Executive. Tipe
+        // Executive dihapus 2026-11-05, jadi tidak ada lagi yang disaring.
+        return;
+    }
+
     public function index() {
         // Cek akses
         check_access('log_activity', 'view'); // Pastikan Anda menambahkan permission ini di 'roleaccess'
 
-        $data['title'] = 'Log Aktivitas Pengguna';
+        $data['title'] = lang_line('title_log_activity');
         
         // Konfigurasi Pagination
         $config['base_url'] = base_url('log_activity/index');
-        $config['total_rows'] = $this->db->count_all('user_logs');
+        $this->_apply_visibility_filter();
+        $config['total_rows'] = $this->db->count_all_results('user_logs');
         $config['per_page'] = 25; // Jumlah log per halaman
         $config['uri_segment'] = 3;
 
@@ -39,6 +52,7 @@ class Log_activity extends MY_Controller {
         $page = ($this->uri->segment(3)) ? $this->uri->segment(3) : 0;
 
         // Ambil data log dengan limit dan offset
+        $this->_apply_visibility_filter();
         $data['logs'] = $this->db
             ->order_by('log_time', 'DESC')
             ->limit($config['per_page'], $page)
@@ -129,6 +143,7 @@ class Log_activity extends MY_Controller {
         $sheet->getColumnDimension('F')->setWidth(50);
 
         // Get data
+        $this->_apply_visibility_filter();
         $logs = $this->db->order_by('log_time', 'DESC')->get('user_logs')->result();
 
         // Fill data
@@ -208,6 +223,7 @@ class Log_activity extends MY_Controller {
         check_access('log_activity', 'view');
 
         // Get data
+        $this->_apply_visibility_filter();
         $logs = $this->db->order_by('log_time', 'DESC')->get('user_logs')->result();
 
         $data['logs'] = $logs;

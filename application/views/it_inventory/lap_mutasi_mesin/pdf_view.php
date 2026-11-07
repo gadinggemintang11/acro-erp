@@ -17,7 +17,7 @@
 </head>
 <body>
     <div class="header">
-        <div class="company-name">PT MINGBAO LIANCHUANG INTERNATIONAL</div>
+        <div class="company-name"><?= htmlspecialchars(company_info('company_name')) ?></div>
         <div class="report-title">Laporan Mutasi Mesin & Peralatan Mekanik</div>
         <div class="period-text">Periode: <?= htmlspecialchars($start); ?> s/d <?= htmlspecialchars($end); ?></div>
     </div>

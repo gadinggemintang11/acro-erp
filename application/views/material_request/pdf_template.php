@@ -72,22 +72,52 @@
          <p style="margin-top: 15px;"><strong>Catatan Header:</strong><br><?= nl2br(htmlspecialchars($header->remarks)); ?></p>
      <?php endif; ?>
 
-     <table class="signature-table">
+     <?php
+     $requester_sig = '';
+     $issuer_sig = '';
+     $receiver_sig = '';
+
+     if (!empty($header->requester_signature)) {
+         $sig_path = FCPATH . $header->requester_signature;
+         if (file_exists($sig_path)) {
+             $requester_sig = '<img src="' . $sig_path . '" style="height: 40px; width: auto;" />';
+         }
+     }
+
+     if (!empty($header->issuer_signature)) {
+         $sig_path = FCPATH . $header->issuer_signature;
+         if (file_exists($sig_path)) {
+             $issuer_sig = '<img src="' . $sig_path . '" style="height: 40px; width: auto;" />';
+         }
+     }
+
+     if (!empty($header->receiver_signature)) {
+         $sig_path = FCPATH . $header->receiver_signature;
+         if (file_exists($sig_path)) {
+             $receiver_sig = '<img src="' . $sig_path . '" style="height: 40px; width: auto;" />';
+         }
+     }
+     ?>
+
+     <table class="signature-table" style="border-collapse: collapse; width: 100%;">
         <tr>
-            <td class="sig-label" style="width: 33%;">Dibuat Oleh (PPIC)</td>
-            <td class="sig-label" style="width: 34%;">Disiapkan Oleh (Gudang)</td>
-            <td class="sig-label" style="width: 33%;">Diterima Oleh (Produksi)</td>
+            <td class="sig-label" style="width: 33%; border: 1px solid #333; text-align: center; vertical-align: middle; padding: 8px;">Dibuat Oleh (PPIC)</td>
+            <td class="sig-label" style="width: 34%; border: 1px solid #333; text-align: center; vertical-align: middle; padding: 8px;">Disiapkan Oleh (Gudang)</td>
+            <td class="sig-label" style="width: 33%; border: 1px solid #333; text-align: center; vertical-align: middle; padding: 8px;">Diterima Oleh (Produksi)</td>
         </tr>
         <tr>
-            <td class="sig-space">
+            <td class="sig-space" style="width: 33%; border: 1px solid #333; text-align: center; vertical-align: bottom; padding: 10px; height: 80px;">
+                <?= $requester_sig; ?>
                 <div class="sig-name"><?= htmlspecialchars($header->requester_name ?? '_________________'); ?></div>
                 <small style="font-size: 8px;"><?= $header->requested_at ? date('d/m/Y H:i', strtotime($header->requested_at)) : ''; ?></small>
             </td>
-            <td class="sig-space">
+            <td class="sig-space" style="width: 34%; border: 1px solid #333; text-align: center; vertical-align: bottom; padding: 10px; height: 80px;">
+                <?= $issuer_sig; ?>
                 <div class="sig-name"><?= htmlspecialchars($header->issuer_name ?? '_________________'); ?></div>
                 <small style="font-size: 8px;"><?= $header->issued_at ? date('d/m/Y H:i', strtotime($header->issued_at)) : ''; ?></small>
             </td>
-            <td class="sig-space">
+            <td class="sig-space" style="width: 33%; border: 1px solid #333; text-align: center; vertical-align: bottom; padding: 10px; height: 80px;">
+                <?= $receiver_sig; ?>
                 <div class="sig-name"><?= htmlspecialchars($header->receiver_name ?? '_________________'); ?></div>
                 <small style="font-size: 8px;"><?= $header->received_at ? date('d/m/Y H:i', strtotime($header->received_at)) : ''; ?></small>
             </td>

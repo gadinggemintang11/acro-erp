@@ -258,7 +258,10 @@ class LapMutasiScrap extends MY_Controller {
         $data = [
             'prod_id' => $prod_id,
             'header_info' => $h,
-            'materials_used' => $materials
+            'materials_used' => $materials,
+            // 'declared' = material asal scrap yang dipilih user, 'fallback' =
+            // dokumen lama tanpa rincian (lihat get_deep_production()).
+            'source_mode' => $trace['source_mode'] ?? 'declared',
         ];
 
         $html = $this->load->view('it_inventory/lap_mutasi_scrap/modal_production_trace', $data, true);
@@ -443,6 +446,7 @@ class LapMutasiScrap extends MY_Controller {
             gh.bc_type_code,
             gh.bc_number,
             gh.bc_date,
+            gh.grn_number,
             COALESCE(s.nama_supplier, s_mir.nama_supplier) AS supplier_name
         ");
         $this->db->from('production_inputs pi');
@@ -557,7 +561,7 @@ class LapMutasiScrap extends MY_Controller {
         $sheet->setTitle('Trace Produksi');
 
         // --- Header ---
-        $sheet->setCellValue('A1', 'PT MINGBAO LIANCHUANG INTERNATIONAL');
+        $sheet->setCellValue('A1', company_info('company_name'));
         $sheet->mergeCells('A1:E1');
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(11);
         $sheet->getStyle('A1')->getAlignment()->setHorizontal('center');
@@ -753,7 +757,7 @@ class LapMutasiScrap extends MY_Controller {
         $sheet->setTitle('Trace Asal Scrap');
 
         // --- Header ---
-        $sheet->setCellValue('A1', 'PT MINGBAO LIANCHUANG INTERNATIONAL');
+        $sheet->setCellValue('A1', company_info('company_name'));
         $sheet->mergeCells('A1:G1');
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(11);
         $sheet->getStyle('A1')->getAlignment()->setHorizontal('center');
@@ -900,7 +904,7 @@ class LapMutasiScrap extends MY_Controller {
         $sheet->setTitle('Asal Material Scrap');
 
         // --- Header ---
-        $sheet->setCellValue('A1', 'PT MINGBAO LIANCHUANG INTERNATIONAL');
+        $sheet->setCellValue('A1', company_info('company_name'));
         $sheet->mergeCells('A1:F1');
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(11);
         $sheet->getStyle('A1')->getAlignment()->setHorizontal('center');
@@ -968,7 +972,7 @@ class LapMutasiScrap extends MY_Controller {
         $sheet->mergeCells('A1:H1');
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
         
-        $sheet->setCellValue('A2', 'PT MINGBAO LIANCHUANG INTERNATIONAL');
+        $sheet->setCellValue('A2', company_info('company_name'));
         $sheet->mergeCells('A2:H2');
         $sheet->getStyle('A2')->getFont()->setBold(true)->setSize(11);
         $sheet->getStyle('A2')->getAlignment()->setHorizontal('center');

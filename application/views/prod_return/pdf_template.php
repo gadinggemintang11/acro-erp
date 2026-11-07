@@ -69,6 +69,25 @@
             </tbody>
         </table>
 
+        <?php
+        $returner_sig = '';
+        $confirmer_sig = '';
+
+        if (!empty($return_header->returner_signature)) {
+            $sig_path = FCPATH . $return_header->returner_signature;
+            if (file_exists($sig_path)) {
+                $returner_sig = '<img src="' . $sig_path . '" style="height: 40px; width: auto;" />';
+            }
+        }
+
+        if (!empty($return_header->confirmer_signature)) {
+            $sig_path = FCPATH . $return_header->confirmer_signature;
+            if (file_exists($sig_path)) {
+                $confirmer_sig = '<img src="' . $sig_path . '" style="height: 40px; width: auto;" />';
+            }
+        }
+        ?>
+
         <table class="signature-table">
              <tr>
                  <td style="border-top: none;"><span class="label">Diserahkan Oleh (Produksi),</span></td>
@@ -76,9 +95,9 @@
                  <td style="border-top: none;"><span class="label">Mengetahui (SPV),</span></td>
               </tr>
             <tr>
-                <td class="signature-cell"><span class="name">(<?= htmlspecialchars($return_header->returner_name ?: '____________________'); ?>)</span></td>
-                <td class="signature-cell"><span class="name">(<?= htmlspecialchars($return_header->receiver_name ?: '____________________'); ?>)</span></td>
-                <td class="signature-cell"><span class="name">(<?= htmlspecialchars($return_header->confirmer_name ?: '____________________'); ?>)</span></td>
+                <td class="signature-cell"><?= $returner_sig; ?><span class="name">(<?= htmlspecialchars($return_header->returner_name ?: '____________________'); ?>)</span></td>
+                <td class="signature-cell">&nbsp;</td>
+                <td class="signature-cell"><?= $confirmer_sig; ?><span class="name">(<?= htmlspecialchars($return_header->confirmer_name ?: '____________________'); ?>)</span></td>
              </tr>
         </table>
 

@@ -57,7 +57,7 @@
 
     <!-- TAB NAVIGATION -->
     <ul class="nav nav-tabs nav-fill mb-4">
-        <li class="nav-item"><a class="nav-link" href="<?= base_url('production_process/preparation/'.$header->id); ?>">1. Preparation</a></li>
+        <li class="nav-item"><a class="nav-link" href="<?= base_url('production_process/preparation/'.$header->id); ?>">1. Grinding</a></li>
         <li class="nav-item"><a class="nav-link" href="<?= base_url('production_process/assembling/'.$header->id); ?>">2. Assembling</a></li>
         <li class="nav-item"><a class="nav-link active font-weight-bold" href="#">3. Finishing</a></li>
     </ul>
@@ -189,7 +189,7 @@
     <!-- OUTPUT FINISHED GOODS -->
     <?php if ($header->status == 'Draft' && check_access('production_process', 'edit')): ?>
     <div class="card shadow mb-4">
-        <div class="card-header bg-success text-white py-3"><h6 class="m-0 font-weight-bold">Output Finished Goods (Sepatu + Size)</h6></div>
+        <div class="card-header bg-success text-white py-3"><h6 class="m-0 font-weight-bold">Output Finished Goods</h6></div>
         <div class="card-body">
             <form method="post" action="<?= base_url('production_process/save_finishing_output/'.$header->id); ?>">
                 <div class="form-group"><label for="output_fg">Pilih Barang Jadi</label>

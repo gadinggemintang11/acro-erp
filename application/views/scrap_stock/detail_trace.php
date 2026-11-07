@@ -8,16 +8,16 @@
                 <?= htmlspecialchars($title); ?>
             </h3>
             <small class="text-muted ml-4">
-                Menampilkan histori transaksi masuk & keluar untuk scrap ini.
+                <?= lang_line('scrs_subtitle_trace'); ?>
             </small>
         </div>
         <a href="<?= base_url('scrap_stock/summary'); ?>" class="btn btn-secondary btn-sm shadow-sm">
-            <i class="fas fa-arrow-left fa-sm text-white-50 mr-1"></i> Kembali
+            <i class="fas fa-arrow-left fa-sm text-white-50 mr-1"></i> <?= lang_line('scrs_btn_back'); ?>
         </a>
     </div>
 
     <?php if (!empty($scrap)): ?>
-        <?php 
+        <?php
             $qty_avail = (float)($scrap->total_available ?? 0);
             $badgeClass = $qty_avail <= 0 ? 'danger' : ($qty_avail < 50 ? 'warning' : 'success');
         ?>
@@ -25,7 +25,7 @@
         <!-- Informasi Scrap -->
         <div class="card shadow-sm border-left-info mb-4">
             <div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">
-                <strong><i class="fas fa-info-circle mr-1 text-info"></i> Informasi Scrap</strong>
+                <strong><i class="fas fa-info-circle mr-1 text-info"></i> <?= lang_line('scrs_card_info'); ?></strong>
                 <span class="badge badge-pill badge-info">ID #<?= htmlspecialchars($scrap->scrap_id ?? '-'); ?></span>
             </div>
             <div class="card-body py-3">
@@ -33,11 +33,11 @@
                     <div class="col-md-6">
                         <table class="table table-sm mb-0">
                             <tr>
-                                <th width="35%">Kode Scrap</th>
+                                <th width="35%"><?= lang_line('scrs_th_code'); ?></th>
                                 <td class="text-primary font-weight-bold"><?= htmlspecialchars($scrap->scrap_code ?? '-'); ?></td>
                             </tr>
                             <tr>
-                                <th>Nama Scrap</th>
+                                <th><?= lang_line('scrs_th_name'); ?></th>
                                 <td><?= htmlspecialchars($scrap->scrap_name ?? '-'); ?></td>
                             </tr>
                         </table>
@@ -45,11 +45,11 @@
                     <div class="col-md-6">
                         <table class="table table-sm mb-0">
                             <tr>
-                                <th width="35%">Satuan</th>
+                                <th width="35%"><?= lang_line('scrs_th_unit'); ?></th>
                                 <td><?= htmlspecialchars($scrap->satuan_desc ?? '-'); ?></td>
                             </tr>
                             <tr>
-                                <th>Stok Tersedia</th>
+                                <th><?= lang_line('scrs_label_stock_avail'); ?></th>
                                 <td>
                                     <span class="badge badge-<?= $badgeClass; ?> px-3 py-2 font-weight-bold">
                                         <?= number_format($qty_avail, 2); ?>
@@ -65,19 +65,19 @@
         <!-- Riwayat Scrap Masuk -->
         <div class="card shadow-sm mb-4 border-left-success">
             <div class="card-header bg-success text-white py-2 d-flex justify-content-between align-items-center">
-                <strong><i class="fas fa-sign-in-alt mr-1"></i> Riwayat Scrap Masuk (Confirmed)</strong>
-                <span class="badge badge-light text-success"><?= count($in_history); ?> Transaksi</span>
+                <strong><i class="fas fa-sign-in-alt mr-1"></i> <?= lang_line('scrs_card_in'); ?></strong>
+                <span class="badge badge-light text-success"><?= count($in_history); ?> <?= lang_line('scrs_count_transactions'); ?></span>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-sm table-hover mb-0">
                         <thead class="thead-light text-center">
                             <tr>
-                                <th width="5%">No</th>
-                                <th>No Dokumen</th>
-                                <th>Tanggal</th>
-                                <th>Qty</th>
-                                <th>Status</th>
+                                <th width="5%"><?= lang_line('scrs_th_no'); ?></th>
+                                <th><?= lang_line('scrs_th_doc_no'); ?></th>
+                                <th><?= lang_line('scrs_th_date'); ?></th>
+                                <th><?= lang_line('scrs_th_qty'); ?></th>
+                                <th><?= lang_line('scrs_th_status'); ?></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -90,15 +90,15 @@
                                         <td class="text-center"><?= !empty($row->doc_date) ? date('d M Y', strtotime($row->doc_date)) : '-'; ?></td>
                                         <td class="text-right text-success font-weight-bold"><?= number_format($row->qty ?? 0, 2); ?></td>
                                         <td class="text-center">
-                                            <span class="badge badge-success px-2 py-1">Confirmed</span>
+                                            <span class="badge badge-success px-2 py-1"><?= lang_line('scrs_badge_confirmed'); ?></span>
                                         </td>
                                     </tr>
                                 <?php endforeach; ?>
                                 <?php if ($no === 1): ?>
-                                    <tr><td colspan="5" class="text-center text-muted py-2">Tidak ada data Confirmed.</td></tr>
+                                    <tr><td colspan="5" class="text-center text-muted py-2"><?= lang_line('scrs_no_confirmed'); ?></td></tr>
                                 <?php endif; ?>
                             <?php else: ?>
-                                <tr><td colspan="5" class="text-center text-muted py-3">Tidak ada riwayat scrap masuk.</td></tr>
+                                <tr><td colspan="5" class="text-center text-muted py-3"><?= lang_line('scrs_no_in_history'); ?></td></tr>
                             <?php endif; ?>
                         </tbody>
                     </table>
@@ -109,22 +109,22 @@
         <!-- Riwayat Scrap Keluar -->
         <div class="card shadow-sm mb-4 border-left-danger">
             <div class="card-header bg-danger text-white py-2 d-flex justify-content-between align-items-center">
-                <strong><i class="fas fa-sign-out-alt mr-1"></i> Riwayat Scrap Keluar (Confirmed)</strong>
-                <span class="badge badge-light text-danger"><?= count($out_history); ?> Transaksi</span>
+                <strong><i class="fas fa-sign-out-alt mr-1"></i> <?= lang_line('scrs_card_out'); ?></strong>
+                <span class="badge badge-light text-danger"><?= count($out_history); ?> <?= lang_line('scrs_count_transactions'); ?></span>
             </div>
             <div class="card-body p-0">
                 <div class="table-responsive">
                     <table class="table table-sm table-hover mb-0">
                         <thead class="thead-light text-center">
                             <tr>
-                                <th width="5%">No</th>
-                                <th>No Dokumen</th>
-                                <th>Tanggal</th>
-                                <th>BC Type</th>
-                                <th>No BC</th>
-                                <th>Tgl BC</th>
-                                <th>Customer</th>
-                                <th>Qty</th>
+                                <th width="5%"><?= lang_line('scrs_th_no'); ?></th>
+                                <th><?= lang_line('scrs_th_doc_no'); ?></th>
+                                <th><?= lang_line('scrs_th_date'); ?></th>
+                                <th><?= lang_line('scrs_th_bc_type'); ?></th>
+                                <th><?= lang_line('scrs_th_bc_no'); ?></th>
+                                <th><?= lang_line('scrs_th_bc_date'); ?></th>
+                                <th><?= lang_line('scrs_th_customer'); ?></th>
+                                <th><?= lang_line('scrs_th_qty'); ?></th>
                             </tr>
                         </thead>
                         <tbody>
@@ -143,10 +143,10 @@
                                     </tr>
                                 <?php endforeach; ?>
                                 <?php if ($no === 1): ?>
-                                    <tr><td colspan="8" class="text-center text-muted py-2">Tidak ada data Confirmed.</td></tr>
+                                    <tr><td colspan="8" class="text-center text-muted py-2"><?= lang_line('scrs_no_confirmed'); ?></td></tr>
                                 <?php endif; ?>
                             <?php else: ?>
-                                <tr><td colspan="8" class="text-center text-muted py-3">Tidak ada riwayat scrap keluar.</td></tr>
+                                <tr><td colspan="8" class="text-center text-muted py-3"><?= lang_line('scrs_no_out_history'); ?></td></tr>
                             <?php endif; ?>
                         </tbody>
                     </table>
@@ -156,7 +156,7 @@
 
     <?php else: ?>
         <div class="alert alert-danger shadow-sm">
-            <i class="fas fa-exclamation-circle mr-2"></i> Data scrap tidak ditemukan.
+            <i class="fas fa-exclamation-circle mr-2"></i> <?= lang_line('scrs_not_found'); ?>
         </div>
     <?php endif; ?>
 

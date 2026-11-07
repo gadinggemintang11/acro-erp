@@ -29,7 +29,7 @@
             <td><?= $detail->customer_address; ?></td>
         </tr>
         <tr>
-            <th>No. Sales Contract</th>
+            <th>No. Sales Order</th>
             <td><?= $detail->sc_number; ?></td>
         </tr>
         <tr>

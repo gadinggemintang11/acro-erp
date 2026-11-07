@@ -307,9 +307,9 @@
         <!-- Header -->
         <div class="header-wrapper">
             <div class="logo-section">
-                <img src="assets/img/logo_full_biru.png" alt="MINGBAO Logo" style="height: 45px; width: auto;">
+                <img src="<?= FCPATH . site_asset('logo_pdf', 'assets/img/logo_pdf.png'); ?>" alt="<?= htmlspecialchars(company_info('company_name')) ?>" style="height: 45px; width: auto;">
                 <div class="company-info">
-                    <div class="name">PT MINGBAO LIANCHUANG INTERNATIONAL</div>
+                    <div class="name"><?= htmlspecialchars(company_info('company_name')) ?></div>
                     
                 </div>
             </div>
@@ -346,7 +346,7 @@
             </div>
             <div class="info-box">
                 <div class="row">
-                    <span class="label">Sales Contract</span>
+                    <span class="label">Sales Order Number</span>
                     <span class="value"><?= htmlspecialchars($header->sc_number ?? '-'); ?></span>
                 </div>
                 <div class="row">

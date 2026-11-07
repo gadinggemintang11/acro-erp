@@ -29,33 +29,6 @@ class Fg_model extends CI_Model {
             'status' => 'active'
         ])->result();
     }
-
-    public function get_kategori_list() {
-        return $this->db->get_where('common_code', [
-            'group_code' => 'FINISHED_CATEGORY',
-            'status' => 'active'
-        ])->result();
-    }
-
-    public function generate_kode($kategori, $asal)
-    {
-        $prefix = 'FG';
-        $kat = strtoupper(substr($kategori, 0, 3));
-        $asl = strtoupper(substr($asal, 0, 6)); // Menggunakan 3 huruf asal (LOK / IMP)
-
-        $this->db->like('kode_barang', "{$prefix}-{$kat}-{$asl}-", 'after');
-        $this->db->order_by('id', 'DESC');
-        $last = $this->db->get($this->table)->row();
-
-        if ($last) {
-            $last_number = (int)substr($last->kode_barang, -4);
-            $new_number = str_pad($last_number + 1, 4, '0', STR_PAD_LEFT);
-        } else {
-            $new_number = '0001';
-        }
-
-        return "{$prefix}-{$kat}-{$asl}-{$new_number}";
-    }
     public function get_fgs_without_bom() {
         $this->db->select('fg.id, fg.kode_barang, fg.nama_barang');
         $this->db->from('finished_goods fg');

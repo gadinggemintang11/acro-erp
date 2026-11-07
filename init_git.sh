@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# Script Inisialisasi Git untuk ERP Mingbao
+# Script Inisialisasi Git untuk ERP NSI
 # Jalankan dengan: bash init_git.sh
 
 echo "================================================"
-echo "  Inisialisasi Git Repository - ERP Mingbao"
+echo "  Inisialisasi Git Repository - ERP NSI"
 echo "================================================"
 echo ""
 
@@ -60,7 +60,7 @@ echo ""
 
 # Commit
 read -p "💬 Masukkan commit message [Initial commit]: " COMMIT_MSG
-COMMIT_MSG=${COMMIT_MSG:-"Initial commit - ERP Mingbao"}
+COMMIT_MSG=${COMMIT_MSG:-"Initial commit - ERP NSI"}
 
 echo "💾 Melakukan commit..."
 git commit -m "$COMMIT_MSG"

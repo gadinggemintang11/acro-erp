@@ -8,7 +8,7 @@ class Master_scrap extends MY_Controller {
         check_login();
         // ✅ FIX: $this->load
         $this->load->model(['Scrap_model', 'Commoncode_model']);
-        $this->load->helper('url');
+        $this->load->helper(['url', 'export']);
     }
 
     public function index() {
@@ -17,7 +17,7 @@ class Master_scrap extends MY_Controller {
         // ✅ FIX: $this->input
         $filters = ['search' => $this->input->get('search')];
         $data = [
-            'title'   => 'Master Scrap',
+            'title'   => lang_line('title_mst_scrap'),
             'scraps'  => $this->Scrap_model->get_all($filters),
             'satuan_list' => $this->Commoncode_model->get_by_group('SATUAN'),
             'filters' => $filters
@@ -39,16 +39,21 @@ class Master_scrap extends MY_Controller {
             }
             show_error('Tidak ada izin.', 403);
         }
-        
+
+        $scrap_code = trim($this->input->post('scrap_code'));
+        if (empty($scrap_code)) {
+            $scrap_code = $this->Scrap_model->generate_scrap_code();
+        }
+
         $data = [
-            'scrap_code' => $this->Scrap_model->generate_scrap_code(),
+            'scrap_code' => $scrap_code,
             'scrap_name' => $this->input->post('scrap_name'),
             'unit'       => $this->input->post('unit'),
             'status'     => 'active'
         ];
-        
+
         $result = $this->Scrap_model->insert($data);
-        
+
         if ($this->input->is_ajax_request()) {
             header('Content-Type: application/json');
             echo json_encode([
@@ -107,10 +112,65 @@ class Master_scrap extends MY_Controller {
         }
     }
 
+    public function generate_code() {
+        if (!$this->input->is_ajax_request()) {
+            show_error('Invalid request', 400);
+        }
+
+        header('Content-Type: application/json');
+        echo json_encode([
+            'success' => true,
+            'code' => $this->Scrap_model->generate_scrap_code()
+        ]);
+    }
+
     public function delete($id) {
         if (!check_access('master_scrap', 'delete')) { show_error('Tidak ada izin.', 403); }
         if ($this->Scrap_model->delete($id)) { $this->session->set_flashdata('success', 'Data scrap dinonaktifkan.'); } // ✅ FIX
         else { $this->session->set_flashdata('error', 'Gagal menonaktifkan data.'); } // ✅ FIX
         redirect('master_scrap');
+    }
+
+    public function export_excel() {
+        if (!check_access('master_scrap', 'view')) {
+            show_error('Anda tidak memiliki izin untuk export data.', 403);
+        }
+
+        $data = $this->Scrap_model->get_all();
+        $headers = ['Kode', 'Nama Scrap', 'Status'];
+        
+        $export_data = [];
+        foreach ($data as $row) {
+            $export_data[] = [
+                $row->scrap_code,
+                $row->scrap_name,
+                $row->is_active ? 'Aktif' : 'Tidak Aktif'
+            ];
+        }
+
+        $filename = 'Master_Scrap_' . date('YmdHis');
+        export_to_excel($headers, $export_data, $filename);
+    }
+
+    public function export_pdf() {
+        if (!check_access('master_scrap', 'view')) {
+            show_error('Anda tidak memiliki izin untuk export data.', 403);
+        }
+
+        $data = $this->Scrap_model->get_all();
+        $headers = ['Kode', 'Nama Scrap', 'Status'];
+        
+        $export_data = [];
+        foreach ($data as $row) {
+            $export_data[] = [
+                $row->scrap_code,
+                $row->scrap_name,
+                $row->is_active ? 'Aktif' : 'Tidak Aktif'
+            ];
+        }
+
+        $filename = 'Master_Scrap_' . date('YmdHis');
+        $title = 'Master Scrap - ' . date('Y-m-d H:i:s');
+        export_to_pdf($headers, $export_data, $filename, $title);
     }
 }

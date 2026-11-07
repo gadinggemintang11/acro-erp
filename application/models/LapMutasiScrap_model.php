@@ -297,48 +297,50 @@ class LapMutasiScrap_model extends CI_Model {
     }
     public function get_material_trace($prod_output_id)
     {
-        // Cek apakah output ini punya input sebelumnya
+        // Cek apakah output ini punya input sebelumnya (SCRAP OUTPUT)
         $this->db->select("
             po.id AS production_output_id,
+            po.item_id AS scrap_id,
+            ms.scrap_code,
+            ms.scrap_name,
+            ms.unit,
+            po.qty_scrap AS qty_output,
             ph.production_number,
             wo.wo_number,
             po.stage_name AS process_name,
-            fg.nama_barang AS fg_name
+            fg.nama_barang AS fg_name,
+            po.qc_description,
+            po.qc_photo_url
         ");
         $this->db->from('production_outputs po');
         $this->db->join('production_header ph', 'ph.id = po.production_header_id', 'left');
         $this->db->join('wo_header wo', 'wo.id = ph.wo_header_id', 'left');
         $this->db->join('finished_goods fg', 'fg.id = ph.fg_id', 'left');
+        $this->db->join('master_scrap ms', 'ms.id = po.item_id AND po.item_type = "scrap"', 'left');
         $this->db->where('po.id', $prod_output_id);
         $header = $this->db->get()->row_array();
 
         if (!$header) return null;
 
-        // Cari material asal dari produksi ini
+        // Cari SOURCE material dari scrap ini (dari production_scrap_sources)
         $this->db->select("
-            COALESCE(mm.kode_material, ms.scrap_code, sf.kode_barang, fg.kode_barang) AS item_code,
-            COALESCE(mm.nama_material, ms.scrap_name, sf.nama_barang, fg.nama_barang) AS item_name,
-            COALESCE(mm.satuan, ms.unit, sf.satuan, fg.satuan, 'PCS') AS unit,
-            SUM(pi.qty_used) AS qty_used,
-            MAX(sl.bc_type_code) AS bc_type_code,
-            MAX(sl.bc_number) AS bc_number,
-            MAX(sl.bc_date) AS bc_date,
-            MAX(sl.ref_id) AS bc_header_id,
-            MAX(po2.id) AS production_output_id
+            pss.id AS source_id,
+            pss.source_qty,
+            pi.qty_used AS source_qty_input,
+            COALESCE(mm.kode_material, sf.kode_barang) AS item_code,
+            COALESCE(mm.nama_material, sf.nama_barang) AS item_name,
+            pi.item_type,
+            COALESCE(mm.satuan, sf.satuan, 'PCS') AS unit
         ");
-        $this->db->from('production_inputs pi');
+        $this->db->from('production_scrap_sources pss');
+        $this->db->join('production_inputs pi', 'pi.id = pss.source_input_id', 'left');
         $this->db->join('materials mm', 'mm.id = pi.item_id AND pi.item_type = "material"', 'left');
-        $this->db->join('master_scrap ms', 'ms.id = pi.item_id AND pi.item_type = "scrap"', 'left');
         $this->db->join('semifinished_goods sf', 'sf.id = pi.item_id AND pi.item_type = "semifinished"', 'left');
-        $this->db->join('finished_goods fg', 'fg.id = pi.item_id AND pi.item_type = "finished_goods"', 'left');
-        $this->db->join('stock_on_hand soh', 'soh.id = pi.stock_on_hand_id', 'left');
-        $this->db->join('stock_ledger sl', 'sl.stock_on_hand_id = soh.id', 'left');
-        $this->db->join('production_outputs po2', 'po2.item_id = pi.item_id AND po2.item_type = pi.item_type', 'left');
-        $this->db->where('pi.production_header_id', $header['production_output_id']);
-        $this->db->group_by(['pi.item_id', 'pi.item_type']);
-        $materials = $this->db->get()->result_array();
+        $this->db->where('pss.production_output_id', $prod_output_id);
+        $this->db->order_by('pss.id', 'ASC');
+        $scrap_sources = $this->db->get()->result_array();
 
-        $header['materials'] = $materials;
+        $header['scrap_sources'] = $scrap_sources;
         return [$header];
     }
 
@@ -471,7 +473,7 @@ class LapMutasiScrap_model extends CI_Model {
             -- Partner names (untuk IN dan OUT) - DIPERBAIKI
             CASE 
                 WHEN sl.transaction_type = 'IN_SCRAP_WH' AND ph.production_number IS NOT NULL 
-                    THEN CONCAT('PROD/', ph.production_number)
+                    THEN ph.production_number  -- nomor sudah berawalan PROD/ (dulu jadi PROD/PROD/...)
                 WHEN sl.transaction_type LIKE 'OUT_SCRAP%' AND c.nama_customer IS NOT NULL 
                     THEN c.nama_customer
                 WHEN sl.transaction_type LIKE 'OUT_SCRAP%' 
@@ -530,14 +532,44 @@ class LapMutasiScrap_model extends CI_Model {
      * Mengambil info produksi & material used berdasarkan production_output_id
      * Return ['header_info' => object, 'materials_used' => array]
      */
+    /**
+     * Detail "Deep Trace Produksi" untuk SATU baris scrap hasil produksi.
+     *
+     * $production_output_id = production_outputs.id (dikirim tombol trace di
+     * laporan mutasi scrap).
+     *
+     * Material yang ditampilkan diambil dari `production_scrap_sources`, yaitu
+     * material yang DITUNJUK user sebagai asal scrap itu beserta qty-nya —
+     * bukan seluruh input produksi. Sebelum 2026-09-21 fungsi ini memakai
+     * `WHERE pi.production_header_id = ...` sehingga menampilkan semua material
+     * di semua tahap dengan qty pemakaian penuh (user: "harusnya yang muncul
+     * ya yang saya input itu aja"). Contoh nyata: output scrap 144 asalnya 1
+     * baris (SPRING 10) tapi laporan menampilkan SPRING 111 + HC 4251 111.
+     *
+     * BC/supplier ditelusuri lewat batch yang benar-benar dipakai, berurutan:
+     *   1. production_inputs.stock_on_hand_id (input langsung dari batch gudang)
+     *   2. batch yang dikeluarkan utk MRF work order ini (issuance_details)
+     * Kalau tidak ketemu, dikosongkan — TIDAK menebak dari GRN lain yang
+     * kebetulan memuat item sama (perilaku lama, bisa salah BC & menggandakan
+     * baris kalau item pernah diterima beberapa kali).
+     *
+     * @return array [
+     *   'header_info'    => object,
+     *   'materials_used' => array baris material,
+     *   'source_mode'    => 'declared' (dari input user) | 'fallback' (belum dirinci),
+     * ]
+     */
     public function get_deep_production($production_output_id) {
-        $out = ['header_info' => (object)[], 'materials_used' => []];
+        $out = ['header_info' => (object)[], 'materials_used' => [], 'source_mode' => 'declared'];
         $id = (int)$production_output_id;
         if (!$id) return $out;
 
-        // 1) Try find in production_outputs (most likely)
+        // 1) Header: id yang dikirim laporan adalah production_outputs.id.
         $this->db->reset_query();
-        $this->db->select('po.id AS production_output_id, po.stage_name, ph.id AS production_header_id, ph.production_number, ph.production_date, ph.fg_id, fg.scrap_code AS fg_code, fg.scrap_name AS fg_name, ph.wo_header_id, wo.wo_number', false);
+        $this->db->select('po.id AS production_output_id, po.stage_name, po.qty_produced AS scrap_qty,
+                           ph.id AS production_header_id, ph.production_number, ph.production_date,
+                           ph.fg_id, fg.scrap_code AS fg_code, fg.scrap_name AS fg_name,
+                           ph.wo_header_id, wo.wo_number', false);
         $this->db->from('production_outputs po');
         $this->db->join('production_header ph', 'po.production_header_id = ph.id', 'left');
         $this->db->join('wo_header wo', 'ph.wo_header_id = wo.id', 'left');
@@ -545,8 +577,9 @@ class LapMutasiScrap_model extends CI_Model {
         $this->db->where('po.id', $id);
         $hdr = $this->db->get()->row();
 
+        $output_id = $hdr ? (int) $hdr->production_output_id : 0;
         if (!$hdr) {
-            // fallback: maybe id is production_header id
+            // fallback lama: id ternyata production_header.id
             $this->db->reset_query();
             $this->db->select('ph.id AS production_header_id, ph.production_number, ph.production_date, ph.fg_id, fg.scrap_code AS fg_code, fg.scrap_name AS fg_name, ph.wo_header_id, wo.wo_number', false);
             $this->db->from('production_header ph');
@@ -555,62 +588,147 @@ class LapMutasiScrap_model extends CI_Model {
             $this->db->where('ph.id', $id);
             $hdr = $this->db->get()->row();
         }
-
         $out['header_info'] = $hdr ?: (object)[];
+        if (!$hdr) return $out;
 
-        // Get production_header_id untuk query materials
         $ph_id = $hdr->production_header_id ?? null;
-        
-        // 2) Materials used: query dari production_inputs dengan JOIN ke GRN untuk BC info
-        if ($ph_id) {
+        if (!$ph_id) return $out;
+
+        // 2) Material asal scrap = yang ditunjuk user di production_scrap_sources.
+        $rows = [];
+        if ($output_id) {
             $this->db->reset_query();
             $this->db->select("
-                COALESCE(mm.kode_material, sf.kode_barang, fg.kode_barang) AS item_code,
-                COALESCE(mm.nama_material, sf.nama_barang, fg.nama_barang) AS item_name,
-                COALESCE(mm.satuan, sf.satuan, fg.satuan, 'PCS') AS unit,
+                pss.source_qty AS qty_used,
+                pi.qty_used    AS qty_input_total,
+                pi.stage_name,
+                pi.item_id, pi.item_type, pi.stock_on_hand_id, pi.mr_detail_id,
+                COALESCE(mm.kode_material, sf.kode_barang, fgd.kode_barang) AS item_code,
+                COALESCE(mm.nama_material, sf.nama_barang, fgd.nama_barang) AS item_name,
+                COALESCE(mm.satuan, sf.satuan, fgd.satuan, 'PCS') AS unit
+            ", false);
+            $this->db->from('production_scrap_sources pss');
+            $this->db->join('production_inputs pi', 'pi.id = pss.source_input_id');
+            $this->db->join('materials mm', 'mm.id = pi.item_id AND pi.item_type = "material"', 'left');
+            $this->db->join('semifinished_goods sf', 'sf.id = pi.item_id AND pi.item_type = "semifinished"', 'left');
+            $this->db->join('finished_goods fgd', 'fgd.id = pi.item_id AND pi.item_type = "finished_goods"', 'left');
+            $this->db->where('pss.production_output_id', $output_id);
+            $this->db->order_by('pss.id', 'ASC');
+            $rows = $this->db->get()->result_array();
+        }
+
+        // 3) Dokumen lama belum punya rincian asal scrap -> tampilkan input
+        //    TAHAP YANG SAMA saja (bukan seluruh produksi), ditandai supaya
+        //    pembaca tahu ini perkiraan, bukan pilihan user.
+        if (empty($rows)) {
+            $out['source_mode'] = 'fallback';
+            $this->db->reset_query();
+            $this->db->select("
                 pi.qty_used,
-                gh.bc_type_code,
-                gh.bc_number,
-                gh.bc_date,
-                COALESCE(s.nama_supplier, s_mir.nama_supplier) AS supplier_name,
-                pi.item_id,
-                pi.item_type
+                pi.qty_used AS qty_input_total,
+                pi.stage_name,
+                pi.item_id, pi.item_type, pi.stock_on_hand_id, pi.mr_detail_id,
+                COALESCE(mm.kode_material, sf.kode_barang, fgd.kode_barang) AS item_code,
+                COALESCE(mm.nama_material, sf.nama_barang, fgd.nama_barang) AS item_name,
+                COALESCE(mm.satuan, sf.satuan, fgd.satuan, 'PCS') AS unit
             ", false);
             $this->db->from('production_inputs pi');
             $this->db->join('materials mm', 'mm.id = pi.item_id AND pi.item_type = "material"', 'left');
             $this->db->join('semifinished_goods sf', 'sf.id = pi.item_id AND pi.item_type = "semifinished"', 'left');
-            $this->db->join('finished_goods fg', 'fg.id = pi.item_id AND pi.item_type = "finished_goods"', 'left');
-            $this->db->join('grn_details gd', 'gd.item_id = pi.item_id', 'left');
-            $this->db->join('grn_header gh', 'gh.id = gd.grn_header_id', 'left');
-            $this->db->join('suppliers s', 's.id = gh.supplier_id', 'left');
-            // Fallback ke MIR jika GRN base_on MIR
-            $this->db->join('mir_header mh', 'mh.id = gd.source_doc_header_id AND gd.source_doc_type = "MIR"', 'left');
-            $this->db->join('suppliers s_mir', 's_mir.id = mh.supplier_id', 'left');
+            $this->db->join('finished_goods fgd', 'fgd.id = pi.item_id AND pi.item_type = "finished_goods"', 'left');
             $this->db->where('pi.production_header_id', $ph_id);
-            $q = $this->db->get();
-            if ($q && $q->num_rows() > 0) {
-                $out['materials_used'] = $q->result_array();
-            }
+            if (!empty($hdr->stage_name)) $this->db->where('pi.stage_name', $hdr->stage_name);
+            $this->db->order_by('pi.id', 'ASC');
+            $rows = $this->db->get()->result_array();
         }
 
-        // 3) Rename fields untuk consistency dengan export Excel (ex_bc_* format)
-        if (!empty($out['materials_used'])) {
-            foreach ($out['materials_used'] as &$mat) {
-                // Rename BC fields untuk export
-                if (!isset($mat['ex_bc_type'])) {
-                    $mat['ex_bc_type'] = $mat['bc_type_code'] ?? null;
-                }
-                if (!isset($mat['ex_bc_number'])) {
-                    $mat['ex_bc_number'] = $mat['bc_number'] ?? null;
-                }
-                if (!isset($mat['ex_bc_date'])) {
-                    $mat['ex_bc_date'] = $mat['bc_date'] ?? null;
-                }
-            }
-            unset($mat);
+        // 4) BC & supplier per baris, dari batch yang memang dipakai.
+        foreach ($rows as &$r) {
+            $bc = $this->_trace_input_origin($r, $hdr->wo_header_id ?? null);
+            $r['bc_type_code']  = $bc['bc_type_code'];
+            $r['bc_number']     = $bc['bc_number'];
+            $r['bc_date']       = $bc['bc_date'];
+            $r['supplier_name'] = $bc['supplier_name'];
+            // Nama kolom lama tetap diisi supaya export Excel/PDF tidak berubah.
+            $r['ex_bc_type']    = $bc['bc_type_code'];
+            $r['ex_bc_number']  = $bc['bc_number'];
+            $r['ex_bc_date']    = $bc['bc_date'];
         }
+        unset($r);
 
+        $out['materials_used'] = $rows;
         return $out;
+    }
+
+    /**
+     * Asal (BC + supplier) satu baris input produksi, dari batch penerimaan
+     * yang benar-benar dipakai. Mengembalikan nilai kosong kalau tidak bisa
+     * ditelusuri — lebih baik kosong daripada menebak BC milik penerimaan lain.
+     */
+    private function _trace_input_origin(array $row, $wo_header_id = null) {
+        $empty = ['bc_type_code' => null, 'bc_number' => null, 'bc_date' => null, 'supplier_name' => null];
+
+        // a) Input diambil langsung dari batch gudang.
+        if (!empty($row['stock_on_hand_id'])) {
+            $r = $this->db->query("
+                SELECT soh.bc_type_code, soh.bc_number, soh.bc_date,
+                       COALESCE(s.nama_supplier, s_mir.nama_supplier) AS supplier_name
+                FROM stock_on_hand soh
+                LEFT JOIN grn_details gd ON gd.id = soh.grn_detail_id
+                LEFT JOIN grn_header gh  ON gh.id = COALESCE(soh.grn_header_id, gd.grn_header_id)
+                LEFT JOIN suppliers s    ON s.id = gh.supplier_id
+                LEFT JOIN mir_header mh  ON mh.id = gd.source_doc_header_id AND gd.source_doc_type = 'MIR'
+                LEFT JOIN suppliers s_mir ON s_mir.id = mh.supplier_id
+                WHERE soh.id = ?
+                LIMIT 1", [(int) $row['stock_on_hand_id']])->row_array();
+            if ($r) return array_merge($empty, $r);
+        }
+
+        // b) Material WIP: ditelusuri lewat batch yang BENAR-BENAR dikeluarkan
+        //    gudang untuk work order ini. Pengeluaran material mencatat batch
+        //    FIFO-nya di stock_ledger (transaction_type OUT_ISSUE +
+        //    stock_on_hand_id) — lihat Material_issuance_model::process_issuance().
+        //    Satu material bisa terpakai dari beberapa batch -> semuanya ditampilkan.
+        $conds = ["sl.transaction_type = 'OUT_ISSUE'", 'sl.item_id = ?', 'sl.item_type = ?'];
+        $args  = [(int) $row['item_id'], (string) $row['item_type']];
+        if (!empty($row['mr_detail_id'])) {
+            $conds[] = 'sl.transaction_id = (SELECT mr_header_id FROM mr_details WHERE id = ?)';
+            $args[]  = (int) $row['mr_detail_id'];
+        } elseif ($wo_header_id) {
+            $conds[] = 'sl.source_doc_id = ?';
+            $args[]  = (int) $wo_header_id;
+        } else {
+            return $empty;
+        }
+
+        $rows = $this->db->query("
+            SELECT DISTINCT soh.bc_type_code, soh.bc_number, soh.bc_date,
+                   COALESCE(s.nama_supplier, s_mir.nama_supplier) AS supplier_name
+            FROM stock_ledger sl
+            JOIN stock_on_hand soh   ON soh.id = sl.stock_on_hand_id
+            LEFT JOIN grn_details gd ON gd.id = soh.grn_detail_id
+            LEFT JOIN grn_header gh  ON gh.id = COALESCE(soh.grn_header_id, gd.grn_header_id)
+            LEFT JOIN suppliers s    ON s.id = gh.supplier_id
+            LEFT JOIN mir_header mh  ON mh.id = gd.source_doc_header_id AND gd.source_doc_type = 'MIR'
+            LEFT JOIN suppliers s_mir ON s_mir.id = mh.supplier_id
+            WHERE " . implode(' AND ', $conds) . "
+              AND sl.stock_on_hand_id IS NOT NULL
+        ", $args)->result_array();
+
+        if (empty($rows)) return $empty;
+        if (count($rows) === 1) return array_merge($empty, $rows[0]);
+
+        // Beberapa batch: tampilkan semuanya, jangan pilih salah satu.
+        $join = function ($key) use ($rows) {
+            $v = array_values(array_unique(array_filter(array_column($rows, $key))));
+            return $v ? implode(', ', $v) : null;
+        };
+        return [
+            'bc_type_code'  => $join('bc_type_code'),
+            'bc_number'     => $join('bc_number'),
+            'bc_date'       => $join('bc_date'),
+            'supplier_name' => $join('supplier_name'),
+        ];
     }
 
 }

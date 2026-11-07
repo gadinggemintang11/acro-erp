@@ -2,8 +2,8 @@
 
 <style>
 :root {
-    --primary: #4F46E5;
-    --primary-dark: #4338CA;
+    --primary: var(--brand-1);
+    --primary-dark: var(--brand-2);
     --success: #10B981;
     --warning: #F59E0B;
     --danger: #EF4444;
@@ -397,7 +397,7 @@
     <!-- Page Header -->
     <div class="page-header-modern">
         <h1><i class="fas fa-chart-line me-2"></i><?= $title; ?></h1>
-        <p><i class="fas fa-calendar me-2"></i>Periode: <?= date('d F Y', strtotime($start_date)); ?> - <?= date('d F Y', strtotime($end_date)); ?></p>
+        <p><i class="fas fa-calendar me-2"></i><?= lang_line('rpt_period'); ?>: <?= date('d F Y', strtotime($start_date)); ?> - <?= date('d F Y', strtotime($end_date)); ?></p>
     </div>
 
     <!-- Filter Section -->
@@ -405,18 +405,18 @@
         <form action="<?= current_url(); ?>" method="GET">
             <div class="filter-section">
                 <div class="form-group-modern">
-                    <label for="start_date">Tanggal Mulai</label>
+                    <label for="start_date"><?= lang_line('rpt_start_date'); ?></label>
                     <input type="date" class="form-control-modern" id="start_date" name="start_date" value="<?= $start_date; ?>">
                 </div>
                 <div class="form-group-modern">
-                    <label for="end_date">Tanggal Selesai</label>
+                    <label for="end_date"><?= lang_line('rpt_end_date'); ?></label>
                     <input type="date" class="form-control-modern" id="end_date" name="end_date" value="<?= $end_date; ?>">
                 </div>
                 <button type="submit" class="btn-modern primary">
-                    <i class="fas fa-filter"></i> Tampilkan
+                    <i class="fas fa-filter"></i> <?= lang_line('rpt_show'); ?>
                 </button>
                 <a href="<?= current_url(); ?>" class="btn-modern secondary">
-                    <i class="fas fa-redo"></i> Reset
+                    <i class="fas fa-redo"></i> <?= lang_line('rpt_reset'); ?>
                 </a>
             </div>
         </form>
@@ -429,7 +429,7 @@
                     <i class="fas fa-dollar-sign"></i>
                 </div>
                 <div class="stat-content">
-                    <div class="stat-label">Total Pendapatan</div>
+                    <div class="stat-label"><?= lang_line('rpt_pl_total_revenue'); ?></div>
                     <div class="stat-value">Rp <?= number_format($report_data['total_pendapatan'], 0, ',', '.'); ?></div>
                 </div>
             </div>
@@ -441,7 +441,7 @@
                     <i class="fas fa-arrow-down"></i>
                 </div>
                 <div class="stat-content">
-                    <div class="stat-label">Total Biaya</div>
+                    <div class="stat-label"><?= lang_line('rpt_pl_total_expense'); ?></div>
                     <div class="stat-value">Rp <?= number_format($report_data['total_biaya'], 0, ',', '.'); ?></div>
                 </div>
             </div>
@@ -449,7 +449,7 @@
 
         <?php
             $laba_class = $report_data['laba_bersih'] >= 0 ? 'success' : 'danger';
-            $laba_text = $report_data['laba_bersih'] >= 0 ? 'Laba Bersih' : 'Rugi Bersih';
+            $laba_text = $report_data['laba_bersih'] >= 0 ? lang_line('rpt_pl_net_profit') : lang_line('rpt_pl_net_loss');
         ?>
         <div class="stat-card-modern <?= $laba_class; ?>">
             <div class="stat-layout">
@@ -482,7 +482,7 @@
                 </a>
             </div>
             <h6 class="report-title" style="display: block !important; margin: 0; clear: both;">
-                <i class="fas fa-file-invoice-dollar"></i> Laporan Laba Rugi
+                <i class="fas fa-file-invoice-dollar"></i> <?= lang_line('rpt_pl_heading'); ?>
             </h6>
         </div>
 
@@ -490,9 +490,9 @@
             <table class="table-modern">
                 <thead>
                     <tr>
-                        <th>Nama Akun</th>
-                        <th style="text-align: right;">Saldo</th>
-                        <th style="text-align: center; width: 80px;">Aksi</th>
+                        <th><?= lang_line('rpt_account_name'); ?></th>
+                        <th style="text-align: right;"><?= lang_line('rpt_balance'); ?></th>
+                        <th style="text-align: center; width: 80px;"><?= lang_line('rpt_action'); ?></th>
                     </tr>
                 </thead>
                 <tbody>
@@ -537,7 +537,8 @@
                                 // Buat URL untuk drill-down ke Buku Besar
                                 // Kita teruskan juga query string (filter tanggal)
                                 $url = site_url('reports/general_ledger/' . $account['id'] . '?' . $_SERVER['QUERY_STRING']);
-                                echo "<a href='{$url}' class='btn-detail-modern' title='Lihat Detail Buku Besar'><i class='fas fa-search'></i></a>";
+                                $tt_gl = lang_line('rpt_view_gl_detail');
+                                echo "<a href='{$url}' class='btn-detail-modern' title='{$tt_gl}'><i class='fas fa-search'></i></a>";
                             }
                             echo "</td>";
                             echo "</tr>";
@@ -553,13 +554,13 @@
                         ?>
 
                         <tr class="section-header-pendapatan">
-                            <td colspan="3">PENDAPATAN</td>
+                            <td colspan="3"><?= lang_line('rpt_pl_revenue_section'); ?></td>
                         </tr>
                         <?php foreach ($report_data['pendapatan'] as $account) : ?>
                             <?php render_profit_loss_row($account, 0, $CI); ?>
                         <?php endforeach; ?>
                         <tr class="subtotal-row">
-                            <td style="text-align: right;">TOTAL PENDAPATAN</td>
+                            <td style="text-align: right;"><?= lang_line('rpt_pl_total_revenue_row'); ?></td>
                             <td style="text-align: right;">
                                 Rp <?= number_format($report_data['total_pendapatan'], 0, ',', '.'); ?>
                             </td>
@@ -569,13 +570,13 @@
                         <tr><td colspan="3" style="border: none; padding: 0.5rem;"></td></tr>
 
                         <tr class="section-header-biaya">
-                            <td colspan="3">BIAYA</td>
+                            <td colspan="3"><?= lang_line('rpt_pl_expense_section'); ?></td>
                         </tr>
                         <?php foreach ($report_data['biaya'] as $account) : ?>
                             <?php render_profit_loss_row($account, 0, $CI); ?>
                         <?php endforeach; ?>
                         <tr class="subtotal-row">
-                            <td style="text-align: right;">TOTAL BIAYA</td>
+                            <td style="text-align: right;"><?= lang_line('rpt_pl_total_expense_row'); ?></td>
                             <td style="text-align: right;">
                                 Rp <?= number_format($report_data['total_biaya'], 0, ',', '.'); ?>
                             </td>

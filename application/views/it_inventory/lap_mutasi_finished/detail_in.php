@@ -16,7 +16,7 @@
                         <tr>
                             <th>No</th>
                             <th>Nomor WO</th>
-                            <th>Sales Contract</th>
+                            <th>Sales Order Number</th>
                             <th>Tgl Produksi</th>
                             <th>BC Type</th>
                             <th>BC Number</th>

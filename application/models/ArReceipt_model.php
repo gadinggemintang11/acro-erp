@@ -40,16 +40,8 @@ class ArReceipt_model extends CI_Model {
     
     public function get_new_receipt_number()
     {
-        // Ambil kode terakhir untuk tahun berjalan
-        $this->db->select("RIGHT(receipt_no, 5) as kode", FALSE);
-        $this->db->where('YEAR(receipt_date)', date('Y'));
-        $this->db->order_by('receipt_no', 'DESC');
-        $this->db->limit(1);
-        $query = $this->db->get('ar_receipt_header');
-
-        $kode = ($query->num_rows() > 0) ? intval($query->row()->kode) + 1 : 1;
-        $kode_max = str_pad($kode, 5, "0", STR_PAD_LEFT);
-        return "ARP/" . date('Ym') . "/" . $kode_max;
+        // Format nomor diatur di config/doc_number.php (rebrand Acropoly 2026-11-05).
+        return doc_number_next('ar_receipt', 'ar_receipt_header', 'receipt_no');
     }
 
     /**

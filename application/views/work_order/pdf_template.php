@@ -216,7 +216,7 @@
     <div class="container">
         <!-- HEADER -->
         <div class="header">
-            <div class="company-name">PT MINGBAO LIANCHUANG INTERNATIONAL</div>
+            <div class="company-name"><?= htmlspecialchars(company_info('company_name')) ?></div>
             <h1>Work Order</h1>
             <div class="doc-number"><?= htmlspecialchars($header->wo_number); ?></div>
         </div>
@@ -224,7 +224,7 @@
         <!-- INFO TABLE -->
         <table class="info-table">
             <tr>
-                <td class="label">Sales Contract</td>
+                <td class="label">Sales Order Number</td>
                 <td><strong><?= htmlspecialchars($header->sc_number); ?></strong></td>
                 <td class="label">Qty Rencana</td>
                 <td><strong><?= number_format($header->planned_qty, 2); ?></strong></td>
@@ -296,6 +296,25 @@
         </div>
         <?php endif; ?>
 
+        <?php
+        $creator_sig = '';
+        $confirmer_sig = '';
+
+        if (!empty($header->creator_signature)) {
+            $sig_path = FCPATH . $header->creator_signature;
+            if (file_exists($sig_path)) {
+                $creator_sig = '<img src="' . $sig_path . '" style="height: 40px; width: auto; margin-bottom: 5px;" />';
+            }
+        }
+
+        if (!empty($header->confirmer_signature)) {
+            $sig_path = FCPATH . $header->confirmer_signature;
+            if (file_exists($sig_path)) {
+                $confirmer_sig = '<img src="' . $sig_path . '" style="height: 40px; width: auto; margin-bottom: 5px;" />';
+            }
+        }
+        ?>
+
         <!-- SIGNATURE -->
         <div class="signature-section">
             <table class="signature-table">
@@ -303,6 +322,7 @@
                     <td>
                         <div class="sig-box">
                             <div class="sig-label">Dibuat Oleh</div>
+                            <?= $creator_sig; ?>
                             <div class="sig-line"></div>
                             <div class="sig-name"><?= htmlspecialchars($header->creator_name); ?></div>
                         </div>
@@ -317,6 +337,7 @@
                     <td>
                         <div class="sig-box">
                             <div class="sig-label">Disetujui</div>
+                            <?= $confirmer_sig; ?>
                             <div class="sig-line"></div>
                             <div class="sig-name">Manager Produksi</div>
                         </div>

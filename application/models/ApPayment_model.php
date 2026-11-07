@@ -8,6 +8,7 @@ class ApPayment_model extends CI_Model {
         parent::__construct();
         $this->load->model('JurnalUmum_model');
         $this->load->model('SettingAkun_model');
+        $this->load->model('Ap_auto_model');
     }
 
     public function get_all_payment_headers()
@@ -41,14 +42,8 @@ class ApPayment_model extends CI_Model {
     
     public function get_new_payment_number()
     {
-        $this->db->select('RIGHT(payment_no, 5) as kode', FALSE);
-        $this->db->order_by('payment_no', 'DESC');
-        $this->db->limit(1);
-        $query = $this->db->get_where('ap_payment_header', ['YEAR(payment_date)' => date('Y')]);
-        
-        $kode = ($query->num_rows() > 0) ? intval($query->row()->kode) + 1 : 1;
-        $kode_max = str_pad($kode, 5, "0", STR_PAD_LEFT);
-        return "APP/" . date('Ym') . "/" . $kode_max;
+        // Format nomor diatur di config/doc_number.php (rebrand Acropoly 2026-11-05).
+        return doc_number_next('ap_payment', 'ap_payment_header', 'payment_no');
     }
 
     /**
@@ -77,46 +72,40 @@ class ApPayment_model extends CI_Model {
     }
 
     /**
-     * ✨ NEW: Ambil list akun utang untuk pilihan debet saat pembayaran
-     * Filter hanya akun dengan kode yang dimulai dengan 2.1 (Utang)
+     * Ambil semua akun yang bisa diposting (non-header & aktif) untuk pilihan debet.
+     * Tidak lagi memfilter kode tertentu agar tetap tampil meski struktur COA berubah.
      */
     public function get_debet_accounts()
     {
         $this->db->select('id, account_code, account_name');
         $this->db->where('is_header', 0);
         $this->db->where('status', 'active');
-        $this->db->like('account_code', '2.1', 'after'); // Filter akun utang
         $this->db->order_by('account_code', 'ASC');
         return $this->db->get('chart_of_accounts')->result();
     }
 
     /**
-     * ✨ NEW: Ambil list akun kas/bank untuk pilihan kredit saat pembayaran
-     * Filter hanya akun dengan kode yang dimulai dengan 1.101 atau 1.102 (Kas/Bank)
+     * Ambil semua akun yang bisa diposting (non-header & aktif) untuk pilihan kredit.
+     * Tidak lagi memfilter kode tertentu agar tetap tampil meski struktur COA berubah.
      */
     public function get_kredit_accounts()
     {
         $this->db->select('id, account_code, account_name');
         $this->db->where('is_header', 0);
         $this->db->where('status', 'active');
-        $this->db->group_start();
-        $this->db->like('account_code', '1.101', 'after');
-        $this->db->or_like('account_code', '1.102', 'after');
-        $this->db->group_end();
         $this->db->order_by('account_code', 'ASC');
         return $this->db->get('chart_of_accounts')->result();
     }
 
     /**
-     * ✨ NEW: Ambil list akun Hutang PPh untuk pilihan saat pembayaran dengan PPh dipotong
-     * Filter hanya akun dengan kode yang dimulai dengan 2.302 (Hutang PPh Ditanggung)
+     * Ambil semua akun yang bisa diposting (non-header & aktif) untuk pilihan akun PPh.
+     * Tidak lagi memfilter kode tertentu agar tetap tampil meski struktur COA berubah.
      */
     public function get_pph_payable_accounts()
     {
         $this->db->select('id, account_code, account_name');
         $this->db->where('is_header', 0);
         $this->db->where('status', 'active');
-        $this->db->like('account_code', '2.302', 'after'); // Filter akun Hutang PPh
         $this->db->order_by('account_code', 'ASC');
         return $this->db->get('chart_of_accounts')->result();
     }
@@ -130,7 +119,17 @@ class ApPayment_model extends CI_Model {
         $this->db->where('api.supplier_id', $supplier_id);
         $this->db->where('api.status', 'Posted'); // Hanya bayar yg sudah di-posting
         $this->db->where('api.payment_status !=', 'Paid');
-        return $this->db->get()->result();
+        // AP hasil approval Payment Request dibayar lewat Payment Request-nya (2026-11-06).
+        if (db_has_column('ap_invoice_header', 'prf_header_id')) $this->db->where('api.prf_header_id IS NULL', null, false);
+        $rows = $this->db->get()->result();
+        // Kurangi nominal yang sedang dipegang Payment Request aktif / draft pembayaran lain.
+        $reserved = $this->Ap_auto_model->ap_reserved_map(array_map(function ($r) { return $r->id; }, $rows));
+        $out = [];
+        foreach ($rows as $r) {
+            $r->sisa_utang = round((float) $r->sisa_utang - (float) ($reserved[(int) $r->id] ?? 0), 2);
+            if ($r->sisa_utang > 0.01) $out[] = $r;
+        }
+        return $out;
     }
 
     /**
@@ -191,7 +190,12 @@ class ApPayment_model extends CI_Model {
                 // Validasi tidak overpayment
                 $invoice = $this->db->where('id', $inv_id)->get('ap_invoice_header')->row();
                 if ($invoice) {
-                    $sisa_utang = $invoice->total_invoice - $invoice->total_paid;
+                    if (!empty($invoice->prf_header_id)) {
+                        $this->db->trans_complete();
+                        throw new Exception("Invoice {$invoice->invoice_no} dibuat dari Payment Request — bayar lewat Payment Request tersebut.");
+                    }
+                    $reserved = $this->Ap_auto_model->ap_reserved_map([(int) $inv_id]);
+                    $sisa_utang = $invoice->total_invoice - $invoice->total_paid - (float) ($reserved[(int) $inv_id] ?? 0);
                     if ($amount_paid > $sisa_utang + 0.01) {
                         $this->db->trans_complete();
                         throw new Exception("Pembayaran untuk invoice {$invoice->invoice_no} melebihi sisa utang (Max: {$sisa_utang}).");

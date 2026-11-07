@@ -13,12 +13,7 @@ class Machine_model extends CI_Model {
         ');
         $this->db->from('machines m');
         $this->db->join('common_code cc_cat', 'm.kategori = cc_cat.code AND cc_cat.group_code = "MACHINE_CATEGORY"', 'left');
-        
-        // ▼ TAMBAHKAN JOIN INI ▼
         $this->db->join('common_code cc_sat', 'm.satuan = cc_sat.code AND cc_sat.group_code = "SATUAN"', 'left');
-
-        // Tambahkan ini jika Anda hanya ingin menampilkan yang 'Active'
-        // $this->db->where('m.status', 'Active'); 
 
         $this->db->order_by('m.kode_mesin', 'ASC');
         return $this->db->get()->result();
@@ -46,20 +41,49 @@ class Machine_model extends CI_Model {
         return $this->db->where('id', $id)->update($this->table, ['status' => 'Nonaktif']);
     }
 
-    public function generate_kode($kategori) {
-        // Logika ini sudah bagus dan bisa tetap digunakan
-        $prefix = strtoupper(substr($kategori, 0, 3)); // MES / PER
-        $this->db->like('kode_mesin', $prefix . '-', 'after');
-        $this->db->order_by('id', 'DESC');
-        $last = $this->db->get($this->table)->row();
-
-        if ($last) {
-            $last_number = (int)substr($last->kode_mesin, -4);
-            $new_number = str_pad($last_number + 1, 4, '0', STR_PAD_LEFT);
-        } else {
-            $new_number = '0001';
+    public function check_stock_status($machine_id) {
+        $machine = $this->db->where('id', $machine_id)->get($this->table)->row();
+        
+        if (!$machine) {
+            return [
+                'status' => 'error',
+                'message' => 'Mesin tidak ditemukan'
+            ];
         }
 
-        return $prefix . '-' . $new_number;
+        // Ambil current stock dari stock_ledger
+        $this->db->select('balance');
+        $this->db->from('stock_ledger');
+        $this->db->where('item_id', $machine_id);
+        $this->db->where('item_type', 'machine');
+        $this->db->order_by('id', 'DESC');
+        $this->db->limit(1);
+        $ledger = $this->db->get()->row();
+        
+        $current_stock = $ledger ? (float)$ledger->balance : 0;
+        $minimum_stock = isset($machine->minimum_stock) ? (float)$machine->minimum_stock : 0;
+        $deficit = $minimum_stock - $current_stock;
+        
+        if ($current_stock <= $minimum_stock && $minimum_stock > 0) {
+            return [
+                'status' => 'warning',
+                'alert' => true,
+                'message' => "⚠️ ALERT: Stock mesin '{$machine->nama_mesin}' mencapai atau di bawah minimum ({$current_stock} ≤ {$minimum_stock})",
+                'kode_mesin' => $machine->kode_mesin,
+                'nama_mesin' => $machine->nama_mesin,
+                'satuan' => $machine->satuan,
+                'current_stock' => $current_stock,
+                'minimum_stock' => $minimum_stock,
+                'deficit' => $deficit
+            ];
+        }
+        
+        return [
+            'status' => 'ok',
+            'alert' => false,
+            'current_stock' => $current_stock,
+            'minimum_stock' => $minimum_stock,
+            'deficit' => 0
+        ];
     }
 }

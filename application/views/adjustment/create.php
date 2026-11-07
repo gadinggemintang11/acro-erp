@@ -1,35 +1,35 @@
 <div class="container-fluid">
     <h1 class="h3 mb-4 text-gray-800"><?= $title; ?></h1>
-    
+
     <?php $this->load->view('templates/partials/alerts'); ?>
 
     <!-- Include Select2 CSS & JS -->
     <link href="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/css/select2.min.css" rel="stylesheet" />
     <script src="https://cdnjs.cloudflare.com/ajax/libs/select2/4.0.13/js/select2.min.js"></script>
-    
+
     <form action="<?= base_url('adjustment/store'); ?>" method="POST" id="adjustment-form">
         <div class="card shadow mb-4">
             <div class="card-header py-3">
-                <h6 class="m-0 font-weight-bold text-primary">Header Dokumen</h6>
+                <h6 class="m-0 font-weight-bold text-primary"><?= lang_line('adj_c_section_header', 'Header Dokumen'); ?></h6>
             </div>
             <div class="card-body">
                 <div class="row">
                     <div class="col-md-3">
                         <div class="form-group">
-                            <label>No. Dokumen</label>
+                            <label><?= lang_line('adj_c_label_doc_no', 'No. Dokumen'); ?></label>
                             <input type="text" name="doc_no" class="form-control" value="<?= $doc_no; ?>" readonly>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="form-group">
-                            <label>Tanggal Dokumen *</label>
+                            <label><?= lang_line('adj_c_label_doc_date_req', 'Tanggal Dokumen *'); ?></label>
                             <input type="date" name="doc_date" class="form-control" value="<?= date('Y-m-d'); ?>" required>
                         </div>
                     </div>
                     <div class="col-md-6">
                         <div class="form-group">
-                            <label>Catatan (Alasan Penyesuaian) *</label>
-                            <input type="text" name="notes" class="form-control" placeholder="cth: Hasil Stock Opname Gudang A" required>
+                            <label><?= lang_line('adj_c_label_notes_req', 'Catatan (Alasan Penyesuaian) *'); ?></label>
+                            <input type="text" name="notes" class="form-control" placeholder="<?= lang_line('adj_c_notes_placeholder', 'cth: Hasil Stock Opname Gudang A'); ?>" required>
                         </div>
                     </div>
                 </div>
@@ -38,16 +38,16 @@
                 <div class="row mt-3">
                     <div class="col-md-6">
                         <div class="form-group">
-                            <label for="grn_id">Referensi GRN Penerimaan (Opsional)</label>
+                            <label for="grn_id"><?= lang_line('adj_c_label_grn_ref', 'Referensi GRN Penerimaan (Opsional)'); ?></label>
                             <select id="grn_id" name="grn_id" class="form-control select2" style="width: 100%">
-                                <option value="">-- Cari No. GRN --</option>
+                                <option value=""><?= lang_line('adj_c_search_grn', '-- Cari No. GRN --'); ?></option>
                             </select>
-                            <small class="form-text text-muted">Pilih GRN untuk auto-load items dari penerimaan</small>
+                            <small class="form-text text-muted"><?= lang_line('adj_c_grn_hint', 'Pilih GRN untuk auto-load items dari penerimaan'); ?></small>
                         </div>
                     </div>
                     <div class="col-md-6 d-flex align-items-end">
                         <button type="button" class="btn btn-info w-100" id="btn_load_grn_items">
-                            <i class="fas fa-download"></i> Load Items dari GRN
+                            <i class="fas fa-download"></i> <?= lang_line('adj_c_btn_load_grn', 'Load Items dari GRN'); ?>
                         </button>
                     </div>
                 </div>
@@ -56,22 +56,22 @@
 
         <div class="card shadow mb-4">
             <div class="card-header py-3 d-flex justify-content-between align-items-center">
-                <h6 class="m-0 font-weight-bold text-primary">Detail Item</h6>
-                <button type="button" id="add-row" class="btn btn-primary btn-sm"><i class="fas fa-plus"></i> Tambah Baris</button>
+                <h6 class="m-0 font-weight-bold text-primary"><?= lang_line('adj_c_section_detail', 'Detail Item'); ?></h6>
+                <button type="button" id="add-row" class="btn btn-primary btn-sm"><i class="fas fa-plus"></i> <?= lang_line('adj_c_btn_add_row', 'Tambah Baris'); ?></button>
             </div>
             <div class="card-body">
                 <div class="table-responsive">
                     <table class="table" id="detail-table">
                         <thead>
                             <tr>
-                                <th>Tipe Item *</th>
-                                <th>Nama Item *</th>
-                                <th>Tipe Penyesuaian *</th>
-                                <th>Qty *</th>
-                                <th>Detail (Batch/Nilai) *</th>
-                                <th>Satuan</th>
-                                <th>Keterangan</th>
-                                <th style="width: 5%;">Aksi</th>
+                                <th><?= lang_line('adj_c_th_item_type', 'Tipe Item *'); ?></th>
+                                <th><?= lang_line('adj_c_th_item_name', 'Nama Item *'); ?></th>
+                                <th><?= lang_line('adj_c_th_adj_type', 'Tipe Penyesuaian *'); ?></th>
+                                <th><?= lang_line('adj_c_th_qty', 'Qty *'); ?></th>
+                                <th><?= lang_line('adj_c_th_detail_batch', 'Detail (Batch/Nilai) *'); ?></th>
+                                <th><?= lang_line('adj_c_th_unit', 'Satuan'); ?></th>
+                                <th><?= lang_line('adj_c_th_remarks', 'Keterangan'); ?></th>
+                                <th style="width: 5%;"><?= lang_line('adj_c_th_action', 'Aksi'); ?></th>
                             </tr>
                         </thead>
                         <tbody id="detail-body">
@@ -82,47 +82,47 @@
         </div>
 
         <div class="text-right">
-            <a href="<?= base_url('adjustment'); ?>" class="btn btn-secondary">Batal</a>
-            <button type="submit" class="btn btn-primary">Simpan sebagai Draft</button>
+            <a href="<?= base_url('adjustment'); ?>" class="btn btn-secondary"><?= lang_line('adj_c_btn_cancel', 'Batal'); ?></a>
+            <button type="submit" class="btn btn-primary"><?= lang_line('adj_c_btn_save_draft', 'Simpan sebagai Draft'); ?></button>
         </div>
     </form>
 
     <!-- Document Upload Section -->
     <div class="card shadow mt-4" id="upload_section" style="display: none;">
         <div class="card-header py-3 bg-primary text-white">
-            <h6 class="m-0 font-weight-bold"><i class="fas fa-file-upload"></i> Upload Dokumen Pendukung</h6>
+            <h6 class="m-0 font-weight-bold"><i class="fas fa-file-upload"></i> <?= lang_line('adj_section_upload_doc', 'Upload Dokumen Pendukung'); ?></h6>
         </div>
         <div class="card-body">
             <div class="row">
                 <div class="col-md-6">
                     <div class="form-group">
-                        <label for="document">Pilih File</label>
-                        <input type="file" id="document" name="document" class="form-control-file" 
+                        <label for="document"><?= lang_line('adj_label_pick_file', 'Pilih File'); ?></label>
+                        <input type="file" id="document" name="document" class="form-control-file"
                                accept=".pdf,.jpg,.jpeg,.png,.gif,.doc,.docx,.xlsx,.xls">
                         <small class="form-text text-muted">
-                            Format: PDF, JPG, PNG, GIF, DOC, DOCX, XLS, XLSX (Max 10 MB)
+                            <?= lang_line('adj_file_format_hint', 'Format: PDF, JPG, PNG, GIF, DOC, DOCX, XLS, XLSX (Max 10 MB)'); ?>
                         </small>
                     </div>
                 </div>
                 <div class="col-md-6">
                     <div class="form-group">
-                        <label for="document_description">Deskripsi (Opsional)</label>
-                        <input type="text" id="document_description" name="document_description" class="form-control" 
-                               placeholder="cth: Bukti penambahan stock dari audit">
+                        <label for="document_description"><?= lang_line('adj_label_desc', 'Deskripsi (Opsional)'); ?></label>
+                        <input type="text" id="document_description" name="document_description" class="form-control"
+                               placeholder="<?= lang_line('adj_desc_placeholder', 'cth: Bukti penambahan stock dari audit'); ?>">
                     </div>
                 </div>
             </div>
 
             <button type="button" class="btn btn-success" id="btn_upload_doc">
-                <i class="fas fa-upload"></i> Upload Dokumen
+                <i class="fas fa-upload"></i> <?= lang_line('adj_btn_upload', 'Upload Dokumen'); ?>
             </button>
 
             <div id="upload_progress" style="display: none; margin-top: 15px;">
                 <div class="progress">
-                    <div id="progress_bar" class="progress-bar progress-bar-striped progress-bar-animated" 
+                    <div id="progress_bar" class="progress-bar progress-bar-striped progress-bar-animated"
                          role="progressbar" style="width: 0%"></div>
                 </div>
-                <small class="text-muted d-block mt-2">Upload in progress...</small>
+                <small class="text-muted d-block mt-2"><?= lang_line('adj_upload_in_progress', 'Upload in progress...'); ?></small>
             </div>
         </div>
     </div>
@@ -130,7 +130,7 @@
     <!-- Daftar Dokumen yang Sudah Diupload -->
     <div id="documents_section" style="display: none;" class="card shadow mt-4">
         <div class="card-header py-3 bg-success text-white">
-            <h6 class="m-0 font-weight-bold"><i class="fas fa-file-check"></i> Dokumen yang Sudah Diupload</h6>
+            <h6 class="m-0 font-weight-bold"><i class="fas fa-file-check"></i> <?= lang_line('adj_section_uploaded_docs', 'Dokumen yang Sudah Diupload'); ?></h6>
         </div>
         <div class="card-body">
             <ul id="documents_list" class="list-group"></ul>
@@ -142,24 +142,24 @@
     <tr>
         <td>
             <select name="details[0][item_type]" class="form-control item-type" required>
-                <option value="">-- Pilih Tipe --</option>
-                <option value="material">Material</option>
-                <option value="semifinished">Semifinished</option>
-                <option value="finished_goods">Finished Goods</option>
-                <option value="inventory">Inventory</option>
-                <option value="machine">Machine</option>
-                <option value="scrap">Scrap</option>
+                <option value=""><?= lang_line('adj_c_pick_type', '-- Pilih Tipe --'); ?></option>
+                <option value="material"><?= lang_line('adj_c_type_material', 'Material'); ?></option>
+                <option value="semifinished"><?= lang_line('adj_c_type_semifinished', 'Semifinished'); ?></option>
+                <option value="finished_goods"><?= lang_line('adj_c_type_finished_goods', 'Finished Goods'); ?></option>
+                <option value="inventory"><?= lang_line('adj_c_type_inventory', 'Inventory'); ?></option>
+                <option value="machine"><?= lang_line('adj_c_type_machine', 'Machine'); ?></option>
+                <option value="scrap"><?= lang_line('adj_c_type_scrap', 'Scrap'); ?></option>
             </select>
         </td>
         <td>
             <select name="details[0][item_id]" class="form-control item-id" required disabled>
-                <option value="">-- Pilih Tipe Dulu --</option>
+                <option value=""><?= lang_line('adj_c_pick_type_first', '-- Pilih Tipe Dulu --'); ?></option>
             </select>
         </td>
         <td>
             <select name="details[0][adjustment_type]" class="form-control adjustment-type" required>
-                <option value="IN">IN (Masuk)</option>
-                <option value="OUT">OUT (Keluar)</option>
+                <option value="IN"><?= lang_line('adj_c_adj_in', 'IN (Masuk)'); ?></option>
+                <option value="OUT"><?= lang_line('adj_c_adj_out', 'OUT (Keluar)'); ?></option>
             </select>
         </td>
         <td>
@@ -167,9 +167,9 @@
         </td>
         <td>
             <div class="detail-placeholder">
-                <input type="number" name="details[0][unit_value]" class="form-control unit-value" min="0" step="0.01" placeholder="Masukkan Nilai (Rp)" required>
+                <input type="number" name="details[0][unit_value]" class="form-control unit-value" min="0" step="0.01" placeholder="<?= lang_line('adj_c_value_placeholder', 'Masukkan Nilai (Rp)'); ?>" required>
                 <select name="details[0][stock_on_hand_id]" class="form-control stock-on-hand-id" style="display: none;" disabled>
-                    <option value="">-- Pilih Batch --</option>
+                    <option value=""><?= lang_line('adj_c_pick_batch', '-- Pilih Batch --'); ?></option>
                 </select>
             </div>
         </td>
@@ -186,6 +186,27 @@
 </template>
 
 <script>
+const I18N_ADJC = {
+    search_grn:       <?= json_encode(lang_line('adj_c_search_grn', '-- Cari No. GRN --')); ?>,
+    pick_grn:         <?= json_encode(lang_line('adj_c_js_pick_grn', 'Silakan pilih GRN terlebih dahulu')); ?>,
+    grn_loaded:       <?= json_encode(lang_line('adj_c_js_grn_loaded', 'Items dari GRN berhasil dimuat (%d item)')); ?>,
+    no_items_grn:     <?= json_encode(lang_line('adj_c_js_no_items_grn', 'Tidak ada items ditemukan di GRN ini')); ?>,
+    err_load:         <?= json_encode(lang_line('adj_c_js_err_load', 'Terjadi error saat memuat items')); ?>,
+    loading:          <?= json_encode(lang_line('adj_c_js_loading', 'Memuat...')); ?>,
+    pick_item:        <?= json_encode(lang_line('adj_c_js_pick_item', '-- Pilih Item --')); ?>,
+    pick_type_first:  <?= json_encode(lang_line('adj_c_pick_type_first', '-- Pilih Tipe Dulu --')); ?>,
+    loading_batch:    <?= json_encode(lang_line('adj_c_js_loading_batch', 'Memuat batch...')); ?>,
+    pick_batch:       <?= json_encode(lang_line('adj_c_pick_batch', '-- Pilih Batch --')); ?>,
+    /* upload */
+    pick_file:        <?= json_encode(lang_line('adj_js_pick_file_first', 'Silakan pilih file terlebih dahulu')); ?>,
+    upload_success:   <?= json_encode(lang_line('adj_js_upload_success', 'Dokumen berhasil diupload')); ?>,
+    upload_failed:    <?= json_encode(lang_line('adj_js_upload_failed', 'Gagal upload dokumen:')); ?>,
+    confirm_del_doc:  <?= json_encode(lang_line('adj_js_confirm_del_doc', 'Yakin hapus dokumen ini?')); ?>,
+    del_doc_success:  <?= json_encode(lang_line('adj_js_del_doc_success', 'Dokumen berhasil dihapus')); ?>,
+    del_doc_failed:   <?= json_encode(lang_line('adj_js_del_doc_failed', 'Gagal hapus dokumen')); ?>,
+    uploaded:         <?= json_encode(lang_line('adj_uploaded_at', 'Uploaded:')); ?>
+};
+
 document.addEventListener("DOMContentLoaded", function() {
     let rowIndex = 0;
     const detailBody = document.getElementById("detail-body");
@@ -193,7 +214,7 @@ document.addEventListener("DOMContentLoaded", function() {
 
     // ===== SELECT2 INITIALIZATION =====
     $('#grn_id').select2({
-        placeholder: '-- Cari No. GRN --',
+        placeholder: I18N_ADJC.search_grn,
         allowClear: true,
         width: '100%',
         ajax: {
@@ -218,7 +239,7 @@ document.addEventListener("DOMContentLoaded", function() {
     document.getElementById('btn_load_grn_items').addEventListener('click', function() {
         var grn_id = $('#grn_id').val();
         if (!grn_id) {
-            alert('Silakan pilih GRN terlebih dahulu');
+            alert(I18N_ADJC.pick_grn);
             return;
         }
 
@@ -232,65 +253,65 @@ document.addEventListener("DOMContentLoaded", function() {
                     // Clear existing rows
                     detailBody.innerHTML = '';
                     rowIndex = 0;
-                    
+
                     // Load each item from GRN into rows
                     response.data.forEach(function(item) {
                         const newRow = template.content.cloneNode(true);
                         const tr = newRow.querySelector('tr');
                         tr.setAttribute('data-row-id', rowIndex);
                         tr.setAttribute('data-grn-detail-id', item.grn_detail_id);
-                        
+
                         newRow.querySelectorAll('input, select').forEach(el => {
                             el.name = el.name.replace(/details\[0\]/g, `details[${rowIndex}]`);
                         });
-                        
+
                         // Set values from GRN
                         const itemTypeSelect = newRow.querySelector('.item-type');
                         const itemIdSelect = newRow.querySelector('.item-id');
-                        
+
                         itemTypeSelect.value = item.item_type;
                         itemIdSelect.value = item.item_id;
                         itemIdSelect.disabled = false;
                         itemIdSelect.textContent = '';
-                        
+
                         // Add option for the item
                         const option = document.createElement('option');
                         option.value = item.item_id;
                         option.textContent = item.item_code + ' - ' + item.item_name;
                         itemIdSelect.appendChild(option);
                         itemIdSelect.value = item.item_id;
-                        
+
                         newRow.querySelector('.item-unit').value = item.item_unit;
                         newRow.querySelector('.unit-value').value = item.unit_value || '';
-                        
+
                         detailBody.appendChild(newRow);
                         rowIndex++;
                     });
-                    
-                    alert('Items dari GRN berhasil dimuat (' + response.data.length + ' item)');
+
+                    alert(I18N_ADJC.grn_loaded.replace('%d', response.data.length));
                 } else {
-                    alert('Tidak ada items ditemukan di GRN ini');
+                    alert(I18N_ADJC.no_items_grn);
                 }
             },
             error: function() {
-                alert('Terjadi error saat memuat items');
+                alert(I18N_ADJC.err_load);
             }
         });
     });
 
     // ===== DOCUMENT UPLOAD FUNCTIONALITY =====
     let adjustment_id = '<?php echo isset($header) ? $header->id : ""; ?>';
-    
+
     // Show upload section when form is saved
     if (adjustment_id) {
         document.getElementById('upload_section').style.display = 'block';
     }
-    
+
     if (adjustment_id) {
         document.getElementById('btn_upload_doc').addEventListener('click', function() {
             var fileInput = document.getElementById('document');
             if (!fileInput.files.length) {
-                alert('Silakan pilih file terlebih dahulu');
+                alert(I18N_ADJC.pick_file);
                 return;
             }
 
@@ -319,19 +340,19 @@ document.addEventListener("DOMContentLoaded", function() {
                 },
                 success: function(response) {
                     if (response.success) {
-                        alert('Dokumen berhasil diupload');
+                        alert(I18N_ADJC.upload_success);
                         loadDocumentsList(adjustment_id);
                         fileInput.value = '';
                         document.getElementById('document_description').value = '';
                         document.getElementById('upload_progress').style.display = 'none';
                     } else {
-                        alert('Gagal upload: ' + response.message);
+                        alert(I18N_ADJC.upload_failed + ' ' + response.message);
                         document.getElementById('upload_progress').style.display = 'none';
                     }
                 },
                 error: function(xhr) {
                     console.error('Error:', xhr);
-                    alert('Error upload dokumen');
+                    alert(I18N_ADJC.upload_failed);
                     document.getElementById('upload_progress').style.display = 'none';
                 }
             });
@@ -360,7 +381,7 @@ document.addEventListener("DOMContentLoaded", function() {
                         if (doc.description) {
                             html += '<p class="mb-1 text-muted small">' + doc.description + '</p>';
                         }
-                        html += '<small class="text-muted">Uploaded: ' + doc.uploaded_at + '</small>';
+                        html += '<small class="text-muted">' + I18N_ADJC.uploaded + ' ' + doc.uploaded_at + '</small>';
                         html += '</div>';
                         html += '<div class="text-right">';
                         html += '<span class="badge badge-secondary">' + size_kb + ' KB</span> ';
@@ -380,17 +401,17 @@ document.addEventListener("DOMContentLoaded", function() {
     }
 
     function deleteDoc(doc_id) {
-        if (confirm('Yakin hapus dokumen ini?')) {
+        if (confirm(I18N_ADJC.confirm_del_doc)) {
             $.ajax({
                 url: '<?php echo base_url("adjustment/delete_document/"); ?>' + doc_id,
                 type: 'POST',
                 dataType: 'json',
                 success: function(response) {
                     if (response.success) {
-                        alert('Dokumen berhasil dihapus');
+                        alert(I18N_ADJC.del_doc_success);
                         loadDocumentsList(adjustment_id);
                     } else {
-                        alert('Gagal hapus dokumen');
+                        alert(I18N_ADJC.del_doc_failed);
                     }
                 }
             });
@@ -407,7 +428,7 @@ document.addEventListener("DOMContentLoaded", function() {
         newRow.querySelectorAll("input, select").forEach(el => {
             el.name = el.name.replace(/details\[0\]/g, `details[${rowIndex}]`);
         });
-        
+
         detailBody.appendChild(newRow);
         rowIndex++;
     }
@@ -435,8 +456,8 @@ document.addEventListener("DOMContentLoaded", function() {
             const itemType = e.target.value;
             const itemIdSelect = row.querySelector(".item-id");
             const itemUnitInput = row.querySelector(".item-unit");
-            
-            itemIdSelect.innerHTML = '<option value="">Memuat...</option>';
+
+            itemIdSelect.innerHTML = '<option value="">' + I18N_ADJC.loading + '</option>';
             itemIdSelect.disabled = true;
             itemUnitInput.value = '';
 
@@ -444,7 +465,7 @@ document.addEventListener("DOMContentLoaded", function() {
                 fetch(`<?= base_url('adjustment/ajax_get_items'); ?>?type=${itemType}`)
                     .then(response => response.json())
                     .then(items => {
-                        itemIdSelect.innerHTML = '<option value="">-- Pilih Item --</option>';
+                        itemIdSelect.innerHTML = '<option value="">' + I18N_ADJC.pick_item + '</option>';
                         items.forEach(item => {
                             const option = new Option(`${item.code} - ${item.name}`, item.id);
                             option.dataset.unit = item.unit;
@@ -454,7 +475,7 @@ document.addEventListener("DOMContentLoaded", function() {
                         updateDetailInput(row); // Update tampilan input batch/value
                     });
             } else {
-                itemIdSelect.innerHTML = '<option value="">-- Pilih Tipe Dulu --</option>';
+                itemIdSelect.innerHTML = '<option value="">' + I18N_ADJC.pick_type_first + '</option>';
                 updateDetailInput(row);
             }
         }
@@ -465,7 +486,7 @@ document.addEventListener("DOMContentLoaded", function() {
             row.querySelector(".item-unit").value = selectedOption.dataset.unit || '';
             updateDetailInput(row); // Update juga jika item berubah
         }
-        
+
         // 3. Saat Tipe Penyesuaian berubah
         if (e.target.classList.contains("adjustment-type")) {
             updateDetailInput(row);
@@ -477,7 +498,7 @@ document.addEventListener("DOMContentLoaded", function() {
         const itemType = row.querySelector(".item-type").value;
         const adjType = row.querySelector(".adjustment-type").value;
         const itemId = row.querySelector(".item-id").value;
-        
+
         const valueInput = row.querySelector(".unit-value");
         const batchSelect = row.querySelector(".stock-on-hand-id");
 
@@ -485,32 +506,32 @@ document.addEventListener("DOMContentLoaded", function() {
         valueInput.style.display = 'none';
         valueInput.required = false;
         valueInput.disabled = true;
-        
+
         batchSelect.style.display = 'none';
         batchSelect.required = false;
         batchSelect.disabled = true;
-        batchSelect.innerHTML = '<option value="">-- Pilih Batch --</option>';
+        batchSelect.innerHTML = '<option value="">' + I18N_ADJC.pick_batch + '</option>';
 
         if (adjType === 'IN') {
             // Tipe IN: Selalu minta Unit Value
             valueInput.style.display = 'block';
             valueInput.required = true;
             valueInput.disabled = false;
-        
+
         } else { // Tipe OUT
             if (itemType === 'material') {
                 // Tipe OUT & Material: Minta Batch
                 batchSelect.style.display = 'block';
                 batchSelect.required = true;
                 batchSelect.disabled = false;
-                
+
                 // Load batches
                 if (itemId) {
-                    batchSelect.innerHTML = '<option value="">Memuat batch...</option>';
+                    batchSelect.innerHTML = '<option value="">' + I18N_ADJC.loading_batch + '</option>';
                     fetch(`<?= base_url('adjustment/ajax_get_batches'); ?>?item_id=${itemId}`)
                         .then(response => response.json())
                         .then(batches => {
-                            batchSelect.innerHTML = '<option value="">-- Pilih Batch --</option>';
+                            batchSelect.innerHTML = '<option value="">' + I18N_ADJC.pick_batch + '</option>';
                             batches.forEach(batch => {
                                 const text = `Qty: ${batch.available_qty} (Value: ${batch.unit_value}) - GRN: ${batch.grn_header_id || 'ADJ'}`;
                                 batchSelect.appendChild(new Option(text, batch.id));

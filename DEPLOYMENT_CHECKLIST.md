@@ -1,4 +1,4 @@
-# Deployment Checklist - ERP Mingbao ke cPanel
+# Deployment Checklist - ERP Acropoly ke cPanel
 
 ## 📋 Checklist Sebelum Deploy
 

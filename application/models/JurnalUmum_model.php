@@ -40,31 +40,8 @@ class JurnalUmum_model extends CI_Model {
 
     public function get_new_journal_number()
     {
-        $year_month = date('Ym'); // Format: 202601
-        $prefix = 'JU/' . $year_month . '/';
-        
-        // Cari nomor jurnal terakhir dengan prefix bulan ini
-        $this->db->select('journal_no');
-        $this->db->from('journal_header');
-        $this->db->like('journal_no', $prefix, 'after');
-        $this->db->order_by('id', 'DESC');
-        $this->db->limit(1);
-        $result = $this->db->get()->row();
-        
-        if ($result) {
-            // Ekstrak nomor urut dari journal_no terakhir
-            // Contoh: JU/202601/0001 -> ambil 0001
-            $last_number = (int) substr($result->journal_no, -4);
-            $next_number = $last_number + 1;
-        } else {
-            // Jika belum ada jurnal bulan ini, mulai dari 0001
-            $next_number = 1;
-        }
-        
-        // Format dengan leading zeros (4 digit)
-        $new_number = $prefix . str_pad($next_number, 4, '0', STR_PAD_LEFT);
-        
-        return $new_number;
+        // Format nomor diatur di config/doc_number.php (rebrand Acropoly 2026-11-05).
+        return doc_number_next('journal', 'journal_header', 'journal_no');
     }
 
     public function post_journal($header_id, $user_id)
@@ -110,10 +87,14 @@ class JurnalUmum_model extends CI_Model {
         foreach ($details_data as $detail) {
             if (!empty($detail['account_id']) && ($detail['debit'] > 0 || $detail['kredit'] > 0)) {
                 $detail['journal_header_id'] = $header_id;
-                
                 $detail['debit_local'] = (float) $detail['debit'] * $rate;
                 $detail['kredit_local'] = (float) $detail['kredit'] * $rate;
-                
+                if (!isset($detail['is_ppn_line'])) {
+                    $detail['is_ppn_line'] = 0;
+                }
+                if (!isset($detail['is_wht_line'])) {
+                    $detail['is_wht_line'] = 0;
+                }
                 $this->db->insert('journal_details', $detail);
             }
         }
@@ -190,22 +171,62 @@ class JurnalUmum_model extends CI_Model {
         return $this->db->get()->result();
     }
 
+    /**
+     * Ambil hanya baris manual (bukan baris PPN otomatis) untuk form edit.
+     * Baris PPN dibangun ulang dari header.
+     */
+    public function get_user_details_by_header_id($header_id)
+    {
+        $this->db->select('jd.*, coa.account_code, coa.account_name');
+        $this->db->from('journal_details jd');
+        $this->db->join('chart_of_accounts coa', 'jd.account_id = coa.id');
+        $this->db->where('jd.journal_header_id', $header_id);
+        $this->db->where('jd.is_ppn_line', 0);
+        $this->db->where('jd.is_wht_line', 0);
+        $this->db->order_by('jd.id', 'ASC');
+        return $this->db->get()->result();
+    }
+
+    /**
+     * Daftar vendor (supplier aktif) untuk dropdown Jurnal Umum.
+     * Termasuk data bank & penanda PPh 23 untuk auto-fill voucher & WHT.
+     */
+    public function get_vendors()
+    {
+        $this->db->select('id, kode_supplier, nama_supplier, bank_name, bank_account, pph23, pph23_rate');
+        $this->db->from('suppliers');
+        $this->db->where('status', 'active');
+        $this->db->order_by('nama_supplier', 'ASC');
+        return $this->db->get()->result();
+    }
+
+    public function get_vendor_by_id($id)
+    {
+        if (empty($id)) return null;
+        return $this->db->select('id, kode_supplier, nama_supplier, bank_name, bank_account, pph23, pph23_rate')
+            ->where('id', (int) $id)->get('suppliers')->row();
+    }
+
     public function insert_journal($header_data, $details_data)
     {
         $this->db->trans_start();
 
         $this->db->insert('journal_header', $header_data);
         $header_id = $this->db->insert_id();
-        
+
         $rate = (float) $header_data['exchange_rate'];
 
         foreach ($details_data as $detail) {
             if (!empty($detail['account_id']) && ($detail['debit'] > 0 || $detail['kredit'] > 0)) {
                 $detail['journal_header_id'] = $header_id;
-                
                 $detail['debit_local'] = (float) $detail['debit'] * $rate;
                 $detail['kredit_local'] = (float) $detail['kredit'] * $rate;
-                
+                if (!isset($detail['is_ppn_line'])) {
+                    $detail['is_ppn_line'] = 0;
+                }
+                if (!isset($detail['is_wht_line'])) {
+                    $detail['is_wht_line'] = 0;
+                }
                 $this->db->insert('journal_details', $detail);
             }
         }
@@ -446,5 +467,143 @@ class JurnalUmum_model extends CI_Model {
             'total_transactions' => count($transactions),
             'journal_numbers' => $journal_numbers
         ];
+    }
+
+    // ============================================================
+    // EXPORT FULL BACKUP / IMPORT RESTORE / CLEAR (Month End)
+    // ============================================================
+
+    /**
+     * Ambil jurnal Posted dalam rentang tanggal (header lengkap + semua details)
+     * untuk Export Full backup. Patokan periode = journal_date.
+     */
+    public function get_full_journals_for_export($from, $to)
+    {
+        $this->db->select('jh.*');
+        $this->db->from('journal_header jh');
+        $this->db->where('jh.status', 'Posted');
+        if ($from) $this->db->where('jh.journal_date >=', $from);
+        if ($to)   $this->db->where('jh.journal_date <=', $to);
+        $this->db->order_by('jh.journal_date', 'ASC');
+        $this->db->order_by('jh.id', 'ASC');
+        $headers = $this->db->get()->result();
+
+        foreach ($headers as $h) {
+            $this->db->select('jd.*, coa.account_code, coa.account_name');
+            $this->db->from('journal_details jd');
+            $this->db->join('chart_of_accounts coa', 'jd.account_id = coa.id', 'left');
+            $this->db->where('jd.journal_header_id', $h->id);
+            $this->db->order_by('jd.id', 'ASC');
+            $h->details = $this->db->get()->result();
+        }
+        return $headers;
+    }
+
+    /** Tandai jurnal sudah di-export (exported_at / exported_by). */
+    public function mark_exported(array $journal_ids, $user_id)
+    {
+        $ids = array_values(array_filter(array_map('intval', $journal_ids), fn($v) => $v > 0));
+        if (empty($ids)) return 0;
+        $this->db->where_in('id', $ids);
+        $this->db->update('journal_header', [
+            'exported_at' => date('Y-m-d H:i:s'),
+            'exported_by' => (int) $user_id,
+        ]);
+        return (int) $this->db->affected_rows();
+    }
+
+    /** Jumlah jurnal Posted dalam periode. */
+    public function count_posted_in_period($from, $to)
+    {
+        $this->db->from('journal_header');
+        $this->db->where('status', 'Posted');
+        if ($from) $this->db->where('journal_date >=', $from);
+        if ($to)   $this->db->where('journal_date <=', $to);
+        return (int) $this->db->count_all_results();
+    }
+
+    /** Jumlah jurnal Posted dalam periode yang BELUM di-export. */
+    public function count_unexported_posted($from, $to)
+    {
+        $this->db->from('journal_header');
+        $this->db->where('status', 'Posted');
+        $this->db->where('exported_at IS NULL', null, false);
+        if ($from) $this->db->where('journal_date >=', $from);
+        if ($to)   $this->db->where('journal_date <=', $to);
+        return (int) $this->db->count_all_results();
+    }
+
+    /**
+     * Cari account_id dari kode akun (untuk restore import).
+     */
+    public function get_account_id_by_code($code)
+    {
+        $row = $this->db->select('id')->where('account_code', trim((string) $code))
+            ->get('chart_of_accounts')->row();
+        return $row ? (int) $row->id : null;
+    }
+
+    /**
+     * Restore 1 jurnal dari backup (status Draft). Header + semua baris detail
+     * (termasuk flag is_ppn_line / is_wht_line) di-insert apa adanya.
+     */
+    public function restore_journal($header_data, $details_data)
+    {
+        $this->db->trans_start();
+        $this->db->insert('journal_header', $header_data);
+        $header_id = $this->db->insert_id();
+
+        $rate = (float) ($header_data['exchange_rate'] ?? 1);
+        foreach ($details_data as $d) {
+            if (empty($d['account_id'])) continue;
+            $d['journal_header_id'] = $header_id;
+            $d['debit_local']  = (float) $d['debit']  * $rate;
+            $d['kredit_local'] = (float) $d['kredit'] * $rate;
+            $this->db->insert('journal_details', $d);
+        }
+        $this->db->trans_complete();
+        return ($this->db->trans_status() === FALSE) ? false : $header_id;
+    }
+
+    /**
+     * Clear (hapus) jurnal Posted dalam periode (Month End).
+     * Untuk jurnal AP Payment (source_module='AP_PAYMENT'): null-kan
+     * ap_payment_header.journal_header_id + simpan jejak journal_no_cleared
+     * dulu, supaya status Paid & record pembayaran tetap utuh (tanpa pointer nyasar).
+     * Return ['deleted' => n, 'ap_unlinked' => n].
+     */
+    public function clear_posted_period($from, $to)
+    {
+        $this->db->select('id, journal_no, source_module');
+        $this->db->where('status', 'Posted');
+        if ($from) $this->db->where('journal_date >=', $from);
+        if ($to)   $this->db->where('journal_date <=', $to);
+        $rows = $this->db->get('journal_header')->result();
+        if (empty($rows)) return ['deleted' => 0, 'ap_unlinked' => 0];
+
+        $ids = array_map(fn($r) => (int) $r->id, $rows);
+
+        $this->db->trans_start();
+
+        $ap_unlinked = 0;
+        foreach ($rows as $r) {
+            if ($r->source_module === 'AP_PAYMENT') {
+                $this->db->where('journal_header_id', (int) $r->id);
+                $this->db->update('ap_payment_header', [
+                    'journal_header_id'  => null,
+                    'journal_no_cleared' => $r->journal_no,
+                ]);
+                $ap_unlinked += (int) $this->db->affected_rows();
+            }
+        }
+
+        $this->db->where_in('journal_header_id', $ids);
+        $this->db->delete('journal_details');
+        $this->db->where_in('id', $ids);
+        $this->db->delete('journal_header');
+        $deleted = (int) $this->db->affected_rows();
+
+        $this->db->trans_complete();
+        return ['deleted' => $deleted, 'ap_unlinked' => $ap_unlinked];
     }
 }

@@ -57,7 +57,7 @@
                 <td><?= htmlspecialchars($trace->nomor_bc_ref ?? '-'); ?></td>
             </tr>
             <tr>
-                <th>Sales Contract</th>
+                <th>Sales Order Number</th>
                 <td><?= htmlspecialchars($trace->sales_contract_ref ?? '-'); ?></td>
             </tr>
         </tbody>

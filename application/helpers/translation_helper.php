@@ -82,3 +82,26 @@ if (!function_exists('google_translate')) {
         return $text; // Return original if parsing fails
     }
 }
+
+if (!function_exists('get_translated_status')) {
+    function get_translated_status($status) {
+        if (empty($status)) {
+            return $status;
+        }
+
+        $status_keys = [
+            'Draft' => 'sc_status_draft',
+            'Submitted' => 'sc_status_waiting_approval',
+            'Pending Endorsement' => 'sc_status_pending_endorsement',
+            'Endorsed' => 'sc_status_endorsed',
+            'Open' => 'sc_status_open',
+            'Finish' => 'sc_status_finish',
+            'Closed' => 'sc_status_closed',
+            'Cancelled' => 'sc_status_cancelled',
+            'Rejected' => 'sc_status_rejected',
+        ];
+
+        $key = isset($status_keys[$status]) ? $status_keys[$status] : null;
+        return $key ? lang_line($key, $status) : $status;
+    }
+}

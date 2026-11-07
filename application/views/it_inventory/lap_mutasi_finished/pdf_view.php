@@ -20,7 +20,7 @@
       <th>Nama FG</th>
       <th>Production No</th>
       <th>WO No</th>
-      <th>SC No</th>
+      <th>Sales Order Number</th>
       <th>Material Request</th>
       <th>Material</th>
       <th>Base On</th>

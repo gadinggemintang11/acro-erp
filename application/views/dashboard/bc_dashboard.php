@@ -15,11 +15,11 @@
     color: white;
 }
 .gradient-card-2 {
-    background: linear-gradient(135deg, #8B5CF6 0%, #6D28D9 100%);
+    background: linear-gradient(135deg, var(--brand-1) 0%, var(--brand-dark) 100%);
     color: white;
 }
 .gradient-card-3 {
-    background: linear-gradient(135deg, #3B82F6 0%, #1D4ED8 100%);
+    background: linear-gradient(135deg, var(--brand-2) 0%, var(--brand-dark) 100%);
     color: white;
 }
 .gradient-card-4 {
@@ -260,7 +260,7 @@
                                         <td class="text-muted small"><?= $no++; ?></td>
                                         <td><strong style="color: #374151; font-size: 0.85rem;"><?= htmlspecialchars($grn->grn_number); ?></strong></td>
                                         <td class="small text-muted"><?= date('d/m/Y', strtotime($grn->grn_date)); ?></td>
-                                        <td><span class="badge badge-modern" style="background: #EEF2FF; color: #4F46E5;"><?= htmlspecialchars($grn->bc_type_name ?: $grn->bc_type_code); ?></span></td>
+                                        <td><span class="badge badge-modern" style="background: var(--brand-soft); color: var(--brand-1);"><?= htmlspecialchars($grn->bc_type_name ?: $grn->bc_type_code); ?></span></td>
                                         <td class="small text-muted"><?= htmlspecialchars($grn->bc_number); ?></td>
                                         <td class="small text-muted"><?= htmlspecialchars($grn->nama_supplier); ?></td>
                                         <td>
@@ -317,13 +317,13 @@
                                         <td class="text-muted small"><?= $no++; ?></td>
                                         <td><strong style="color: #374151; font-size: 0.85rem;"><?= htmlspecialchars($doc->doc_number); ?></strong></td>
                                         <td class="small text-muted"><?= date('d/m/Y', strtotime($doc->doc_date)); ?></td>
-                                        <td><span class="badge badge-modern" style="background: #EEF2FF; color: #4F46E5;"><?= htmlspecialchars($doc->bc_type_name ?: $doc->bc_type_code); ?></span></td>
+                                        <td><span class="badge badge-modern" style="background: var(--brand-soft); color: var(--brand-1);"><?= htmlspecialchars($doc->bc_type_name ?: $doc->bc_type_code); ?></span></td>
                                         <td class="small text-muted"><?= htmlspecialchars($doc->bc_number); ?></td>
                                         <td>
                                             <?php if ($doc->doc_type == 'SUBKON'): ?>
                                                 <span class="badge badge-modern" style="background: #F3E8FF; color: #6B21A8;">Subkon</span>
                                             <?php else: ?>
-                                                <span class="badge badge-modern" style="background: #E0E7FF; color: #3730A3;">Delivery</span>
+                                                <span class="badge badge-modern" style="background: #fce4ec; color: #ad1457;">Delivery</span>
                                             <?php endif; ?>
                                         </td>
                                         <td>
@@ -398,7 +398,7 @@ $(document).ready(function() {
             }, {
                 label: '<?= lang_line("dashboard_bc_chart_outgoing", "Dokumen Keluar"); ?>',
                 data: outgoingData,
-                backgroundColor: '#8B5CF6',
+                backgroundColor: getComputedStyle(document.documentElement).getPropertyValue('--brand-1').trim() || '#334155',
                 borderColor: '#7C3AED',
                 borderWidth: 0,
                 borderRadius: 6,

@@ -5,9 +5,9 @@
     <div class="d-sm-flex align-items-center justify-content-between mb-4">
         <div>
             <h1 class="h3 mb-0 text-gray-900 font-weight-bold">
-                <i class="fas fa-shield-alt text-primary"></i> EXIM Verification
+                <i class="fas fa-shield-alt text-primary"></i> <?= lang_line('exv_title', 'EXIM Verification'); ?>
             </h1>
-            <p class="text-muted small mb-0">Verifikasi Dokumen Pemasukan & Pengeluaran Barang</p>
+            <p class="text-muted small mb-0"><?= lang_line('exv_subtitle', 'Verifikasi Dokumen Pemasukan & Pengeluaran Barang'); ?></p>
         </div>
         <div>
             <span class="badge badge-soft-primary px-3 py-2">
@@ -28,20 +28,20 @@
                         </div>
                         <div class="flex-grow-1">
                             <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">
-                                Pemasukan Pending
+                                <?= lang_line('exv_card_in_pending', 'Pemasukan Pending'); ?>
                             </div>
                             <div class="h3 mb-0 font-weight-bold text-gray-800">
                                 <?= number_format($incoming_stats['unverified']); ?>
                             </div>
                             <small class="text-muted">
-                                <i class="fas fa-plus-circle"></i> <?= $incoming_stats['recent_unverified']; ?> baru (7 hari)
+                                <i class="fas fa-plus-circle"></i> <?= $incoming_stats['recent_unverified']; ?> <?= lang_line('exv_new_7d', 'baru (7 hari)'); ?>
                             </small>
                         </div>
                     </div>
                 </div>
                 <div class="card-footer bg-transparent border-0 pt-0">
                     <a href="<?= base_url('exim_verification/incoming?verified_status=unverified'); ?>" class="btn btn-sm btn-outline-danger btn-block">
-                        <i class="fas fa-arrow-right"></i> Verifikasi Sekarang
+                        <i class="fas fa-arrow-right"></i> <?= lang_line('exv_btn_verify_now', 'Verifikasi Sekarang'); ?>
                     </a>
                 </div>
             </div>
@@ -57,20 +57,20 @@
                         </div>
                         <div class="flex-grow-1">
                             <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
-                                Pemasukan Verified
+                                <?= lang_line('exv_card_in_verified', 'Pemasukan Verified'); ?>
                             </div>
                             <div class="h3 mb-0 font-weight-bold text-gray-800">
                                 <?= number_format($incoming_stats['verified']); ?>
                             </div>
                             <small class="text-muted">
-                                <i class="fas fa-check-circle"></i> <?= $incoming_stats['recent_verified']; ?> terverifikasi (7 hari)
+                                <i class="fas fa-check-circle"></i> <?= $incoming_stats['recent_verified']; ?> <?= lang_line('exv_verified_7d', 'terverifikasi (7 hari)'); ?>
                             </small>
                         </div>
                     </div>
                 </div>
                 <div class="card-footer bg-transparent border-0 pt-0">
                     <a href="<?= base_url('exim_verification/incoming?verified_status=verified'); ?>" class="btn btn-sm btn-outline-success btn-block">
-                        <i class="fas fa-list"></i> Lihat Data
+                        <i class="fas fa-list"></i> <?= lang_line('exv_btn_view_data', 'Lihat Data'); ?>
                     </a>
                 </div>
             </div>
@@ -86,20 +86,20 @@
                         </div>
                         <div class="flex-grow-1">
                             <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
-                                Pengeluaran Pending
+                                <?= lang_line('exv_card_out_pending', 'Pengeluaran Pending'); ?>
                             </div>
                             <div class="h3 mb-0 font-weight-bold text-gray-800">
                                 <?= number_format($outgoing_stats['unverified']); ?>
                             </div>
                             <small class="text-muted">
-                                <i class="fas fa-plus-circle"></i> <?= $outgoing_stats['recent_unverified']; ?> baru (7 hari)
+                                <i class="fas fa-plus-circle"></i> <?= $outgoing_stats['recent_unverified']; ?> <?= lang_line('exv_new_7d', 'baru (7 hari)'); ?>
                             </small>
                         </div>
                     </div>
                 </div>
                 <div class="card-footer bg-transparent border-0 pt-0">
                     <a href="<?= base_url('exim_verification/outgoing?verified_status=unverified'); ?>" class="btn btn-sm btn-outline-warning btn-block">
-                        <i class="fas fa-arrow-right"></i> Verifikasi Sekarang
+                        <i class="fas fa-arrow-right"></i> <?= lang_line('exv_btn_verify_now', 'Verifikasi Sekarang'); ?>
                     </a>
                 </div>
             </div>
@@ -115,20 +115,20 @@
                         </div>
                         <div class="flex-grow-1">
                             <div class="text-xs font-weight-bold text-info text-uppercase mb-1">
-                                Pengeluaran Verified
+                                <?= lang_line('exv_card_out_verified', 'Pengeluaran Verified'); ?>
                             </div>
                             <div class="h3 mb-0 font-weight-bold text-gray-800">
                                 <?= number_format($outgoing_stats['verified']); ?>
                             </div>
                             <small class="text-muted">
-                                <i class="fas fa-check-circle"></i> <?= $outgoing_stats['recent_verified']; ?> terverifikasi (7 hari)
+                                <i class="fas fa-check-circle"></i> <?= $outgoing_stats['recent_verified']; ?> <?= lang_line('exv_verified_7d', 'terverifikasi (7 hari)'); ?>
                             </small>
                         </div>
                     </div>
                 </div>
                 <div class="card-footer bg-transparent border-0 pt-0">
                     <a href="<?= base_url('exim_verification/outgoing?verified_status=verified'); ?>" class="btn btn-sm btn-outline-info btn-block">
-                        <i class="fas fa-list"></i> Lihat Data
+                        <i class="fas fa-list"></i> <?= lang_line('exv_btn_view_data', 'Lihat Data'); ?>
                     </a>
                 </div>
             </div>
@@ -142,7 +142,7 @@
             <div class="card border-0 shadow h-100">
                 <div class="card-header bg-gradient-success text-white py-3">
                     <h6 class="m-0 font-weight-bold">
-                        <i class="fas fa-download"></i> Verifikasi Pemasukan Barang (GRN)
+                        <i class="fas fa-download"></i> <?= lang_line('exv_in_section_title', 'Verifikasi Pemasukan Barang (GRN)'); ?>
                     </h6>
                 </div>
                 <div class="card-body">
@@ -150,26 +150,26 @@
                         <div class="col-6">
                             <div class="text-center">
                                 <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">
-                                    Belum Diverifikasi
+                                    <?= lang_line('exv_label_unverified', 'Belum Diverifikasi'); ?>
                                 </div>
                                 <div class="h2 mb-0 font-weight-bold text-danger">
                                     <?= number_format($incoming_stats['unverified']); ?>
                                 </div>
                                 <small class="text-muted">
-                                    <?= $incoming_stats['recent_unverified']; ?> baru (7 hari terakhir)
+                                    <?= $incoming_stats['recent_unverified']; ?> <?= lang_line('exv_new_7d_long', 'baru (7 hari terakhir)'); ?>
                                 </small>
                             </div>
                         </div>
                         <div class="col-6">
                             <div class="text-center">
                                 <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
-                                    Sudah Diverifikasi
+                                    <?= lang_line('exv_label_verified', 'Sudah Diverifikasi'); ?>
                                 </div>
                                 <div class="h2 mb-0 font-weight-bold text-success">
                                     <?= number_format($incoming_stats['verified']); ?>
                                 </div>
                                 <small class="text-muted">
-                                    <?= $incoming_stats['recent_verified']; ?> terverifikasi (7 hari terakhir)
+                                    <?= $incoming_stats['recent_verified']; ?> <?= lang_line('exv_verified_7d_long', 'terverifikasi (7 hari terakhir)'); ?>
                                 </small>
                             </div>
                         </div>
@@ -180,7 +180,7 @@
                     <div class="row">
                         <div class="col-6 text-center">
                             <div class="text-xs font-weight-bold text-gray-600 text-uppercase mb-1">
-                                Total Dokumen
+                                <?= lang_line('exv_total_documents', 'Total Dokumen'); ?>
                             </div>
                             <div class="h4 mb-0 font-weight-bold text-gray-800">
                                 <?= number_format($incoming_stats['total']); ?>
@@ -188,7 +188,7 @@
                         </div>
                         <div class="col-6 text-center">
                             <div class="text-xs font-weight-bold text-gray-600 text-uppercase mb-1">
-                                Tingkat Verifikasi
+                                <?= lang_line('exv_verification_rate', 'Tingkat Verifikasi'); ?>
                             </div>
                             <div class="h4 mb-0 font-weight-bold text-primary">
                                 <?= $incoming_stats['verification_rate']; ?>%
@@ -198,10 +198,10 @@
 
                     <div class="mt-3 text-center">
                         <a href="<?= site_url('exim_verification/incoming?verified_status=unverified'); ?>" class="btn btn-danger btn-sm mr-2">
-                            <i class="fas fa-exclamation-circle"></i> Lihat Yang Belum Diverifikasi
+                            <i class="fas fa-exclamation-circle"></i> <?= lang_line('exv_btn_see_unverified', 'Lihat Yang Belum Diverifikasi'); ?>
                         </a>
                         <a href="<?= site_url('exim_verification/incoming?verified_status=all'); ?>" class="btn btn-success btn-sm">
-                            <i class="fas fa-list"></i> Lihat Semua
+                            <i class="fas fa-list"></i> <?= lang_line('exv_btn_see_all', 'Lihat Semua'); ?>
                         </a>
                     </div>
                 </div>
@@ -213,7 +213,7 @@
             <div class="card border-left-warning shadow h-100">
                 <div class="card-header py-3">
                     <h6 class="m-0 font-weight-bold text-warning">
-                        <i class="fas fa-upload"></i> Statistik Pengeluaran Barang
+                        <i class="fas fa-upload"></i> <?= lang_line('exv_out_section_title', 'Statistik Pengeluaran Barang'); ?>
                     </h6>
                 </div>
                 <div class="card-body">
@@ -221,26 +221,26 @@
                         <div class="col-6">
                             <div class="text-center">
                                 <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">
-                                    Belum Diverifikasi
+                                    <?= lang_line('exv_label_unverified', 'Belum Diverifikasi'); ?>
                                 </div>
                                 <div class="h2 mb-0 font-weight-bold text-danger">
                                     <?= number_format($outgoing_stats['unverified']); ?>
                                 </div>
                                 <small class="text-muted">
-                                    <?= $outgoing_stats['recent_unverified']; ?> baru (7 hari terakhir)
+                                    <?= $outgoing_stats['recent_unverified']; ?> <?= lang_line('exv_new_7d_long', 'baru (7 hari terakhir)'); ?>
                                 </small>
                             </div>
                         </div>
                         <div class="col-6">
                             <div class="text-center">
                                 <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
-                                    Sudah Diverifikasi
+                                    <?= lang_line('exv_label_verified', 'Sudah Diverifikasi'); ?>
                                 </div>
                                 <div class="h2 mb-0 font-weight-bold text-success">
                                     <?= number_format($outgoing_stats['verified']); ?>
                                 </div>
                                 <small class="text-muted">
-                                    <?= $outgoing_stats['recent_verified']; ?> terverifikasi (7 hari terakhir)
+                                    <?= $outgoing_stats['recent_verified']; ?> <?= lang_line('exv_verified_7d_long', 'terverifikasi (7 hari terakhir)'); ?>
                                 </small>
                             </div>
                         </div>
@@ -251,7 +251,7 @@
                     <div class="row">
                         <div class="col-6 text-center">
                             <div class="text-xs font-weight-bold text-gray-600 text-uppercase mb-1">
-                                Total Dokumen
+                                <?= lang_line('exv_total_documents', 'Total Dokumen'); ?>
                             </div>
                             <div class="h4 mb-0 font-weight-bold text-gray-800">
                                 <?= number_format($outgoing_stats['total']); ?>
@@ -259,7 +259,7 @@
                         </div>
                         <div class="col-6 text-center">
                             <div class="text-xs font-weight-bold text-gray-600 text-uppercase mb-1">
-                                Tingkat Verifikasi
+                                <?= lang_line('exv_verification_rate', 'Tingkat Verifikasi'); ?>
                             </div>
                             <div class="h4 mb-0 font-weight-bold text-primary">
                                 <?= $outgoing_stats['verification_rate']; ?>%
@@ -269,10 +269,10 @@
 
                     <div class="mt-3 text-center">
                         <a href="<?= site_url('exim_verification/outgoing?verified_status=unverified'); ?>" class="btn btn-danger btn-sm mr-2">
-                            <i class="fas fa-exclamation-circle"></i> Lihat Yang Belum Diverifikasi
+                            <i class="fas fa-exclamation-circle"></i> <?= lang_line('exv_btn_see_unverified', 'Lihat Yang Belum Diverifikasi'); ?>
                         </a>
                         <a href="<?= site_url('exim_verification/outgoing?verified_status=all'); ?>" class="btn btn-warning btn-sm">
-                            <i class="fas fa-list"></i> Lihat Semua
+                            <i class="fas fa-list"></i> <?= lang_line('exv_btn_see_all', 'Lihat Semua'); ?>
                         </a>
                     </div>
                 </div>
@@ -286,26 +286,26 @@
             <div class="card shadow">
                 <div class="card-header py-3">
                     <h6 class="m-0 font-weight-bold text-primary">
-                        <i class="fas fa-chart-bar"></i> Detail Pengeluaran Berdasarkan Tipe
+                        <i class="fas fa-chart-bar"></i> <?= lang_line('exv_breakdown_title', 'Detail Pengeluaran Berdasarkan Tipe'); ?>
                     </h6>
                 </div>
                 <div class="card-body">
                     <div class="row">
                         <?php foreach($outgoing_stats['by_type'] as $type => $stats): ?>
-                            <?php 
+                            <?php
                                 $type_label = '';
                                 $type_icon = '';
                                 $type_color = '';
                                 if($type == 'FG_OUT') {
-                                    $type_label = 'FG Delivery';
+                                    $type_label = lang_line('exv_type_fg_delivery', 'FG Delivery');
                                     $type_icon = 'fa-truck-loading';
                                     $type_color = 'info';
                                 } elseif($type == 'SCRAP_OUT') {
-                                    $type_label = 'Scrap Out';
+                                    $type_label = lang_line('exv_type_scrap_out', 'Scrap Out');
                                     $type_icon = 'fa-recycle';
                                     $type_color = 'secondary';
                                 } elseif($type == 'SUBKON_OUT') {
-                                    $type_label = 'Subkon Out';
+                                    $type_label = lang_line('exv_type_subkon_out', 'Subkon Out');
                                     $type_icon = 'fa-industry';
                                     $type_color = 'primary';
                                 }
@@ -327,7 +327,7 @@
                                                     </div>
                                                 </div>
                                                 <small class="text-muted">
-                                                    Total: <?= $stats['total']; ?> dokumen
+                                                    <?= sprintf(lang_line('exv_total_docs_fmt', 'Total: %d dokumen'), $stats['total']); ?>
                                                 </small>
                                             </div>
                                             <div class="col-auto">
@@ -352,17 +352,17 @@
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
                             <div class="text-xs font-weight-bold text-success text-uppercase mb-1">
-                                Verifikasi Pemasukan Barang
+                                <?= lang_line('exv_quick_in_title', 'Verifikasi Pemasukan Barang'); ?>
                             </div>
                             <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                GRN / Penerimaan Barang
+                                <?= lang_line('exv_quick_in_subtitle', 'GRN / Penerimaan Barang'); ?>
                             </div>
                             <div class="mt-3">
                                 <p class="text-muted small mb-2">
-                                    <i class="fas fa-info-circle"></i> Verifikasi dokumen penerimaan barang dari supplier sebelum masuk ke laporan IT Inventory
+                                    <i class="fas fa-info-circle"></i> <?= lang_line('exv_quick_in_desc', 'Verifikasi dokumen penerimaan barang dari supplier sebelum masuk ke laporan IT Inventory'); ?>
                                 </p>
                                 <a href="<?= site_url('exim_verification/incoming'); ?>" class="btn btn-success btn-sm">
-                                    <i class="fas fa-arrow-right"></i> Ke Verifikasi Pemasukan
+                                    <i class="fas fa-arrow-right"></i> <?= lang_line('exv_btn_go_in', 'Ke Verifikasi Pemasukan'); ?>
                                 </a>
                             </div>
                         </div>
@@ -380,17 +380,17 @@
                     <div class="row no-gutters align-items-center">
                         <div class="col mr-2">
                             <div class="text-xs font-weight-bold text-warning text-uppercase mb-1">
-                                Verifikasi Pengeluaran Barang
+                                <?= lang_line('exv_quick_out_title', 'Verifikasi Pengeluaran Barang'); ?>
                             </div>
                             <div class="h5 mb-0 font-weight-bold text-gray-800">
-                                FG Out / Scrap Out / Subkon Out
+                                <?= lang_line('exv_quick_out_subtitle', 'FG Out / Scrap Out / Subkon Out'); ?>
                             </div>
                             <div class="mt-3">
                                 <p class="text-muted small mb-2">
-                                    <i class="fas fa-info-circle"></i> Verifikasi dokumen pengeluaran barang sebelum masuk ke laporan IT Inventory
+                                    <i class="fas fa-info-circle"></i> <?= lang_line('exv_quick_out_desc', 'Verifikasi dokumen pengeluaran barang sebelum masuk ke laporan IT Inventory'); ?>
                                 </p>
                                 <a href="<?= site_url('exim_verification/outgoing'); ?>" class="btn btn-warning btn-sm">
-                                    <i class="fas fa-arrow-right"></i> Ke Verifikasi Pengeluaran
+                                    <i class="fas fa-arrow-right"></i> <?= lang_line('exv_btn_go_out', 'Ke Verifikasi Pengeluaran'); ?>
                                 </a>
                             </div>
                         </div>
@@ -406,38 +406,35 @@
     <!-- Information Card -->
     <div class="card shadow mb-4">
         <div class="card-header py-3">
-            <h6 class="m-0 font-weight-bold text-primary">Informasi EXIM Verification</h6>
+            <h6 class="m-0 font-weight-bold text-primary"><?= lang_line('exv_info_title', 'Informasi EXIM Verification'); ?></h6>
         </div>
         <div class="card-body">
-            <h5><i class="fas fa-question-circle text-info"></i> Apa itu EXIM Verification?</h5>
-            <p>
-                EXIM Verification adalah proses verifikasi dokumen transaksi pemasukan dan pengeluaran barang 
-                sebelum data tersebut muncul di laporan IT Inventory. Tujuannya adalah untuk memastikan:
-            </p>
+            <h5><i class="fas fa-question-circle text-info"></i> <?= lang_line('exv_info_what_title', 'Apa itu EXIM Verification?'); ?></h5>
+            <p><?= lang_line('exv_info_what_desc', 'EXIM Verification adalah proses verifikasi dokumen transaksi pemasukan dan pengeluaran barang sebelum data tersebut muncul di laporan IT Inventory. Tujuannya adalah untuk memastikan:'); ?></p>
             <ul>
-                <li>Data BC (Bea Cukai) lengkap dan valid</li>
-                <li>Dokumen sudah sesuai dengan regulasi ekspor-impor</li>
-                <li>Transaksi telah diotorisasi oleh pihak yang berwenang</li>
+                <li><?= lang_line('exv_info_point1', 'Data BC (Bea Cukai) lengkap dan valid'); ?></li>
+                <li><?= lang_line('exv_info_point2', 'Dokumen sudah sesuai dengan regulasi ekspor-impor'); ?></li>
+                <li><?= lang_line('exv_info_point3', 'Transaksi telah diotorisasi oleh pihak yang berwenang'); ?></li>
             </ul>
 
-            <h5 class="mt-4"><i class="fas fa-tasks text-success"></i> Alur Proses</h5>
+            <h5 class="mt-4"><i class="fas fa-tasks text-success"></i> <?= lang_line('exv_flow_title', 'Alur Proses'); ?></h5>
             <div class="row">
                 <div class="col-md-6">
-                    <h6 class="text-success">Pemasukan Barang:</h6>
+                    <h6 class="text-success"><?= lang_line('exv_flow_in_title', 'Pemasukan Barang:'); ?></h6>
                     <ol>
-                        <li>Transaksi GRN dibuat dan di-post</li>
-                        <li>Muncul di menu <strong>EXIM Verification - Pemasukan</strong></li>
-                        <li>Petugas EXIM melakukan verifikasi</li>
-                        <li>Setelah diverifikasi, data masuk ke <strong>Laporan Pemasukan Barang (IT Inventory)</strong></li>
+                        <li><?= lang_line('exv_flow_in_s1', 'Transaksi GRN dibuat dan di-post'); ?></li>
+                        <li><?= lang_line('exv_flow_in_s2', 'Muncul di menu <strong>EXIM Verification - Pemasukan</strong>'); ?></li>
+                        <li><?= lang_line('exv_flow_in_s3', 'Petugas EXIM melakukan verifikasi'); ?></li>
+                        <li><?= lang_line('exv_flow_in_s4', 'Setelah diverifikasi, data masuk ke <strong>Laporan Pemasukan Barang (IT Inventory)</strong>'); ?></li>
                     </ol>
                 </div>
                 <div class="col-md-6">
-                    <h6 class="text-warning">Pengeluaran Barang:</h6>
+                    <h6 class="text-warning"><?= lang_line('exv_flow_out_title', 'Pengeluaran Barang:'); ?></h6>
                     <ol>
-                        <li>Transaksi FG Out / Scrap Out / Subkon Out dibuat dan di-post</li>
-                        <li>Muncul di menu <strong>EXIM Verification - Pengeluaran</strong></li>
-                        <li>Petugas EXIM melakukan verifikasi</li>
-                        <li>Setelah diverifikasi, data masuk ke <strong>Laporan Pengeluaran Barang (IT Inventory)</strong></li>
+                        <li><?= lang_line('exv_flow_out_s1', 'Transaksi FG Out / Scrap Out / Subkon Out dibuat dan di-post'); ?></li>
+                        <li><?= lang_line('exv_flow_out_s2', 'Muncul di menu <strong>EXIM Verification - Pengeluaran</strong>'); ?></li>
+                        <li><?= lang_line('exv_flow_out_s3', 'Petugas EXIM melakukan verifikasi'); ?></li>
+                        <li><?= lang_line('exv_flow_out_s4', 'Setelah diverifikasi, data masuk ke <strong>Laporan Pengeluaran Barang (IT Inventory)</strong>'); ?></li>
                     </ol>
                 </div>
             </div>
@@ -481,7 +478,7 @@
 
 .badge-soft-primary {
     background-color: rgba(78, 115, 223, 0.1);
-    color: #4e73df;
+    color: var(--brand-1);
     font-size: 0.875rem;
 }
 

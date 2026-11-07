@@ -13,7 +13,7 @@ class Stock_ledger extends MY_Controller {
     private $item_types = [
         'material' => 'Material',
         'machine' => 'Machine', // Sesuaikan label jika perlu
-        'inventory' => 'Inventory',
+        'inventory' => 'HRGA',
         'semifinished' => 'Semifinished Goods', // Sesuaikan label
         'finished' => 'Finished Goods' // Tambahkan jika ada
         // Tambahkan tipe lain jika ada
@@ -68,7 +68,7 @@ class Stock_ledger extends MY_Controller {
 
         // --- Get Data ---
         $data = [
-            'title'        => 'Laporan Ringkasan Stok Barang',
+            'title'        => lang_line('page_stock_ledger_title'),
             'report'       => $report_data, // Kirim SEMUA data
             'filters'      => $filters, // Kirim filter ke view untuk ditampilkan
             'selected_month' => $month, // Untuk nilai default dropdown bulan
@@ -119,7 +119,13 @@ class Stock_ledger extends MY_Controller {
             
             -- Info Adjustment
             ah.doc_no as adjustment_doc,
-            ah.notes as adjustment_notes
+            ah.notes as adjustment_notes,
+
+            -- Info QA Sampling
+            qash.doc_no as qa_sampling_doc_no,
+            qash.purpose as qa_sampling_purpose,
+            qa_user.fullname as qa_requester_name,
+            qash.requester_dept as qa_requester_dept
         ";
 
         $this->db->select($select_clause, FALSE);
@@ -149,8 +155,8 @@ class Stock_ledger extends MY_Controller {
         $report_data = $this->Stock_ledger_model->get_stock_summary_report($filters, 0, 0);
         $this->db->join('mr_header mr_h', 'sl.transaction_id = mr_h.id AND sl.transaction_type IN ("OUT_ISSUE", "production_out")', 'left'); 
 
-        // Pemasukan Scrap (dari Produksi via Scrap In)
-        $this->db->join('scrap_in_header sih', 'sl.transaction_id = sih.id AND sl.transaction_type = "IN_SCRAP_WH"', 'left');
+        // Pemasukan Scrap (dari Produksi via Scrap In) DAN NG warehouse (kerusakan material)
+        $this->db->join('scrap_in_header sih', 'sl.transaction_id = sih.id AND sl.transaction_type IN ("IN_SCRAP_WH", "NG")', 'left');
         $this->db->join('scrap_in_detail sid', 'sid.header_id = sih.id AND sid.scrap_id = sl.item_id', 'left'); 
         $this->db->join('scrap_in_detail_sources sds', 'sds.scrap_in_detail_id = sid.id', 'left');
         $this->db->join('production_outputs prod_out', 'sds.production_output_id = prod_out.id', 'left');
@@ -163,6 +169,10 @@ class Stock_ledger extends MY_Controller {
         // Adjustment (IN/OUT)
         $this->db->join('adjustment_details ad', 'sl.transaction_id = ad.id AND sl.transaction_type = "adjustment"', 'left');
         $this->db->join('adjustment_header ah', 'ad.adjustment_header_id = ah.id', 'left');
+
+        // QA Sampling (sample diambil QA dari warehouse)
+        $this->db->join('qa_sampling_header qash', 'sl.source_doc_id = qash.id AND sl.transaction_type = "OUT_QA_SAMPLE"', 'left');
+        $this->db->join('users qa_user', 'qa_user.id = qash.requester_id', 'left');
         
         // --- FILTER ---
         $this->db->where('sl.item_id', $item_id);
@@ -180,7 +190,9 @@ class Stock_ledger extends MY_Controller {
             'OUT_SCRAP_BC',     // Scrap Keluar Gudang
             'ADJ_OUT',          // Adjustment Keluar
             'IN_SCRAP_WH',       // Scrap Masuk ke Gudang
-            'OUT_CONSUMABLE'    // Pengeluaran Barang Habis Pakai
+            'OUT_CONSUMABLE',   // Pengeluaran Barang Habis Pakai
+            'NG',               // Barang Rusak/NG dari Warehouse → Scrap In
+            'OUT_QA_SAMPLE'     // Sample diambil QA dari Warehouse
         ];
         $this->db->where_in('sl.transaction_type', $warehouse_tx_types);
         
@@ -281,10 +293,21 @@ class Stock_ledger extends MY_Controller {
                     <th class="text-nowrap">Saldo Akhir</th>
                   </tr></thead><tbody>';
 
+        // Saldo sebelum periode filter. Dulu selalu dimulai 0, jadi kolom Saldo
+        // Akhir di modal ini tidak pernah cocok dengan Stok Akhir di daftar
+        // (user 2026-09-21: "kenapa opening balance nya selalu 0?").
+        $opening = $this->Stock_ledger_model->get_opening_stock($item_id, $item_type, $start_date);
+        $html .= '<tr class="table-secondary font-weight-bold">'
+               . '<td colspan="7" class="text-right">Saldo Awal (sebelum ' . date('d/m/Y', strtotime($start_date)) . ')</td>'
+               . '<td class="text-right">' . number_format($opening, 2, ',', '.') . '</td>'
+               . '</tr>';
+
         if (!empty($history)) {
-            $running_balance = 0; // Hitung ulang balance hanya dari warehouse transactions
+            $running_balance = $opening; // lanjut dari saldo awal, bukan dari 0
             foreach ($history as &$row) {
-                // Hitung balance hanya dari warehouse transactions (bukan WIP)
+                // Stok Awal MENAMBAH saldo seperti pemasukan lain — lihat
+                // catatan panjang di Initial_stock_model (dulu menimpa saldo,
+                // sudah diperbaiki untuk entri baru).
                 $running_balance = (float)$running_balance + (float)$row['qty_in'] - (float)$row['qty_out'];
                 $row['balance'] = $running_balance; // Override balance dengan kalkulasi ulang
                 
@@ -296,7 +319,8 @@ class Stock_ledger extends MY_Controller {
                 $type = $row['transaction_type'];
 
                 if ($type == 'in') {
-                    $main_ref = $row['grn_number'] ?? '-';
+                    // Display PO/MIR number if available, fallback to GRN number
+                    $main_ref = $row['po_number'] ?? $row['mir_number'] ?? $row['grn_number'] ?? '-';
                     $partner_info = $row['nama_supplier'] ?? '-';
                     // Prefer BC info coming from the ledger row itself if present
                     if (!empty($row['sl_bc_no'])) {
@@ -313,6 +337,9 @@ class Stock_ledger extends MY_Controller {
                 } elseif ($type == 'IN_SCRAP_WH') {
                      $main_ref = $row['scrap_in_doc_no'] ?? '-';
                      $partner_info = 'Produksi (Scrap)';
+                } elseif ($type == 'NG') {
+                     $main_ref = $row['scrap_in_doc_no'] ?? '-';
+                     $partner_info = 'Scrap NG (Warehouse)';
                 } elseif ($type == 'OUT_SCRAP_BC') {
                     $main_ref = $row['scrap_out_doc_no'] ?? '-';
                     if ($row['scrap_out_bc_no']) {
@@ -326,7 +353,15 @@ class Stock_ledger extends MY_Controller {
                     $partner_info = $row['adjustment_notes'] ?? '-';
                 } else if ($type == 'OUT_CONSUMABLE') {
                     $main_ref = $row['consumable_out_doc_no'] ?? '-';
-                    $partner_info = '-';
+                    $partner_info = $row['consumable_requestor_name'] ?? '-';
+                } else if ($type == 'OUT_QA_SAMPLE') {
+                    $main_ref = $row['qa_sampling_doc_no'] ?? '-';
+                    $requester = $row['qa_requester_name'] ?? '-';
+                    $dept = $row['qa_requester_dept'] ?? '';
+                    $partner_info = 'QA' . ($dept ? ' ('.$dept.')' : '') . ' - ' . $requester;
+                    if (!empty($row['qa_sampling_purpose'])) {
+                        $bc_info = $row['qa_sampling_purpose'];
+                    }
                 } else if ($type == 'RTN_SUPPLIER') {
                     $main_ref = $row['rtn_out_number'] ?? ($row['grn_number'] ?? '-');
                     // Partner: try ledger supplier (from GRN source), then fallback to other joins
@@ -371,6 +406,47 @@ class Stock_ledger extends MY_Controller {
     /**
      * Fungsi Export PDF (Mengambil semua data)
      */
+    /**
+     * Label gudang untuk judul laporan.
+     *
+     * `warehouse_type` boleh berupa STRING atau ARRAY: model memang sudah
+     * mendukung multi-pilih lewat where_in() sejak awal (lihat
+     * Stock_ledger_model::get_stock_summary_report()), sementara kode label di
+     * sini dulu langsung memakainya sebagai kunci array.
+     *
+     * Bug 2026-09-24: begitu filter datang sebagai array, PHP 8 melempar
+     * TypeError "Illegal offset type" dan halaman export mati total. Operator
+     * ?? TIDAK menolong, karena yang tidak sah justru kuncinya sendiri.
+     */
+    private function _warehouse_label($warehouse_type) {
+        if (empty($warehouse_type)) return 'Semua Gudang';
+
+        $labels = [];
+        foreach ((is_array($warehouse_type) ? $warehouse_type : [$warehouse_type]) as $type) {
+            if (!is_scalar($type) || $type === '') continue;
+            $type = (string) $type;
+            $labels[] = $this->item_types[$type] ?? ucfirst($type);
+        }
+        return $labels ? implode(', ', $labels) : 'Semua Gudang';
+    }
+
+    /**
+     * Potongan nama berkas dari filter gudang (sudah termasuk garis bawah
+     * penutup, atau string kosong kalau tidak difilter). Aman untuk string
+     * maupun array -- str_replace() atas array balikannya juga array, yang
+     * dulu bikin nama berkas kacau.
+     */
+    private function _warehouse_filename_part($warehouse_type) {
+        if (empty($warehouse_type)) return '';
+
+        $parts = [];
+        foreach ((is_array($warehouse_type) ? $warehouse_type : [$warehouse_type]) as $type) {
+            if (!is_scalar($type) || $type === '') continue;
+            $parts[] = preg_replace('/[^A-Za-z0-9]+/', '_', (string) $type);
+        }
+        return $parts ? implode('_', $parts) . '_' : '';
+    }
+
     public function export_pdf() {
        // Pastikan user sudah login
        if (!$this->session->userdata('user_id')) {
@@ -393,7 +469,7 @@ class Stock_ledger extends MY_Controller {
        $data = [
            'report' => $report_data,
            'periode' => date('F Y', strtotime($start_date)),
-           'warehouse_type_label' => $warehouse_type ? ($this->item_types[$warehouse_type] ?? ucfirst($warehouse_type)) : 'Semua Gudang', // Gunakan array item_types
+           'warehouse_type_label' => $this->_warehouse_label($warehouse_type),
            'search' => $search,
            'filters' => $filters // Kirim filter lengkap jika perlu ditampilkan di PDF
        ];
@@ -407,7 +483,7 @@ class Stock_ledger extends MY_Controller {
            $dompdf->loadHtml($html);
            $dompdf->setPaper('A4', 'landscape'); // Landscape karena tabel lebar
            $dompdf->render();
-           $filename = "Laporan_Stok_".($warehouse_type ? str_replace(' ', '_', $warehouse_type).'_' : '').date('M_Y', strtotime($start_date)).".pdf"; // Nama file lebih deskriptif
+           $filename = "Laporan_Stok_".$this->_warehouse_filename_part($warehouse_type).date('M_Y', strtotime($start_date)).".pdf"; // Nama file lebih deskriptif
            $dompdf->stream($filename, ["Attachment" => 0]); // 0 = preview
            exit; // Hentikan eksekusi setelah stream
        } catch (Exception $e) {
@@ -446,7 +522,7 @@ class Stock_ledger extends MY_Controller {
             // --- Header Laporan ---
             $sheet->setCellValue('A1', 'LAPORAN RINGKASAN STOK BARANG'); $sheet->mergeCells('A1:I1');
             $sheet->setCellValue('A2', 'Periode: ' . $periode); $sheet->mergeCells('A2:I2');
-            $warehouse_label = $warehouse_type ? ($this->item_types[$warehouse_type] ?? ucfirst($warehouse_type)) : 'Semua Gudang';
+            $warehouse_label = $this->_warehouse_label($warehouse_type);
             $sheet->setCellValue('A3', 'Gudang: ' . $warehouse_label); $sheet->mergeCells('A3:I3');
             if ($search) {
                 $sheet->setCellValue('A4', 'Pencarian: ' . $search); $sheet->mergeCells('A4:I4');
@@ -498,7 +574,7 @@ class Stock_ledger extends MY_Controller {
 
             // --- Output File ---
             $writer = new Xlsx($spreadsheet);
-            $filename = 'Laporan_Stok_'.($warehouse_type ? str_replace(' ', '_', $warehouse_type).'_' : '').date('My', strtotime($start_date)).'.xlsx';
+            $filename = 'Laporan_Stok_'.$this->_warehouse_filename_part($warehouse_type).date('My', strtotime($start_date)).'.xlsx';
             header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
             header('Content-Disposition: attachment;filename="'. $filename.'"');
             header('Cache-Control: max-age=0');

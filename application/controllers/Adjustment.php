@@ -25,7 +25,7 @@ class Adjustment extends MY_Controller {
     // Halaman Utama: Daftar Dokumen Adjustment
     public function index()
     {
-        $data['title'] = 'Penyesuaian Stok (Adjustment)';
+        $data['title'] = lang_line('title_adj_index');
         $data['adjustments'] = $this->model->get_all_headers();
         
         $this->load->view('templates/header', $data);
@@ -38,7 +38,7 @@ class Adjustment extends MY_Controller {
     // Halaman Buat Dokumen Baru
     public function create()
     {
-        $data['title'] = 'Buat Dokumen Penyesuaian Stok';
+        $data['title'] = lang_line('title_adj_create');
         $data['doc_no'] = $this->model->get_new_doc_number(); 
         
         $this->load->view('templates/header', $data);
@@ -61,7 +61,7 @@ class Adjustment extends MY_Controller {
 
         if ($this->form_validation->run() == FALSE) {
             // Muat ulang view create jika validasi gagal
-            $data['title'] = 'Buat Dokumen Penyesuaian Stok';
+            $data['title'] = lang_line('title_adj_create');
             $data['doc_no'] = $this->input->post('doc_no'); // Ambil dari post agar tidak hilang
             
             $this->load->view('templates/header', $data);
@@ -70,12 +70,14 @@ class Adjustment extends MY_Controller {
             $this->load->view('adjustment/create', $data);
             $this->load->view('templates/footer');
         } else {
+            $grn_id_post = (int)$this->input->post('grn_id');
             $header = [
-                'doc_no' => $this->input->post('doc_no'),
-                'doc_date' => $this->input->post('doc_date'),
-                'notes' => $this->input->post('notes'),
-                'created_by' => $this->session->userdata('user_id'), 
-                'status' => 'Draft'
+                'doc_no'         => $this->input->post('doc_no'),
+                'doc_date'       => $this->input->post('doc_date'),
+                'notes'          => $this->input->post('notes'),
+                'grn_header_id'  => $grn_id_post > 0 ? $grn_id_post : null,
+                'created_by'     => $this->session->userdata('user_id'),
+                'status'         => 'Draft'
             ];
             $details = $this->input->post('details');
 
@@ -99,7 +101,7 @@ class Adjustment extends MY_Controller {
             show_404();
         }
         
-        $data['title'] = 'View Penyesuaian Stok: ' . $data['header']->doc_no;
+        $data['title'] = sprintf(lang_line('title_adj_view'), $data['header']->doc_no);
         $data['details'] = $this->model->get_details_by_header_id($id);
         
         $this->load->view('templates/header', $data);
@@ -118,9 +120,15 @@ class Adjustment extends MY_Controller {
             redirect('adjustment/view/' . $id);
         }
         
-        $data['title'] = 'Edit Penyesuaian Stok: ' . $header->doc_no;
+        $data['title'] = sprintf(lang_line('title_adj_edit'), $header->doc_no);
         $data['header'] = $header;
         $data['details'] = $this->model->get_details_by_header_id($id);
+
+        // Load info GRN yang sudah dikaitkan (untuk ditampilkan di Select2)
+        $data['grn_info'] = null;
+        if (!empty($header->grn_header_id)) {
+            $data['grn_info'] = $this->model->get_grn_info_for_select($header->grn_header_id);
+        }
         
         $data['form_data'] = [];
         foreach ($data['details'] as $i => $detail) {
@@ -148,11 +156,13 @@ class Adjustment extends MY_Controller {
         if ($this->form_validation->run() == FALSE) {
             $this->edit($id); // Kembali ke form edit jika validasi gagal
         } else {
+            $grn_id_upd = (int)$this->input->post('grn_id');
             $header_data = [
-                'doc_date' => $this->input->post('doc_date'),
-                'notes' => $this->input->post('notes'),
-                'updated_at' => date('Y-m-d H:i:s'),
-                'updated_by' => $this->session->userdata('user_id')
+                'doc_date'      => $this->input->post('doc_date'),
+                'notes'         => $this->input->post('notes'),
+                'grn_header_id' => $grn_id_upd > 0 ? $grn_id_upd : null,
+                'updated_at'    => date('Y-m-d H:i:s'),
+                'updated_by'    => $this->session->userdata('user_id')
             ];
             $details_data = $this->input->post('details');
             

@@ -91,7 +91,7 @@
                 <div class="row"><div class="label">Planned Qty</div><div class="value"><?= number_format($header->planned_qty ?? 0, 4); ?> <?= htmlspecialchars($header->fg_uom ?? ''); ?></div></div>
             </div>
             <div class="box">
-                <div class="row"><div class="label">Sales Contract</div><div class="value"><?= htmlspecialchars($header->sc_number ?? '-'); ?></div></div>
+                <div class="row"><div class="label">Sales Order Number</div><div class="value"><?= htmlspecialchars($header->sc_number ?? '-'); ?></div></div>
                 <div class="row"><div class="label">Status</div><div class="value"><?= htmlspecialchars($header->status ?? '-'); ?></div></div>
                 <div class="row"><div class="label">Remarks</div><div class="value" style="font-weight:400; width:60%; text-align:right;"><?= nl2br(htmlspecialchars($header->remarks ?? '-')); ?></div></div>
             </div>

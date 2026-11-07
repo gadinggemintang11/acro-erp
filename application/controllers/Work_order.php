@@ -42,7 +42,7 @@ class Work_order extends MY_Controller {
         $this->pagination->initialize($config);
         
         $data = [
-            'title'      => 'Work Order (Production Plan)',
+            'title'      => lang_line('title_wo_index'),
             'wos'        => $this->Wo_model->get_all($filters, $per_page, $offset),
             'filters'    => $filters,
             'pagination' => $this->pagination->create_links(),
@@ -65,7 +65,7 @@ class Work_order extends MY_Controller {
         if (!$header) show_404();
 
         $data = [
-            'title'             => 'Detail Work Order',
+            'title'             => lang_line('title_wo_detail'),
             'header'            => $header,
             'planned_materials' => $this->Wo_model->get_planned_materials($id),
             'bom_components'    => $this->Wo_model->get_bom_components_by_fg($header->fg_id)
@@ -153,6 +153,34 @@ class Work_order extends MY_Controller {
         redirect('work_order/detail/' . $wo_header_id);
     }
 
+    public function update_material() {
+        if (!$this->input->is_ajax_request() || !check_access('work_order', 'edit')) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => 'Unauthorized']);
+            return;
+        }
+
+        $wo_id = $this->input->post('wo_id');
+        $detail_id = $this->input->post('detail_id');
+        $planned_qty = (float)$this->input->post('planned_qty');
+
+        if (empty($wo_id) || empty($detail_id) || $planned_qty <= 0) {
+            header('Content-Type: application/json');
+            echo json_encode(['success' => false, 'message' => 'Invalid input']);
+            return;
+        }
+
+        $data = ['planned_qty' => $planned_qty];
+        $update_result = $this->Wo_model->update_material($detail_id, $data);
+
+        header('Content-Type: application/json');
+        if ($update_result) {
+            echo json_encode(['success' => true, 'message' => 'Material quantity updated successfully']);
+        } else {
+            echo json_encode(['success' => false, 'message' => 'Failed to update material']);
+        }
+    }
+
     public function delete_wo($id) {
         if (!check_access('work_order', 'delete')) { show_error('Tidak ada izin.', 403); }
         $header = $this->Wo_model->get_header_by_id($id);
@@ -173,6 +201,13 @@ class Work_order extends MY_Controller {
     /**
      * ✅ FIX: Mengganti nama fungsi AJAX dan memperbaiki teks output
      */
+    /**
+     * TIDAK DIPAKAI LAGI sejak modal "Pilih dari Daftar IPO" (2026-09-30):
+     * form Buat WO dulu memakai select2 yang menembak endpoint ini sambil user
+     * mengetik. Digantikan ajax_open_ipo_list() yang menampilkan seluruh IPO
+     * Open beserta sisa qty & status BOM-nya. Dibiarkan ada (tidak dihapus)
+     * kalau-kalau masih ada pemanggil di luar repo ini.
+     */
     public function ajax_search_open_sc() {
         $term = $this->input->get('q');
         $contracts = $this->Wo_model->search_open_sales_contracts($term);
@@ -185,6 +220,46 @@ class Work_order extends MY_Controller {
         }
         header('Content-Type: application/json');
         echo json_encode(['results' => $results]);
+    }
+
+    /**
+     * Isi modal "Pilih dari Daftar IPO" pada form Buat Work Order.
+     * Mengembalikan SELURUH IPO Open (tidak dipotong limit seperti select2),
+     * lengkap dengan qty yang sudah tertutup WO, sisa, dan ada/tidaknya BOM.
+     */
+    public function ajax_open_ipo_list() {
+        header('Content-Type: application/json');
+
+        if (!check_access('work_order', 'add')) {
+            echo json_encode(['success' => false, 'message' => 'Tidak ada izin.']);
+            return;
+        }
+
+        $rows = $this->Wo_model->get_open_sales_contracts_for_wo([
+            'search'    => trim((string) $this->input->get('search', TRUE)),
+            'date_from' => $this->input->get('date_from') ?: null,
+            'date_to'   => $this->input->get('date_to') ?: null,
+        ]);
+
+        $out = [];
+        foreach ($rows as $r) {
+            $out[] = [
+                'id'            => (int) $r->id,
+                'sc_number'     => $r->sc_number,
+                'contract_date' => $r->contract_date,
+                'customer_name' => $r->customer_name,
+                'fg_code'       => $r->fg_code,
+                'fg_name'       => $r->fg_name,
+                'fg_unit'       => $r->fg_unit,
+                'po_qty'        => (float) $r->po_qty,
+                'qty_on_wo'     => (float) $r->qty_on_wo,
+                'qty_left'      => (float) $r->qty_left,
+                'wo_count'      => (int) $r->wo_count,
+                'has_bom'       => ((int) $r->has_bom) > 0,
+            ];
+        }
+
+        echo json_encode(['success' => true, 'rows' => $out]);
     }
 
     public function ajax_get_sc_details() {
@@ -209,15 +284,27 @@ class Work_order extends MY_Controller {
     }
 
     /**
-     * ✅ NEW: AJAX untuk preview BOM materials & auto-populate option
+     * Isi modal "Load from BOM" di halaman detail Work Order.
+     *
+     * Dulu hanya mengembalikan angka yang sudah diformat untuk ditampilkan.
+     * Sekarang mengirim angka mentah supaya qty-nya bisa diubah user, plus
+     * stok tersedia dan qty yang sudah ada di WO ini.
      */
     public function ajax_get_bom_preview() {
-        $fg_id = $this->input->get('fg_id');
-        $planned_qty = (float)$this->input->get('planned_qty', 0);
+        header('Content-Type: application/json');
 
-        $bom_components = $this->Wo_model->get_bom_components_by_fg($fg_id);
-        
-        if(empty($bom_components)) {
+        if (!check_access('work_order', 'view')) {
+            echo json_encode(['success' => false, 'message' => 'Tidak ada izin.']);
+            return;
+        }
+
+        $wo_id       = (int) $this->input->get('wo_id');
+        $fg_id       = (int) $this->input->get('fg_id');
+        $planned_qty = (float) $this->input->get('planned_qty');
+
+        $rows = $this->Wo_model->get_bom_rows_for_wo($fg_id, $planned_qty, $wo_id ?: null);
+
+        if (empty($rows)) {
             echo json_encode([
                 'success' => false,
                 'message' => 'Tidak ada BOM aktif untuk Finished Good ini'
@@ -225,25 +312,77 @@ class Work_order extends MY_Controller {
             return;
         }
 
-        // Hitung kebutuhan material
-        $materials = [];
-        foreach($bom_components as $comp) {
-            $calculated_qty = $planned_qty * $comp->quantity_required;
-            $materials[] = [
-                'item_code' => $comp->item_code,
-                'item_name' => $comp->item_name,
-                'item_type' => $comp->item_type,
-                'qty_per_fg' => number_format($comp->quantity_required, 4),
-                'total_qty' => number_format($calculated_qty, 4),
-                'unit_measure' => $comp->unit_measure
+        $out = [];
+        foreach ($rows as $r) {
+            $out[] = [
+                'item_id'       => $r->component_item_id,
+                'item_type'     => $r->component_item_type,
+                'item_code'     => $r->item_code,
+                'item_name'     => $r->item_name,
+                'unit_measure'  => $r->unit_measure,
+                'qty_per_fg'    => (float) $r->qty_per_fg,
+                'suggested_qty' => (float) $r->suggested_qty,
+                'already_qty'   => (float) $r->already_qty,
+                'stock_qty'     => (float) $r->stock_qty,
             ];
         }
 
         echo json_encode([
-            'success' => true,
-            'bom_count' => count($bom_components),
-            'materials' => $materials
+            'success'     => true,
+            'bom_count'   => count($out),
+            'planned_qty' => $planned_qty,
+            'materials'   => $out,
         ]);
+    }
+
+    /**
+     * Simpan material yang DIPILIH di modal "Load from BOM".
+     * POST: items[] => [{item_id, item_type, qty}, ...]
+     *
+     * Menggantikan ajax_auto_populate_materials() yang menarik seluruh BOM
+     * sekaligus tanpa bisa dipilih. Komponen yang sudah ada di WO dilewati,
+     * jadi modal boleh dibuka berkali-kali untuk menarik sisanya.
+     */
+    public function ajax_add_materials_from_bom() {
+        header('Content-Type: application/json');
+
+        if (!check_access('work_order', 'edit')) {
+            echo json_encode(['success' => false, 'message' => 'Tidak ada izin.']);
+            return;
+        }
+
+        $wo_id  = (int) $this->input->post('wo_id');
+        $header = $this->Wo_model->get_header_by_id($wo_id);
+
+        if (!$header || $header->status != 'Planned') {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Work Order tidak ditemukan atau status bukan Planned'
+            ]);
+            return;
+        }
+
+        $items = $this->input->post('items');
+        if (empty($items) || !is_array($items)) {
+            echo json_encode(['success' => false, 'message' => 'Tidak ada material yang dipilih.']);
+            return;
+        }
+
+        $res = $this->Wo_model->add_materials_from_bom($wo_id, $items);
+
+        if ($res['inserted'] === 0) {
+            echo json_encode([
+                'success' => false,
+                'message' => 'Tidak ada material yang ditambahkan (qty 0 atau semuanya sudah ada di WO ini).'
+            ]);
+            return;
+        }
+
+        $msg = $res['inserted'] . ' material ditambahkan dari BOM.';
+        if ($res['skipped'] > 0) {
+            $msg .= ' ' . $res['skipped'] . ' dilewati karena qty 0 atau sudah ada di WO ini.';
+        }
+        echo json_encode(['success' => true, 'message' => $msg]);
     }
 
     /**
@@ -307,7 +446,7 @@ class Work_order extends MY_Controller {
         $dompdf->stream($filename, ["Attachment" => 0]);
     }
     public function confirm_wo($id) {
-        if (!check_access('work_order', 'edit')) { show_error('Tidak ada izin.', 403); }
+        if (!check_access('work_order', 'confirm')) { show_error('Tidak ada izin.', 403); }
         $header = $this->Wo_model->get_header_by_id($id);
         if (!$header || $header->status != 'Planned') { redirect('work_order/detail/' . $id); }
         

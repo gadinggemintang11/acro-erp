@@ -176,7 +176,7 @@ $(document).ready(function() {
 
         if (itemType === 'material') {
             $batchGroup.show();
-            $batchSelect.prop('required', true).prop('disabled', true).html('<option value="">Memuat batch...</option>');
+            $batchSelect.prop('required', true).prop('disabled', true).html('<option value=""><?= lang_line('subkon_out_loading_batch'); ?></option>');
             
             // Panggil AJAX untuk ambil batch
             $.ajax({

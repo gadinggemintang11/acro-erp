@@ -127,24 +127,87 @@ class LapPengeluaranBarang_model extends CI_Model {
             " . $this->_build_tx_type_where($filters) . "
             " . $this->_build_search_where($filters) . "
 
-            AND DATE(COALESCE(fdh.bc_date, soh.bc_date, sout.bc_date, sl.transaction_date)) >= ? 
+            AND DATE(COALESCE(fdh.bc_date, soh.bc_date, sout.bc_date, sl.transaction_date)) >= ?
             AND DATE(COALESCE(fdh.bc_date, soh.bc_date, sout.bc_date, sl.transaction_date)) <= ?
         ";
-        
+
+        // === UNION: NG QA Return & Production Return dari warehouse_out_header langsung ===
+        // Why: dua tipe ini tidak punya row di stock_ledger (skip ledger di Warehouse_out::do_confirm)
+        // tapi tetap perlu muncul di laporan BC pengeluaran untuk Kawasan Berikat.
+        $sql .= "
+            UNION ALL
+            SELECT
+                NULL AS ledger_id,
+                wh2.out_date AS transaction_date,
+                wod2.qty_return AS jumlah,
+                wod2.unit_value_idr AS unit_value,
+                wod2.item_type AS item_type,
+                'RTN_SUPPLIER' AS tx_type_raw,
+                wh2.base_on AS source_doc_type,
+                COALESCE(cc_wh2.description, '-') AS jenis_bc,
+                COALESCE(wh2.bc_number, '') AS nomor_bc,
+                wh2.bc_date AS tanggal_bc,
+                COALESCE(sup2.nama_supplier, wh2.nama_supplier, 'N/A') AS partner_name,
+                wh2.out_number AS nomor_pengeluaran,
+                COALESCE(wh2.bc_date, wh2.out_date) AS tanggal_pengeluaran,
+                COALESCE(m2.kode_material, sf2.kode_barang) AS item_code,
+                COALESCE(m2.nama_material, sf2.nama_barang) AS item_name,
+                COALESCE(m2.satuan, sf2.satuan) AS item_unit,
+                'IDR' AS mata_uang,
+                NULL AS nilai_barang_fc,
+                (wod2.qty_return * COALESCE(wod2.unit_value_idr, 0)) AS nilai_barang_idr
+            FROM warehouse_out_header wh2
+            JOIN warehouse_out_details wod2 ON wod2.header_id = wh2.id
+            LEFT JOIN suppliers sup2 ON sup2.id = wh2.supplier_id
+            LEFT JOIN materials m2 ON m2.id = wod2.item_id AND wod2.item_type = 'material'
+            LEFT JOIN semifinished_goods sf2 ON sf2.id = wod2.item_id AND wod2.item_type = 'semifinished'
+            LEFT JOIN common_code cc_wh2 ON cc_wh2.group_code = 'BC_TYPE' AND cc_wh2.code = wh2.bc_type_code
+            WHERE wh2.base_on IN ('NG', 'Production Return')
+              AND wh2.status = 'Confirmed'
+              AND wh2.exim_verified = 1
+              AND wod2.qty_return > 0
+              " . $this->_build_tx_type_where_union($filters) . "
+              " . $this->_build_search_where_union($filters) . "
+              AND DATE(COALESCE(wh2.bc_date, wh2.out_date)) >= ?
+              AND DATE(COALESCE(wh2.bc_date, wh2.out_date)) <= ?
+        ";
+
         $params = [
-            $filters['start_date'], $filters['end_date']
+            $filters['start_date'], $filters['end_date'],
+            // params untuk UNION (urutan harus sama dgn ? di union part)
+            $filters['start_date'], $filters['end_date'],
         ];
 
         // Tambahkan LIMIT dan OFFSET hanya jika limit > 0
         if ($limit > 0) {
-            $sql .= " ORDER BY COALESCE(fdh.bc_date, soh.bc_date, sout.bc_date, sl.transaction_date) DESC LIMIT ? OFFSET ?";
+            $sql .= " ORDER BY tanggal_pengeluaran DESC LIMIT ? OFFSET ?";
             $params[] = (int)$limit;
             $params[] = (int)$offset;
         } else {
-            $sql .= " ORDER BY COALESCE(fdh.bc_date, soh.bc_date, sout.bc_date, sl.transaction_date) DESC";
+            $sql .= " ORDER BY tanggal_pengeluaran DESC";
         }
 
         return $this->db->query($sql, $params)->result();
+    }
+
+    /**
+     * Helper: tx_type filter untuk UNION part (NG/Production Return).
+     * Hanya tampilkan jika filter kosong atau RTN_SUPPLIER, karena ini tipe pengeluaran retur.
+     */
+    private function _build_tx_type_where_union($filters) {
+        if (empty($filters['tx_type'])) return '';
+        if ($filters['tx_type'] === 'RTN_SUPPLIER') return '';
+        // Filter lain (fg_out, OUT_SCRAP_BC, dll) → exclude UNION rows
+        return ' AND 1=0 ';
+    }
+
+    private function _build_search_where_union($filters) {
+        if (empty($filters['search'])) return '';
+        $search = $this->db->escape_like_str($filters['search']);
+        return " AND (COALESCE(m2.kode_material, sf2.kode_barang) LIKE '%{$search}%'
+            OR COALESCE(m2.nama_material, sf2.nama_barang) LIKE '%{$search}%'
+            OR wh2.out_number LIKE '%{$search}%'
+            OR COALESCE(sup2.nama_supplier, wh2.nama_supplier) LIKE '%{$search}%') ";
     }
 
     // --- Helper Functions (Sama) ---
@@ -171,9 +234,20 @@ class LapPengeluaranBarang_model extends CI_Model {
     }
     
     public function count_report($filters = []) {
+        // Hitung baris dari hasil get_report (limit=0 → seluruh baris)
+        // Lebih reliable daripada count terpisah karena query utama pakai UNION
+        // dengan beberapa filter dinamis. Performance trade-off acceptable untuk laporan BC.
+        $rows = $this->get_report($filters, 0, 0);
+        return is_array($rows) ? count($rows) : 0;
+    }
+
+    /**
+     * @deprecated kept for reference; count_report sekarang re-use get_report.
+     */
+    private function _count_report_legacy($filters = []) {
         $start_date = $filters['start_date'] ?? null;
         $end_date = $filters['end_date'] ?? null;
-        
+
         $this->db->from($this->table_ledger . ' sl');
         
         // JOIN untuk filter EXIM verification

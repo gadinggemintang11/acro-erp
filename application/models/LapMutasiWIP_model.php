@@ -50,13 +50,14 @@ class LapMutasiWIP_model extends CI_Model {
                     sl.item_id, 
                     sl.item_type, 
                     -- Saldo WIP = wip_in - wip_out - IN_RETURN_WIP (return mengurangi WIP)
-                    (SUM(CASE WHEN sl.transaction_type = 'wip_in' THEN GREATEST(COALESCE(sl.qty_in, 0), COALESCE(sl.qty_out, 0)) ELSE 0 END) - 
+                    (SUM(CASE WHEN sl.transaction_type = 'wip_in' THEN GREATEST(COALESCE(sl.qty_in, 0), COALESCE(sl.qty_out, 0)) ELSE 0 END) -
                      SUM(CASE WHEN sl.transaction_type = 'wip_out' THEN sl.qty_out ELSE 0 END) -
-                     SUM(CASE WHEN sl.transaction_type = 'IN_RETURN_WIP' THEN sl.qty_in ELSE 0 END)) as balance,
+                     SUM(CASE WHEN sl.transaction_type = 'IN_RETURN_WIP' THEN sl.qty_in ELSE 0 END) -
+                     SUM(CASE WHEN sl.transaction_type = 'OUT_QA_SAMPLE_WIP' THEN sl.qty_out ELSE 0 END)) as balance,
                     1 as has_history
                 FROM stock_ledger sl
                 WHERE sl.transaction_date < ?
-                  AND sl.transaction_type IN ('wip_in', 'wip_out', 'IN_RETURN_WIP')
+                  AND sl.transaction_type IN ('wip_in', 'wip_out', 'IN_RETURN_WIP', 'OUT_QA_SAMPLE_WIP')
                 GROUP BY sl.item_id, sl.item_type
             ),
             mutasi AS (
@@ -65,13 +66,14 @@ class LapMutasiWIP_model extends CI_Model {
                     sl.item_type,
                     -- MASUK WIP: wip_in saja
                     SUM(CASE WHEN sl.transaction_type = 'wip_in' THEN GREATEST(COALESCE(sl.qty_in, 0), COALESCE(sl.qty_out, 0)) ELSE 0 END) as total_masuk,
-                    -- KELUAR WIP: wip_out + IN_RETURN_WIP (keduanya mengurangi WIP)
+                    -- KELUAR WIP: wip_out + IN_RETURN_WIP + OUT_QA_SAMPLE_WIP (semuanya mengurangi WIP)
                     (SUM(CASE WHEN sl.transaction_type = 'wip_out' THEN sl.qty_out ELSE 0 END) +
-                     SUM(CASE WHEN sl.transaction_type = 'IN_RETURN_WIP' THEN sl.qty_in ELSE 0 END)) as total_keluar
+                     SUM(CASE WHEN sl.transaction_type = 'IN_RETURN_WIP' THEN sl.qty_in ELSE 0 END) +
+                     SUM(CASE WHEN sl.transaction_type = 'OUT_QA_SAMPLE_WIP' THEN sl.qty_out ELSE 0 END)) as total_keluar
                 FROM stock_ledger sl
                 WHERE sl.transaction_date >= ?
                   AND sl.transaction_date <= ?
-                  AND sl.transaction_type IN ('wip_in', 'wip_out', 'IN_RETURN_WIP')
+                  AND sl.transaction_type IN ('wip_in', 'wip_out', 'IN_RETURN_WIP', 'OUT_QA_SAMPLE_WIP')
                 GROUP BY sl.item_id, sl.item_type
             ),
             opname AS (
@@ -174,7 +176,7 @@ class LapMutasiWIP_model extends CI_Model {
         LEFT JOIN prod_return_header prh ON prd.prod_return_id = prh.id
         WHERE sl.item_id = ?
           AND sl.item_type = ?
-          AND sl.transaction_type IN ('wip_in', 'wip_out', 'IN_RETURN_WIP')
+          AND sl.transaction_type IN ('wip_in', 'wip_out', 'IN_RETURN_WIP', 'OUT_QA_SAMPLE_WIP')
         ORDER BY sl.transaction_date ASC, sl.id ASC
         ";
         
@@ -194,6 +196,9 @@ class LapMutasiWIP_model extends CI_Model {
                 // Return dari WIP ke warehouse = MENGURANGI WIP
                 // qty_in di stock_ledger adalah qty yang dikembalikan ke warehouse
                 $running_balance -= (float)$row->qty_in;
+            } elseif ($row->transaction_type == 'OUT_QA_SAMPLE_WIP') {
+                // QA mengambil sample dari WIP = MENGURANGI WIP
+                $running_balance -= (float)$row->qty_out;
             }
             $row->balance = $running_balance;
         }

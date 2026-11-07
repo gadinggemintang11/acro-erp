@@ -3,7 +3,7 @@
         <h1 class="h3 mb-0 text-gray-800"><?= $title; ?></h1>
         <a href="<?= base_url('cashbank/create'); ?>" class="btn btn-primary btn-icon-split">
             <span class="icon text-white-50"><i class="fas fa-plus"></i></span>
-            <span class="text">Buat Transaksi Baru</span>
+            <span class="text"><?= lang_line('cb_create_new', 'Buat Transaksi Baru') ?></span>
         </a>
     </div>
 
@@ -11,13 +11,13 @@
 
     <div class="card shadow mb-4">
         <div class="card-header py-3 d-flex justify-content-between align-items-center">
-            <h6 class="m-0 font-weight-bold text-primary">Daftar Transaksi</h6>
+            <h6 class="m-0 font-weight-bold text-primary"><?= lang_line('cb_list_title', 'Daftar Transaksi') ?></h6>
             <div>
                 <a href="<?= base_url('cashbank/export_excel'); ?>" class="btn btn-success btn-sm">
-                    <i class="fas fa-file-excel"></i> Ekspor Excel
+                    <i class="fas fa-file-excel"></i> <?= lang_line('cb_export_excel', 'Ekspor Excel') ?>
                 </a>
                 <a href="<?= base_url('cashbank/export_pdf'); ?>" target="_blank" class="btn btn-danger btn-sm">
-                    <i class="fas fa-file-pdf"></i> Ekspor PDF
+                    <i class="fas fa-file-pdf"></i> <?= lang_line('cb_export_pdf', 'Ekspor PDF') ?>
                 </a>
             </div>
         </div>
@@ -26,15 +26,15 @@
                 <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
                     <thead>
                         <tr>
-                            <th>No. Dokumen</th>
-                            <th>Tanggal</th>
-                            <th>Tipe</th>
-                            <th>Akun Kas/Bank</th>
-                            <th>Keterangan</th>
-                            <th class="text-right">Total</th>
-                            <th>CUR</th>
-                            <th>Status</th>
-                            <th>Aksi</th>
+                            <th><?= lang_line('cb_th_doc_no', 'No. Dokumen') ?></th>
+                            <th><?= lang_line('cb_th_date', 'Tanggal') ?></th>
+                            <th><?= lang_line('cb_th_type', 'Tipe') ?></th>
+                            <th><?= lang_line('cb_th_cashbank_account', 'Akun Kas/Bank') ?></th>
+                            <th><?= lang_line('cb_th_description', 'Keterangan') ?></th>
+                            <th class="text-right"><?= lang_line('cb_th_total', 'Total') ?></th>
+                            <th><?= lang_line('cb_th_curr_short', 'CUR') ?></th>
+                            <th><?= lang_line('cb_th_status', 'Status') ?></th>
+                            <th><?= lang_line('cb_th_action', 'Aksi') ?></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -49,9 +49,9 @@
                                 <td><?= date('d-m-Y', strtotime($t->doc_date)); ?></td>
                                 <td>
                                     <?php if ($t->transaction_type == 'IN'): ?>
-                                        <span class="badge badge-success">Masuk</span>
+                                        <span class="badge badge-success"><?= lang_line('cb_type_in', 'Masuk') ?></span>
                                     <?php else: ?>
-                                        <span class="badge badge-danger">Keluar</span>
+                                        <span class="badge badge-danger"><?= lang_line('cb_type_out', 'Keluar') ?></span>
                                     <?php endif; ?>
                                 </td>
                                 <td><?= htmlspecialchars($t->payment_account_name, ENT_QUOTES, 'UTF-8'); ?></td>
@@ -64,16 +64,16 @@
                                     </span>
                                 </td>
                                 <td class="text-center">
-                                    <a href="<?= base_url('cashbank/view/' . $t->id); ?>" 
-                                       class="btn btn-info btn-circle btn-sm" 
-                                       title="Lihat Detail">
+                                    <a href="<?= base_url('cashbank/view/' . $t->id); ?>"
+                                       class="btn btn-info btn-circle btn-sm"
+                                       title="<?= lang_line('cb_view_detail', 'Lihat Detail') ?>">
                                         <i class="fas fa-eye"></i>
                                     </a>
                                     <?php if ($t->status == 'Draft'): ?>
-                                    <a href="<?= base_url('cashbank/delete/' . $t->id); ?>" 
-                                       class="btn btn-danger btn-circle btn-sm" 
-                                       title="Hapus" 
-                                       onclick="return confirm('Anda yakin ingin menghapus transaksi DRAFT ini?');">
+                                    <a href="<?= base_url('cashbank/delete/' . $t->id); ?>"
+                                       class="btn btn-danger btn-circle btn-sm"
+                                       title="<?= lang_line('cb_btn_delete', 'Hapus') ?>"
+                                       onclick="return confirm(<?= htmlspecialchars(json_encode(lang_line('cb_confirm_delete', 'Anda yakin ingin menghapus transaksi DRAFT ini?')), ENT_QUOTES) ?>);">
                                         <i class="fas fa-trash"></i>
                                     </a>
                                     <?php endif; ?>
@@ -82,7 +82,7 @@
                             <?php endforeach; ?>
                         <?php else: ?>
                             <tr>
-                                <td colspan="9" class="text-center"><em>Tidak ada data transaksi.</em></td>
+                                <td colspan="9" class="text-center"><em><?= lang_line('cb_no_transactions', 'Tidak ada data transaksi.') ?></em></td>
                             </tr>
                         <?php endif; ?>
                     </tbody>

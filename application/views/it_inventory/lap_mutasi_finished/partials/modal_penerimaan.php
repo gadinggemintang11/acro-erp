@@ -36,7 +36,7 @@
                         No. Work Order: <strong><?= $detail->wo_number; ?></strong>
                     </li>
                     <li class="list-group-item d-flex justify-content-between align-items-center">
-                        No. Sales Contract: <strong><?= $detail->sc_number; ?></strong>
+                        No. Sales Order: <strong><?= $detail->sc_number; ?></strong>
                     </li>
                     <li class="list-group-item">
                         Size Breakdown:
@@ -102,7 +102,12 @@
                                         </td>
                                         <td class="text-center">
                                             <?php if (!empty($mat['bc_number']) && $mat['bc_number'] != '-'): ?>
-                                                <a href="<?= base_url('BeaCukai/detail/' . urlencode($mat['bc_number'])); ?>" 
+                                                <?php
+                                                    // Gunakan GRN number untuk link (di-encode base64 + rawurlencode untuk URL-safe)
+                                                    $bc_link_identifier = !empty($mat['grn_number']) ? $mat['grn_number'] : $mat['bc_number'];
+                                                    $bc_link = base_url('BeaCukai/detail/' . rawurlencode(base64_encode($bc_link_identifier)));
+                                                ?>
+                                                <a href="<?= $bc_link; ?>" 
                                                    target="_blank" class="text-decoration-none">
                                                     <strong><?= htmlspecialchars($mat['bc_number']); ?></strong>
                                                     <i class="fas fa-external-link-alt fa-xs ml-1"></i>

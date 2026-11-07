@@ -304,7 +304,7 @@ class ProdReturn extends MY_Controller {
      * KONFIRMASI RETUR (Sekarang memanggil model)
      */
     public function confirm($id) {
-        if (!check_access('prodreturn', 'edit')) { // Ganti key permission jika perlu
+        if (!check_access('prodreturn', 'confirm')) {
             show_error('Anda tidak memiliki izin akses.', 403); return;
         }
         $id = (int)$id; if ($id <= 0) { redirect('ProdReturn/index'); return; }
@@ -367,7 +367,7 @@ class ProdReturn extends MY_Controller {
             $html = $this->load->view('prod_return/print_pdf', $data, TRUE);
             $mpdf = new Mpdf(['mode'=>'utf-8','format'=>'A4', 'margin_left'=>10, 'margin_right'=>10, 'margin_top'=>10, 'margin_bottom'=>10]);
             $mpdf->WriteHTML($html);
-            $fname = 'RFP-' . $data['return_data']['header']['prod_return_no'] . '.pdf';
+            $fname = str_replace('/', '-', $data['return_data']['header']['prod_return_no']) . '.pdf'; // nomor berisi '/' (format Acropoly)
             $mpdf->Output($fname, 'I'); exit;
         } catch (Exception $e) {
             log_message('error','PDF Export Error: ' . $e->getMessage());

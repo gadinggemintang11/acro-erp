@@ -52,4 +52,50 @@ class Semifinished_model extends CI_Model {
 
         return sprintf("%s-%04d", $prefix, $num);
     }
+
+    public function check_stock_status($semifinished_id) {
+        $semifinished = $this->db->where('id', $semifinished_id)->get('semifinished_goods')->row();
+        
+        if (!$semifinished) {
+            return [
+                'status' => 'error',
+                'message' => 'Semifinished goods tidak ditemukan'
+            ];
+        }
+
+        // Ambil current stock dari stock_ledger
+        $this->db->select('balance');
+        $this->db->from('stock_ledger');
+        $this->db->where('item_id', $semifinished_id);
+        $this->db->where('item_type', 'semifinished');
+        $this->db->order_by('id', 'DESC');
+        $this->db->limit(1);
+        $ledger = $this->db->get()->row();
+        
+        $current_stock = $ledger ? (float)$ledger->balance : 0;
+        $minimum_stock = isset($semifinished->minimum_stock) ? (float)$semifinished->minimum_stock : 0;
+        $deficit = $minimum_stock - $current_stock;
+        
+        if ($current_stock <= $minimum_stock && $minimum_stock > 0) {
+            return [
+                'status' => 'warning',
+                'alert' => true,
+                'message' => "⚠️ ALERT: Stock semifinished '{$semifinished->nama_barang}' mencapai atau di bawah minimum ({$current_stock} ≤ {$minimum_stock})",
+                'kode_barang' => $semifinished->kode_barang,
+                'nama_barang' => $semifinished->nama_barang,
+                'satuan' => $semifinished->satuan,
+                'current_stock' => $current_stock,
+                'minimum_stock' => $minimum_stock,
+                'deficit' => $deficit
+            ];
+        }
+        
+        return [
+            'status' => 'ok',
+            'alert' => false,
+            'current_stock' => $current_stock,
+            'minimum_stock' => $minimum_stock,
+            'deficit' => 0
+        ];
+    }
 }

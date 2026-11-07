@@ -1,11 +1,11 @@
 <style>
     .page-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--brand-1) 0%, var(--brand-2) 100%);
         color: white;
         padding: 25px;
         border-radius: 10px;
         margin-bottom: 25px;
-        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        box-shadow: 0 4px 15px rgba(var(--brand-rgb), 0.3);
     }
     .page-header h1 {
         margin: 0;
@@ -55,7 +55,7 @@
         overflow: hidden;
     }
     .log-card .card-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--brand-1) 0%, var(--brand-2) 100%);
         color: white;
         padding: 18px 25px;
         border: none;
@@ -79,8 +79,8 @@
         text-transform: uppercase;
         font-size: 0.8rem;
         letter-spacing: 0.5px;
-        color: #667eea;
-        border-bottom: 2px solid #667eea;
+        color: var(--brand-1);
+        border-bottom: 2px solid var(--brand-1);
     }
     .log-table tbody tr {
         transition: all 0.3s ease;
@@ -88,7 +88,7 @@
     .log-table tbody tr:hover {
         background-color: #f8f9ff !important;
         transform: scale(1.005);
-        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
+        box-shadow: 0 2px 8px rgba(var(--brand-rgb), 0.1);
     }
     .log-table tbody td {
         padding: 15px;
@@ -103,7 +103,7 @@
     }
     .log-username {
         font-weight: 600;
-        color: #667eea;
+        color: var(--brand-1);
     }
     .log-module {
         font-weight: 500;
@@ -158,7 +158,7 @@
         justify-content: center;
         width: 32px;
         height: 32px;
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--brand-1) 0%, var(--brand-2) 100%);
         border-radius: 50%;
         color: white;
         font-weight: 700;
@@ -286,6 +286,12 @@
 
 </div>
 <script>
+const I18N_LOG = {
+    confirm_title: <?= json_encode(lang_line('log_activity_confirm_title')); ?>,
+    confirm_text:  <?= json_encode(lang_line('log_activity_confirm_text')); ?>,
+    yes_clear:     <?= json_encode(lang_line('log_activity_btn_yes_clear')); ?>,
+    cancel:        <?= json_encode(lang_line('log_activity_btn_cancel')); ?>
+};
 $(document).ready(function() {
     // Konfirmasi SweetAlert saat hapus log
     $('#btn-clear-log').on('click', function(e) {
@@ -293,14 +299,14 @@ $(document).ready(function() {
         const href = $(this).attr('href'); // Ambil URL
 
         Swal.fire({
-            title: 'Anda Yakin?',
-            text: "Semua data log akan dihapus permanen dan tidak bisa dikembalikan!",
+            title: I18N_LOG.confirm_title,
+            text:  I18N_LOG.confirm_text,
             icon: 'warning',
             showCancelButton: true,
             confirmButtonColor: '#d33',
             cancelButtonColor: '#3085d6',
-            confirmButtonText: 'Ya, hapus semua!',
-            cancelButtonText: 'Batal'
+            confirmButtonText: I18N_LOG.yes_clear,
+            cancelButtonText:  I18N_LOG.cancel
         }).then((result) => {
             if (result.isConfirmed) {
                 // Arahkan ke URL penghapusan

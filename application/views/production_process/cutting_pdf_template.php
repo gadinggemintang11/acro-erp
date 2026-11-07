@@ -93,7 +93,7 @@
                 <div class="row"><div class="label">Planned Qty</div><div class="value"><?= number_format($header->planned_qty ?? 0, 4); ?> <?= htmlspecialchars($header->fg_uom ?? ''); ?></div></div>
             </div>
             <div class="box">
-                <div class="row"><div class="label">Sales Contract</div><div class="value"><?= htmlspecialchars($header->sc_number ?? '-'); ?></div></div>
+                <div class="row"><div class="label">Sales Order Number</div><div class="value"><?= htmlspecialchars($header->sc_number ?? '-'); ?></div></div>
                 <div class="row"><div class="label">Status</div><div class="value"><?= htmlspecialchars($header->status ?? '-'); ?></div></div>
                 <div class="row"><div class="label">Remarks</div><div class="value" style="font-weight:400; width:60%; text-align:right;"><?= nl2br(htmlspecialchars($header->remarks ?? '-')); ?></div></div>
             </div>
@@ -198,7 +198,7 @@
                         <?php
                             // Determine operator name from multiple possible sources: prefer header->creator_name (user who created the record)
                             $operator_candidates = array();
-lo                            // header-level common fields (prioritize creator_name)
+                            // header-level common fields (prioritize creator_name)
                             foreach (array('creator_name','ppic_name','produksi_name','created_by_name','requester_name') as $f) {
                                 if (!empty($header->{$f})) $operator_candidates[] = $header->{$f};
                             }

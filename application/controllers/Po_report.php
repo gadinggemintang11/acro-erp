@@ -11,6 +11,7 @@ class Po_report extends MY_Controller {
     }
 
     /**
+     * 
      * PO Report listing - summary view
      */
     public function index() {
@@ -23,10 +24,11 @@ class Po_report extends MY_Controller {
             'supplier_id' => $this->input->get('supplier_id', TRUE),
             'status' => $this->input->get('status', TRUE),
             'receipt_status' => $this->input->get('receipt_status', TRUE),
+            'type' => $this->input->get('type', TRUE),
         ];
 
         $data = [
-            'title' => 'PO Report - Status Penerimaan',
+            'title' => lang_line('page_po_report_title'),
             'filters' => $filters,
             'pos' => $this->Po_report_model->get_all($filters),
             'suppliers' => $this->Po_report_model->get_suppliers(),
@@ -54,7 +56,7 @@ class Po_report extends MY_Controller {
         }
 
         $data = [
-            'title' => 'Detail PO - ' . $po_data['header']->po_number,
+            'title' => lang_line('po_report_detail_title', 'Detail PO') . ' - ' . $po_data['header']->po_number,
             'po_header' => $po_data['header'],
             'po_details' => $po_data['details'],
             'grns' => $po_data['grns']

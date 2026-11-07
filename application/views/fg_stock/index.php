@@ -2,12 +2,12 @@
 
 <style>
     .page-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--brand-1) 0%, var(--brand-2) 100%);
         color: white;
         padding: 25px;
         border-radius: 10px;
         margin-bottom: 25px;
-        box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+        box-shadow: 0 4px 15px rgba(var(--brand-rgb), 0.3);
     }
     .page-header h3 {
         margin: 0;
@@ -17,7 +17,7 @@
     }
     .page-header .btn {
         background: white;
-        color: #667eea;
+        color: var(--brand-1);
         border: none;
         font-weight: 600;
         transition: all 0.3s ease;
@@ -55,7 +55,7 @@
         box-shadow: 0 0 0 0.2rem rgba(102, 126, 234, 0.15);
     }
     .btn-search {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--brand-1) 0%, var(--brand-2) 100%);
         border: none;
         color: white;
         font-weight: 600;
@@ -65,7 +65,7 @@
     }
     .btn-search:hover {
         transform: translateY(-2px);
-        box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+        box-shadow: 0 4px 12px rgba(var(--brand-rgb), 0.4);
         color: white;
     }
     .btn-reset {
@@ -89,7 +89,7 @@
         overflow: hidden;
     }
     .table-header {
-        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        background: linear-gradient(135deg, var(--brand-1) 0%, var(--brand-2) 100%);
         color: white;
     }
     .table-header th {
@@ -106,7 +106,7 @@
     .data-table tbody tr:hover {
         background-color: #f8f9ff !important;
         transform: scale(1.01);
-        box-shadow: 0 2px 8px rgba(102, 126, 234, 0.1);
+        box-shadow: 0 2px 8px rgba(var(--brand-rgb), 0.1);
     }
     .data-table tbody td {
         padding: 15px;

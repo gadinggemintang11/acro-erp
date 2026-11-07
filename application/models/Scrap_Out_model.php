@@ -10,12 +10,8 @@ class Scrap_Out_model extends CI_Model {
 
     /** Generate nomor dokumen unik */
     public function generate_doc_no() {
-        $prefix = 'SCR-OUT/' . date('Ym') . '/';
-        $this->db->select('doc_no')->like('doc_no', $prefix)->order_by('id', 'DESC')->limit(1);
-        $last = $this->db->get('scrap_out_header')->row();
-        $num = 1;
-        if ($last && preg_match('/(\d{4})$/', $last->doc_no, $m)) $num = (int)$m[1] + 1;
-        return $prefix . sprintf('%04d', $num);
+        // Format nomor diatur di config/doc_number.php (rebrand Acropoly 2026-11-05).
+        return doc_number_next('scrap_out', 'scrap_out_header', 'doc_no');
     }
 
     /** Ambil semua dokumen */
@@ -31,7 +27,7 @@ class Scrap_Out_model extends CI_Model {
     /** Ambil data lengkap header + detail (FIXED: Ambil nilai jual) */
     public function get_by_id($id) {
         $data = [];
-        $this->db->select('h.*, u.fullname AS created_by_name, c.nama_customer AS customer_name, cc_bc.description as bc_type_desc');
+        $this->db->select('h.*, u.fullname AS created_by_name, u.signature_path AS created_by_signature, c.nama_customer AS customer_name, cc_bc.description as bc_type_desc');
         $this->db->from('scrap_out_header h');
         $this->db->join('users u', 'u.id = h.created_by', 'left');
         $this->db->join('customers c', 'c.id = h.destination', 'left');

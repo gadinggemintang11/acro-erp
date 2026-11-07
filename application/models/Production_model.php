@@ -42,7 +42,8 @@ class Production_model extends CI_Model {
     public function get_header_by_id($id) {
          $this->db->select('
             p.*,
-            wo.wo_number, sc.sc_number, fg.nama_barang as fg_name,
+            wo.wo_number, sc.sc_number,
+            fg.nama_barang as fg_name, fg.kode_barang as fg_code, fg.satuan as fg_unit,
             creator.fullname as creator_name,
             confirmer.fullname as confirmer_name
         ');
@@ -55,6 +56,47 @@ class Production_model extends CI_Model {
         $this->db->where('p.id', $id);
         $query = $this->db->get();
          return $query ? $query->row() : null; // Return null jika tidak ditemukan
+    }
+
+    /**
+     * Output Barang Jadi WAJIB sama dengan Finished Good pada Work Order-nya.
+     *
+     * Sebelum ini FG output dipilih bebas dari master lewat select2: kalau WO
+     * dibuat untuk FG A tapi operator memilih FG B, hasil produksi tidak
+     * pernah ketemu dengan kebutuhan di WO/IPO dan tidak ada apa pun yang
+     * menahannya (user 2026-09-30: "andai wo nya fg A sedangkan di production
+     * proses nya nanti kita salah input FG B maka nanti ga akan ketemu itu
+     * kebutuhan produksi dengan hasil produksinya").
+     *
+     * Ditaruh di model supaya aturannya SATU tempat — dipakai baik oleh
+     * save_finishing_output() maupun _save_stage_output(), dan bisa diuji
+     * tanpa melewati redirect/flashdata.
+     *
+     * Tipe output selain finished_goods (semifinished, scrap) tidak diperiksa.
+     *
+     * @return array ['ok' => bool, 'message' => string]
+     */
+    public function check_output_fg($prod_id, $item_id, $item_type) {
+        if ($item_type !== 'finished_goods') {
+            return ['ok' => true, 'message' => ''];
+        }
+
+        $header = $this->get_header_by_id($prod_id);
+        if (!$header) {
+            return ['ok' => false, 'message' => 'Dokumen produksi tidak ditemukan.'];
+        }
+        if (empty($header->fg_id)) {
+            return ['ok' => false, 'message' =>
+                'Work Order ini tidak punya Finished Good, output tidak bisa dicatat.'];
+        }
+        if ((int) $item_id !== (int) $header->fg_id) {
+            return ['ok' => false, 'message' =>
+                'Barang Jadi tidak sesuai Work Order. ' . ($header->wo_number ?: 'Work Order') .
+                ' dibuat untuk "' . ($header->fg_name ?: '-') . '"' .
+                (!empty($header->sc_number) ? ' (Sales Order ' . $header->sc_number . ')' : '') .
+                ', jadi output produksinya harus barang itu juga.'];
+        }
+        return ['ok' => true, 'message' => ''];
     }
 
     public function insert_header($data) {
@@ -140,18 +182,79 @@ class Production_model extends CI_Model {
      * Generate Nomor Produksi (Query ini HARUS cepat setelah index dibuat)
      */
     public function generate_prod_number() {
-        $prefix = 'PROD/' . date('Ym') . '/';
-        $this->db->select('production_number');
-        $this->db->from($this->table_header);
-        $this->db->like('production_number', $prefix, 'after');
-        $this->db->order_by('id', 'DESC'); // Index akan membantu ini
-        $this->db->limit(1);
-        $last = $this->db->get()->row();
-        $new_num = $last ? (int) substr($last->production_number, -4) + 1 : 1;
-        return $prefix . str_pad($new_num, 4, '0', STR_PAD_LEFT);
+        // Format nomor diatur di config/doc_number.php (rebrand Acropoly 2026-11-05).
+        return doc_number_next('production', 'production_header', 'production_number');
     }
 
     // === HELPERS ===
+    /**
+     * Daftar Work Order untuk modal "Pilih dari Daftar" di form Buat Proses
+     * Produksi.
+     *
+     * Sebelumnya WO dipilih lewat select2 yang baru memunculkan hasil setelah
+     * user mengetik, dan HANYA menampilkan yang memenuhi syarat -- kalau WO
+     * yang dicari tidak muncul, tidak ada keterangan apa pun kenapa
+     * (user 2026-09-30: "di production proses juga saat pilih wo dibuat modal
+     * juga ya").
+     *
+     * Syarat sebuah WO bisa dibuatkan proses produksi -- sama persis dengan
+     * search_open_wos() yang lama:
+     *   - status WO = 'In Progress' (WO 'Planned' harus dikonfirmasi dulu)
+     *   - belum punya production_header (1 WO = 1 proses produksi)
+     *
+     * Bedanya, di sini WO yang TIDAK memenuhi syarat ikut ditampilkan beserta
+     * alasannya (tidak bisa dipilih), supaya user tidak menebak-nebak kenapa
+     * WO-nya tidak ada di daftar.
+     *
+     * Ditambah `material_count`: jumlah baris rencana material WO. Proses
+     * produksi mengambil material dari sana, jadi WO tanpa material akan
+     * mentok di tahap berikutnya -- lebih baik kelihatan sejak awal.
+     */
+    public function get_selectable_wos($filters = []) {
+        $this->db->select("
+                wo.id, wo.wo_number, wo.planned_qty, wo.planned_start_date, wo.status AS wo_status,
+                COALESCE(sc.sc_number, '') AS sc_number,
+                COALESCE(fg.kode_barang, '') AS fg_code,
+                COALESCE(fg.nama_barang, '') AS fg_name,
+                (SELECT COUNT(*) FROM wo_details_material d WHERE d.wo_header_id = wo.id) AS material_count,
+                (SELECT p.production_number FROM production_header p
+                  WHERE p.wo_header_id = wo.id ORDER BY p.id LIMIT 1)               AS production_number
+            ", FALSE)
+            ->from('wo_header wo')
+            ->join('sales_contracts sc', 'sc.id = wo.sales_contract_id', 'left')
+            ->join('finished_goods fg', 'fg.id = wo.fg_id', 'left')
+            ->where_in('wo.status', ['In Progress', 'Planned']);
+
+        if (!empty($filters['search'])) {
+            $term = $this->db->escape_like_str($filters['search']);
+            $this->db->where("(wo.wo_number LIKE '%{$term}%'"
+                          . " OR sc.sc_number LIKE '%{$term}%'"
+                          . " OR fg.nama_barang LIKE '%{$term}%'"
+                          . " OR fg.kode_barang LIKE '%{$term}%')", null, FALSE);
+        }
+
+        $rows = $this->db->order_by('wo.planned_start_date', 'DESC')
+                         ->order_by('wo.wo_number', 'DESC')
+                         ->get()->result();
+
+        foreach ($rows as $r) {
+            $r->material_count = (int) $r->material_count;
+            $r->has_production = !empty($r->production_number);
+
+            if ($r->has_production) {
+                $r->eligible = false;
+                $r->reason   = 'sudah punya proses produksi ' . $r->production_number;
+            } elseif ($r->wo_status !== 'In Progress') {
+                $r->eligible = false;
+                $r->reason   = 'WO belum dikonfirmasi (masih ' . $r->wo_status . ')';
+            } else {
+                $r->eligible = true;
+                $r->reason   = '';
+            }
+        }
+        return $rows;
+    }
+
     public function search_open_wos($term) {
     // Escape term hanya jika tidak kosong
         $safe_term = !empty($term) ? $this->db->escape_like_str($term) : '';
@@ -233,17 +336,18 @@ class Production_model extends CI_Model {
          $this->load->model('Stock_ledger_model'); // Load model di sini
 
          $this->db->reset_query();
-         // 1. Dapatkan semua material yang ada di WIP (wip_in dan IN_RETURN_WIP yang kembali ke WIP)
+         // 1. Dapatkan semua material yang ada di WIP (wip_in dan IN_RETURN_WIP) PLUS pending OUT_ISSUE yang belum diterima
          // IN_RETURN_WIP adalah return dari WIP ke warehouse, jadi menambah stock WIP yang available
          $this->db->select("
              CONCAT(sl.item_id, '_', sl.item_type) as batch_id,
-             sl.item_id, 
+             sl.item_id,
              sl.item_type,
-             -- Total yang ada di WIP = wip_in + IN_RETURN_WIP yang belum keluar lagi
-             SUM(CASE 
-                 WHEN sl.transaction_type = 'wip_in' THEN sl.qty_in 
-                 WHEN sl.transaction_type = 'IN_RETURN_WIP' THEN sl.qty_in 
-                 ELSE 0 
+             -- Total yang ada di WIP = wip_in + IN_RETURN_WIP + pending OUT_ISSUE (belum diterima)
+             SUM(CASE
+                 WHEN sl.transaction_type = 'wip_in' THEN sl.qty_in
+                 WHEN sl.transaction_type = 'IN_RETURN_WIP' THEN sl.qty_in
+                 WHEN sl.transaction_type = 'OUT_ISSUE' THEN sl.qty_out
+                 ELSE 0
              END) as total_issued_to_wip,
              MAX(sl.unit_value) as cost_from_batch,
              sl.source_doc_id,
@@ -260,14 +364,15 @@ class Production_model extends CI_Model {
          $this->db->from('stock_ledger sl');
          $this->db->join('materials m', 'sl.item_id = m.id AND sl.item_type = "material"', 'left');
          $this->db->join('semifinished_goods sf', 'sl.item_id = sf.id AND sl.item_type = "semifinished"', 'left');
-         $this->db->where_in('sl.transaction_type', ['wip_in', 'IN_RETURN_WIP']); // Material yang ada di WIP
+         // Include wip_in, IN_RETURN_WIP (returns to WIP), and OUT_ISSUE (pending issuances not yet received)
+         $this->db->where_in('sl.transaction_type', ['wip_in', 'IN_RETURN_WIP', 'OUT_ISSUE']);
          $this->db->where('sl.source_doc_id', $wo_id); // Filter by WO ID
          $this->db->where('sl.item_id IS NOT NULL'); // Ensure item_id is not null
          $this->db->where('sl.item_id != \'\''); // Ensure item_id is not empty
          $this->db->group_by('sl.item_id, sl.item_type');
-         
+
          $issued_batches = $this->db->get()->result();
-         
+
          if (empty($issued_batches)) { return []; }
 
          // 2. Hitung total pemakaian & retur untuk setiap item (bukan per batch karena tidak ada stock_on_hand_id)
@@ -285,11 +390,24 @@ class Production_model extends CI_Model {
              $usage = $this->db->get('stock_ledger')->row();
              $batch->total_used = $usage ? (float)$usage->total_used : 0;
 
-             // CATATAN: IN_RETURN_WIP sudah dihitung di total_issued_to_wip (sebagai penambah WIP)
-             // Jadi tidak perlu dikurangi lagi disini, berbeda dengan laporan WIP yang mengurangi
-             // Karena disini kita menghitung "material yang tersedia untuk dipakai di produksi"
-             // IN_RETURN_WIP = material dikembalikan dari warehouse KE WIP = menambah available stock WIP
-             $batch->total_returned = 0; // Tidak perlu tracking terpisah karena sudah di total_issued_to_wip
+             // Hitung total wip_in yang sudah diterima (untuk menghindari double-count dengan OUT_ISSUE)
+             $this->db->reset_query();
+             $this->db->select_sum('qty_in', 'total_wip_in');
+             $this->db->where('item_id', $item_id);
+             $this->db->where('item_type', $item_type);
+             $this->db->where('transaction_type', 'wip_in');
+             $this->db->where('source_doc_id', $wo_id);
+             $wip_in_row = $this->db->get('stock_ledger')->row();
+             $total_wip_in = $wip_in_row ? (float)$wip_in_row->total_wip_in : 0;
+
+             // Jika ada OUT_ISSUE tapi belum ada wip_in, gunakan OUT_ISSUE (pending issuance)
+             // Jika sudah ada wip_in, gunakan wip_in (untuk menghindari double-count)
+             if ($total_wip_in > 0) {
+                 $batch->total_issued_to_wip = $total_wip_in;
+             }
+             // Else: tetap gunakan total_issued_to_wip dari query (OUT_ISSUE amount)
+
+             $batch->total_returned = 0; // IN_RETURN_WIP sudah di total_issued_to_wip
 
              // 3. Hitung sisa = total di WIP - yang sudah terpakai
              $batch->remaining_qty = round((float)$batch->total_issued_to_wip - $batch->total_used, 5);
@@ -758,7 +876,7 @@ class Production_model extends CI_Model {
         $this->db->join('users receiver', 'receiver.id = o.received_by', 'left');
         $this->db->join('users qc', 'qc.id = o.qc_checked_by', 'left');
         // expose readable names
-        $this->db->select('receiver.fullname as receiver_name, qc.fullname as qc_name', FALSE);
+        $this->db->select('receiver.fullname as receiver_name, qc.fullname as qc_checked_by_name', FALSE);
         $this->db->where('o.production_header_id', $production_id);
         $this->db->where('o.stage_name', $stage);
         $this->db->order_by('o.id', 'ASC');
@@ -769,10 +887,24 @@ class Production_model extends CI_Model {
 
     public function complete_production($id) {
         $data = ['status' => 'Completed'];
-        // Anda bisa tambahkan 'completed_at', 'completed_by' jika perlu
-        return $this->db->where('id', $id)
-                        ->where('status', 'In Progress') // Hanya In Progress yg bisa completed
-                        ->update($this->table_header, $data);
+        $result = $this->db->where('id', $id)
+                           ->where('status', 'In Progress')
+                           ->update($this->table_header, $data);
+
+        if ($result) {
+            // Update WO status to Finished when production is completed
+            $prod_info = $this->db->select('wo_header_id')
+                                  ->from('production_header')
+                                  ->where('id', $id)
+                                  ->get()->row();
+            if ($prod_info && $prod_info->wo_header_id) {
+                $this->load->model('Wo_model');
+                $this->Wo_model->update_status($prod_info->wo_header_id, 'Finished');
+                log_message('info', "WO ID {$prod_info->wo_header_id} status updated to Finished after production {$id} completed.");
+            }
+        }
+
+        return $result;
     }
 
     public function confirm_qc_output($output_id, $user_id) {
@@ -893,7 +1025,7 @@ class Production_model extends CI_Model {
 
 
 
-    public function get_available_previous_stage_outputs($prod_id, $current_stage = 'assembling', $previous_stage = 'preparation') {
+    public function get_available_previous_stage_outputs($prod_id, $current_stage = 'assembling', $previous_stage = 'grinding') {
         // 1. Ambil semua output semi-finished dari stage sebelumnya
         $this->db->select("
             po.id as output_id, 

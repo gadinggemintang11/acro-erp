@@ -24,12 +24,12 @@ class Warehouse_in extends MY_Controller {
             show_error('Anda tidak memiliki izin.', 403);
         }
         $data = [
-            'title'     => 'Penerimaan Barang (GRN)',
+            'title'     => lang_line('page_warehouse_in_title'),
             'grns'      => $this->Warehouse_in_model->get_all(),
             'bc_types'  => $this->Commoncode_model->get_by_group('BC_TYPE'),
             'warehouse_types' => [
-                'material' => 'Material', 'machine' => 'Machine / Equipment',
-                'inventory' => 'Inventory', 'semifinished' => 'Semifinished Goods'
+                'material' => 'Material',
+                'semifinished' => 'Semifinished Goods'
             ]
         ];
         $this->load->view('templates/header', $data);
@@ -39,12 +39,103 @@ class Warehouse_in extends MY_Controller {
         $this->load->view('templates/footer');
     }
 
+    // =====================================================
+    // GOODS RETURN — Receive replacement from supplier
+    // =====================================================
+
+    /**
+     * AJAX GET: List confirmed Warehouse Out (NG) documents for Goods Return selection.
+     */
+    public function get_available_goods_return() {
+        header('Content-Type: application/json');
+        if (!check_access('warehouse_in', 'view')) {
+            echo json_encode(['status' => 'error', 'message' => 'Unauthorized']); return;
+        }
+        $search = $this->input->get('search');
+        $list   = $this->Warehouse_in_model->get_available_goods_return(['search' => $search]);
+        echo json_encode(['status' => 'success', 'data' => $list]);
+    }
+
+    /**
+     * AJAX POST: Load items from a confirmed WO (NG) into a Draft GRN.
+     * Body: grn_id, wh_out_id
+     */
+    public function auto_load_goods_return_items() {
+        header('Content-Type: application/json');
+        if (!check_access('warehouse_in', 'edit')) {
+            echo json_encode(['status' => 'error', 'message' => 'Unauthorized']); return;
+        }
+        $grn_id    = $this->input->post('grn_id');
+        $wh_out_id = $this->input->post('wh_out_id');
+        if (empty($grn_id) || empty($wh_out_id)) {
+            echo json_encode(['status' => 'error', 'message' => 'Parameter tidak valid']); return;
+        }
+        $grn_header = $this->Warehouse_in_model->get_header_by_id($grn_id);
+        if (!$grn_header || $grn_header->status !== 'Draft') {
+            echo json_encode(['status' => 'error', 'message' => 'GRN tidak dalam status Draft']); return;
+        }
+        $items = $this->Warehouse_in_model->get_goods_return_items($wh_out_id);
+        if (empty($items)) {
+            echo json_encode(['status' => 'error', 'message' => 'Tidak ada item dari WO ini']); return;
+        }
+
+        $loaded = 0; $errors = [];
+        $first_supplier = null;
+        foreach ($items as $item) {
+            // Cek duplikat (satu WO detail hanya boleh dimuat sekali per GRN)
+            $exists = $this->db->where('grn_header_id', $grn_id)
+                ->where('source_doc_type', 'WO')
+                ->where('source_doc_header_id', $wh_out_id)
+                ->where('source_doc_detail_id', $item->wh_out_detail_id)
+                ->count_all_results('grn_details');
+            if ($exists > 0) { $errors[] = ($item->item_name ?? '-') . ': sudah dimuat'; continue; }
+
+            $detail = [
+                'grn_header_id'        => $grn_id,
+                'source_doc_type'      => 'WO',
+                'source_doc_header_id' => $wh_out_id,
+                'source_doc_detail_id' => $item->wh_out_detail_id,
+                'item_id'              => $item->item_id,
+                'item_type'            => $item->item_type,
+                'receive_qty'          => (float)$item->qty_returned,
+                'unit_value'           => (float)($item->unit_value ?? 0),
+                'total_value'          => (float)$item->qty_returned * (float)($item->unit_value ?? 0),
+            ];
+            if ($this->Warehouse_in_model->insert_item($detail)) {
+                $loaded++;
+                if (!$first_supplier && !empty($item->supplier_id)) $first_supplier = $item->supplier_id;
+            } else {
+                $errors[] = 'Gagal load: ' . ($item->item_name ?? '-');
+            }
+        }
+
+        // Update supplier + goods_return_wh_out_id di GRN header
+        if ($loaded > 0) {
+            $upd = ['goods_return_wh_out_id' => $wh_out_id];
+            if ($first_supplier && empty($grn_header->supplier_id)) $upd['supplier_id'] = $first_supplier;
+            $this->db->where('id', $grn_id)->update('grn_header', $upd);
+        }
+
+        echo json_encode([
+            'status'       => $loaded > 0 ? 'success' : 'error',
+            'message'      => $loaded . ' item berhasil dimuat dari Goods Return' . (empty($errors) ? '' : ' (' . count($errors) . ' gagal)'),
+            'total_loaded' => $loaded,
+            'errors'       => $errors
+        ]);
+    }
+
+    // =====================================================
+
     public function add_header()
 {
     // Atur rules validasi Anda di sini
     $this->form_validation->set_rules('grn_date', 'Tanggal', 'required');
     $this->form_validation->set_rules('base_on', 'Dasar Penerimaan', 'required');
-    $this->form_validation->set_rules('warehouse_type', 'Tipe Gudang', 'required');
+    // warehouse_type hanya wajib untuk PO/MIR, tidak untuk Goods Return
+    $base_on_val = $this->input->post('base_on');
+    if ($base_on_val !== 'Goods Return') {
+        $this->form_validation->set_rules('warehouse_type', 'Tipe Gudang', 'required');
+    }
     // Tambahkan validasi lain jika perlu
 
     if ($this->form_validation->run() == FALSE) {
@@ -167,7 +258,7 @@ class Warehouse_in extends MY_Controller {
         if (!$header) { show_404(); }
 
         $data = [
-            'title'   => 'Detail Penerimaan Barang',
+            'title'   => lang_line('title_wi_detail'),
             'header'  => $header,
             'details' => $this->Warehouse_in_model->get_details_by_id($id),
             'bc_types' => $this->Commoncode_model->get_by_group('BC_TYPE'),
@@ -261,6 +352,496 @@ class Warehouse_in extends MY_Controller {
     }
 
     /**
+     * Get available POs for auto-load (Confirmed or Partially Received status)
+     * AJAX endpoint for PO selection modal
+     */
+    /**
+     * AJAX: daftar PO untuk modal "Pilih PO", LENGKAP dengan status tiap baris.
+     *
+     * User 2026-09-14: modal lama cuma menampilkan nomor PO & jumlah item,
+     * tidak kelihatan mana yang sudah diterima, tipe barangnya apa, dan tidak
+     * bisa memilih item/qty tertentu padahal penerimaan sering partial.
+     *
+     * Tiap PO dikembalikan beserta SEMUA barisnya (termasuk barang inventory/
+     * mesin yang diterima di modul lain, ditandai tidak bisa dipilih di sini),
+     * supaya user melihat gambaran PO utuh. Perhitungan qty ada di
+     * Warehouse_in_model::get_po_lines_with_receipt().
+     */
+    public function get_available_po_numbers() {
+        header('Content-Type: application/json');
+        if (!check_access('warehouse_in', 'edit')) {
+            echo json_encode(['status' => 'error', 'message' => 'Unauthorized']);
+            return;
+        }
+
+        $grn_id      = (int) $this->input->get('grn_id');
+        $search_term = trim((string) $this->input->get('q'));
+
+        $header = $grn_id > 0 ? $this->Warehouse_in_model->get_header_by_id($grn_id) : null;
+        if (!$header || $header->base_on != 'PO') {
+            echo json_encode(['status' => 'error', 'message' => 'GRN tidak valid atau bukan berbasis PO']);
+            return;
+        }
+
+        // PO yang sudah disetujui & punya MINIMAL satu baris material/semi-finished.
+        $this->db->reset_query();
+        $this->db->select('ph.id AS po_id, ph.po_number, ph.po_date, ph.status, ph.currency_code, s.nama_supplier AS supplier_name', false)
+            ->from('po_header ph')
+            ->join('suppliers s', 's.id = ph.supplier_id', 'left')
+            ->where_in('ph.status', ['Confirmed', 'Partially Received'])
+            ->where("EXISTS (SELECT 1 FROM po_details x WHERE x.po_header_id = ph.id AND x.item_type IN ('material','semifinished'))", null, false);
+        if ($search_term !== '') {
+            $this->db->group_start()
+                ->like('ph.po_number', $search_term)
+                ->or_like('s.nama_supplier', $search_term)
+                ->group_end();
+        }
+        $pos = $this->db->order_by('ph.po_date', 'DESC')->limit(100)->get()->result();
+        if (empty($pos)) {
+            echo json_encode(['status' => 'success', 'data' => []]);
+            return;
+        }
+
+        $lines = $this->Warehouse_in_model->get_po_lines_with_receipt(array_column($pos, 'po_id'), $grn_id);
+        $by_po = [];
+        foreach ($lines as $l) { $by_po[(int) $l->po_header_id][] = $l; }
+
+        $results = [];
+        foreach ($pos as $po) {
+            $po_lines = $by_po[(int) $po->po_id] ?? [];
+            $mat_qty = 0; $mat_received = 0; $material_lines = 0; $receivable_lines = 0; $other_lines = 0;
+            $out_lines = [];
+            foreach ($po_lines as $l) {
+                if ($l->is_material) {
+                    $material_lines++;
+                    $mat_qty      += $l->qty_po;
+                    $mat_received += $l->qty_received;
+                    if ($l->receivable) $receivable_lines++;
+                } else {
+                    $other_lines++;
+                }
+                $out_lines[] = [
+                    'po_detail_id'        => (int) $l->po_detail_id,
+                    'item_code'           => $l->item_code,
+                    'item_name'           => $l->item_name,
+                    'unit'                => $l->unit,
+                    'item_type'           => $l->item_type,
+                    'unit_price'          => (float) $l->local_price,
+                    'qty_po'              => $l->qty_po,
+                    'qty_received'        => $l->qty_received,
+                    'qty_draft_other'     => $l->qty_draft_other,
+                    'qty_this_grn'        => $l->qty_this_grn,
+                    'qty_remaining'       => max(0, $l->qty_remaining),
+                    'draft_other_numbers' => $l->draft_other_numbers,
+                    'receivable'          => $l->receivable,
+                    'status_key'          => $l->status_key,
+                ];
+            }
+            $results[] = [
+                'po_id'            => (int) $po->po_id,
+                'po_number'        => $po->po_number,
+                'po_date'          => $po->po_date,
+                'po_status'        => $po->status,
+                'currency'         => $po->currency_code,
+                'supplier_name'    => $po->supplier_name,
+                'total_lines'      => count($po_lines),
+                'material_lines'   => $material_lines,
+                'other_lines'      => $other_lines,
+                'receivable_lines' => $receivable_lines,
+                // Progres penerimaan material dalam persen qty, hanya dari GRN Completed.
+                'progress'         => $mat_qty > 0 ? round($mat_received / $mat_qty * 100) : 0,
+                'fully_received'   => $receivable_lines === 0,
+                'lines'            => $out_lines,
+            ];
+        }
+
+        echo json_encode(['status' => 'success', 'data' => $results]);
+    }
+
+    /**
+     * AJAX: muat item PO TERPILIH dengan qty tertentu ke GRN Draft.
+     *
+     * User 2026-09-14: "saat pilih PO-nya juga pilih itemnya, karena ada kondisi
+     * penerimaan partial item dan qty". Input: grn_id + items (JSON)
+     * [{po_detail_id, qty}, ...].
+     *
+     * SEMUA baris divalidasi dulu, baru disimpan. Kalau ada satu saja yang
+     * salah, tidak ada yang tersimpan -- GRN tidak pernah tertinggal dalam
+     * keadaan setengah termuat. Batas qty dihitung ulang di server, angka dari
+     * browser tidak dipercaya.
+     *
+     * Kalau baris PO yang sama sudah ada di GRN ini, qty-nya DITAMBAHKAN ke
+     * baris itu, bukan dibuat baris kembar.
+     */
+    public function load_selected_po_items() {
+        header('Content-Type: application/json');
+        if (!check_access('warehouse_in', 'edit')) {
+            echo json_encode(['status' => 'error', 'message' => 'Unauthorized']);
+            return;
+        }
+
+        $grn_id = (int) $this->input->post('grn_id');
+        $items  = json_decode((string) $this->input->post('items'), true);
+
+        $header = $grn_id > 0 ? $this->Warehouse_in_model->get_header_by_id($grn_id) : null;
+        if (!$header || $header->status != 'Draft' || $header->base_on != 'PO') {
+            echo json_encode(['status' => 'error', 'message' => 'GRN harus berstatus Draft dan berbasis PO.']);
+            return;
+        }
+        if (empty($items) || !is_array($items)) {
+            echo json_encode(['status' => 'error', 'message' => 'Pilih minimal satu item.']);
+            return;
+        }
+
+        // Kumpulkan & rapikan permintaan. Baris PO yang sama dijumlahkan.
+        $wanted = [];
+        foreach ($items as $it) {
+            $pdid = (int) ($it['po_detail_id'] ?? 0);
+            $qty  = round((float) ($it['qty'] ?? 0), 2);
+            if ($pdid <= 0) continue;
+            $wanted[$pdid] = ($wanted[$pdid] ?? 0) + $qty;
+        }
+        if (empty($wanted)) {
+            echo json_encode(['status' => 'error', 'message' => 'Pilih minimal satu item.']);
+            return;
+        }
+
+        // PO pemilik baris-baris itu, lalu status penerimaan terkininya.
+        $po_rows = $this->db->select('pd.id, pd.po_header_id, ph.status AS po_status, ph.supplier_id, ph.po_number')
+            ->from('po_details pd')->join('po_header ph', 'ph.id = pd.po_header_id')
+            ->where_in('pd.id', array_keys($wanted))->get()->result();
+        $po_of = [];
+        foreach ($po_rows as $r) { $po_of[(int) $r->id] = $r; }
+
+        $lines = $this->Warehouse_in_model->get_po_lines_with_receipt(
+            array_unique(array_map(function ($r) { return (int) $r->po_header_id; }, $po_rows)), $grn_id);
+        $line_of = [];
+        foreach ($lines as $l) { $line_of[(int) $l->po_detail_id] = $l; }
+
+        // ---- Tahap 1: validasi SEMUA baris ----
+        $errors = [];
+        foreach ($wanted as $pdid => $qty) {
+            $l  = $line_of[$pdid] ?? null;
+            $po = $po_of[$pdid] ?? null;
+            $name = ($l && $l->item_name) ? (($l->item_code ? $l->item_code . ' - ' : '') . $l->item_name) : ('baris PO #' . $pdid);
+            if (!$l || !$po) { $errors[] = "$name: baris PO tidak ditemukan."; continue; }
+            if (!in_array($po->po_status, ['Confirmed', 'Partially Received'], true)) {
+                $errors[] = "$name: PO {$po->po_number} berstatus {$po->po_status}, belum bisa diterima."; continue;
+            }
+            if (!$l->is_material) {
+                $errors[] = "$name: barang tipe {$l->item_type} diterima lewat Receiving Item Form, bukan di sini."; continue;
+            }
+            if ($qty <= 0) { $errors[] = "$name: qty harus lebih dari 0."; continue; }
+            if ($qty > $l->qty_remaining + 0.0001) {
+                $errors[] = "$name: qty " . (0 + $qty) . " melebihi sisa yang boleh diterima (" . (0 + max(0, $l->qty_remaining)) . ").";
+            }
+        }
+        if (!empty($errors)) {
+            echo json_encode(['status' => 'error', 'message' => 'Tidak ada item yang dimuat.', 'errors' => $errors]);
+            return;
+        }
+
+        // ---- Tahap 2: simpan dalam satu transaksi ----
+        $this->db->trans_start();
+        $added = 0; $merged = 0; $supplier = null; $suppliers = [];
+        foreach ($wanted as $pdid => $qty) {
+            $l = $line_of[$pdid]; $po = $po_of[$pdid];
+            $suppliers[(int) $po->supplier_id] = true;
+            if (!$supplier && !empty($po->supplier_id)) $supplier = (int) $po->supplier_id;
+
+            $unit_value = (float) $l->local_price;
+            $existing = $this->db->select('id, receive_qty')->from('grn_details')
+                ->where(['grn_header_id' => $grn_id, 'source_doc_type' => 'PO', 'source_doc_detail_id' => $pdid])
+                ->limit(1)->get()->row();
+
+            if ($existing) {
+                $new_qty = round((float) $existing->receive_qty + $qty, 2);
+                $this->db->update('grn_details',
+                    ['receive_qty' => $new_qty, 'total_value' => round($new_qty * $unit_value, 2)],
+                    ['id' => $existing->id]);
+                $merged++;
+            } else {
+                $this->Warehouse_in_model->insert_item([
+                    'grn_header_id'        => $grn_id,
+                    'source_doc_header_id' => (int) $l->po_header_id,
+                    'source_doc_detail_id' => $pdid,
+                    'source_doc_type'      => 'PO',
+                    'item_id'              => (int) $l->item_id,
+                    'item_type'            => $l->item_type,
+                    'receive_qty'          => $qty,
+                    'unit_value'           => $unit_value,
+                    'total_value'          => round($qty * $unit_value, 2),
+                    'bc_type_code'         => $header->bc_type_code ?? null,
+                    'bc_number'            => $header->bc_number ?? null,
+                    'bc_date'              => $header->bc_date ?? null,
+                ]);
+                $added++;
+            }
+        }
+        // Supplier GRN diisi dari PO kalau masih kosong (dipakai AP Invoice).
+        if ($supplier && empty($header->supplier_id)) {
+            $this->Warehouse_in_model->update_header($grn_id, ['supplier_id' => $supplier]);
+        }
+        $this->db->trans_complete();
+
+        if ($this->db->trans_status() === false) {
+            echo json_encode(['status' => 'error', 'message' => 'Gagal menyimpan ke database. Tidak ada item yang dimuat.']);
+            return;
+        }
+
+        $msg = "$added item baru dimuat" . ($merged ? ", $merged item digabung ke baris yang sudah ada" : '') . '.';
+        if (count($suppliers) > 1) {
+            $msg .= ' Perhatian: item berasal dari lebih dari satu supplier.';
+        }
+        echo json_encode(['status' => 'success', 'message' => $msg, 'added' => $added, 'merged' => $merged]);
+    }
+
+    /**
+     * Validasi & simpan perubahan satu baris item PO di GRN Draft.
+     * Dipakai update_po_item() (modal edit baru) DAN update_po_item_qty()
+     * (endpoint lama) -- supaya endpoint lama tidak jadi celah penerimaan
+     * berlebih. Versi lamanya menerima qty berapa pun tanpa dicek ke PO.
+     *
+     * @param array|null $bc ['bc_type_code','bc_number','bc_date'] atau null = tidak diubah
+     * @return array ['status' => 'success'|'error', 'message' => ..., ...]
+     */
+    private function _save_po_detail($detail_id, $new_qty, $bc = null) {
+        $detail_id = (int) $detail_id;
+        $new_qty   = round((float) $new_qty, 2);
+
+        $d = $this->db->select('gd.*, gh.status AS grn_status, gh.base_on')
+            ->from('grn_details gd')->join('grn_header gh', 'gh.id = gd.grn_header_id')
+            ->where('gd.id', $detail_id)->get()->row();
+        if (!$d || $d->grn_status != 'Draft' || $d->base_on == 'MIR' || $d->source_doc_type != 'PO') {
+            return ['status' => 'error', 'message' => 'Item tidak ditemukan atau GRN sudah tidak Draft.'];
+        }
+        if ($new_qty <= 0) {
+            return ['status' => 'error', 'message' => 'Qty harus lebih dari 0. Untuk membatalkan item, gunakan tombol hapus.'];
+        }
+
+        $lines = $this->Warehouse_in_model->get_po_lines_with_receipt([(int) $d->source_doc_header_id], (int) $d->grn_header_id);
+        $line = null;
+        foreach ($lines as $l) { if ((int) $l->po_detail_id === (int) $d->source_doc_detail_id) { $line = $l; break; } }
+        if (!$line) {
+            return ['status' => 'error', 'message' => 'Baris PO sumber tidak ditemukan.'];
+        }
+
+        // Sisa sudah memotong qty baris ini sendiri -> kembalikan dulu.
+        $max = round($line->qty_remaining + (float) $d->receive_qty, 4);
+        if ($new_qty > $max + 0.0001) {
+            return ['status' => 'error', 'message' => 'Qty melebihi batas. Maksimum yang boleh diterima untuk baris ini: ' . (0 + $max) . '.', 'max' => $max];
+        }
+
+        $upd = ['receive_qty' => $new_qty, 'total_value' => round($new_qty * (float) $d->unit_value, 2)];
+        if (is_array($bc)) {
+            $upd['bc_type_code'] = ($bc['bc_type_code'] ?? '') !== '' ? $bc['bc_type_code'] : null;
+            $upd['bc_number']    = ($bc['bc_number'] ?? '')    !== '' ? $bc['bc_number']    : null;
+            $upd['bc_date']      = ($bc['bc_date'] ?? '')      !== '' ? $bc['bc_date']      : null;
+        }
+        if (!$this->db->update('grn_details', $upd, ['id' => $detail_id])) {
+            return ['status' => 'error', 'message' => 'Gagal menyimpan perubahan.'];
+        }
+        return ['status' => 'success', 'message' => 'Item diperbarui.', 'receive_qty' => $new_qty, 'total_value' => $upd['total_value'], 'max' => $max];
+    }
+
+    /**
+     * AJAX: data lengkap satu baris untuk modal Edit Item (qty PO, sudah
+     * diterima, tertahan di draft lain, batas maksimum, data BC).
+     */
+    public function get_po_item_detail() {
+        header('Content-Type: application/json');
+        if (!check_access('warehouse_in', 'edit')) {
+            echo json_encode(['status' => 'error', 'message' => 'Unauthorized']);
+            return;
+        }
+        $detail_id = (int) $this->input->get('detail_id');
+        $d = $this->db->select('gd.*, gh.status AS grn_status, gh.base_on, ph.po_number')
+            ->from('grn_details gd')->join('grn_header gh', 'gh.id = gd.grn_header_id')
+            ->join('po_header ph', 'ph.id = gd.source_doc_header_id', 'left')
+            ->where('gd.id', $detail_id)->get()->row();
+        if (!$d || $d->source_doc_type != 'PO') {
+            echo json_encode(['status' => 'error', 'message' => 'Item tidak ditemukan.']);
+            return;
+        }
+        $line = null;
+        foreach ($this->Warehouse_in_model->get_po_lines_with_receipt([(int) $d->source_doc_header_id], (int) $d->grn_header_id) as $l) {
+            if ((int) $l->po_detail_id === (int) $d->source_doc_detail_id) { $line = $l; break; }
+        }
+        if (!$line) {
+            echo json_encode(['status' => 'error', 'message' => 'Baris PO sumber tidak ditemukan.']);
+            return;
+        }
+        echo json_encode(['status' => 'success', 'data' => [
+            'detail_id'           => (int) $d->id,
+            'po_number'           => $d->po_number,
+            'item_code'           => $line->item_code,
+            'item_name'           => $line->item_name,
+            'unit'                => $line->unit,
+            'item_type'           => $line->item_type,
+            'qty_po'              => $line->qty_po,
+            'qty_received'        => $line->qty_received,
+            'qty_draft_other'     => $line->qty_draft_other,
+            'draft_other_numbers' => $line->draft_other_numbers,
+            'receive_qty'         => (float) $d->receive_qty,
+            'max_qty'             => round($line->qty_remaining + (float) $d->receive_qty, 4),
+            'unit_value'          => (float) $d->unit_value,
+            'bc_type_code'        => $d->bc_type_code,
+            'bc_number'           => $d->bc_number,
+            'bc_date'             => $d->bc_date,
+        ]]);
+    }
+
+    /** AJAX: simpan modal Edit Item -- qty + data BC per baris. */
+    public function update_po_item() {
+        header('Content-Type: application/json');
+        if (!check_access('warehouse_in', 'edit')) {
+            echo json_encode(['status' => 'error', 'message' => 'Unauthorized']);
+            return;
+        }
+        echo json_encode($this->_save_po_detail(
+            $this->input->post('detail_id'),
+            $this->input->post('receive_qty'),
+            [
+                'bc_type_code' => trim((string) $this->input->post('bc_type_code')),
+                'bc_number'    => trim((string) $this->input->post('bc_number')),
+                'bc_date'      => trim((string) $this->input->post('bc_date')),
+            ]
+        ));
+    }
+
+    /**
+     * @deprecated 2026-09-14 -- modal Pilih PO sekarang memanggil
+     * load_selected_po_items() yang bisa memilih item & qty tertentu.
+     * Method ini memuat SEMUA sisa item sekaligus; dibiarkan supaya halaman
+     * lama yang masih ter-cache tidak rusak. Tetap aman dari penerimaan
+     * berlebih karena sisanya dihitung dari seluruh grn_details.
+     */
+    public function auto_load_multiple_po_items() {
+        if (!check_access('warehouse_in', 'edit')) {
+            header('Content-Type: application/json');
+            echo json_encode(['status' => 'error', 'message' => 'Unauthorized']);
+            return;
+        }
+
+        $grn_id = $this->input->post('grn_id');
+        $po_ids = $this->input->post('po_ids'); // Array of PO IDs
+
+        if (empty($grn_id) || !is_numeric($grn_id) || empty($po_ids) || !is_array($po_ids)) {
+            header('Content-Type: application/json');
+            echo json_encode(['status' => 'error', 'message' => 'Invalid parameters']);
+            return;
+        }
+
+        $header = $this->Warehouse_in_model->get_header_by_id($grn_id);
+        if (!$header || $header->status != 'Draft' || $header->base_on != 'PO') {
+            header('Content-Type: application/json');
+            echo json_encode(['status' => 'error', 'message' => 'GRN tidak valid untuk auto-load PO items']);
+            return;
+        }
+
+        // Start transaction
+        $this->db->trans_start();
+
+        $total_loaded = 0;
+        $error_pos = [];
+        $first_supplier = null;
+
+        foreach ($po_ids as $po_id) {
+            if (!is_numeric($po_id)) continue;
+
+            $po_header = $this->Po_model->get_po_header_by_id($po_id);
+            if (!$po_header) {
+                $error_pos[] = 'PO ID ' . $po_id . ' tidak ditemukan';
+                continue;
+            }
+
+            // Ambil supplier dari PO pertama yang punya (untuk diisi ke GRN header)
+            if (!$first_supplier && !empty($po_header->supplier_id)) {
+                $first_supplier = $po_header->supplier_id;
+            }
+
+            // Get items from this PO
+            $all_po_items = $this->db
+                ->select('pd.id as po_detail_id, pd.item_id, pd.item_type, pd.qty, pd.local_price')
+                ->from('po_details pd')
+                ->where('pd.po_header_id', $po_id)
+                ->get()
+                ->result();
+
+            // Filter items that still need to be received
+            $po_details = [];
+            foreach ($all_po_items as $item) {
+                $received_result = $this->db->select('SUM(receive_qty) as total_received')
+                                            ->from('grn_details')
+                                            ->where('source_doc_header_id', $po_id)
+                                            ->where('source_doc_type', 'PO')
+                                            ->where('source_doc_detail_id', $item->po_detail_id)
+                                            ->get()
+                                            ->row();
+
+                $total_received = $received_result->total_received ?? 0;
+                $receive_qty = $item->qty - $total_received;
+
+                if ($receive_qty > 0.001) {
+                    $item->remaining_qty = $receive_qty;
+                    $po_details[] = $item;
+                }
+            }
+
+            if (empty($po_details)) continue;
+
+            // Load items from this PO
+            foreach ($po_details as $pd) {
+                $receive_qty = $pd->remaining_qty;
+                $unit_value = (float)($pd->local_price ?? 0);
+                $total_value = $receive_qty * $unit_value;
+
+                $data = [
+                    'grn_header_id' => $grn_id,
+                    'source_doc_header_id' => $po_id,
+                    'source_doc_detail_id' => $pd->po_detail_id,
+                    'source_doc_type' => 'PO',
+                    'item_id' => $pd->item_id,
+                    'item_type' => $pd->item_type,
+                    'receive_qty' => $receive_qty,
+                    'unit_value' => $unit_value,
+                    'total_value' => $total_value,
+                    'bc_type_code' => isset($header->bc_type_code) ? $header->bc_type_code : null,
+                    'bc_number' => isset($header->bc_number) ? $header->bc_number : null,
+                    'bc_date' => isset($header->bc_date) ? $header->bc_date : null
+                ];
+
+                if ($this->Warehouse_in_model->insert_item($data)) {
+                    $total_loaded++;
+                }
+            }
+        }
+
+        // Isi supplier_id GRN header dari PO (jika belum terisi) supaya GRN muncul di AP Invoice
+        if ($total_loaded > 0 && $first_supplier && empty($header->supplier_id)) {
+            $this->Warehouse_in_model->update_header($grn_id, ['supplier_id' => $first_supplier]);
+        }
+
+        $this->db->trans_complete();
+
+        header('Content-Type: application/json');
+        if ($total_loaded > 0) {
+            echo json_encode([
+                'status' => 'success',
+                'message' => 'Berhasil auto-load ' . $total_loaded . ' item(s) dari ' . count($po_ids) . ' PO',
+                'total_loaded' => $total_loaded,
+                'error_pos' => $error_pos
+            ]);
+        } else {
+            echo json_encode([
+                'status' => 'warning',
+                'message' => 'Tidak ada item yang berhasil di-load',
+                'error_pos' => $error_pos
+            ]);
+        }
+    }
+
+    /**
      * Auto-load items from MULTIPLE MIR numbers at once
      * AJAX endpoint for multi-MIR selection feature
      */
@@ -292,6 +873,7 @@ class Warehouse_in extends MY_Controller {
 
         $total_loaded = 0;
         $error_mirs = [];
+        $first_supplier = null;
 
         foreach ($mir_ids as $mir_id) {
             if (!is_numeric($mir_id)) continue;
@@ -300,6 +882,11 @@ class Warehouse_in extends MY_Controller {
             if (!$mir_header) {
                 $error_mirs[] = 'MIR ID ' . $mir_id . ' tidak ditemukan';
                 continue;
+            }
+
+            // Ambil supplier dari MIR pertama yang punya (untuk diisi ke GRN header)
+            if (!$first_supplier && !empty($mir_header->supplier_id)) {
+                $first_supplier = $mir_header->supplier_id;
             }
 
             // Get items from this MIR
@@ -386,6 +973,11 @@ class Warehouse_in extends MY_Controller {
                     $total_loaded++;
                 }
             }
+        }
+
+        // Isi supplier_id GRN header dari MIR (jika belum terisi) supaya GRN muncul di AP Invoice
+        if ($total_loaded > 0 && $first_supplier && empty($header->supplier_id)) {
+            $this->Warehouse_in_model->update_header($grn_id, ['supplier_id' => $first_supplier]);
         }
 
         $this->db->trans_complete();
@@ -565,7 +1157,7 @@ class Warehouse_in extends MY_Controller {
 
     // === Confirm / Unconfirm ===
     public function confirm_grn($id) {
-        if (!check_access('warehouse_in', 'edit')) { show_error('Anda tidak memiliki izin.', 403); return; }
+        if (!check_access('warehouse_in', 'confirm')) { show_error('Anda tidak memiliki izin.', 403); return; }
         if (empty($id) || !is_numeric($id)) { show_404(); }
 
         $header = $this->Warehouse_in_model->get_header_by_id($id);
@@ -581,30 +1173,28 @@ class Warehouse_in extends MY_Controller {
             return;
         }
 
-        // 1. Tambah Stok (Model sudah FIFO & Traceability)
-        if ($this->Warehouse_in_model->add_stock_to_ledger_and_batch($id)) {
-            // 2. Update Status Header
-            $user_id = $this->session->userdata('user_id') ?? null;
-            if ($this->Warehouse_in_model->update_status($id, 'Completed', $user_id)) {
-                $this->session->set_flashdata('success', 'GRN dikonfirmasi. Stok batch dan ledger telah ditambahkan.');
-            } else {
-                // Rollback manual (jarang terjadi, tapi untuk keamanan)
-                log_message('error', 'GRN: Kritis! Gagal update status ke Completed setelah stok ditambah. GRN ID: ' . $id);
-                $this->Warehouse_in_model->remove_stock_from_ledger_and_batch($id); // Rollback stok
-                $this->session->set_flashdata('error', 'Gagal update status GRN! Stok dibatalkan.');
-            }
-        } else {
-            // Model add_stock... return false (kemungkinan DB error)
-            // Cek log error untuk detail masalah
-            $db_error = $this->db->error();
-            $error_msg = 'Gagal menambahkan stok batch/ledger! Transaksi dibatalkan.';
-            if (!empty($db_error['message'])) {
-                $error_msg .= ' (DB: ' . $db_error['message'] . ')';
-                log_message('error', 'GRN Confirm Error - DB Error: ' . print_r($db_error, true));
-            }
-            $this->session->set_flashdata('error', $error_msg);
+        $user_id = $this->session->userdata('user_id') ?? null;
+
+        // Modul Warehouse_in hanya untuk Material & Semifinished — semua via QA.
+        // Penerimaan Machine/Inventory ditangani modul Supplier General Item Receipt.
+        if (!$this->Warehouse_in_model->update_status($id, 'Completed', $user_id)) {
+            $this->session->set_flashdata('error', 'Gagal mengkonfirmasi GRN.');
+            redirect('warehouse_in/detail/' . $id);
+            return;
         }
-        redirect('warehouse_in/detail/' . $id);
+
+        $this->load->model('Quality_assurance_model');
+        $qa_header_id = $this->Quality_assurance_model->create_qa_header_from_grn($id, $user_id);
+
+        if ($qa_header_id) {
+            $this->session->set_flashdata('success',
+                'GRN dikonfirmasi! Quality Assurance dibuat dan siap di-check. Barang belum masuk stok sampai QC selesai.');
+            redirect('warehouse_in');
+        } else {
+            $this->session->set_flashdata('warning',
+                'GRN dikonfirmasi tapi gagal membuat QA header. Hubungi admin untuk investigate.');
+            redirect('warehouse_in/detail/' . $id);
+        }
     }
 
     public function unconfirm_grn($id) {
@@ -618,27 +1208,62 @@ class Warehouse_in extends MY_Controller {
             return;
         }
 
+        // ===== NEW: Check QA Status =====
+        // Sebelum unconfirm, check apakah QA ada dan sudah di-check
+        $this->load->model('Quality_assurance_model');
+        $qa_header = $this->Quality_assurance_model->get_qa_header_by_grn_id($id);
+        
+        if ($qa_header) {
+            // QA ada, check apakah sudah punya items yang di-check
+            $checked_items = $this->db->select('COUNT(*) as count')
+                ->from('qa_details')
+                ->where('qa_header_id', $qa_header->id)
+                ->where('qa_pass_qty > 0 OR qa_reject_qty > 0', null, false)
+                ->get()
+                ->row();
+            
+            if ($checked_items && $checked_items->count > 0) {
+                // Ada items yang sudah di-check, tidak boleh unconfirm
+                $this->session->set_flashdata('error', 
+                    'Tidak bisa batalkan GRN! Quality Assurance sudah memulai QC check. ' .
+                    'Hubungi QA Supervisor untuk reset QA jika ingin batalkan GRN.');
+                redirect('warehouse_in/detail/' . $id);
+                return;
+            }
+            
+            // QA ada tapi belum ada items yang di-check, boleh delete QA
+            // Delete QA details
+            $this->db->delete('qa_details', ['qa_header_id' => $qa_header->id]);
+            
+            // Delete QA header
+            $this->db->delete('qa_header', ['id' => $qa_header->id]);
+            
+            // Clear QA reference dari GRN header
+            $this->db->update('grn_header', 
+                ['qa_header_id' => null, 'qa_status' => 'Not Started'],
+                ['id' => $id]
+            );
+            
+            log_message('info', 'GRN: Deleted QA header ' . $qa_header->qa_number . ' untuk GRN ' . $header->grn_number);
+        }
+        // ===== END NEW: QA Check =====
+
         // 1. Hapus Stok (Model sudah validasi stok terpakai)
         $remove_result = $this->Warehouse_in_model->remove_stock_from_ledger_and_batch($id);
 
-        // --- REVISI DI SINI ---
         if ($remove_result === true) { // Jika sukses (true)
             // 2. Update Status Header
             if ($this->Warehouse_in_model->update_status($id, 'Draft')) {
-                $this->session->set_flashdata('success', 'Konfirmasi GRN dibatalkan. Stok batch dan ledger telah dikembalikan/dihapus.');
+                $this->session->set_flashdata('success', 'Konfirmasi GRN dibatalkan. Stok batch dan ledger telah dikembalikan/dihapus. QA juga dihapus.');
             } else {
-                // Kritis: Stok sudah dihapus tapi status gagal update
                 log_message('error', 'GRN: Kritis! Gagal update status ke Draft setelah stok dihapus. GRN ID: ' . $id);
                 $this->session->set_flashdata('error', 'Stok berhasil dihapus, tapi gagal update status header!');
             }
         } elseif ($remove_result === false) { // Jika gagal (false)
-             // Model mengembalikan false, artinya stok sudah terpakai
              $this->session->set_flashdata('error', 'Gagal membatalkan GRN! Sebagian stok dari batch ini sudah terpakai di produksi.');
         } else {
-             // Handle jika ada return lain (meskipun model saat ini hanya true/false)
              $this->session->set_flashdata('error', 'Gagal mengembalikan stok batch (Database Error).');
         }
-        // --- AKHIR REVISI ---
 
         redirect('warehouse_in/detail/' . $id);
     }
@@ -676,34 +1301,8 @@ class Warehouse_in extends MY_Controller {
     }
     private function _generate_grn_number()
     {
-        $prefix = 'GRN';
-        $period = date('Ym'); // e.g., 202510
-        $full_prefix = $prefix . '/' . $period . '/';
-        $padding_length = 4; // 0001, 0002, ... 9999
-
-        // 1. Cari nomor MAX di periode yang sama
-        // Query: SELECT MAX(grn_number) as max_num FROM grn_header WHERE grn_number LIKE 'GRN/202510/%'
-        $this->db->select_max('grn_number', 'max_num');
-        $this->db->like('grn_number', $full_prefix, 'after'); // 'after' = LIKE 'prefix%'
-        $query = $this->db->get('grn_header');
-        $row = $query->row();
-
-        $running_number = 1; // Default nomor 1 jika ini yang pertama di bulan ini
-
-        if ($row && $row->max_num) {
-            // 2. Jika sudah ada data (e.g., GRN/202510/0001)
-            // Ambil bagian nomor urutnya saja ("0001")
-            $last_number_str = substr($row->max_num, strlen($full_prefix)); 
-            
-            // Ubah jadi integer (1), lalu tambah 1 (jadi 2)
-            $running_number = (int)$last_number_str + 1;
-        }
-
-        // 3. Tambahkan padding nol di depan (e.g., 2 -> "0002")
-        $new_running_number = str_pad($running_number, $padding_length, '0', STR_PAD_LEFT);
-
-        // 4. Gabungkan (e.g., "GRN/202510/0002")
-        return $full_prefix . $new_running_number;
+        // Format nomor diatur di config/doc_number.php (rebrand Acropoly 2026-11-05).
+        return doc_number_next('grn', 'grn_header', 'grn_number');
     }
 
     // === Item Actions ===
@@ -794,9 +1393,10 @@ class Warehouse_in extends MY_Controller {
         }
 
         // Check if user is admin for MIR item editing
-        $user_role = $this->session->userdata('role_id');
-        $role = $this->db->select('role_name')->from('roles')->where('id', $user_role)->get()->row();
-        $is_admin = ($role && stripos($role->role_name, 'admin') !== false);
+        // Dulu: nama role mengandung kata "admin". Sejak Role Level
+        // (2026-09-15) ada posisi "Admin/Clerk" di tiap departemen, jadi
+        // cara itu akan menjadikan semua clerk admin. Pakai is_admin().
+        $is_admin = is_admin();
         
         if (!$is_admin) {
             header('Content-Type: application/json');
@@ -902,9 +1502,10 @@ class Warehouse_in extends MY_Controller {
         }
 
         // Check if user is admin for MIR item editing  
-        $user_role = $this->session->userdata('role_id');
-        $role = $this->db->select('role_name')->from('roles')->where('id', $user_role)->get()->row();
-        $is_admin = ($role && stripos($role->role_name, 'admin') !== false);
+        // Dulu: nama role mengandung kata "admin". Sejak Role Level
+        // (2026-09-15) ada posisi "Admin/Clerk" di tiap departemen, jadi
+        // cara itu akan menjadikan semua clerk admin. Pakai is_admin().
+        $is_admin = is_admin();
         
         if (!$is_admin) {
             header('Content-Type: application/json');
@@ -948,6 +1549,26 @@ class Warehouse_in extends MY_Controller {
             echo json_encode(['status' => 'error', 'message' => 'Failed to update']);
         }
     }
+
+    /**
+     * AJAX endpoint to update item quantity for PO and non-MIR items
+     * Updates only receive_qty, keeps unit_value fixed
+     */
+    /**
+     * @deprecated 2026-09-14 -- diganti update_po_item(). Dipertahankan untuk
+     * halaman lama yang masih ter-cache, tapi SEKARANG lewat validasi yang sama:
+     * versi lamanya menerima qty berapa pun tanpa dicek ke sisa PO, sehingga
+     * satu baris PO bisa diterima melebihi yang dipesan.
+     */
+    public function update_po_item_qty() {
+        header('Content-Type: application/json');
+        if (!check_access('warehouse_in', 'edit')) {
+            echo json_encode(['status' => 'error', 'message' => 'Unauthorized']);
+            return;
+        }
+        echo json_encode($this->_save_po_detail($this->input->post('detail_id'), $this->input->post('receive_qty'), null));
+    }
+
     public function export_excel($id) {
        if (!check_access('warehouse_in', 'view')) {
             show_error('Anda tidak memiliki izin.', 403);

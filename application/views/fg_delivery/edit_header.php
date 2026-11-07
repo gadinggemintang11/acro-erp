@@ -2,26 +2,26 @@
 <div class="container-fluid py-4">
 
     <div class="d-flex justify-content-between align-items-center mb-4">
-        <h3 class="fw-bold text-primary mb-0">
-            <i class="fas fa-edit me-2"></i>Edit Header Pengeluaran FG
+        <h3 class="font-weight-bold text-primary mb-0">
+            <i class="fas fa-edit mr-2"></i><?= lang_line('fgd_edit_header_title', 'Edit Header Pengeluaran FG'); ?>
         </h3>
         <a href="<?= site_url('fg_delivery/show/' . $header->id) ?>" class="btn btn-light border">
-            <i class="fas fa-arrow-left me-1"></i> Kembali
+            <i class="fas fa-arrow-left mr-1"></i> <?= lang_line('fgd_btn_back', 'Kembali'); ?>
         </a>
     </div>
 
     <div class="card shadow-sm border-0">
         <div class="card-body">
             <?= form_open('fg_delivery/update_header/' . $header->id, ['id' => 'formEditHeader']) ?>
-            <div class="row g-3">
+            <div class="row">
                 <div class="col-md-4 mb-3">
-                    <label for="delivery_date" class="form-label fw-semibold">Tanggal Pengeluaran <span class="text-danger">*</span></label>
+                    <label for="delivery_date" class="form-label font-weight-bold"><?= lang_line('fgd_label_delivery_date', 'Tanggal Pengeluaran'); ?> <span class="text-danger">*</span></label>
                     <input type="date" name="delivery_date" id="delivery_date" class="form-control" value="<?= htmlspecialchars($header->delivery_date) ?>" required>
                 </div>
                 <div class="col-md-8 mb-3">
-                    <label for="customer_id" class="form-label fw-semibold">Customer <span class="text-danger">*</span></label>
-                    <select name="customer_id" id="customer_id" class="form-select select2-customer" required>
-                        <option value="">-- Pilih Customer --</option>
+                    <label for="customer_id" class="form-label font-weight-bold"><?= lang_line('fgd_label_customer', 'Customer'); ?> <span class="text-danger">*</span></label>
+                    <select name="customer_id" id="customer_id" class="form-control select2-customer" required>
+                        <option value=""><?= lang_line('fgd_select_customer', '-- Pilih Customer --'); ?></option>
                         <?php foreach($customers as $c): ?>
                             <option value="<?= $c->id ?>" <?= ($c->id == $header->customer_id) ? 'selected' : '' ?>><?= htmlspecialchars($c->nama_customer) ?></option>
                         <?php endforeach; ?>
@@ -29,37 +29,37 @@
                 </div>
 
                 <div class="col-12 mb-3">
-                    <label for="shipping_address" class="form-label fw-semibold">Alamat Pengiriman</label>
-                    <textarea name="shipping_address" id="shipping_address" class="form-control" rows="2" placeholder="Alamat lengkap pengiriman"><?= htmlspecialchars($header->shipping_address) ?></textarea>
+                    <label for="shipping_address" class="form-label font-weight-bold"><?= lang_line('fgd_label_shipping_addr', 'Alamat Pengiriman'); ?></label>
+                    <textarea name="shipping_address" id="shipping_address" class="form-control" rows="2" placeholder="<?= lang_line('fgd_addr_placeholder', 'Alamat lengkap pengiriman'); ?>"><?= htmlspecialchars($header->shipping_address) ?></textarea>
                 </div>
 
                 <div class="col-md-4 mb-3">
-                    <label for="bc_type_id" class="form-label fw-semibold">BC Type</label>
-                    <select name="bc_type_id" id="bc_type_id" class="form-select select2-bc-type">
-                        <option value="">-- Pilih BC --</option>
+                    <label for="bc_type_id" class="form-label font-weight-bold"><?= lang_line('fgd_label_bc_type', 'BC Type'); ?></label>
+                    <select name="bc_type_id" id="bc_type_id" class="form-control select2-bc-type">
+                        <option value=""><?= lang_line('fgd_select_bc', '-- Pilih BC --'); ?></option>
                         <?php foreach($bc_types as $b): ?>
                             <option value="<?= $b->id ?>" <?= ($b->id == $header->bc_type_id) ? 'selected' : '' ?>><?= htmlspecialchars($b->code) ?> - <?= htmlspecialchars($b->description) ?></option>
                         <?php endforeach; ?>
                     </select>
                 </div>
                 <div class="col-md-4 mb-3">
-                    <label for="bc_number" class="form-label fw-semibold">Nomor BC</label>
-                    <input type="text" name="bc_number" id="bc_number" class="form-control" value="<?= htmlspecialchars($header->bc_number) ?>" placeholder="Nomor Bea Cukai">
+                    <label for="bc_number" class="form-label font-weight-bold"><?= lang_line('fgd_label_bc_number', 'Nomor BC'); ?></label>
+                    <input type="text" name="bc_number" id="bc_number" class="form-control" value="<?= htmlspecialchars($header->bc_number) ?>" placeholder="<?= lang_line('fgd_bc_num_placeholder', 'Nomor Bea Cukai'); ?>">
                 </div>
                 <div class="col-md-4 mb-3">
-                    <label for="bc_date" class="form-label fw-semibold">Tanggal BC</label>
+                    <label for="bc_date" class="form-label font-weight-bold"><?= lang_line('fgd_label_bc_date', 'Tanggal BC'); ?></label>
                     <input type="date" name="bc_date" id="bc_date" class="form-control" value="<?= htmlspecialchars($header->bc_date) ?>">
                 </div>
-                
+
                 <div class="col-12 mb-3">
-                    <label for="shipping_method" class="form-label fw-semibold">Metode Pengiriman</label>
-                    <input type="text" name="shipping_method" id="shipping_method" value="<?= htmlspecialchars($header->shipping_method) ?>" class="form-control" placeholder="Contoh: Truck, Container, dll.">
+                    <label for="shipping_method" class="form-label font-weight-bold"><?= lang_line('fgd_label_shipping_method', 'Metode Pengiriman'); ?></label>
+                    <input type="text" name="shipping_method" id="shipping_method" value="<?= htmlspecialchars($header->shipping_method) ?>" class="form-control" placeholder="<?= lang_line('fgd_method_placeholder', 'Contoh: Truck, Container, dll.'); ?>">
                 </div>
             </div>
 
-            <div class="mt-4 pt-3 border-top text-end">
-                <button type="submit" class="btn btn-primary px-4 fw-bold">
-                    <i class="fas fa-save me-1"></i> Update Header
+            <div class="mt-4 pt-3 border-top text-right">
+                <button type="submit" class="btn btn-primary px-4 font-weight-bold">
+                    <i class="fas fa-save mr-1"></i> <?= lang_line('fgd_btn_update_header', 'Update Header'); ?>
                 </button>
             </div>
             <?= form_close(); ?>
@@ -77,16 +77,21 @@
 <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
 
 <script>
+const I18N_FGD_EH = {
+    select_customer: <?= json_encode(lang_line('fgd_select_customer', '-- Pilih Customer --')); ?>,
+    select_bc:       <?= json_encode(lang_line('fgd_select_bc', '-- Pilih BC --')); ?>
+};
+
 $(document).ready(function() {
     // Initialize Select2 for customer and BC type dropdowns
     $('.select2-customer').select2({
         theme: 'bootstrap4',
-        placeholder: '-- Pilih Customer --',
+        placeholder: I18N_FGD_EH.select_customer,
         allowClear: true
     });
     $('.select2-bc-type').select2({
         theme: 'bootstrap4',
-        placeholder: '-- Pilih BC --',
+        placeholder: I18N_FGD_EH.select_bc,
         allowClear: true
     });
 

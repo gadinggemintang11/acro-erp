@@ -1,7 +1,26 @@
 <?php
 defined('BASEPATH') OR exit('No direct script access allowed');
 
+/**
+ * Notifikasi topbar per-event (ERP Revision Notes, [[erp_revision_cross_cutting]]).
+ *
+ * REVISI 2026-09-03: sebelumnya method2 di bawah ini baca dari `user_logs`
+ * (feed generik CRUD, difilter per role, "mark as read" cuma no-op krn
+ * user_logs tidak punya kolom is_read). Sekarang baca/tulis ke tabel
+ * `notifications` (db/migration_notifications.sql) yang memang didesain
+ * utk ini — 1 baris = 1 notifikasi bertarget ke 1 user, is_read beneran,
+ * link beneran bisa diklik. Dibuat via MY_Controller::notify_users() dari
+ * titik-titik trigger approval (submit/approve stage/back-to-draft/dst).
+ *
+ * Method lama yang basis user_logs (module_alias, allowed_module_labels_for_role,
+ * get_important_notifications) DIHAPUS krn sudah tidak dipakai jalur manapun
+ * (dicek: cuma Notification.php controller yang pakai model ini, method2
+ * lama itu cuma dipanggil dari get_notifications/count_unread lama yang
+ * sekarang sudah diganti).
+ */
 class Notification_model extends CI_Model {
+
+    private $table = 'notifications';
 
     public function __construct() {
         parent::__construct();
@@ -9,190 +28,90 @@ class Notification_model extends CI_Model {
     }
 
     /**
-     * Get notifications from user_logs table
+     * Buat 1 notifikasi baru. Dipanggil dari MY_Controller::notify_users().
+     */
+    public function create($data) {
+        $insert = [
+            'user_id'       => (int) ($data['user_id'] ?? 0),
+            'title'         => $data['title'] ?? '',
+            'message'       => $data['message'] ?? null,
+            'type'          => $data['type'] ?? 'info',
+            'icon'          => $data['icon'] ?? 'fa-bell',
+            'link'          => $data['link'] ?? null,
+            'source_module' => $data['source_module'] ?? null,
+            'source_id'     => isset($data['source_id']) ? (int) $data['source_id'] : null,
+            'is_read'       => 0,
+            'created_at'    => date('Y-m-d H:i:s'),
+        ];
+        if ($insert['user_id'] <= 0 || $insert['title'] === '') return false;
+
+        $this->db->insert($this->table, $insert);
+        return $this->db->insert_id();
+    }
+
+    /**
+     * Daftar notifikasi milik 1 user, terbaru dulu.
      */
     public function get_notifications($user_id = null, $limit = 10, $unread_only = false) {
-        $this->db->select('id, log_time as created_at, username as created_by, module, action, description as message');
-        $this->db->from('user_logs');
-        
-        // Filter by user if provided
-        if ($user_id !== null && $user_id != '') {
-            // Get username from user_id
-            $user = $this->db->select('username')->where('user_id', $user_id)->get('tblbmuserm')->row();
-            if ($user) {
-                $this->db->where('username', $user->username);
-            }
+        if (empty($user_id)) return [];
+
+        $this->db->reset_query();
+        $this->db->where('user_id', $user_id);
+        if ($unread_only) {
+            $this->db->where('is_read', 0);
         }
-        
-        $this->db->order_by('log_time', 'DESC');
+        $this->db->order_by('created_at', 'DESC');
         $this->db->limit($limit);
-        
-        $logs = $this->db->get()->result();
-        
-        // Transform logs to notification format
-        $notifications = array();
-        foreach ($logs as $log) {
-            $notifications[] = (object) array(
-                'id' => $log->id,
-                'title' => $this->get_action_title($log->action, $log->module),
-                'message' => $log->message,
-                'type' => $this->get_action_type($log->action),
-                'icon' => $this->get_action_icon($log->action),
-                'link' => null,
-                'is_read' => 1, // All logs are considered read
-                'created_at' => $log->created_at,
-                'created_by' => $log->created_by
-            );
-        }
-        
-        return $notifications;
+        return $this->db->get($this->table)->result();
     }
 
     /**
-     * Count recent notifications (last 24 hours)
+     * Jumlah notifikasi BELUM DIBACA milik 1 user (utk badge count topbar).
      */
     public function count_unread($user_id = null) {
-        $this->db->from('user_logs');
-        
-        // Get logs from last 24 hours
-        $this->db->where('log_time >=', date('Y-m-d H:i:s', strtotime('-24 hours')));
-        
-        // Filter by user if provided
-        if ($user_id !== null && $user_id != '') {
-            $user = $this->db->select('username')->where('user_id', $user_id)->get('tblbmuserm')->row();
-            if ($user) {
-                $this->db->where('username', $user->username);
-            }
-        }
-        
-        return $this->db->count_all_results();
+        if (empty($user_id)) return 0;
+
+        $this->db->reset_query();
+        $this->db->where('user_id', $user_id);
+        $this->db->where('is_read', 0);
+        return $this->db->count_all_results($this->table);
     }
 
-    /**
-     * Get action title based on action and module
-     */
-    private function get_action_title($action, $module) {
-        $titles = array(
-            'LOGIN' => 'User Login',
-            'LOGOUT' => 'User Logout',
-            'CREATE' => 'New ' . $module . ' Created',
-            'UPDATE' => $module . ' Updated',
-            'DELETE' => $module . ' Deleted',
-            'EXPORT' => $module . ' Exported',
-            'IMPORT' => $module . ' Imported',
-            'PRINT' => $module . ' Printed',
-            'VIEW' => $module . ' Viewed'
-        );
-        
-        return isset($titles[$action]) ? $titles[$action] : $action . ' - ' . $module;
-    }
-
-    /**
-     * Get notification type based on action
-     */
-    private function get_action_type($action) {
-        $types = array(
-            'LOGIN' => 'success',
-            'LOGOUT' => 'info',
-            'CREATE' => 'success',
-            'UPDATE' => 'warning',
-            'DELETE' => 'danger',
-            'EXPORT' => 'info',
-            'IMPORT' => 'info',
-            'PRINT' => 'info',
-            'VIEW' => 'info'
-        );
-        
-        return isset($types[$action]) ? $types[$action] : 'info';
-    }
-
-    /**
-     * Get icon based on action
-     */
-    private function get_action_icon($action) {
-        $icons = array(
-            'LOGIN' => 'fa-sign-in-alt',
-            'LOGOUT' => 'fa-sign-out-alt',
-            'CREATE' => 'fa-plus-circle',
-            'UPDATE' => 'fa-edit',
-            'DELETE' => 'fa-trash-alt',
-            'EXPORT' => 'fa-file-export',
-            'IMPORT' => 'fa-file-import',
-            'PRINT' => 'fa-print',
-            'VIEW' => 'fa-eye'
-        );
-        
-        return isset($icons[$action]) ? $icons[$action] : 'fa-bell';
-    }
-
-    /**
-     * Mark notification as read (not applicable for log-based notifications)
-     */
     public function mark_as_read($notification_id) {
-        // Since we're using logs, we don't mark as read
-        return true;
+        $this->db->where('id', (int) $notification_id);
+        return $this->db->update($this->table, [
+            'is_read' => 1,
+            'read_at' => date('Y-m-d H:i:s'),
+        ]);
     }
 
-    /**
-     * Mark all notifications as read (not applicable for log-based notifications)
-     */
     public function mark_all_as_read($user_id = null) {
-        // Since we're using logs, we don't mark as read
-        return true;
+        if (empty($user_id)) return false;
+
+        $this->db->where('user_id', $user_id);
+        $this->db->where('is_read', 0);
+        return $this->db->update($this->table, [
+            'is_read' => 1,
+            'read_at' => date('Y-m-d H:i:s'),
+        ]);
     }
 
-    /**
-     * Delete notification (delete log entry)
-     */
     public function delete_notification($notification_id) {
-        $this->db->where('id', $notification_id);
-        return $this->db->delete('user_logs');
+        $this->db->where('id', (int) $notification_id);
+        return $this->db->delete($this->table);
     }
 
     /**
-     * Delete old notifications (older than specified days)
+     * Housekeeping: hapus notifikasi lama (dipanggil manual/cron kalau perlu
+     * — belum ada cron otomatis dibangun utk ini).
      */
-    public function delete_old_notifications($days = 30) {
+    public function delete_old_notifications($days = 60) {
         $date = date('Y-m-d H:i:s', strtotime("-$days days"));
-        $this->db->where('log_time <', $date);
-        return $this->db->delete('user_logs');
+        $this->db->where('created_at <', $date);
+        return $this->db->delete($this->table);
     }
-    
-    /**
-     * Check if table exists
-     */
+
     public function table_exists() {
-        return $this->db->table_exists('user_logs');
-    }
-    
-    /**
-     * Get recent important notifications
-     */
-    public function get_important_notifications($limit = 5) {
-        $this->db->select('id, log_time as created_at, username as created_by, module, action, description as message');
-        $this->db->from('user_logs');
-        $this->db->where_in('action', array('CREATE', 'DELETE', 'EXPORT', 'LOGIN'));
-        $this->db->where('log_time >=', date('Y-m-d H:i:s', strtotime('-24 hours')));
-        $this->db->order_by('log_time', 'DESC');
-        $this->db->limit($limit);
-        
-        $logs = $this->db->get()->result();
-        
-        $notifications = array();
-        foreach ($logs as $log) {
-            $notifications[] = (object) array(
-                'id' => $log->id,
-                'title' => $this->get_action_title($log->action, $log->module),
-                'message' => $log->message,
-                'type' => $this->get_action_type($log->action),
-                'icon' => $this->get_action_icon($log->action),
-                'link' => null,
-                'is_read' => 0, // Mark as unread for important actions
-                'created_at' => $log->created_at,
-                'created_by' => $log->created_by
-            );
-        }
-        
-        return $notifications;
+        return $this->db->table_exists($this->table);
     }
 }

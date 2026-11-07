@@ -28,14 +28,16 @@ class Mir_model extends CI_Model {
         $this->db->select('
             h.*, s.nama_supplier,
             u.fullname as requester_name,
+            u.signature_path as requester_signature,
             cc.description as payment_type_desc,
-            approver.fullname as approver_name /* Nama approver */
+            approver.fullname as approver_name,
+            approver.signature_path as approver_signature
         ');
         $this->db->from($this->table_header . ' h');
         $this->db->join('suppliers s', 'h.supplier_id = s.id', 'left');
         $this->db->join('users u', 'h.requester_id = u.id', 'left');
         $this->db->join('common_code cc', 'h.payment_type_code = cc.code AND cc.group_code = "PAYMENT_TYPE"', 'left');
-        $this->db->join('users approver', 'h.approved_by = approver.id', 'left'); // Join ke user approver
+        $this->db->join('users approver', 'h.approved_by = approver.id', 'left');
         $this->db->where('h.id', $id);
         $query = $this->db->get();
         return $query ? $query->row() : null;
@@ -70,12 +72,8 @@ class Mir_model extends CI_Model {
     }
 
     public function generate_mir_number() {
-        
-        $this->db->reset_query(); $prefix = 'MIR/' . date('Ym') . '/';
-        $this->db->like('mir_number', $prefix, 'after')->order_by('id', 'DESC');
-        $last = $this->db->get($this->table_header, 1)->row();
-        $new_num = $last ? (int) substr($last->mir_number, -4) + 1 : 1;
-        return $prefix . str_pad($new_num, 4, '0', STR_PAD_LEFT);
+        // Format nomor diatur di config/doc_number.php (rebrand Acropoly 2026-11-05).
+        return doc_number_next('import_request', 'mir_header', 'mir_number');
     }
 
     /**

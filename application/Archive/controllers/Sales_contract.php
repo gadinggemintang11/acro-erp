@@ -23,7 +23,7 @@ class Sales_contract extends MY_Controller {
         }
 
         $data = [
-            'title'     => 'Sales Contract',
+            'title'     => 'IPO Number',
             'contracts' => $this->Sc_model->get_all(),
             // Data untuk modal Add
             'customers' => $this->Customer_model->get_all(['status' => 'active']),

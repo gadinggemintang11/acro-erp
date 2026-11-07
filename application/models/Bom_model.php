@@ -95,7 +95,7 @@ class Bom_model extends CI_Model {
     // === DETAILS ===
     public function get_details_by_header_id($bom_header_id) {
         $select_clause = "
-            d.id, d.bom_header_id, d.quantity_required,
+            d.id, d.bom_header_id, d.quantity_required, d.specification,
             d.component_item_id as item_id, d.component_item_type as item_type,
             CASE
                 WHEN d.component_item_type = 'material' THEN m.kode_material
@@ -165,8 +165,8 @@ class Bom_model extends CI_Model {
         // AKHIR PERBAIKAN
         // ================================================================
 
-        // 3. Lakukan Update (Hanya kolom yang diizinkan, misal quantity)
-        $allowed_updates = ['quantity_required']; // Kolom yang boleh diupdate
+        // 3. Lakukan Update (Hanya kolom yang diizinkan)
+        $allowed_updates = ['quantity_required', 'specification']; // Kolom yang boleh diupdate
         $update_data = array_intersect_key($data, array_flip($allowed_updates));
 
         if (empty($update_data)) {
@@ -225,8 +225,8 @@ class Bom_model extends CI_Model {
 
         // Get BOM details
         $select_clause = "
-            d.id, d.quantity_required as qty, 
-            d.component_item_id as material_id, 
+            d.id, d.quantity_required as qty,
+            d.component_item_id as material_id,
             d.component_item_type as item_type,
             CASE
                 WHEN d.component_item_type = 'material' THEN m.kode_material
@@ -245,8 +245,30 @@ class Bom_model extends CI_Model {
         $this->db->join($this->table_materials . ' m', 'd.component_item_id = m.id AND d.component_item_type = "material"', 'left');
         $this->db->join($this->table_semifinished . ' sf', 'd.component_item_id = sf.id AND d.component_item_type = "semifinished"', 'left');
         $this->db->where('d.bom_header_id', $header->id);
-        
+
         return $this->db->get()->result();
+    }
+
+    // === DOCUMENTS ===
+    public function insert_document($data) {
+        return $this->db->insert('bom_documents', $data) ? $this->db->insert_id() : false;
+    }
+
+    public function get_documents_by_bom($bom_header_id) {
+        $this->db->select('d.*, u.fullname as uploaded_by_name');
+        $this->db->from('bom_documents d');
+        $this->db->join('users u', 'd.uploaded_by = u.id', 'left');
+        $this->db->where('d.bom_header_id', $bom_header_id);
+        $this->db->order_by('d.uploaded_at', 'DESC');
+        return $this->db->get()->result();
+    }
+
+    public function get_document_by_id($doc_id) {
+        return $this->db->where('id', $doc_id)->get('bom_documents')->row();
+    }
+
+    public function delete_document($doc_id) {
+        return $this->db->where('id', $doc_id)->delete('bom_documents');
     }
 
 } // End Class

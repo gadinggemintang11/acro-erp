@@ -33,7 +33,7 @@
             <div class="card-body">
                 <ul class="list-group list-group-flush">
                     <li class="list-group-item d-flex justify-content-between align-items-center">
-                        Sales Contract: <strong><?= $detail->sc_number; ?></strong>
+                        Sales Order Number: <strong><?= $detail->sc_number; ?></strong>
                     </li>
                     <li class="list-group-item d-flex justify-content-between align-items-center">
                         Jenis BC: <strong><?= $detail->bc_type_description; ?></strong>

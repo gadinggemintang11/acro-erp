@@ -8,7 +8,7 @@ class Master_machine extends MY_Controller {
         check_login();
         $this->load->model('Machine_model');
         $this->load->model('Commoncode_model');
-        $this->load->helper(['form', 'url']);
+        $this->load->helper(['form', 'url', 'export']);
     }
 
     public function index() {
@@ -17,7 +17,7 @@ class Master_machine extends MY_Controller {
         }
 
         $data = [
-            'title'         => 'Master Mesin & Peralatan',
+            'title'         => lang_line('title_mch_index'),
             'machines'      => $this->Machine_model->get_all(),
             'kategori_list' => $this->Commoncode_model->get_by_group('MACHINE_CATEGORY'),
             'status_list'   => $this->Commoncode_model->get_by_group('MACHINE_STATUS'),
@@ -36,14 +36,24 @@ class Master_machine extends MY_Controller {
             show_error('Anda tidak memiliki izin untuk menambah data.', 403);
         }
         
+        $kode_mesin = $this->input->post('kode_mesin');
+        $nama_mesin = $this->input->post('nama_mesin');
+        
+        if (empty($kode_mesin) || empty($nama_mesin)) {
+            $this->session->set_flashdata('error', 'Kode mesin dan nama mesin wajib diisi.');
+            return redirect('master_machine');
+        }
+        
         $data = [
-            'kode_mesin' => $this->Machine_model->generate_kode($this->input->post('kategori')),
-            'nama_mesin' => $this->input->post('nama_mesin'),
+            'kode_mesin' => $kode_mesin,
+            'nama_mesin' => $nama_mesin,
             'kategori'   => $this->input->post('kategori'),
             'merk'       => $this->input->post('merk'),
-            'tahun'      => $this->input->post('tahun'),
-            'lokasi'     => $this->input->post('lokasi'),
-            'satuan'     => $this->input->post('satuan'), // <-- TAMBAHKAN INI
+            'tipe'       => $this->input->post('tipe'),
+            'tahun_pengadaan' => $this->input->post('tahun_pengadaan'),
+            'bulan_pengadaan' => $this->input->post('bulan_pengadaan'),
+            'pic_departemen' => $this->input->post('pic_departemen'),
+            'satuan'     => $this->input->post('satuan'),
             'status'     => 'Active', 
         ];
 
@@ -62,12 +72,15 @@ class Master_machine extends MY_Controller {
         if (empty($id)) show_404();
 
         $data = [
+            'kode_mesin' => $this->input->post('kode_mesin'),
             'nama_mesin' => $this->input->post('nama_mesin'),
             'kategori'   => $this->input->post('kategori'),
             'merk'       => $this->input->post('merk'),
-            'tahun'      => $this->input->post('tahun'),
-            'lokasi'     => $this->input->post('lokasi'),
-            'satuan'     => $this->input->post('satuan'), // <-- TAMBAHKAN INI
+            'tipe'       => $this->input->post('tipe'),
+            'tahun_pengadaan' => $this->input->post('tahun_pengadaan'),
+            'bulan_pengadaan' => $this->input->post('bulan_pengadaan'),
+            'pic_departemen' => $this->input->post('pic_departemen'),
+            'satuan'     => $this->input->post('satuan'),
             'status'     => $this->input->post('status'),
         ];
 
@@ -91,5 +104,66 @@ class Master_machine extends MY_Controller {
             $this->session->set_flashdata('error', 'Gagal menonaktifkan data!');
         }
         redirect('master_machine');
+    }
+
+    // ✅ EXPORT EXCEL
+    public function export_excel() {
+        if (!check_access('master_machine', 'view')) {
+            show_error('Anda tidak memiliki izin untuk export data.', 403);
+        }
+
+        $machines = $this->Machine_model->get_all();
+        
+        $headers = ['Kode', 'Nama Mesin', 'Kategori', 'Merk', 'Tipe', 'Tahun Pengadaan', 'Bulan Pengadaan', 'PIC Departemen', 'Satuan', 'Status'];
+        $data = [];
+
+        foreach ($machines as $m) {
+            $data[] = [
+                $m->kode_mesin,
+                $m->nama_mesin,
+                $m->kategori_desc ?? $m->kategori,
+                $m->merk ?? '',
+                $m->tipe ?? '',
+                $m->tahun_pengadaan ?? '',
+                $m->bulan_pengadaan ?? '',
+                $m->pic_departemen ?? '',
+                $m->satuan_desc ?? $m->satuan,
+                ucfirst($m->status)
+            ];
+        }
+
+        $filename = 'Master_Machine_' . date('Ymd_His');
+        export_to_excel($filename, 'Machines', $headers, $data);
+    }
+
+    // ✅ EXPORT PDF
+    public function export_pdf() {
+        if (!check_access('master_machine', 'view')) {
+            show_error('Anda tidak memiliki izin untuk export data.', 403);
+        }
+
+        $machines = $this->Machine_model->get_all();
+        
+        $headers = ['Kode', 'Nama Mesin', 'Kategori', 'Merk', 'Tipe', 'Tahun Pengadaan', 'Bulan Pengadaan', 'PIC Departemen', 'Satuan', 'Status'];
+        $data = [];
+
+        foreach ($machines as $m) {
+            $data[] = [
+                $m->kode_mesin,
+                $m->nama_mesin,
+                $m->kategori_desc ?? $m->kategori,
+                $m->merk ?? '',
+                $m->tipe ?? '',
+                $m->tahun_pengadaan ?? '',
+                $m->bulan_pengadaan ?? '',
+                $m->pic_departemen ?? '',
+                $m->satuan_desc ?? $m->satuan,
+                ucfirst($m->status)
+            ];
+        }
+
+        $filename = 'Master_Machine_' . date('Ymd_His');
+        $title = 'Master Mesin & Peralatan - ' . date('d-m-Y H:i:s');
+        export_to_pdf($filename, $title, $headers, $data);
     }
 }

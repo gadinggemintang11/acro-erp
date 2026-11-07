@@ -1,1 +1,201 @@
 [07-Dec-2025 17:12:25 Asia/Jakarta] PHP Fatal error:  Cannot redeclare Scrap_In_model::get_production_scrap_details_by_ids() in /home/canmaxid/mingbaolianchuangint.com/application/models/Scrap_In_model.php on line 204
+[13-Mar-2026 09:32:01 Asia/Jakarta] === SAVE_MATERIAL_USAGE START ===
+[13-Mar-2026 09:32:01 Asia/Jakarta] Data received: {"production_header_id":"31","stage_name":"preparation","item_id":"365","item_type":"material","stock_on_hand_id":null,"source_output_id":null,"mr_detail_id":null,"qty_used":4000,"notes":"","wo_header_id":"36","_bc_type_code":"BC 2.3","_bc_number":"716253","_bc_date":"2026-03-13"}
+[13-Mar-2026 09:32:01 Asia/Jakarta] Validation passed
+[13-Mar-2026 09:32:01 Asia/Jakarta] Extracted BC - type: BC 2.3, number: 716253, date: 2026-03-13
+[13-Mar-2026 09:32:01 Asia/Jakarta] Extracted BC - type: BC 2.3, number: 716253, date: 2026-03-13
+[13-Mar-2026 09:32:01 Asia/Jakarta] Before cleanup
+[13-Mar-2026 09:32:01 Asia/Jakarta] After cleanup - data: {"production_header_id":"31","stage_name":"preparation","item_id":"365","item_type":"material","stock_on_hand_id":null,"source_output_id":null,"qty_used":4000,"notes":""}
+[13-Mar-2026 09:32:01 Asia/Jakarta] Starting transaction
+[13-Mar-2026 09:32:01 Asia/Jakarta] Transaction started
+[13-Mar-2026 09:32:01 Asia/Jakarta] Attempting insert to production_inputs...
+[13-Mar-2026 09:32:01 Asia/Jakarta] Insert data: {"production_header_id":"31","stage_name":"preparation","item_id":"365","item_type":"material","stock_on_hand_id":null,"source_output_id":null,"qty_used":4000,"notes":""}
+[13-Mar-2026 09:32:01 Asia/Jakarta] Insert result: TRUE
+[13-Mar-2026 09:32:01 Asia/Jakarta] Insert production_inputs SUCCESS, ID: 211
+[13-Mar-2026 09:32:01 Asia/Jakarta] Loading Stock_ledger_model...
+[13-Mar-2026 09:32:01 Asia/Jakarta] Stock_ledger_model loaded
+[13-Mar-2026 09:32:01 Asia/Jakarta] Attempting insert to stock_ledger...
+[13-Mar-2026 09:32:01 Asia/Jakarta] Ledger data: {"item_id":"365","item_type":"material","transaction_date":"2026-03-13 09:32:01","transaction_type":"wip_out","transaction_id":211,"source_doc_type":"PROD","source_doc_id":"36","qty_in":0,"qty_out":4000,"unit_value":0,"stock_on_hand_id":null,"bc_type_code":"BC 2.3","bc_number":"716253","bc_date":"2026-03-13"}
+[13-Mar-2026 09:32:01 Asia/Jakarta] Ledger insert result: TRUE
+[13-Mar-2026 09:32:48 Asia/Jakarta] === SAVE_MATERIAL_USAGE START ===
+[13-Mar-2026 09:32:48 Asia/Jakarta] Data received: {"production_header_id":"31","stage_name":"assembling","item_id":"9","item_type":"semifinished","source_output_id":"121","stock_on_hand_id":null,"mr_detail_id":null,"qty_used":10000,"notes":""}
+[13-Mar-2026 09:32:48 Asia/Jakarta] Validation passed
+[13-Mar-2026 09:32:48 Asia/Jakarta] Extracted BC - type: , number: , date: 
+[13-Mar-2026 09:32:48 Asia/Jakarta] Extracted BC - type: , number: , date: 
+[13-Mar-2026 09:32:48 Asia/Jakarta] Before cleanup
+[13-Mar-2026 09:32:48 Asia/Jakarta] After cleanup - data: {"production_header_id":"31","stage_name":"assembling","item_id":"9","item_type":"semifinished","source_output_id":"121","stock_on_hand_id":null,"qty_used":10000,"notes":""}
+[13-Mar-2026 09:32:48 Asia/Jakarta] Starting transaction
+[13-Mar-2026 09:32:48 Asia/Jakarta] Transaction started
+[13-Mar-2026 09:32:48 Asia/Jakarta] Attempting insert to production_inputs...
+[13-Mar-2026 09:32:48 Asia/Jakarta] Insert data: {"production_header_id":"31","stage_name":"assembling","item_id":"9","item_type":"semifinished","source_output_id":"121","stock_on_hand_id":null,"qty_used":10000,"notes":""}
+[13-Mar-2026 09:32:48 Asia/Jakarta] Insert result: TRUE
+[13-Mar-2026 09:32:48 Asia/Jakarta] Insert production_inputs SUCCESS, ID: 212
+[13-Mar-2026 09:32:48 Asia/Jakarta] Loading Stock_ledger_model...
+[13-Mar-2026 09:32:48 Asia/Jakarta] Stock_ledger_model loaded
+[13-Mar-2026 09:32:48 Asia/Jakarta] Attempting insert to stock_ledger...
+[13-Mar-2026 09:32:48 Asia/Jakarta] Ledger data: {"item_id":"9","item_type":"semifinished","transaction_date":"2026-03-13 09:32:48","transaction_type":"wip_out","transaction_id":212,"source_doc_type":"PROD","source_doc_id":"31","qty_in":0,"qty_out":10000,"unit_value":0,"stock_on_hand_id":null,"bc_type_code":null,"bc_number":null,"bc_date":null}
+[13-Mar-2026 09:32:48 Asia/Jakarta] Ledger insert result: TRUE
+[13-Mar-2026 09:43:21 Asia/Jakarta] === SAVE_MATERIAL_USAGE START ===
+[13-Mar-2026 09:43:21 Asia/Jakarta] Data received: {"production_header_id":"31","stage_name":"assembling","item_id":"50","item_type":"material","stock_on_hand_id":null,"source_output_id":null,"mr_detail_id":null,"qty_used":10000,"notes":"","wo_header_id":"36","_bc_type_code":"BC 2.3","_bc_number":"716253","_bc_date":"2026-03-13"}
+[13-Mar-2026 09:43:21 Asia/Jakarta] Validation passed
+[13-Mar-2026 09:43:21 Asia/Jakarta] Extracted BC - type: BC 2.3, number: 716253, date: 2026-03-13
+[13-Mar-2026 09:43:21 Asia/Jakarta] Extracted BC - type: BC 2.3, number: 716253, date: 2026-03-13
+[13-Mar-2026 09:43:21 Asia/Jakarta] Before cleanup
+[13-Mar-2026 09:43:21 Asia/Jakarta] After cleanup - data: {"production_header_id":"31","stage_name":"assembling","item_id":"50","item_type":"material","stock_on_hand_id":null,"source_output_id":null,"qty_used":10000,"notes":""}
+[13-Mar-2026 09:43:21 Asia/Jakarta] Starting transaction
+[13-Mar-2026 09:43:21 Asia/Jakarta] Transaction started
+[13-Mar-2026 09:43:21 Asia/Jakarta] Attempting insert to production_inputs...
+[13-Mar-2026 09:43:21 Asia/Jakarta] Insert data: {"production_header_id":"31","stage_name":"assembling","item_id":"50","item_type":"material","stock_on_hand_id":null,"source_output_id":null,"qty_used":10000,"notes":""}
+[13-Mar-2026 09:43:21 Asia/Jakarta] Insert result: TRUE
+[13-Mar-2026 09:43:21 Asia/Jakarta] Insert production_inputs SUCCESS, ID: 213
+[13-Mar-2026 09:43:21 Asia/Jakarta] Loading Stock_ledger_model...
+[13-Mar-2026 09:43:21 Asia/Jakarta] Stock_ledger_model loaded
+[13-Mar-2026 09:43:21 Asia/Jakarta] Attempting insert to stock_ledger...
+[13-Mar-2026 09:43:21 Asia/Jakarta] Ledger data: {"item_id":"50","item_type":"material","transaction_date":"2026-03-13 09:43:21","transaction_type":"wip_out","transaction_id":213,"source_doc_type":"PROD","source_doc_id":"36","qty_in":0,"qty_out":10000,"unit_value":0,"stock_on_hand_id":null,"bc_type_code":"BC 2.3","bc_number":"716253","bc_date":"2026-03-13"}
+[13-Mar-2026 09:43:21 Asia/Jakarta] Ledger insert result: TRUE
+[13-Mar-2026 09:43:27 Asia/Jakarta] === SAVE_MATERIAL_USAGE START ===
+[13-Mar-2026 09:43:27 Asia/Jakarta] Data received: {"production_header_id":"31","stage_name":"assembling","item_id":"302","item_type":"material","stock_on_hand_id":null,"source_output_id":null,"mr_detail_id":null,"qty_used":10000,"notes":"","wo_header_id":"36","_bc_type_code":"BC 2.3","_bc_number":"716253","_bc_date":"2026-03-13"}
+[13-Mar-2026 09:43:27 Asia/Jakarta] Validation passed
+[13-Mar-2026 09:43:27 Asia/Jakarta] Extracted BC - type: BC 2.3, number: 716253, date: 2026-03-13
+[13-Mar-2026 09:43:27 Asia/Jakarta] Extracted BC - type: BC 2.3, number: 716253, date: 2026-03-13
+[13-Mar-2026 09:43:27 Asia/Jakarta] Before cleanup
+[13-Mar-2026 09:43:27 Asia/Jakarta] After cleanup - data: {"production_header_id":"31","stage_name":"assembling","item_id":"302","item_type":"material","stock_on_hand_id":null,"source_output_id":null,"qty_used":10000,"notes":""}
+[13-Mar-2026 09:43:27 Asia/Jakarta] Starting transaction
+[13-Mar-2026 09:43:27 Asia/Jakarta] Transaction started
+[13-Mar-2026 09:43:27 Asia/Jakarta] Attempting insert to production_inputs...
+[13-Mar-2026 09:43:27 Asia/Jakarta] Insert data: {"production_header_id":"31","stage_name":"assembling","item_id":"302","item_type":"material","stock_on_hand_id":null,"source_output_id":null,"qty_used":10000,"notes":""}
+[13-Mar-2026 09:43:27 Asia/Jakarta] Insert result: TRUE
+[13-Mar-2026 09:43:27 Asia/Jakarta] Insert production_inputs SUCCESS, ID: 214
+[13-Mar-2026 09:43:27 Asia/Jakarta] Loading Stock_ledger_model...
+[13-Mar-2026 09:43:27 Asia/Jakarta] Stock_ledger_model loaded
+[13-Mar-2026 09:43:27 Asia/Jakarta] Attempting insert to stock_ledger...
+[13-Mar-2026 09:43:27 Asia/Jakarta] Ledger data: {"item_id":"302","item_type":"material","transaction_date":"2026-03-13 09:43:27","transaction_type":"wip_out","transaction_id":214,"source_doc_type":"PROD","source_doc_id":"36","qty_in":0,"qty_out":10000,"unit_value":0,"stock_on_hand_id":null,"bc_type_code":"BC 2.3","bc_number":"716253","bc_date":"2026-03-13"}
+[13-Mar-2026 09:43:27 Asia/Jakarta] Ledger insert result: TRUE
+[13-Mar-2026 09:45:05 Asia/Jakarta] === SAVE_MATERIAL_USAGE START ===
+[13-Mar-2026 09:45:05 Asia/Jakarta] Data received: {"production_header_id":"31","stage_name":"assembling","item_id":"50","item_type":"material","stock_on_hand_id":null,"source_output_id":null,"mr_detail_id":null,"qty_used":2,"notes":"","wo_header_id":"36","_bc_type_code":"BC 2.3","_bc_number":"716253","_bc_date":"2026-03-13"}
+[13-Mar-2026 09:45:05 Asia/Jakarta] Validation passed
+[13-Mar-2026 09:45:05 Asia/Jakarta] Extracted BC - type: BC 2.3, number: 716253, date: 2026-03-13
+[13-Mar-2026 09:45:05 Asia/Jakarta] Extracted BC - type: BC 2.3, number: 716253, date: 2026-03-13
+[13-Mar-2026 09:45:05 Asia/Jakarta] Before cleanup
+[13-Mar-2026 09:45:05 Asia/Jakarta] After cleanup - data: {"production_header_id":"31","stage_name":"assembling","item_id":"50","item_type":"material","stock_on_hand_id":null,"source_output_id":null,"qty_used":2,"notes":""}
+[13-Mar-2026 09:45:05 Asia/Jakarta] Starting transaction
+[13-Mar-2026 09:45:05 Asia/Jakarta] Transaction started
+[13-Mar-2026 09:45:05 Asia/Jakarta] Attempting insert to production_inputs...
+[13-Mar-2026 09:45:05 Asia/Jakarta] Insert data: {"production_header_id":"31","stage_name":"assembling","item_id":"50","item_type":"material","stock_on_hand_id":null,"source_output_id":null,"qty_used":2,"notes":""}
+[13-Mar-2026 09:45:05 Asia/Jakarta] Insert result: TRUE
+[13-Mar-2026 09:45:05 Asia/Jakarta] Insert production_inputs SUCCESS, ID: 215
+[13-Mar-2026 09:45:05 Asia/Jakarta] Loading Stock_ledger_model...
+[13-Mar-2026 09:45:05 Asia/Jakarta] Stock_ledger_model loaded
+[13-Mar-2026 09:45:05 Asia/Jakarta] Attempting insert to stock_ledger...
+[13-Mar-2026 09:45:05 Asia/Jakarta] Ledger data: {"item_id":"50","item_type":"material","transaction_date":"2026-03-13 09:45:05","transaction_type":"wip_out","transaction_id":215,"source_doc_type":"PROD","source_doc_id":"36","qty_in":0,"qty_out":2,"unit_value":0,"stock_on_hand_id":null,"bc_type_code":"BC 2.3","bc_number":"716253","bc_date":"2026-03-13"}
+[13-Mar-2026 09:45:05 Asia/Jakarta] Ledger insert result: TRUE
+[13-Mar-2026 09:45:20 Asia/Jakarta] === SAVE_MATERIAL_USAGE START ===
+[13-Mar-2026 09:45:20 Asia/Jakarta] Data received: {"production_header_id":"31","stage_name":"finishing","item_id":"9","item_type":"semifinished","source_output_id":"124","stock_on_hand_id":null,"mr_detail_id":null,"qty_used":10000,"notes":""}
+[13-Mar-2026 09:45:20 Asia/Jakarta] Validation passed
+[13-Mar-2026 09:45:20 Asia/Jakarta] Extracted BC - type: , number: , date: 
+[13-Mar-2026 09:45:20 Asia/Jakarta] Extracted BC - type: , number: , date: 
+[13-Mar-2026 09:45:20 Asia/Jakarta] Before cleanup
+[13-Mar-2026 09:45:20 Asia/Jakarta] After cleanup - data: {"production_header_id":"31","stage_name":"finishing","item_id":"9","item_type":"semifinished","source_output_id":"124","stock_on_hand_id":null,"qty_used":10000,"notes":""}
+[13-Mar-2026 09:45:20 Asia/Jakarta] Starting transaction
+[13-Mar-2026 09:45:20 Asia/Jakarta] Transaction started
+[13-Mar-2026 09:45:20 Asia/Jakarta] Attempting insert to production_inputs...
+[13-Mar-2026 09:45:20 Asia/Jakarta] Insert data: {"production_header_id":"31","stage_name":"finishing","item_id":"9","item_type":"semifinished","source_output_id":"124","stock_on_hand_id":null,"qty_used":10000,"notes":""}
+[13-Mar-2026 09:45:20 Asia/Jakarta] Insert result: TRUE
+[13-Mar-2026 09:45:20 Asia/Jakarta] Insert production_inputs SUCCESS, ID: 216
+[13-Mar-2026 09:45:20 Asia/Jakarta] Loading Stock_ledger_model...
+[13-Mar-2026 09:45:20 Asia/Jakarta] Stock_ledger_model loaded
+[13-Mar-2026 09:45:20 Asia/Jakarta] Attempting insert to stock_ledger...
+[13-Mar-2026 09:45:20 Asia/Jakarta] Ledger data: {"item_id":"9","item_type":"semifinished","transaction_date":"2026-03-13 09:45:20","transaction_type":"wip_out","transaction_id":216,"source_doc_type":"PROD","source_doc_id":"31","qty_in":0,"qty_out":10000,"unit_value":0,"stock_on_hand_id":null,"bc_type_code":null,"bc_number":null,"bc_date":null}
+[13-Mar-2026 09:45:20 Asia/Jakarta] Ledger insert result: TRUE
+[13-Mar-2026 09:47:01 Asia/Jakarta] === SAVE_MATERIAL_USAGE START ===
+[13-Mar-2026 09:47:01 Asia/Jakarta] Data received: {"production_header_id":"31","stage_name":"finishing","item_id":"18","item_type":"material","stock_on_hand_id":null,"source_output_id":null,"mr_detail_id":null,"qty_used":9999,"notes":"","wo_header_id":"36","_bc_type_code":"BC 4.0","_bc_number":"819200","_bc_date":"2026-03-13"}
+[13-Mar-2026 09:47:01 Asia/Jakarta] Validation passed
+[13-Mar-2026 09:47:01 Asia/Jakarta] Extracted BC - type: BC 4.0, number: 819200, date: 2026-03-13
+[13-Mar-2026 09:47:01 Asia/Jakarta] Extracted BC - type: BC 4.0, number: 819200, date: 2026-03-13
+[13-Mar-2026 09:47:01 Asia/Jakarta] Before cleanup
+[13-Mar-2026 09:47:01 Asia/Jakarta] After cleanup - data: {"production_header_id":"31","stage_name":"finishing","item_id":"18","item_type":"material","stock_on_hand_id":null,"source_output_id":null,"qty_used":9999,"notes":""}
+[13-Mar-2026 09:47:01 Asia/Jakarta] Starting transaction
+[13-Mar-2026 09:47:01 Asia/Jakarta] Transaction started
+[13-Mar-2026 09:47:01 Asia/Jakarta] Attempting insert to production_inputs...
+[13-Mar-2026 09:47:01 Asia/Jakarta] Insert data: {"production_header_id":"31","stage_name":"finishing","item_id":"18","item_type":"material","stock_on_hand_id":null,"source_output_id":null,"qty_used":9999,"notes":""}
+[13-Mar-2026 09:47:01 Asia/Jakarta] Insert result: TRUE
+[13-Mar-2026 09:47:01 Asia/Jakarta] Insert production_inputs SUCCESS, ID: 217
+[13-Mar-2026 09:47:01 Asia/Jakarta] Loading Stock_ledger_model...
+[13-Mar-2026 09:47:01 Asia/Jakarta] Stock_ledger_model loaded
+[13-Mar-2026 09:47:01 Asia/Jakarta] Attempting insert to stock_ledger...
+[13-Mar-2026 09:47:01 Asia/Jakarta] Ledger data: {"item_id":"18","item_type":"material","transaction_date":"2026-03-13 09:47:01","transaction_type":"wip_out","transaction_id":217,"source_doc_type":"PROD","source_doc_id":"36","qty_in":0,"qty_out":9999,"unit_value":0,"stock_on_hand_id":null,"bc_type_code":"BC 4.0","bc_number":"819200","bc_date":"2026-03-13"}
+[13-Mar-2026 09:47:01 Asia/Jakarta] Ledger insert result: TRUE
+[13-Mar-2026 09:47:07 Asia/Jakarta] === SAVE_MATERIAL_USAGE START ===
+[13-Mar-2026 09:47:07 Asia/Jakarta] Data received: {"production_header_id":"31","stage_name":"finishing","item_id":"98","item_type":"material","stock_on_hand_id":null,"source_output_id":null,"mr_detail_id":null,"qty_used":10000,"notes":"","wo_header_id":"36","_bc_type_code":"BC 2.3","_bc_number":"716253","_bc_date":"2026-03-13"}
+[13-Mar-2026 09:47:07 Asia/Jakarta] Validation passed
+[13-Mar-2026 09:47:07 Asia/Jakarta] Extracted BC - type: BC 2.3, number: 716253, date: 2026-03-13
+[13-Mar-2026 09:47:07 Asia/Jakarta] Extracted BC - type: BC 2.3, number: 716253, date: 2026-03-13
+[13-Mar-2026 09:47:07 Asia/Jakarta] Before cleanup
+[13-Mar-2026 09:47:07 Asia/Jakarta] After cleanup - data: {"production_header_id":"31","stage_name":"finishing","item_id":"98","item_type":"material","stock_on_hand_id":null,"source_output_id":null,"qty_used":10000,"notes":""}
+[13-Mar-2026 09:47:07 Asia/Jakarta] Starting transaction
+[13-Mar-2026 09:47:07 Asia/Jakarta] Transaction started
+[13-Mar-2026 09:47:07 Asia/Jakarta] Attempting insert to production_inputs...
+[13-Mar-2026 09:47:07 Asia/Jakarta] Insert data: {"production_header_id":"31","stage_name":"finishing","item_id":"98","item_type":"material","stock_on_hand_id":null,"source_output_id":null,"qty_used":10000,"notes":""}
+[13-Mar-2026 09:47:07 Asia/Jakarta] Insert result: TRUE
+[13-Mar-2026 09:47:07 Asia/Jakarta] Insert production_inputs SUCCESS, ID: 218
+[13-Mar-2026 09:47:07 Asia/Jakarta] Loading Stock_ledger_model...
+[13-Mar-2026 09:47:07 Asia/Jakarta] Stock_ledger_model loaded
+[13-Mar-2026 09:47:07 Asia/Jakarta] Attempting insert to stock_ledger...
+[13-Mar-2026 09:47:07 Asia/Jakarta] Ledger data: {"item_id":"98","item_type":"material","transaction_date":"2026-03-13 09:47:07","transaction_type":"wip_out","transaction_id":218,"source_doc_type":"PROD","source_doc_id":"36","qty_in":0,"qty_out":10000,"unit_value":0,"stock_on_hand_id":null,"bc_type_code":"BC 2.3","bc_number":"716253","bc_date":"2026-03-13"}
+[13-Mar-2026 09:47:07 Asia/Jakarta] Ledger insert result: TRUE
+[13-Mar-2026 09:53:25 Asia/Jakarta] AJAX get_doc_details - source_ids: ["35"], source_type: FG_DELIVERY
+[13-Mar-2026 09:53:25 Asia/Jakarta] AJAX get_doc_details - returned 1 rows: [{"source_detail_id":"33","item_id":"5","item_type":"finished_goods","qty":"10000.0000","description":"KCSARISSA-R","unit_price":"0.60","total_price":"6000.000000","currency_code":"USD"}]
+[20-Apr-2026 11:20:13 Asia/Jakarta] === SAVE_MATERIAL_USAGE START ===
+[20-Apr-2026 11:20:13 Asia/Jakarta] Data received: {"production_header_id":"32","stage_name":"preparation","item_id":"9","item_type":"material","stock_on_hand_id":null,"source_output_id":null,"mr_detail_id":null,"qty_used":10,"notes":"","wo_header_id":"37","_bc_type_code":"BC 2.0","_bc_number":"15151","_bc_date":"2026-04-20"}
+[20-Apr-2026 11:20:13 Asia/Jakarta] Validation passed
+[20-Apr-2026 11:20:13 Asia/Jakarta] Extracted BC - type: BC 2.0, number: 15151, date: 2026-04-20
+[20-Apr-2026 11:20:13 Asia/Jakarta] Extracted BC - type: BC 2.0, number: 15151, date: 2026-04-20
+[20-Apr-2026 11:20:13 Asia/Jakarta] Before cleanup
+[20-Apr-2026 11:20:13 Asia/Jakarta] After cleanup - data: {"production_header_id":"32","stage_name":"preparation","item_id":"9","item_type":"material","stock_on_hand_id":null,"source_output_id":null,"qty_used":10,"notes":""}
+[20-Apr-2026 11:20:13 Asia/Jakarta] Starting transaction
+[20-Apr-2026 11:20:13 Asia/Jakarta] Transaction started
+[20-Apr-2026 11:20:13 Asia/Jakarta] Attempting insert to production_inputs...
+[20-Apr-2026 11:20:13 Asia/Jakarta] Insert data: {"production_header_id":"32","stage_name":"preparation","item_id":"9","item_type":"material","stock_on_hand_id":null,"source_output_id":null,"qty_used":10,"notes":""}
+[20-Apr-2026 11:20:13 Asia/Jakarta] Insert result: TRUE
+[20-Apr-2026 11:20:13 Asia/Jakarta] Insert production_inputs SUCCESS, ID: 219
+[20-Apr-2026 11:20:13 Asia/Jakarta] Loading Stock_ledger_model...
+[20-Apr-2026 11:20:13 Asia/Jakarta] Stock_ledger_model loaded
+[20-Apr-2026 11:20:13 Asia/Jakarta] Attempting insert to stock_ledger...
+[20-Apr-2026 11:20:13 Asia/Jakarta] Ledger data: {"item_id":"9","item_type":"material","transaction_date":"2026-04-20 11:20:13","transaction_type":"wip_out","transaction_id":219,"source_doc_type":"PROD","source_doc_id":"37","qty_in":0,"qty_out":10,"unit_value":0,"stock_on_hand_id":null,"bc_type_code":"BC 2.0","bc_number":"15151","bc_date":"2026-04-20"}
+[20-Apr-2026 11:20:13 Asia/Jakarta] Ledger insert result: TRUE
+[20-Apr-2026 11:23:33 Asia/Jakarta] === SAVE_MATERIAL_USAGE START ===
+[20-Apr-2026 11:23:33 Asia/Jakarta] Data received: {"production_header_id":"32","stage_name":"assembling","item_id":"1","item_type":"semifinished","source_output_id":"126","stock_on_hand_id":null,"mr_detail_id":null,"qty_used":10,"notes":""}
+[20-Apr-2026 11:23:33 Asia/Jakarta] Validation passed
+[20-Apr-2026 11:23:33 Asia/Jakarta] Extracted BC - type: , number: , date: 
+[20-Apr-2026 11:23:33 Asia/Jakarta] Extracted BC - type: , number: , date: 
+[20-Apr-2026 11:23:33 Asia/Jakarta] Before cleanup
+[20-Apr-2026 11:23:33 Asia/Jakarta] After cleanup - data: {"production_header_id":"32","stage_name":"assembling","item_id":"1","item_type":"semifinished","source_output_id":"126","stock_on_hand_id":null,"qty_used":10,"notes":""}
+[20-Apr-2026 11:23:33 Asia/Jakarta] Starting transaction
+[20-Apr-2026 11:23:33 Asia/Jakarta] Transaction started
+[20-Apr-2026 11:23:33 Asia/Jakarta] Attempting insert to production_inputs...
+[20-Apr-2026 11:23:33 Asia/Jakarta] Insert data: {"production_header_id":"32","stage_name":"assembling","item_id":"1","item_type":"semifinished","source_output_id":"126","stock_on_hand_id":null,"qty_used":10,"notes":""}
+[20-Apr-2026 11:23:33 Asia/Jakarta] Insert result: TRUE
+[20-Apr-2026 11:23:33 Asia/Jakarta] Insert production_inputs SUCCESS, ID: 220
+[20-Apr-2026 11:23:33 Asia/Jakarta] Loading Stock_ledger_model...
+[20-Apr-2026 11:23:33 Asia/Jakarta] Stock_ledger_model loaded
+[20-Apr-2026 11:23:33 Asia/Jakarta] Attempting insert to stock_ledger...
+[20-Apr-2026 11:23:33 Asia/Jakarta] Ledger data: {"item_id":"1","item_type":"semifinished","transaction_date":"2026-04-20 11:23:33","transaction_type":"wip_out","transaction_id":220,"source_doc_type":"PROD","source_doc_id":"32","qty_in":0,"qty_out":10,"unit_value":0,"stock_on_hand_id":null,"bc_type_code":null,"bc_number":null,"bc_date":null}
+[20-Apr-2026 11:23:33 Asia/Jakarta] Ledger insert result: TRUE
+[20-Apr-2026 11:24:00 Asia/Jakarta] === SAVE_MATERIAL_USAGE START ===
+[20-Apr-2026 11:24:00 Asia/Jakarta] Data received: {"production_header_id":"32","stage_name":"finishing","item_id":"4","item_type":"semifinished","source_output_id":"127","stock_on_hand_id":null,"mr_detail_id":null,"qty_used":10,"notes":""}
+[20-Apr-2026 11:24:00 Asia/Jakarta] Validation passed
+[20-Apr-2026 11:24:00 Asia/Jakarta] Extracted BC - type: , number: , date: 
+[20-Apr-2026 11:24:00 Asia/Jakarta] Extracted BC - type: , number: , date: 
+[20-Apr-2026 11:24:00 Asia/Jakarta] Before cleanup
+[20-Apr-2026 11:24:00 Asia/Jakarta] After cleanup - data: {"production_header_id":"32","stage_name":"finishing","item_id":"4","item_type":"semifinished","source_output_id":"127","stock_on_hand_id":null,"qty_used":10,"notes":""}
+[20-Apr-2026 11:24:00 Asia/Jakarta] Starting transaction
+[20-Apr-2026 11:24:00 Asia/Jakarta] Transaction started
+[20-Apr-2026 11:24:00 Asia/Jakarta] Attempting insert to production_inputs...
+[20-Apr-2026 11:24:00 Asia/Jakarta] Insert data: {"production_header_id":"32","stage_name":"finishing","item_id":"4","item_type":"semifinished","source_output_id":"127","stock_on_hand_id":null,"qty_used":10,"notes":""}
+[20-Apr-2026 11:24:00 Asia/Jakarta] Insert result: TRUE
+[20-Apr-2026 11:24:00 Asia/Jakarta] Insert production_inputs SUCCESS, ID: 221
+[20-Apr-2026 11:24:00 Asia/Jakarta] Loading Stock_ledger_model...
+[20-Apr-2026 11:24:00 Asia/Jakarta] Stock_ledger_model loaded
+[20-Apr-2026 11:24:00 Asia/Jakarta] Attempting insert to stock_ledger...
+[20-Apr-2026 11:24:00 Asia/Jakarta] Ledger data: {"item_id":"4","item_type":"semifinished","transaction_date":"2026-04-20 11:24:00","transaction_type":"wip_out","transaction_id":221,"source_doc_type":"PROD","source_doc_id":"32","qty_in":0,"qty_out":10,"unit_value":0,"stock_on_hand_id":null,"bc_type_code":null,"bc_number":null,"bc_date":null}
+[20-Apr-2026 11:24:00 Asia/Jakarta] Ledger insert result: TRUE

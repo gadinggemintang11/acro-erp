@@ -37,7 +37,7 @@ git init
 git add .
 
 # 3. Commit
-git commit -m "Initial commit - ERP Mingbao dengan .env support"
+git commit -m "Initial commit - ERP Acropoly dengan .env support"
 
 # 4. Lihat status
 git status
@@ -174,7 +174,7 @@ CI_ENVIRONMENT=production
 #--------------------------------------------------------------------
 # APP
 #--------------------------------------------------------------------
-APP_NAME="ERP Mingbao"
+APP_NAME="ERP Acropoly"
 APP_BASE_URL=https://yourdomain.com/
 APP_INDEX_PAGE=
 APP_ENCRYPTION_KEY=

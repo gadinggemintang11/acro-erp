@@ -5,7 +5,7 @@ class Neraca_model extends CI_Model {
 
     public function get_data($date)
     {
-        $this->db->select('id, account_code, account_name, normal_balance');
+        $this->db->select('id, account_code, account_name, normal_balance, account_type');
         $this->db->from('chart_of_accounts');
         $this->db->where('status', 'active');
         $this->db->where('is_header', 0);
@@ -26,8 +26,11 @@ class Neraca_model extends CI_Model {
             $this->db->where('jh.status', 'Posted');
             $query = $this->db->get()->row();
 
+            // Tanda menurut sisi normal TIPE akun (2026-11-07): akun kontra seperti
+            // Akumulasi Penyusutan (Aset, normal Kredit) tampil negatif dan
+            // mengurangi total aset, bukan menambahnya.
             $balance = 0;
-            if ($acc['normal_balance'] == 'Debit') {
+            if ($acc['account_type'] == 'Aset') {
                 $balance = ($query->total_debit ?? 0) - ($query->total_kredit ?? 0);
             } else {
                 $balance = ($query->total_kredit ?? 0) - ($query->total_debit ?? 0);
@@ -41,13 +44,14 @@ class Neraca_model extends CI_Model {
                     'balance' => $balance
                 ];
 
-                // Categorize based on the first digit of account_code
-                $first_digit = substr($acc['account_code'], 0, 1);
-                if ($first_digit == '1') {
+                // Kategori berdasarkan tipe akun (2026-11-07; sebelumnya digit
+                // pertama kode -- rapuh kalau struktur kode COA berubah).
+                $type = $acc['account_type'];
+                if ($type == 'Aset') {
                     $result['assets'][] = $account_data;
-                } else if ($first_digit == '2') {
+                } else if ($type == 'Liabilitas') {
                     $result['liabilities'][] = $account_data;
-                } else if ($first_digit == '3') {
+                } else if ($type == 'Ekuitas') {
                     $result['equity'][] = $account_data;
                 }
             }
@@ -114,7 +118,7 @@ class Neraca_model extends CI_Model {
             JOIN chart_of_accounts coa ON jd.account_id = coa.id
             WHERE jh.journal_date < ?
             AND jh.status = 'Posted'
-            AND LEFT(coa.account_code, 1) = '4'
+            AND coa.account_type = 'Pendapatan'
         ", [$start_of_year])->row()->total;
 
         // Expense periode lalu (sebelum 1 Jan tahun berjalan)
@@ -125,7 +129,7 @@ class Neraca_model extends CI_Model {
             JOIN chart_of_accounts coa ON jd.account_id = coa.id
             WHERE jh.journal_date < ?
             AND jh.status = 'Posted'
-            AND LEFT(coa.account_code, 1) = '5'
+            AND coa.account_type IN ('HPP', 'Biaya')
         ", [$start_of_year])->row()->total;
 
         return $revenue - $expense;
@@ -147,7 +151,7 @@ class Neraca_model extends CI_Model {
             WHERE jh.journal_date >= ?
             AND jh.journal_date <= ?
             AND jh.status = 'Posted'
-            AND LEFT(coa.account_code, 1) = '4'
+            AND coa.account_type = 'Pendapatan'
         ", [$start_of_year, $date])->row()->total;
 
         // Expense tahun berjalan (1 Jan s/d tanggal laporan)
@@ -159,7 +163,7 @@ class Neraca_model extends CI_Model {
             WHERE jh.journal_date >= ?
             AND jh.journal_date <= ?
             AND jh.status = 'Posted'
-            AND LEFT(coa.account_code, 1) = '5'
+            AND coa.account_type IN ('HPP', 'Biaya')
         ", [$start_of_year, $date])->row()->total;
 
         return $revenue - $expense;

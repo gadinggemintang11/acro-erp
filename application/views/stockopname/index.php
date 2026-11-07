@@ -3,7 +3,7 @@
         <h1 class="h3 mb-0 text-gray-800"><?= $title; ?></h1>
         <a href="<?= base_url('stockopname/create'); ?>" class="btn btn-primary btn-icon-split">
             <span class="icon text-white-50"><i class="fas fa-plus"></i></span>
-            <span class="text">Buat Sesi Baru</span>
+            <span class="text"><?= lang_line('stockopname_create_new'); ?></span>
         </a>
     </div>
 
@@ -38,13 +38,13 @@
                             </div>
                             <div class="h6 mb-0 font-weight-bold text-gray-800">
                                 <?php if ($completed_this_month > 0): ?>
-                                    ✓ <?= $completed_this_month; ?> Done
+                                    ✓ <?= $completed_this_month; ?> <?= lang_line('stockopname_summary_completed'); ?>
                                 <?php endif; ?>
                                 <?php if ($active_this_month > 0): ?>
-                                    <span class="text-warning">⏳ <?= $active_this_month; ?> Active</span>
+                                    <span class="text-warning">⏳ <?= $active_this_month; ?> <?= lang_line('stockopname_summary_active'); ?></span>
                                 <?php endif; ?>
                                 <?php if ($completed_this_month == 0 && $active_this_month == 0): ?>
-                                    <span class="text-muted">Not Started</span>
+                                    <span class="text-muted"><?= lang_line('stockopname_summary_not_started'); ?></span>
                                 <?php endif; ?>
                             </div>
                         </div>
@@ -60,21 +60,21 @@
 
     <div class="card shadow mb-4">
         <div class="card-header py-3">
-            <h6 class="m-0 font-weight-bold text-primary">Daftar Sesi Stock Opname</h6>
+            <h6 class="m-0 font-weight-bold text-primary"><?= lang_line('stockopname_list_title'); ?></h6>
         </div>
         <div class="card-body">
             <div class="table-responsive">
                 <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
                     <thead>
                         <tr>
-                            <th>No. Opname</th>
-                            <th>Tanggal</th>
-                            <th>Periode</th>
-                            <th>Tipe Item</th>
-                            <th>Catatan</th>
-                            <th>Status</th>
-                            <th>Dok. Adjustment</th>
-                            <th>Aksi</th>
+                            <th><?= lang_line('stockopname_doc_number'); ?></th>
+                            <th><?= lang_line('stockopname_date'); ?></th>
+                            <th><?= lang_line('stockopname_period'); ?></th>
+                            <th><?= lang_line('stockopname_item_type'); ?></th>
+                            <th><?= lang_line('stockopname_notes'); ?></th>
+                            <th><?= lang_line('stockopname_status'); ?></th>
+                            <th><?= lang_line('stockopname_adjustment_doc'); ?></th>
+                            <th><?= lang_line('label_action'); ?></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -109,13 +109,13 @@
                                 }
                                 if ($same_month_count > 1): ?>
                                     <small class="text-warning d-block">
-                                        <i class="fas fa-exclamation-triangle"></i> 
-                                        <?= $same_month_count; ?> opname bulan ini
+                                        <i class="fas fa-exclamation-triangle"></i>
+                                        <?= $same_month_count; ?> <?= lang_line('stockopname_opname_count'); ?>
                                     </small>
                                 <?php endif; ?>
                                 <?php if ($active_in_month && !in_array($s->status, ['Draft', 'Counting'])): ?>
                                     <small class="text-danger d-block">
-                                        <i class="fas fa-ban"></i> Ada opname aktif lain
+                                        <i class="fas fa-ban"></i> <?= lang_line('stockopname_active_other'); ?>
                                     </small>
                                 <?php endif; ?>
                             </td>
@@ -142,16 +142,22 @@
                             </td>
                             <td class="text-center">
                                 <?php if($s->status == 'Draft' || $s->status == 'Counting'): ?>
-                                    <a href="<?= base_url('stockopname/counting/' . $s->id); ?>" class="btn btn-warning btn-circle btn-sm" title="Input/Edit Hitungan">
+                                    <a href="<?= base_url('stockopname/counting/' . $s->id); ?>" class="btn btn-warning btn-circle btn-sm" title="<?= lang_line('stockopname_count_results'); ?>">
                                         <i class="fas fa-pen"></i>
                                     </a>
                                 <?php else: ?>
-                                    <a href="<?= base_url('stockopname/view/' . $s->id); ?>" class="btn btn-info btn-circle btn-sm" title="Lihat Hasil">
+                                    <a href="<?= base_url('stockopname/view/' . $s->id); ?>" class="btn btn-info btn-circle btn-sm" title="<?= lang_line('stockopname_view_results'); ?>">
                                         <i class="fas fa-eye"></i>
                                     </a>
                                 <?php endif; ?>
+                                <a href="<?= base_url('stockopname/export_pdf/' . $s->id); ?>" target="_blank" class="btn btn-danger btn-circle btn-sm" title="Print PDF">
+                                    <i class="fas fa-file-pdf"></i>
+                                </a>
+                                <a href="<?= base_url('stockopname/export_excel/' . $s->id); ?>" class="btn btn-success btn-circle btn-sm" title="Export Excel">
+                                    <i class="fas fa-file-excel"></i>
+                                </a>
                                 <?php if($s->status == 'Draft'): ?>
-                                <a href="<?= base_url('stockopname/delete/' . $s->id); ?>" class="btn btn-danger btn-circle btn-sm" title="Hapus" onclick="return confirm('Anda yakin ingin menghapus sesi DRAFT ini?');">
+                                <a href="<?= base_url('stockopname/delete/' . $s->id); ?>" class="btn btn-danger btn-circle btn-sm" title="<?= lang_line('btn_delete'); ?>" onclick="return confirm('<?= lang_line('stockopname_delete_confirm'); ?>');">
                                     <i class="fas fa-trash"></i>
                                 </a>
                                 <?php endif; ?>

@@ -124,8 +124,10 @@ class Report_model extends CI_Model {
             if ($balance != 0) {
                 $account['debit'] = 0;
                 $account['kredit'] = 0;
-                // Jika normal_balance diset di master akun maka gunakan itu, bila tidak fallback ke aturan tipe akun
-                $is_debit_normal = (isset($account['normal_balance']) && $account['normal_balance']) ? ($account['normal_balance'] === 'Debit') : in_array($account['account_type'], ['Aset', 'Biaya', 'HPP']);
+                // Saldo dari _get_cumulative_balances bertanda menurut TIPE akun,
+                // jadi kolom debit/kredit juga ditentukan dari tipe. Akun kontra
+                // (mis. akumulasi penyusutan) otomatis jatuh di kolom Kredit.
+                $is_debit_normal = in_array($account['account_type'], ['Aset', 'Biaya', 'HPP'], true);
 
                 if ($is_debit_normal) {
                     $balance > 0 ? $account['debit'] = $balance : $account['kredit'] = abs($balance);
@@ -392,17 +394,30 @@ class Report_model extends CI_Model {
         $query = $this->db->get();
         $balances = [];
         foreach ($query->result() as $row) {
-            // Jika normal_balance ada, ikuti; kalau tidak fallback ke tipe akun
-            $is_debit_normal = (isset($row->normal_balance) && $row->normal_balance) ? ($row->normal_balance === 'Debit') : in_array($row->account_type, ['Aset', 'Biaya', 'HPP']);
-            if ($is_debit_normal) {
-                $balances[$row->account_id] = $row->total_debit - $row->total_kredit;
-            } else {
-                $balances[$row->account_id] = $row->total_kredit - $row->total_debit;
-            }
+            $balances[$row->account_id] = $this->_type_signed_balance($row->account_type, $row->total_debit, $row->total_kredit);
         }
         return $balances;
     }
-    
+
+    /**
+     * [HELPER] Saldo bertanda menurut sisi normal TIPE akun, bukan normal_balance
+     * per akun (2026-11-07).
+     *
+     * Laporan menjumlahkan saldo anak ke induk per tipe. Akun kontra --
+     * Akumulasi Penyusutan (tipe Aset, saldo normal Kredit) atau Discount
+     * Penjualan (tipe Pendapatan, saldo normal Debit) -- harus MENGURANGI total
+     * kelompoknya. Kalau tanda mengikuti normal_balance akun, saldonya jadi
+     * positif dan malah menambah total aset / pendapatan.
+     * Hasilnya: akun kontra tampil negatif di Neraca & Laba Rugi.
+     * (Buku besar per akun tetap memakai normal_balance akun itu sendiri.)
+     */
+    private function _type_signed_balance($account_type, $total_debit, $total_kredit)
+    {
+        return in_array($account_type, ['Aset', 'Biaya', 'HPP'], true)
+            ? (float) $total_debit - (float) $total_kredit
+            : (float) $total_kredit - (float) $total_debit;
+    }
+
     /** [HELPER] Laba Bersih Periode Berjalan */
     private function _get_current_period_net_income($startDate, $endDate)
     {
@@ -485,20 +500,8 @@ class Report_model extends CI_Model {
         $query = $this->db->get();
         $balances = [];
         foreach ($query->result() as $row) {
-            // Jika normal_balance ada, ikuti. Jika tidak, fallback berdasarkan jenis akun.
-            if (isset($row->normal_balance) && $row->normal_balance) {
-                if ($row->normal_balance === 'Debit') {
-                    $balances[$row->account_id] = $row->total_debit - $row->total_kredit;
-                } else {
-                    $balances[$row->account_id] = $row->total_kredit - $row->total_debit;
-                }
-            } else {
-                if ($row->account_type == 'Pendapatan') {
-                    $balances[$row->account_id] = $row->total_kredit - $row->total_debit;
-                } else if (in_array($row->account_type, ['Biaya', 'HPP'])) {
-                    $balances[$row->account_id] = $row->total_debit - $row->total_kredit;
-                }
-            }
+            // Tanda mengikuti tipe akun -- lihat _type_signed_balance().
+            $balances[$row->account_id] = $this->_type_signed_balance($row->account_type, $row->total_debit, $row->total_kredit);
         }
         return $balances;
     }

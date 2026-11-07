@@ -1,9 +1,9 @@
 <div class="container-fluid">
     <div class="d-sm-flex align-items-center justify-content-between mb-4">
-        <h3 class="h4 mb-0 text-gray-800"><i class="fas fa-cogs text-primary mr-2"></i><?= htmlspecialchars($title); ?></h3>
+        <h3 class="h4 mb-0 text-gray-800"><i class="fas fa-cogs text-primary mr-2"></i><?= lang_line('bom_title', $title); ?></h3>
         <?php if (check_access('bom', 'add')): ?>
             <button class="btn btn-primary shadow-sm" data-toggle="modal" data-target="#addBomModal">
-                <i class="fas fa-plus-circle mr-1"></i> Buat BOM Baru
+                <i class="fas fa-plus-circle mr-1"></i> <?= lang_line('bom_create'); ?>
             </button>
         <?php endif; ?>
     </div>
@@ -31,11 +31,11 @@
         <div class="card-body py-2">
             <form method="get" action="<?= base_url('bom/index'); ?>" class="form-inline">
                 <div class="form-group mr-3 mb-2 flex-grow-1">
-                    <input type="text" name="search" id="search" class="form-control form-control-sm w-100" placeholder="Cari Kode / Nama Style..." value="<?= htmlspecialchars($filters['search'] ?? ''); ?>">
+                    <input type="text" name="search" id="search" class="form-control form-control-sm w-100" placeholder="<?= lang_line('bom_search_placeholder'); ?>" value="<?= htmlspecialchars($filters['search'] ?? ''); ?>">
                 </div>
                 <div class="form-group mb-2">
-                    <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-search fa-sm mr-1"></i> Cari</button>
-                    <a href="<?= base_url('bom'); ?>" class="btn btn-secondary btn-sm ml-1"><i class="fas fa-redo fa-sm mr-1"></i> Reset</a>
+                    <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-search fa-sm mr-1"></i> <?= lang_line('btn_search'); ?></button>
+                    <a href="<?= base_url('bom'); ?>" class="btn btn-secondary btn-sm ml-1"><i class="fas fa-redo fa-sm mr-1"></i> <?= lang_line('btn_reset'); ?></a>
                 </div>
             </form>
         </div>
@@ -47,11 +47,11 @@
                 <table class="table table-striped table-hover align-middle">
                     <thead class="thead-light text-center">
                         <tr>
-                            <th>Kode Style</th>
-                            <th>Nama Style</th>
-                            <th>Revisi</th>
-                            <th>Status</th>
-                            <th width="150">Aksi</th>
+                            <th><?= lang_line('bom_code'); ?></th>
+                            <th><?= lang_line('bom_name'); ?></th>
+                            <th><?= lang_line('bom_revision'); ?></th>
+                            <th><?= lang_line('bom_status'); ?></th>
+                            <th width="150"><?= lang_line('label_action'); ?></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -70,18 +70,18 @@
                                 <span class="badge badge-<?= $badge_class; ?>"><?= htmlspecialchars($bom->status); ?></span>
                             </td>
                             <td>
-                                <a href="<?= base_url('bom/detail/'.$bom->id); ?>" class="btn btn-sm btn-info" title="Detail">
-                                    <i class="fas fa-list fa-fw"></i> Detail
+                                <a href="<?= base_url('bom/detail/'.$bom->id); ?>" class="btn btn-sm btn-info" title="<?= lang_line('bom_detail'); ?>">
+                                    <i class="fas fa-list fa-fw"></i> <?= lang_line('bom_detail'); ?>
                                 </a>
                                 <?php if ($bom->status == 'Draft' && check_access('bom', 'delete')): ?>
-                                <a href="<?= base_url('bom/delete_bom/'.$bom->id); ?>" class="btn btn-sm btn-danger btn-delete ml-1" title="Hapus" data-message="Yakin ingin menghapus BOM <?= htmlspecialchars(addslashes($bom->fg_name)); ?>?">
+                                <a href="<?= base_url('bom/delete_bom/'.$bom->id); ?>" class="btn btn-sm btn-danger btn-delete ml-1" title="<?= lang_line('btn_delete'); ?>" data-message="<?= str_replace('{0}', htmlspecialchars($bom->fg_name), lang_line('bom_delete_confirm')); ?>">
                                     <i class="fas fa-trash fa-fw"></i>
                                 </a>
                                 <?php endif; ?>
                             </td>
                         </tr>
                         <?php endforeach; else: ?>
-                            <tr><td colspan="5" class="text-center text-muted py-3">Belum ada data BOM</td></tr>
+                            <tr><td colspan="5" class="text-center text-muted py-3"><?= lang_line('no_data'); ?></td></tr>
                         <?php endif; ?>
                     </tbody>
                 </table>
@@ -96,31 +96,31 @@
         <form id="createBomForm" method="post" action="<?= base_url('bom/create_header'); ?>">
             <div class="modal-content border-0 shadow">
                 <div class="modal-header bg-gradient-primary text-white">
-                    <h5 class="modal-title"><i class="fas fa-plus-circle mr-2"></i>Pilih Style untuk Buat BOM</h5>
+                    <h5 class="modal-title"><i class="fas fa-plus-circle mr-2"></i><?= lang_line('bom_create'); ?></h5>
                     <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
                 </div>
                 <div class="modal-body">
                     <div class="form-group">
-                        <label for="fg_id_selector">Pilih Style (Finished Good)</label>
+                        <label for="fg_id_selector"><?= lang_line('fg_name'); ?></label>
                         <select name="fg_id" id="fg_id_selector" class="form-control" required>
-                            <option value="">-- Pilih Style --</option>
+                            <option value="">-- <?= lang_line('select_option'); ?> --</option>
                             <?php if(!empty($available_fgs)): foreach($available_fgs as $fg): ?>
                                 <option value="<?= $fg->id; ?>">
                                     <?= htmlspecialchars($fg->nama_barang . ' (' . $fg->kode_barang . ')'); ?>
                                 </option>
                             <?php endforeach; else: ?>
-                                <option value="" disabled>-- Semua style sudah memiliki BOM --</option>
+                                <option value="" disabled>-- <?= lang_line('all_styles_have_bom'); ?> --</option>
                             <?php endif; ?>
                         </select>
-                        <div class="invalid-feedback">Style wajib dipilih.</div>
-                        <small class="form-text text-muted">Hanya menampilkan style yang belum memiliki BOM.</small>
+                        <div class="invalid-feedback"><?= lang_line('fg_required'); ?></div>
+                        <small class="form-text text-muted"><?= lang_line('bom_only_styles_without'); ?></small>
                     </div>
                 </div>
                 <div class="modal-footer">
                     <button type="submit" class="btn btn-primary" <?= empty($available_fgs) ? 'disabled' : ''; ?>>
-                        <i class="fas fa-arrow-right mr-1"></i> Lanjut ke Detail Komponen
+                        <i class="fas fa-arrow-right mr-1"></i> <?= lang_line('continue'); ?>
                     </button>
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                    <button type="button" class="btn btn-secondary" data-dismiss="modal"><?= lang_line('btn_cancel'); ?></button>
                 </div>
             </div>
         </form>

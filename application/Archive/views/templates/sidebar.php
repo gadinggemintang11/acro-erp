@@ -664,7 +664,7 @@ $canViewSystem = check_access('commoncode', 'view') || check_access('roleaccess'
                      <a class="collapse-item <?= ($current == 'master_machine') ? 'active' : ''; ?>" href="<?= $base; ?>master_machine"><?= lang_line('sidebar_master_machine', 'Master Mesin'); ?></a>
                  <?php endif; ?>
                 <?php if (check_access('master_inventory', 'view')): ?>
-                     <a class="collapse-item <?= ($current == 'master_inventory') ? 'active' : ''; ?>" href="<?= $base; ?>master_inventory"><?= lang_line('sidebar_master_inventory', 'Master Inventaris'); ?></a>
+                     <a class="collapse-item <?= ($current == 'master_inventory') ? 'active' : ''; ?>" href="<?= $base; ?>master_inventory"><?= lang_line('sidebar_master_inventory', 'Master HRGA'); ?></a>
                 <?php endif; ?>
             </div>
         </div>

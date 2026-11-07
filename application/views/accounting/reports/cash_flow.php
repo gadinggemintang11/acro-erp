@@ -2,8 +2,8 @@
 
 <style>
 :root {
-    --primary: #4F46E5;
-    --primary-dark: #4338CA;
+    --primary: var(--brand-1);
+    --primary-dark: var(--brand-2);
     --success: #10B981;
     --warning: #F59E0B;
     --danger: #EF4444;
@@ -253,7 +253,7 @@
     <!-- Page Header -->
     <div class="page-header-modern">
         <h1><i class="fas fa-water"></i> <?= $title; ?></h1>
-        <p>Laporan Arus Kas - Cash Flow Statement</p>
+        <p><?= lang_line('rpt_cf_subtitle'); ?></p>
     </div>
 
     <!-- Filter Card -->
@@ -262,22 +262,22 @@
             <div class="filter-section">
                 <div class="form-group-modern">
                     <label for="start_date">
-                        <i class="far fa-calendar-alt"></i> Tanggal Mulai
+                        <i class="far fa-calendar-alt"></i> <?= lang_line('rpt_start_date'); ?>
                     </label>
                     <input type="date" class="form-control-modern" id="start_date" name="start_date" value="<?= $start_date; ?>" required>
                 </div>
                 <div class="form-group-modern">
                     <label for="end_date">
-                        <i class="far fa-calendar-check"></i> Tanggal Selesai
+                        <i class="far fa-calendar-check"></i> <?= lang_line('rpt_end_date'); ?>
                     </label>
                     <input type="date" class="form-control-modern" id="end_date" name="end_date" value="<?= $end_date; ?>" required>
                 </div>
                 <div>
                     <button type="submit" class="btn-modern primary">
-                        <i class="fa fa-search"></i> Tampilkan Laporan
+                        <i class="fa fa-search"></i> <?= lang_line('rpt_show_report'); ?>
                     </button>
                     <a href="<?= current_url(); ?>" class="btn-modern secondary">
-                        <i class="fa fa-redo"></i> Reset
+                        <i class="fa fa-redo"></i> <?= lang_line('rpt_reset'); ?>
                     </a>
                 </div>
             </div>
@@ -289,10 +289,10 @@
         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
             <div>
                 <h4 style="margin: 0; color: var(--text-primary); font-weight: 700;">
-                    <i class="fas fa-file-invoice-dollar" style="color: var(--primary);"></i> Laporan Arus Kas
+                    <i class="fas fa-file-invoice-dollar" style="color: var(--primary);"></i> <?= lang_line('rpt_cf_heading'); ?>
                 </h4>
                 <p style="margin: 0.5rem 0 0 0; color: var(--text-secondary); font-size: 0.875rem;">
-                    Periode: <strong><?= date('d F Y', strtotime($start_date)); ?></strong> s/d <strong><?= date('d F Y', strtotime($end_date)); ?></strong>
+                    <?= lang_line('rpt_period'); ?>: <strong><?= date('d F Y', strtotime($start_date)); ?></strong> s/d <strong><?= date('d F Y', strtotime($end_date)); ?></strong>
                 </p>
             </div>
             <?php
@@ -303,25 +303,25 @@
             ?>
             <div class="dropdown">
                 <button class="btn-modern success dropdown-toggle" type="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                    <i class="fa fa-download"></i> Ekspor Laporan
+                    <i class="fa fa-download"></i> <?= lang_line('rpt_export_report'); ?>
                 </button>
                 <div class="dropdown-menu dropdown-menu-right">
                     <a class="dropdown-item" href="<?= current_url() . '?' . $queryString . '&export=pdf'; ?>" target="_blank">
-                        <i class="fa fa-file-pdf text-danger"></i> Ekspor ke PDF
+                        <i class="fa fa-file-pdf text-danger"></i> <?= lang_line('rpt_export_pdf'); ?>
                     </a>
                     <a class="dropdown-item" href="<?= current_url() . '?' . $queryString . '&export=excel'; ?>">
-                        <i class="fa fa-file-excel text-success"></i> Ekspor ke Excel
+                        <i class="fa fa-file-excel text-success"></i> <?= lang_line('rpt_export_excel'); ?>
                     </a>
                 </div>
             </div>
         </div>
-        
+
         <div class="table-responsive">
             <table class="cashflow-table">
-                
+
                 <!-- CFO Section -->
                 <tr class="section-header cfo">
-                    <td colspan="3"><i class="fas fa-chart-line"></i> ARUS KAS DARI AKTIVITAS OPERASI (CFO)</td>
+                    <td colspan="3"><i class="fas fa-chart-line"></i> <?= lang_line('rpt_cf_cfo_section'); ?></td>
                 </tr>
                 <?php
                     $cfo_groups = [];
@@ -351,7 +351,7 @@
                                     $queryString2 = "start_date={$start_date}&end_date={$end_date}";
                                     $url = site_url('reports/general_ledger/' . $item['account_id'] . '?' . $queryString2);
                                 ?>
-                                <a href="<?= $url; ?>" class="btn-trace" title="Lihat Detail Buku Besar">
+                                <a href="<?= $url; ?>" class="btn-trace" title="<?= lang_line('rpt_view_gl_detail'); ?>">
                                     <i class="fa fa-search"></i>
                                 </a>
                             </td>
@@ -360,7 +360,7 @@
                 <?php endforeach; ?>
                 
                 <tr class="subtotal-row">
-                    <td class="text-right">Total Arus Kas dari Aktivitas Operasi</td>
+                    <td class="text-right"><?= lang_line('rpt_cf_total_cfo'); ?></td>
                     <td class="text-right"><?= number_format($report_data['total_cfo'], 2); ?></td>
                     <td></td>
                 </tr>
@@ -369,7 +369,7 @@
 
                 <!-- CFI Section -->
                 <tr class="section-header cfi">
-                    <td colspan="3"><i class="fas fa-coins"></i> ARUS KAS DARI AKTIVITAS INVESTASI (CFI)</td>
+                    <td colspan="3"><i class="fas fa-coins"></i> <?= lang_line('rpt_cf_cfi_section'); ?></td>
                 </tr>
                 <?php foreach ($report_data['cfi'] as $item) : ?>
                     <tr class="detail-row">
@@ -382,14 +382,14 @@
                                 $queryString2 = "start_date={$start_date}&end_date={$end_date}";
                                 $url = site_url('reports/general_ledger/' . $item['account_id'] . '?' . $queryString2);
                             ?>
-                            <a href="<?= $url; ?>" class="btn-trace" title="Lihat Detail Buku Besar">
+                            <a href="<?= $url; ?>" class="btn-trace" title="<?= lang_line('rpt_view_gl_detail'); ?>">
                                 <i class="fa fa-search"></i>
                             </a>
                         </td>
                     </tr>
                 <?php endforeach; ?>
                 <tr class="subtotal-row">
-                    <td class="text-right">Total Arus Kas dari Aktivitas Investasi</td>
+                    <td class="text-right"><?= lang_line('rpt_cf_total_cfi'); ?></td>
                     <td class="text-right"><?= number_format($report_data['total_cfi'], 2); ?></td>
                     <td></td>
                 </tr>
@@ -398,7 +398,7 @@
 
                 <!-- CFF Section -->
                 <tr class="section-header cff">
-                    <td colspan="3"><i class="fas fa-hand-holding-usd"></i> ARUS KAS DARI AKTIVITAS PENDANAAN (CFF)</td>
+                    <td colspan="3"><i class="fas fa-hand-holding-usd"></i> <?= lang_line('rpt_cf_cff_section'); ?></td>
                 </tr>
                 <?php foreach ($report_data['cff'] as $item) : ?>
                     <tr class="detail-row">
@@ -411,14 +411,14 @@
                                 $queryString2 = "start_date={$start_date}&end_date={$end_date}";
                                 $url = site_url('reports/general_ledger/' . $item['account_id'] . '?' . $queryString2);
                             ?>
-                            <a href="<?= $url; ?>" class="btn-trace" title="Lihat Detail Buku Besar">
+                            <a href="<?= $url; ?>" class="btn-trace" title="<?= lang_line('rpt_view_gl_detail'); ?>">
                                 <i class="fa fa-search"></i>
                             </a>
                         </td>
                     </tr>
                 <?php endforeach; ?>
                 <tr class="subtotal-row">
-                    <td class="text-right">Total Arus Kas dari Aktivitas Pendanaan</td>
+                    <td class="text-right"><?= lang_line('rpt_cf_total_cff'); ?></td>
                     <td class="text-right"><?= number_format($report_data['total_cff'], 2); ?></td>
                     <td></td>
                 </tr>
@@ -427,17 +427,17 @@
 
                 <!-- Final Summary -->
                 <tr style="background: var(--light-bg); border-top: 3px solid var(--dark);">
-                    <td class="text-right" style="padding: 1rem; font-weight: 700;">Peningkatan/(Penurunan) Bersih Kas</td>
+                    <td class="text-right" style="padding: 1rem; font-weight: 700;"><?= lang_line('rpt_cf_net_cash_change'); ?></td>
                     <td class="text-right" style="padding: 1rem; font-weight: 700;"><?= number_format($report_data['peningkatan_kas'], 2); ?></td>
                     <td></td>
                 </tr>
                 <tr style="background: var(--light-bg);">
-                    <td class="text-right" style="padding: 1rem; font-weight: 700;">Saldo Kas di Awal Periode</td>
+                    <td class="text-right" style="padding: 1rem; font-weight: 700;"><?= lang_line('rpt_cf_beginning_cash'); ?></td>
                     <td class="text-right" style="padding: 1rem; font-weight: 700;"><?= number_format($report_data['saldo_awal_kas'], 2); ?></td>
                     <td></td>
                 </tr>
                 <tr class="final-row">
-                    <td class="text-right"><i class="fas fa-wallet"></i> Saldo Kas di Akhir Periode</td>
+                    <td class="text-right"><i class="fas fa-wallet"></i> <?= lang_line('rpt_cf_ending_cash'); ?></td>
                     <td class="text-right"><?= number_format($report_data['saldo_akhir_kas'], 2); ?></td>
                     <td></td>
                 </tr>

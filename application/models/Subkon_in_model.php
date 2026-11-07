@@ -13,12 +13,8 @@ class Subkon_in_model extends CI_Model {
     // ========================================================================
     
     public function generate_grn_subkon_no() {
-        $prefix = 'GRN-SUB/' . date('Ym') . '/';
-        $this->db->like('subkon_in_no', $prefix, 'after');
-        $this->db->order_by('id', 'DESC');
-        $last = $this->db->get($this->table_header, 1)->row();
-        $new_num = $last ? (int) substr($last->subkon_in_no, strlen($prefix)) + 1 : 1;
-        return $prefix . str_pad($new_num, 4, '0', STR_PAD_LEFT);
+        // Format nomor diatur di config/doc_number.php (rebrand Acropoly 2026-11-05).
+        return doc_number_next('subkon_in', 'subkon_in_header', 'subkon_in_no');
     }
 
     public function get_all($filters, $limit, $offset) {

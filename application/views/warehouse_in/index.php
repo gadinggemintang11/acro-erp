@@ -29,7 +29,27 @@
                             <td><?= date('d M Y', strtotime($grn->grn_date)); ?></td>
                             <td><?= htmlspecialchars($grn->base_on); ?></td>
                             <td class="text-left"><?= htmlspecialchars($grn->nama_supplier ?? '-'); ?></td>
-                            <td><span class="badge badge-<?= $grn->status == 'Completed' ? 'success' : 'info'; ?>"><?= $grn->status; ?></span></td>
+                            <td>
+                                <?php
+                                $qa_s = $grn->qa_status ?? '';
+                                $st   = $grn->status ?? '';
+                                if ($qa_s === 'Passed') {
+                                    echo '<span class="badge badge-success">QA Pass</span>';
+                                } elseif ($qa_s === 'Partial Passed') {
+                                    echo '<span class="badge badge-warning">QA Partial</span>';
+                                } elseif ($qa_s === 'Rejected') {
+                                    echo '<span class="badge badge-danger">QA Rejected</span>';
+                                } elseif ($qa_s === 'In Progress') {
+                                    echo '<span class="badge badge-info">QA In Progress</span>';
+                                } elseif ($st === 'Completed') {
+                                    echo '<span class="badge badge-success">Completed</span>';
+                                } elseif ($st === 'Draft') {
+                                    echo '<span class="badge badge-secondary">Draft</span>';
+                                } else {
+                                    echo '<span class="badge badge-light text-muted">-</span>';
+                                }
+                                ?>
+                            </td>
                             <td>
                                 <a href="<?= base_url('warehouse_in/detail/'.$grn->id); ?>" class="btn btn-sm btn-info btn-load">
                                     <i class="fas fa-eye"></i> <?= lang_line('warehouse_in_detail', 'Detail'); ?>
@@ -78,9 +98,10 @@
                      <div class="row">
                          <div class="col-md-6 form-group">
                             <label><?= lang_line('warehouse_in_base_on', 'Dasar Penerimaan'); ?></label>
-                            <select name="base_on" class="form-control" required>
+                            <select name="base_on" class="form-control" required id="addHeaderBaseOn" onchange="toggleWarehouseTypeField(this.value)">
                                 <option value="PO"><?= lang_line('warehouse_in_po', 'Purchase Order (PO)'); ?></option>
                                 <option value="MIR"><?= lang_line('warehouse_in_mir', 'Material Import Request (MIR)'); ?></option>
+                                <option value="Goods Return"><?= lang_line('warehouse_in_goods_return'); ?></option>
                             </select>
                         </div>
                          <div class="col-md-6 form-group">
@@ -125,6 +146,19 @@
         </form>
     </div>
 </div>
+<script>
+function toggleWarehouseTypeField(val) {
+    var wrapEl = document.getElementById('warehouseTypeWrapper');
+    if (!wrapEl) return;
+    wrapEl.style.display = (val === 'Goods Return') ? 'none' : '';
+    var sel = wrapEl.querySelector('select');
+    if (sel) sel.required = (val !== 'Goods Return');
+}
+document.addEventListener('DOMContentLoaded', function(){
+    var col = document.querySelector('#addHeaderModal select[name="warehouse_type"]');
+    if (col) col.closest('.col-md-6').id = 'warehouseTypeWrapper';
+});
+</script>
 
 
 <?php if(!empty($grns)): foreach($grns as $grn): ?>

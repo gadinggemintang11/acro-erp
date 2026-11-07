@@ -9,7 +9,7 @@ class Master_semifinished extends MY_Controller {
         $this->load->model('Semifinished_model');
         // ✅ Load Commoncode_model untuk data dinamis
         $this->load->model('Commoncode_model');
-        $this->load->helper(['form', 'url']);
+        $this->load->helper(['form', 'url', 'export']);
     }
 
     public function index() {
@@ -19,7 +19,7 @@ class Master_semifinished extends MY_Controller {
         }
 
         $data = [
-            'title'         => 'Master Semifinished Goods',
+            'title'         => lang_line('title_mst_sf'),
             'semifinished'  => $this->Semifinished_model->get_all(),
             'satuan_list'   => $this->Commoncode_model->get_by_group('SATUAN'),
             'kategori_list' => $this->Commoncode_model->get_by_group('SEMIFINISHED_CATEGORY'),
@@ -45,8 +45,15 @@ class Master_semifinished extends MY_Controller {
             return;
         }
 
+        $kode_barang = $this->input->post('kode_barang');
+
+        // Jika kode_barang kosong, generate otomatis
+        if (empty($kode_barang)) {
+            $kode_barang = $this->Semifinished_model->generate_kode($this->input->post('kategori'), $this->input->post('asal'));
+        }
+
         $data = [
-            'kode_barang' => $this->Semifinished_model->generate_kode($this->input->post('kategori'), $this->input->post('asal')),
+            'kode_barang' => $kode_barang,
             'nama_barang' => $this->input->post('nama_barang'),
             'kategori'    => $this->input->post('kategori'),
             'asal'        => $this->input->post('asal'),
@@ -99,5 +106,58 @@ class Master_semifinished extends MY_Controller {
             $this->session->set_flashdata('error', 'Gagal menonaktifkan data!');
         }
         redirect('master_semifinished');
+    }
+
+    // ✅ EXPORT EXCEL
+    public function export_excel() {
+        if (!check_access('master_semifinished', 'view')) {
+            show_error('Anda tidak memiliki izin untuk export data.', 403);
+        }
+
+        $semifinished = $this->Semifinished_model->get_all();
+        
+        $headers = ['Kode', 'Nama Barang', 'Kategori', 'Asal', 'Satuan', 'Status'];
+        $data = [];
+
+        foreach ($semifinished as $s) {
+            $data[] = [
+                $s->kode_barang,
+                $s->nama_barang,
+                $s->kategori,
+                $s->asal,
+                $s->satuan,
+                ucfirst($s->status)
+            ];
+        }
+
+        $filename = 'Master_Semifinished_' . date('Ymd_His');
+        export_to_excel($filename, 'Semifinished', $headers, $data);
+    }
+
+    // ✅ EXPORT PDF
+    public function export_pdf() {
+        if (!check_access('master_semifinished', 'view')) {
+            show_error('Anda tidak memiliki izin untuk export data.', 403);
+        }
+
+        $semifinished = $this->Semifinished_model->get_all();
+        
+        $headers = ['Kode', 'Nama Barang', 'Kategori', 'Asal', 'Satuan', 'Status'];
+        $data = [];
+
+        foreach ($semifinished as $s) {
+            $data[] = [
+                $s->kode_barang,
+                $s->nama_barang,
+                $s->kategori,
+                $s->asal,
+                $s->satuan,
+                ucfirst($s->status)
+            ];
+        }
+
+        $filename = 'Master_Semifinished_' . date('Ymd_His');
+        $title = 'Master Semifinished Goods - ' . date('d-m-Y H:i:s');
+        export_to_pdf($filename, $title, $headers, $data);
     }
 }

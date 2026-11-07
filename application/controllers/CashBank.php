@@ -28,7 +28,7 @@ class CashBank extends MY_Controller {
      */
     public function index()
     {
-        $data['title'] = 'Transaksi Kas & Bank';
+        $data['title'] = lang_line('title_cb_index', 'Transaksi Kas & Bank');
         $data['transactions'] = $this->model->get_all_headers();
 
         $this->load->view('templates/header', $data);
@@ -43,7 +43,7 @@ class CashBank extends MY_Controller {
      */
     public function create()
     {
-        $data['title'] = 'Buat Transaksi Kas/Bank Baru';
+        $data['title'] = lang_line('title_cb_create', 'Buat Transaksi Kas/Bank Baru');
         $data['doc_no'] = $this->model->get_new_doc_number();
         $data['currencies'] = $this->JurnalUmum_model->get_currencies();
         // Ambil semua akun postable untuk dropdown detail
@@ -64,7 +64,7 @@ class CashBank extends MY_Controller {
         $data['header'] = $this->model->get_header_by_id($id);
         if (!$data['header']) show_404();
 
-        $data['title'] = 'View Transaksi: ' . $data['header']->doc_no;
+        $data['title'] = sprintf(lang_line('title_cb_view', 'View Transaksi: %s'), $data['header']->doc_no);
         $data['details'] = $this->model->get_details_by_header_id($id);
 
         if ($data['header']->journal_header_id) {
@@ -227,7 +227,7 @@ class CashBank extends MY_Controller {
 
     public function export_pdf()
     {
-        $data['title'] = 'Daftar Transaksi Kas & Bank';
+        $data['title'] = lang_line('title_cb_export_pdf_list', 'Daftar Transaksi Kas & Bank');
         $data['transactions'] = $this->model->get_all_headers();
 
         $html = $this->load->view('accounting/cash_bank/pdf_index_view', $data, true);
@@ -240,7 +240,7 @@ class CashBank extends MY_Controller {
         if (!$data['header']) show_404();
 
         $data['title'] = ($data['header']->transaction_type == 'IN') ?
-            'Bukti Kas/Bank Masuk' : 'Bukti Kas/Bank Keluar';
+            lang_line('title_cb_receipt_in', 'Bukti Kas/Bank Masuk') : lang_line('title_cb_receipt_out', 'Bukti Kas/Bank Keluar');
         $data['details'] = $this->model->get_details_by_header_id($id);
 
         $html = $this->load->view('accounting/cash_bank/pdf_detail_view', $data, true);

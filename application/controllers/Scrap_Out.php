@@ -16,7 +16,7 @@ class Scrap_Out extends MY_Controller {
         $this->load->model('Scrap_Out_model');
         $this->load->model('Scrap_Stock_model'); // untuk laporan stok / ajax jika perlu
         $this->load->model('Stock_ledger_model'); // sudah dipanggil di model
-        // check_login(); // aktifkan bila ada helper auth
+        check_login(); // 2026-11-05: diaktifkan -- sebelumnya halaman ini bisa dibuka TANPA login
     }
 
     /**
@@ -26,7 +26,7 @@ class Scrap_Out extends MY_Controller {
         // permission check bila ada
         // if (!check_access('scrap_out','view')) redirect('denied');
 
-        $data['title'] = lang_line('scrap_out_title', 'Pengeluaran Scrap');
+        $data['title'] = lang_line('title_so_index');
         $data['documents'] = $this->Scrap_Out_model->get_all();
 
         // load views (pastikan view scrap_out/list.php ada)
@@ -43,7 +43,7 @@ class Scrap_Out extends MY_Controller {
     public function create() {
         // if (!check_access('scrap_out','add')) redirect('denied');
 
-        $data['title'] = lang_line('scrap_out_create', 'Buat Pengeluaran Scrap Baru');
+        $data['title'] = lang_line('title_so_create');
         $data['doc_no'] = $this->Scrap_Out_model->generate_doc_no();
         $data['bc_types'] = $this->Scrap_Out_model->get_commoncode_bc();
         $data['customers'] = $this->Scrap_Out_model->get_customers();
@@ -127,7 +127,7 @@ class Scrap_Out extends MY_Controller {
         if (empty($id)) show_404();
         // if (!check_access('scrap_out','view')) redirect('denied');
 
-        $data['title'] = lang_line('scrap_out_detail', 'Detail Pengeluaran Scrap');
+        $data['title'] = lang_line('title_so_detail');
         $data_comp = $this->Scrap_Out_model->get_by_id($id);
         if (!$data_comp) show_404();
 
@@ -159,7 +159,7 @@ class Scrap_Out extends MY_Controller {
             redirect('Scrap_Out/view/' . $id);
         }
 
-        $data['title'] = lang_line('scrap_out_create', 'Edit Pengeluaran Scrap');
+        $data['title'] = lang_line('title_so_edit');
         $data['header'] = $doc['header'];
         $data['details'] = $doc['details'];
         $data['bc_types'] = $this->Scrap_Out_model->get_commoncode_bc();

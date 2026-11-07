@@ -2,8 +2,8 @@
 
 <style>
 :root {
-    --primary: #4F46E5;
-    --primary-dark: #4338CA;
+    --primary: var(--brand-1);
+    --primary-dark: var(--brand-2);
     --success: #10B981;
     --warning: #F59E0B;
     --danger: #EF4444;
@@ -387,7 +387,7 @@
     <!-- Page Header -->
     <div class="page-header-modern">
         <h1><i class="fas fa-balance-scale me-2"></i><?= $title; ?></h1>
-        <p><i class="fas fa-calendar me-2"></i>Per Tanggal: <?= date('d F Y', strtotime($as_of_date)); ?></p>
+        <p><i class="fas fa-calendar me-2"></i><?= lang_line('rpt_as_of'); ?>: <?= date('d F Y', strtotime($as_of_date)); ?></p>
     </div>
 
     <!-- Filter Section -->
@@ -395,14 +395,14 @@
         <form action="<?= current_url(); ?>" method="GET">
             <div class="filter-section">
                 <div class="form-group-modern">
-                    <label for="as_of_date">Per Tanggal (As of Date)</label>
+                    <label for="as_of_date"><?= lang_line('rpt_as_of_label'); ?></label>
                     <input type="date" class="form-control-modern" id="as_of_date" name="as_of_date" value="<?= $as_of_date; ?>">
                 </div>
                 <button type="submit" class="btn-modern primary">
-                    <i class="fas fa-filter"></i> Tampilkan
+                    <i class="fas fa-filter"></i> <?= lang_line('rpt_show'); ?>
                 </button>
                 <a href="<?= current_url(); ?>" class="btn-modern secondary">
-                    <i class="fas fa-redo"></i> Reset
+                    <i class="fas fa-redo"></i> <?= lang_line('rpt_reset'); ?>
                 </a>
                 <?php
                 $queryString = http_build_query([
@@ -429,7 +429,7 @@
         // Cek Balance
         $is_balance = (round($total_aset, 2) == round($total_liabilitas_ekuitas, 2));
         $balance_class = $is_balance ? 'success' : 'danger';
-        $balance_text = $is_balance ? 'BALANCE' : 'NOT BALANCE';
+        $balance_text = $is_balance ? lang_line('rpt_bs_balanced') : lang_line('rpt_bs_not_balanced');
         $balance_icon = $is_balance ? 'check-circle' : 'times-circle';
     ?>
 
@@ -441,7 +441,7 @@
                     <i class="fas fa-archive"></i>
                 </div>
                 <div class="stat-content">
-                    <div class="stat-label">Total Aset</div>
+                    <div class="stat-label"><?= lang_line('rpt_bs_total_asset'); ?></div>
                     <div class="stat-value">Rp <?= number_format($total_aset, 0, ',', '.'); ?></div>
                 </div>
             </div>
@@ -453,7 +453,7 @@
                     <i class="fas fa-university"></i>
                 </div>
                 <div class="stat-content">
-                    <div class="stat-label">Total Liabilitas & Ekuitas</div>
+                    <div class="stat-label"><?= lang_line('rpt_bs_total_lia_eq'); ?></div>
                     <div class="stat-value">Rp <?= number_format($total_liabilitas_ekuitas, 0, ',', '.'); ?></div>
                 </div>
             </div>
@@ -465,7 +465,7 @@
                     <i class="fas fa-<?= $balance_icon; ?>"></i>
                 </div>
                 <div class="stat-content">
-                    <div class="stat-label">Status</div>
+                    <div class="stat-label"><?= lang_line('rpt_bs_status'); ?></div>
                     <div class="stat-value"><?= $balance_text; ?></div>
                 </div>
             </div>
@@ -481,15 +481,15 @@
         <!-- ASET Table -->
         <div class="modern-card">
             <h6 style="font-size: 1.125rem; font-weight: 700; color: var(--primary); margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
-                <i class="fas fa-archive"></i> ASET
+                <i class="fas fa-archive"></i> <?= lang_line('rpt_bs_asset_section'); ?>
             </h6>
             <div style="overflow-x: auto;">
                 <table class="table-modern">
                     <thead>
                         <tr>
-                            <th>Nama Akun</th>
-                            <th style="text-align: right;">Saldo</th>
-                            <th style="text-align: center; width: 80px;">Aksi</th>
+                            <th><?= lang_line('rpt_account_name'); ?></th>
+                            <th style="text-align: right;"><?= lang_line('rpt_balance'); ?></th>
+                            <th style="text-align: center; width: 80px;"><?= lang_line('rpt_action'); ?></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -519,7 +519,8 @@
                                         $startOfYear = date('Y-01-01', strtotime($as_of_date));
                                         $queryString = "start_date={$startOfYear}&end_date={$as_of_date}";
                                         $url = site_url('reports/general_ledger/' . $account['id'] . '?' . $queryString);
-                                        echo "<a href='{$url}' class='btn-detail-modern' title='Lihat Detail Buku Besar'><i class='fas fa-search'></i></a>";
+                                        $tt_gl = lang_line('rpt_view_gl_detail');
+                                        echo "<a href='{$url}' class='btn-detail-modern' title='{$tt_gl}'><i class='fas fa-search'></i></a>";
                                     }
                                     echo "</td>";
                                     echo "</tr>";
@@ -538,7 +539,7 @@
                             </tbody>
                             <tfoot>
                                 <tr>
-                                    <td style="text-align: right;">TOTAL ASET</td>
+                                    <td style="text-align: right;"><?= lang_line('rpt_bs_total_asset_row'); ?></td>
                                     <td style="text-align: right;">
                                         Rp <?= number_format($report_data['total_aset'], 0, ',', '.'); ?>
                                     </td>
@@ -553,26 +554,26 @@
         <!-- LIABILITAS & EKUITAS Table -->
         <div class="modern-card">
             <h6 style="font-size: 1.125rem; font-weight: 700; color: var(--info); margin-bottom: 1.5rem; display: flex; align-items: center; gap: 0.5rem;">
-                <i class="fas fa-university"></i> LIABILITAS & EKUITAS
+                <i class="fas fa-university"></i> <?= lang_line('rpt_bs_lia_eq_section'); ?>
             </h6>
             <div style="overflow-x: auto;">
                 <table class="table-modern">
                     <thead>
                         <tr>
-                            <th>Nama Akun</th>
-                            <th style="text-align: right;">Saldo</th>
-                            <th style="text-align: center; width: 80px;">Aksi</th>
+                            <th><?= lang_line('rpt_account_name'); ?></th>
+                            <th style="text-align: right;"><?= lang_line('rpt_balance'); ?></th>
+                            <th style="text-align: center; width: 80px;"><?= lang_line('rpt_action'); ?></th>
                         </tr>
                     </thead>
                     <tbody>
                         <tr class="section-header">
-                            <td colspan="3">LIABILITAS</td>
+                            <td colspan="3"><?= lang_line('rpt_bs_liability_section'); ?></td>
                         </tr>
                         <?php foreach ($report_data['liabilitas'] as $account) : ?>
                             <?php render_balance_sheet_row($account, 0, $CI, $as_of_date); ?>
                         <?php endforeach; ?>
                         <tr class="subtotal-row">
-                            <td style="text-align: right;">TOTAL LIABILITAS</td>
+                            <td style="text-align: right;"><?= lang_line('rpt_bs_total_liability_row'); ?></td>
                             <td style="text-align: right;">
                                 Rp <?= number_format($report_data['total_liabilitas'], 0, ',', '.'); ?>
                             </td>
@@ -580,9 +581,9 @@
                         </tr>
 
                         <tr><td colspan="3" style="border: none; padding: 0.5rem;"></td></tr>
-                        
+
                         <tr class="section-header">
-                            <td colspan="3">EKUITAS</td>
+                            <td colspan="3"><?= lang_line('rpt_bs_equity_section'); ?></td>
                         </tr>
                         <?php foreach ($report_data['ekuitas'] as $account) : ?>
                             <?php render_balance_sheet_row($account, 0, $CI, $as_of_date); ?>
@@ -590,7 +591,7 @@
                         
                         <?php if (!empty($report_data['laba_periode_lalu']) && $report_data['laba_periode_lalu'] != 0): ?>
                         <tr>
-                            <td style="padding-left: 20px; font-weight: 600;">Laba/Rugi Periode Lalu</td>
+                            <td style="padding-left: 20px; font-weight: 600;"><?= lang_line('rpt_bs_prior_pl'); ?></td>
                             <td style="text-align: right;">Rp <?= number_format($report_data['laba_periode_lalu'], 0, ',', '.'); ?></td>
                             <td style="text-align: center;">
                                 <?php
@@ -599,14 +600,15 @@
                                     $endOfLastYear = date('Y-m-d', strtotime($startOfYear . ' -1 day'));
                                     $queryString = "start_date=2020-01-01&end_date={$endOfLastYear}";
                                     $url = site_url('reports/profit_loss?' . $queryString);
-                                    echo "<a href='{$url}' class='btn-detail-modern' title='Lihat Rincian Laba Rugi Periode Lalu'><i class='fas fa-search'></i></a>";
+                                    $tt = lang_line('rpt_bs_view_prior_pl_detail');
+                                    echo "<a href='{$url}' class='btn-detail-modern' title='{$tt}'><i class='fas fa-search'></i></a>";
                                 ?>
                             </td>
                         </tr>
                         <?php endif; ?>
-                        
+
                         <tr>
-                            <td style="padding-left: 20px; font-weight: 600;">Laba Tahun Berjalan</td>
+                            <td style="padding-left: 20px; font-weight: 600;"><?= lang_line('rpt_bs_current_year_profit'); ?></td>
                             <td style="text-align: right;">Rp <?= number_format($report_data['laba_tahun_berjalan'], 0, ',', '.'); ?></td>
                             <td style="text-align: center;">
                                 <?php
@@ -614,13 +616,14 @@
                                     $startOfYear = date('Y-01-01', strtotime($as_of_date));
                                     $queryString = "start_date={$startOfYear}&end_date={$as_of_date}";
                                     $url = site_url('reports/profit_loss?' . $queryString);
-                                    echo "<a href='{$url}' class='btn-detail-modern' title='Lihat Rincian Laba Rugi'><i class='fas fa-search'></i></a>";
+                                    $tt = lang_line('rpt_bs_view_pl_detail');
+                                    echo "<a href='{$url}' class='btn-detail-modern' title='{$tt}'><i class='fas fa-search'></i></a>";
                                 ?>
                             </td>
                         </tr>
 
                         <tr class="subtotal-row">
-                            <td style="text-align: right;">TOTAL EKUITAS</td>
+                            <td style="text-align: right;"><?= lang_line('rpt_bs_total_equity_row'); ?></td>
                             <td style="text-align: right;">
                                 Rp <?= number_format($report_data['total_ekuitas'], 0, ',', '.'); ?>
                             </td>
@@ -629,7 +632,7 @@
                     </tbody>
                     <tfoot>
                         <tr>
-                            <td style="text-align: right;">TOTAL LIABILITAS & EKUITAS</td>
+                            <td style="text-align: right;"><?= lang_line('rpt_bs_total_lia_eq_row'); ?></td>
                             <td style="text-align: right;">
                                 Rp <?= number_format($total_liabilitas_ekuitas, 0, ',', '.'); ?>
                             </td>

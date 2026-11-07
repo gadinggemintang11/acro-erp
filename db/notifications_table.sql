@@ -1,4 +1,4 @@
--- Create notifications table for neokaber ERP system
+-- Create notifications table for PT. NEW SPECIALIFE INDUSTRIES ERP system
 -- Run this SQL in your database (same database as other tables)
 
 DROP TABLE IF EXISTS `tbl_notifications`;

@@ -1,13 +1,27 @@
+<?php
+// Kop surat + footer identitas perusahaan, REPEATING di tiap halaman (user
+// 2026-09-21: "ekspor pdf nya belum ada header dan footer perusahaan").
+// Pola sama persis dgn consumable_out/pdf_template.php & irf/pdf_template.php:
+// dua div position:fixed di awal body + @page margin selebar tinggi kop/footer
+// supaya isi halaman tidak ketiban.
+$letterhead_icon_h = 50;
+$letterhead_font   = 24;
+$letterhead_header = render_pdf_letterhead_header_html($letterhead_icon_h, $letterhead_font);
+$letterhead_footer = render_pdf_letterhead_footer_html();
+$letterhead_mt     = render_pdf_letterhead_header_margin($letterhead_icon_h, $letterhead_font);
+$letterhead_mb     = render_pdf_letterhead_footer_margin();
+?>
 <!DOCTYPE html>
 <html>
 <head>
     <meta charset="UTF-8">
-    <title>Material Issuance - <?= htmlspecialchars($header->issuance_number ?? 'N/A'); ?></title>
+    <title>Material Release - <?= htmlspecialchars($header->issuance_number ?? 'N/A'); ?></title>
     <style>
+        @page { margin: <?= $letterhead_mt ?>px 30px <?= $letterhead_mb ?>px 30px; }
         body { 
             font-family: Arial, sans-serif; 
             font-size: 10pt; 
-            margin: 20px; 
+            margin: 0; 
         }
         .header-title { 
             text-align: center; 
@@ -93,6 +107,9 @@
     </style>
 </head>
 <body>
+    <div style="position: fixed; top: -<?= $letterhead_mt ?>px; left: 0px; right: 0px;"><?= $letterhead_header ?></div>
+    <div style="position: fixed; bottom: -<?= $letterhead_mb ?>px; left: 0px; right: 0px;"><?= $letterhead_footer ?></div>
+
     <!-- Header -->
     <div class="header-title">MATERIAL ISSUANCE</div>
     <div class="header-subtitle">Pengeluaran Material Gudang</div>

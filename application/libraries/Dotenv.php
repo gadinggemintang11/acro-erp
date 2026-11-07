@@ -7,7 +7,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * Simple .env file parser untuk load environment variables
  * Inspired by vlucas/phpdotenv
  * 
- * @author  ERP Mingbao Team
+ * @author  ERP Acropoly Team
  * @version 1.0
  */
 class Dotenv

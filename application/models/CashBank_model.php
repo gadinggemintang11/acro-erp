@@ -41,14 +41,8 @@ class CashBank_model extends CI_Model {
     
     public function get_new_doc_number()
     {
-        $this->db->select('RIGHT(doc_no, 5) as kode', FALSE);
-        $this->db->order_by('doc_no', 'DESC');
-        $this->db->limit(1);
-        $query = $this->db->get_where('cash_bank_header', ['YEAR(doc_date)' => date('Y')]);
-        
-        $kode = ($query->num_rows() > 0) ? intval($query->row()->kode) + 1 : 1;
-        $kode_max = str_pad($kode, 5, "0", STR_PAD_LEFT);
-        return "CB/" . date('Ym') . "/" . $kode_max;
+        // Format nomor diatur di config/doc_number.php (rebrand Acropoly 2026-11-05).
+        return doc_number_next('cash_bank', 'cash_bank_header', 'doc_no');
     }
 
     public function get_cash_bank_accounts_by_currency($currency)
@@ -57,7 +51,12 @@ class CashBank_model extends CI_Model {
         $this->db->where('status', 'active');
         $this->db->where('currency', $currency);
         $this->db->where('account_type', 'Aset');
-        $this->db->like('account_code', '1-11', 'after'); 
+        // COA Acropoly (2026-11-07): 1.101.* Kas, 1.102.* Bank -- sama dengan
+        // filter Kas/Bank di AP Payment, AR Receipt dan Report_model.
+        $this->db->group_start();
+        $this->db->like('account_code', '1.101', 'after');
+        $this->db->or_like('account_code', '1.102', 'after');
+        $this->db->group_end();
         $this->db->order_by('account_code', 'ASC');
         return $this->db->get('chart_of_accounts')->result();
     }
@@ -67,7 +66,9 @@ class CashBank_model extends CI_Model {
         $this->db->where('is_header', 0);
         $this->db->where('status', 'active');
         $this->db->where('currency', $currency);
-        $this->db->not_like('account_code', '1-11', 'after'); // Kecuali Kas/Bank
+        // Kecuali Kas/Bank (1.101.* / 1.102.*)
+        $this->db->not_like('account_code', '1.101', 'after');
+        $this->db->not_like('account_code', '1.102', 'after');
         $this->db->order_by('account_code', 'ASC');
         return $this->db->get('chart_of_accounts')->result();
     }

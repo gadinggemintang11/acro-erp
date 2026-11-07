@@ -1,4 +1,4 @@
-# 🚀 Quick Start - ERP Mingbao
+# 🚀 Quick Start - ERP Acropoly
 
 ## Setup Local dalam 5 Menit
 

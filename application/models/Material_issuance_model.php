@@ -14,8 +14,8 @@ class Material_issuance_model extends CI_Model {
     }
 
     /**
-     * Ambil semua MR yang relevan untuk gudang (Submitted, Issued, Received)
-     * (Tidak berubah)
+     * Ambil semua MR yang relevan untuk gudang.
+     * MR baru masuk ke gudang setelah lolos 3 stage approval (status = Approved).
      */
     public function get_all_mrs($filters = []) {
         $this->db->reset_query();
@@ -26,7 +26,7 @@ class Material_issuance_model extends CI_Model {
         if (!empty($filters['status'])) {
             $this->db->where('mr.status', $filters['status']);
         } else {
-            $this->db->where_in('mr.status', ['Submitted', 'Issued', 'Received']);
+            $this->db->where_in('mr.status', ['Approved', 'Partial Issued', 'Partial Received', 'Issued', 'Received']);
         }
         if (!empty($filters['search'])) {
             $term = $this->db->escape_like_str($filters['search']);
@@ -82,85 +82,12 @@ class Material_issuance_model extends CI_Model {
     }
     
     /**
-     * Hitung stok tersedia - LANGSUNG PAKAI LOGIKA STOCK LEDGER UTAMA
-     * SIMPLE: opening + in + return - out + adjustment = closing
+     * Hitung stok tersedia — delegasi ke Stock_ledger_model.
+     * Satu sumber kebenaran: kalau daftar transaction_type warehouse berubah
+     * di Stock_ledger_model::get_warehouse_tx_types(), modul ini ikut otomatis.
      */
     private function get_stock_from_ledger($item_id, $item_type) {
-        // Periode bulan ini
-        $current_month = date('m');
-        $current_year = date('Y');
-        $start_date = $current_year . '-' . str_pad($current_month, 2, '0', STR_PAD_LEFT) . '-01';
-        $end_date = date('Y-m-t', strtotime($start_date));
-        
-        // Query PERSIS seperti Stock_ledger_model - SIMPLE!
-        $sql = "
-            SELECT 
-                COALESCE(
-                    (SELECT t1.balance 
-                     FROM stock_ledger t1
-                     WHERE t1.item_id = ?
-                       AND t1.item_type = ?
-                       AND t1.transaction_date < ? 
-                       AND t1.transaction_type IN ('in', 'IN_RETURN_WIP', 'ADJ_IN', 'adjustment', 'OUT_ISSUE', 'production_out', 'OUT_SHIPMENT', 'OUT_SCRAP_BC', 'ADJ_OUT', 'IN_SCRAP_WH')
-                     ORDER BY t1.id DESC 
-                     LIMIT 1
-                    ), 0
-                ) +
-                COALESCE(
-                    (SELECT SUM(CASE WHEN transaction_type = 'in' THEN qty_in ELSE 0 END)
-                     FROM stock_ledger
-                     WHERE item_id = ?
-                       AND item_type = ?
-                       AND transaction_date >= ?
-                       AND transaction_date <= ?
-                       AND transaction_type IN ('in', 'IN_RETURN_WIP', 'ADJ_IN', 'adjustment', 'OUT_ISSUE', 'production_out', 'OUT_SHIPMENT', 'OUT_SCRAP_BC', 'ADJ_OUT', 'IN_SCRAP_WH')
-                    ), 0
-                ) +
-                COALESCE(
-                    (SELECT SUM(CASE WHEN transaction_type = 'IN_RETURN_WIP' THEN qty_in ELSE 0 END)
-                     FROM stock_ledger
-                     WHERE item_id = ?
-                       AND item_type = ?
-                       AND transaction_date >= ?
-                       AND transaction_date <= ?
-                       AND transaction_type IN ('in', 'IN_RETURN_WIP', 'ADJ_IN', 'adjustment', 'OUT_ISSUE', 'production_out', 'OUT_SHIPMENT', 'OUT_SCRAP_BC', 'ADJ_OUT', 'IN_SCRAP_WH')
-                    ), 0
-                ) -
-                COALESCE(
-                    (SELECT SUM(CASE WHEN transaction_type IN ('OUT_ISSUE', 'OUT_SHIPMENT', 'ADJ_OUT', 'production_out') THEN qty_out ELSE 0 END)
-                     FROM stock_ledger
-                     WHERE item_id = ?
-                       AND item_type = ?
-                       AND transaction_date >= ?
-                       AND transaction_date <= ?
-                       AND transaction_type IN ('in', 'IN_RETURN_WIP', 'ADJ_IN', 'adjustment', 'OUT_ISSUE', 'production_out', 'OUT_SHIPMENT', 'OUT_SCRAP_BC', 'ADJ_OUT', 'IN_SCRAP_WH')
-                    ), 0
-                ) +
-                COALESCE(
-                    (SELECT SUM(CASE WHEN transaction_type = 'adjustment' THEN (qty_in - qty_out) ELSE 0 END)
-                     FROM stock_ledger
-                     WHERE item_id = ?
-                       AND item_type = ?
-                       AND transaction_date >= ?
-                       AND transaction_date <= ?
-                       AND transaction_type IN ('in', 'IN_RETURN_WIP', 'ADJ_IN', 'adjustment', 'OUT_ISSUE', 'production_out', 'OUT_SHIPMENT', 'OUT_SCRAP_BC', 'ADJ_OUT', 'IN_SCRAP_WH')
-                    ), 0
-                ) as closing_stock
-        ";
-        
-        $query = $this->db->query($sql, [
-            $item_id, $item_type, $start_date . ' 00:00:00',  // opening
-            $item_id, $item_type, $start_date . ' 00:00:00', $end_date . ' 23:59:59',  // in (GRN)
-            $item_id, $item_type, $start_date . ' 00:00:00', $end_date . ' 23:59:59',  // return
-            $item_id, $item_type, $start_date . ' 00:00:00', $end_date . ' 23:59:59',  // out
-            $item_id, $item_type, $start_date . ' 00:00:00', $end_date . ' 23:59:59'   // adjustment (net)
-        ]);
-        
-        if ($query && $query->num_rows() > 0) {
-            return (float) $query->row()->closing_stock;
-        }
-        
-        return 0.0;
+        return (float) $this->Stock_ledger_model->get_current_stock($item_id, $item_type);
     }
 
     /**
@@ -168,18 +95,8 @@ class Material_issuance_model extends CI_Model {
      * (Revisi: Ambil dari kolom issuance_number)
      */
     public function generate_issuance_number() {
-        $this->db->reset_query();
-        $prefix = 'MI/' . date('Ym') . '/'; // MI = Material Issuance (10 karakter)
-        
-        // --- PERBAIKAN DI SINI ---
-        // Angka urut '0001' dimulai dari karakter ke-11
-        $this->db->select_max('SUBSTRING(issuance_number, 11, 4)', 'max_num'); 
-        // --- AKHIR PERBAIKAN ---
-
-        $this->db->like('issuance_number', $prefix, 'after');
-        $last = $this->db->get($this->table_header)->row();
-        $new_num = $last && $last->max_num ? (int)$last->max_num + 1 : 1;
-        return $prefix . str_pad($new_num, 4, '0', STR_PAD_LEFT);
+        // Format nomor diatur di config/doc_number.php (rebrand Acropoly 2026-11-05).
+        return doc_number_next('material_issue', 'mr_header', 'issuance_number');
     }
 
     /**
@@ -187,13 +104,24 @@ class Material_issuance_model extends CI_Model {
      */
     public function process_issuance($mr_id, $items, $user_id) {
         $this->db->trans_start();
-        
+
         $mr_header = $this->db->get_where('mr_header', ['id' => $mr_id])->row();
         if (!$mr_header) {
              $this->db->trans_rollback();
              return ['success' => false, 'message' => 'MR Header tidak ditemukan.'];
         }
         $issuance_number = $this->generate_issuance_number();
+
+        // Create entry in mr_issuances table (per-issuance tracking)
+        $issuance_data = [
+            'mr_header_id' => $mr_id,
+            'issuance_number' => $issuance_number,
+            'issuer_id' => $user_id,
+            'issued_at' => date('Y-m-d H:i:s'),
+            'status' => 'Issued'
+        ];
+        $this->db->insert('mr_issuances', $issuance_data);
+        $issuance_id = $this->db->insert_id();
 
         foreach ($items as $detail_id => $data) {
             $issued_qty_total = (float) $data['qty'];
@@ -281,13 +209,14 @@ class Material_issuance_model extends CI_Model {
                         'transaction_date'  => date('Y-m-d H:i:s'),
                         'transaction_type'  => 'OUT_ISSUE',
                         'transaction_id'    => $mr_id,
+                        'issuance_id'       => $issuance_id,
                         'source_doc_type'   => 'MR',
                         'source_doc_id'     => $detail->wo_header_id,
                         'qty_in'            => 0,
                         'qty_out'           => $qty_to_take,
                         'unit_value'        => $batch_cost,
                         'balance'           => $new_balance,
-                        'stock_on_hand_id'  => $batch_soh_id // Traceability ke batch
+                        'stock_on_hand_id'  => $batch_soh_id
                     ];
                     
                     if (!$this->Stock_ledger_model->insert($ledger_data)) {
@@ -313,6 +242,7 @@ class Material_issuance_model extends CI_Model {
                     'transaction_date'  => date('Y-m-d H:i:s'),
                     'transaction_type'  => 'OUT_ISSUE',
                     'transaction_id'    => $mr_id,
+                    'issuance_id'       => $issuance_id,
                     'source_doc_type'   => 'MR',
                     'source_doc_id'     => $detail->wo_header_id,
                     'qty_in'            => 0,
@@ -327,16 +257,23 @@ class Material_issuance_model extends CI_Model {
                 }
             }
 
-            // Update issued_qty di mr_details
-            $this->db->where('id', $detail_id)->update('mr_details', ['issued_qty' => $issued_qty_total]);
+            // Update issued_qty di mr_details (ADD ke existing, bukan replace)
+            $current_detail = $this->db->get_where('mr_details', ['id' => $detail_id])->row();
+            $new_issued_qty = (float)($current_detail->issued_qty ?? 0) + $issued_qty_total;
+            $this->db->where('id', $detail_id)->update('mr_details', ['issued_qty' => $new_issued_qty]);
         }
 
-        // Update status mr_header
+        // Hitung status MR header pakai helper Mr_model — single source of truth.
+        // Possible result setelah issue: Partial Issued, Issued, Partial Received (kalau ada
+        // issuance sebelumnya yang sudah received), atau Received.
+        $this->load->model('Mr_model');
+        $new_status = $this->Mr_model->calculate_header_status($mr_id);
+
         $header_data = [
-            'status'          => 'Issued',
+            'status'          => $new_status,
             'issuer_id'       => $user_id,
             'issued_at'       => date('Y-m-d H:i:s'),
-            'issuance_number' => $issuance_number
+            'issuance_number' => $issuance_number,
         ];
         $this->db->where('id', $mr_id)->update('mr_header', $header_data);
 
@@ -348,68 +285,81 @@ class Material_issuance_model extends CI_Model {
     }
     
     /**
-     * Proses Un-Issue (Batal Pengeluaran) - HYBRID dengan traceability
+     * Proses Un-Issue (Batal Pengeluaran) - Menghapus OUT_ISSUE entries (bukan menambah reversal)
+     * PERBAIKAN: Hapus OUT_ISSUE entries langsung, bukan buat IN_RETURN_WIP reversal
      */
     public function reverse_issuance($mr_id, $user_id) {
         $this->db->trans_start();
 
-        // Ambil semua entri ledger yang terkait MR ini
-        $ledger_entries = $this->db->get_where('stock_ledger', [
+        // Ambil semua entri OUT_ISSUE yang terkait MR ini
+        $out_issue_entries = $this->db->get_where('stock_ledger', [
             'transaction_type' => 'OUT_ISSUE',
             'transaction_id' => $mr_id
         ])->result();
 
-        if (empty($ledger_entries)) {
+        if (empty($out_issue_entries)) {
             $this->db->trans_rollback();
             return false;
         }
 
-        foreach ($ledger_entries as $entry) {
-            $qty_to_return = (float)$entry->qty_out;
+        // Restore stock_on_hand dan hapus OUT_ISSUE entries
+        foreach ($out_issue_entries as $entry) {
+            $qty_to_restore = (float)$entry->qty_out;
             $stock_on_hand_id = $entry->stock_on_hand_id ?? null;
             
-            // Jika ada stock_on_hand_id, kembalikan ke batch
+            // Restore available_qty karena OUT_ISSUE sudah menguranginya
             if ($stock_on_hand_id) {
                 $this->db->where('id', $stock_on_hand_id);
-                $this->db->set('available_qty', "available_qty + $qty_to_return", FALSE);
+                $this->db->set('available_qty', "available_qty + $qty_to_restore", FALSE);
                 $this->db->update('stock_on_hand');
             }
-            
-            // Ambil saldo terakhir
-            $last_balance = $this->Stock_ledger_model->get_last_balance($entry->item_id, $entry->item_type);
-            $new_balance = $last_balance + $qty_to_return;
-
-            // Buat entri ledger reversal
-            $ledger_reversal_data = [
-                'item_id'           => $entry->item_id,
-                'item_type'         => $entry->item_type,
-                'transaction_date'  => date('Y-m-d H:i:s'),
-                'transaction_type'  => 'IN_RETURN_WIP',
-                'transaction_id'    => $mr_id,
-                'source_doc_type'   => 'MR_REVERSE',
-                'source_doc_id'     => $mr_id,
-                'qty_in'            => $qty_to_return,
-                'qty_out'           => 0,
-                'unit_value'        => $entry->unit_value,
-                'balance'           => $new_balance,
-                'stock_on_hand_id'  => $stock_on_hand_id
-            ];
-            $this->Stock_ledger_model->insert($ledger_reversal_data);
         }
 
-        // Update mr_details
+        // Hapus semua OUT_ISSUE entries untuk MR ini (clean slate, bukan reversal)
+        $this->db->where('transaction_type', 'OUT_ISSUE')
+                 ->where('transaction_id', $mr_id)
+                 ->delete('stock_ledger');
+
+        // Update mr_details - reset issued_qty
         $this->db->where('mr_header_id', $mr_id)->update('mr_details', ['issued_qty' => 0]);
         
-        // Update mr_header
+        // Recalc status MR header pakai helper Mr_model.
+        $this->load->model('Mr_model');
+        $new_status = $this->Mr_model->calculate_header_status($mr_id);
+        $is_approved = ($new_status === 'Approved');
+
         $header_data = [
-            'status'          => 'Submitted',
-            'issuer_id'       => NULL,
-            'issued_at'       => NULL,
-            'issuance_number' => NULL
+            'status'          => $new_status,
+            'issuer_id'       => $is_approved ? NULL : $user_id,
+            'issued_at'       => $is_approved ? NULL : date('Y-m-d H:i:s'),
+            'issuance_number' => $is_approved ? NULL : null,
         ];
         $this->db->where('id', $mr_id)->update('mr_header', $header_data);
 
         $this->db->trans_complete();
         return $this->db->trans_status();
+    }
+
+    // ============================================================
+    // ATTACHMENTS — "Bukti Pengeluaran" (ERP Revision Notes 2026-09-02,
+    // Fase 2 poin 8, Item Release). Pola sama persis dgn erf_attachments.
+    // ============================================================
+
+    public function get_attachments($mr_header_id) {
+        return $this->db->where('mr_header_id', $mr_header_id)
+            ->order_by('id', 'DESC')->get('material_issuance_attachments')->result();
+    }
+
+    public function get_attachment($id) {
+        return $this->db->where('id', $id)->get('material_issuance_attachments')->row();
+    }
+
+    public function add_attachment($data) {
+        $this->db->insert('material_issuance_attachments', $data);
+        return $this->db->insert_id();
+    }
+
+    public function delete_attachment($id) {
+        return $this->db->where('id', $id)->delete('material_issuance_attachments');
     }
 }

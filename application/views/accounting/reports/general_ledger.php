@@ -241,28 +241,28 @@
     <!-- Professional Header -->
     <div class="ledger-header">
         <div class="ledger-title"><i class="fas fa-book-open mr-2" style="color: #1e40af;"></i><?= $title; ?></div>
-        <div class="ledger-subtitle"><?= $subtitle; ?> • Periode: <strong><?= $start_date; ?></strong> s/d <strong><?= $end_date; ?></strong></div>
+        <div class="ledger-subtitle"><?= $subtitle; ?> • <?= lang_line('rpt_period'); ?>: <strong><?= $start_date; ?></strong> s/d <strong><?= $end_date; ?></strong></div>
     </div>
 
     <div class="card modern-card mb-4">
         <div class="modern-card-header d-flex flex-row align-items-center justify-content-between">
-            <h6 class="card-title-modern">Rincian Transaksi</h6>
+            <h6 class="card-title-modern"><?= lang_line('rpt_gl_detail_heading'); ?></h6>
             <div class="btn-toolbar">
                 <div class="btn-group mr-2">
                     <a href="javascript:history.back()" class="btn btn-modern btn-back btn-sm">
-                        <i class="fas fa-arrow-left mr-1"></i> Back
+                        <i class="fas fa-arrow-left mr-1"></i> <?= lang_line('rpt_back'); ?>
                     </a>
                 </div>
                 <div class="btn-group">
                     <button type="button" class="btn btn-modern btn-export btn-sm dropdown-toggle" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
-                        <i class="fas fa-download mr-1"></i> Export
+                        <i class="fas fa-download mr-1"></i> <?= lang_line('rpt_export'); ?>
                     </button>
                     <div class="dropdown-menu dropdown-menu-right">
                         <a class="dropdown-item" href="<?= current_url() . '?' . $_SERVER['QUERY_STRING'] . '&export=pdf'; ?>" target="_blank">
-                            <i class="fas fa-file-pdf mr-2" style="color: #dc2626;"></i> Export PDF
+                            <i class="fas fa-file-pdf mr-2" style="color: #dc2626;"></i> <?= lang_line('rpt_export_pdf'); ?>
                         </a>
                         <a class="dropdown-item" href="<?= current_url() . '?' . $_SERVER['QUERY_STRING'] . '&export=excel'; ?>">
-                            <i class="fas fa-file-excel mr-2" style="color: #059669;"></i> Export Excel
+                            <i class="fas fa-file-excel mr-2" style="color: #059669;"></i> <?= lang_line('rpt_export_excel'); ?>
                         </a>
                     </div>
                 </div>
@@ -273,13 +273,13 @@
                 <table class="table table-hover mb-0" id="ledgerTable" width="100%" cellspacing="0">
                     <thead>
                         <tr class="text-center">
-                            <th style="width: 10%;">Tanggal</th>
-                            <th style="width: 12%;">No. Jurnal</th>
-                            <th style="width: 12%;">No. Sumber</th>
-                            <th style="width: 26%;">Keterangan</th>
-                            <th style="width: 13%;">Debit</th>
-                            <th style="width: 13%;">Kredit</th>
-                            <th style="width: 14%;">Saldo</th>
+                            <th style="width: 10%;"><?= lang_line('rpt_gl_date'); ?></th>
+                            <th style="width: 12%;"><?= lang_line('rpt_gl_journal_no'); ?></th>
+                            <th style="width: 12%;"><?= lang_line('rpt_gl_source_no'); ?></th>
+                            <th style="width: 26%;"><?= lang_line('rpt_gl_description'); ?></th>
+                            <th style="width: 13%;"><?= lang_line('rpt_gl_debit'); ?></th>
+                            <th style="width: 13%;"><?= lang_line('rpt_gl_credit'); ?></th>
+                            <th style="width: 14%;"><?= lang_line('rpt_gl_balance'); ?></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -287,7 +287,7 @@
                             $saldo = $report_data['saldo_awal'];
                         ?>
                         <tr class="saldo-row saldo-awal-row">
-                            <td colspan="6" class="text-right" style="font-weight: 600;">SALDO AWAL (per <?= $start_date; ?>)</td>
+                            <td colspan="6" class="text-right" style="font-weight: 600;"><?= sprintf(lang_line('rpt_gl_beginning_balance'), $start_date); ?></td>
                             <td class="text-right amount-cell" style="font-size: 0.95rem;"><?= number_format($saldo, 2); ?></td>
                         </tr>
 
@@ -363,7 +363,7 @@
                     </tbody>
                     <tfoot>
                         <tr class="saldo-row saldo-akhir-row">
-                            <td colspan="6" class="text-right" style="font-weight: 700;">SALDO AKHIR (per <?= $end_date; ?>)</td>
+                            <td colspan="6" class="text-right" style="font-weight: 700;"><?= sprintf(lang_line('rpt_gl_ending_balance'), $end_date); ?></td>
                             <td class="text-right amount-cell" style="font-size: 1rem; font-weight: 700;"><?= number_format($saldo, 2); ?></td>
                         </tr>
                     </tfoot>

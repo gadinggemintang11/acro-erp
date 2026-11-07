@@ -198,7 +198,7 @@ class LapPengeluaranBarang extends MY_Controller {
         $sheet->mergeCells('A1:M1'); 
         $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
         $sheet->getStyle('A1')->getAlignment()->setHorizontal('center');
-        $sheet->setCellValue('A2', 'PT MINGBAO LIANCHUANG INTERNATIONAL');
+        $sheet->setCellValue('A2', company_info('company_name'));
         $sheet->mergeCells('A2:M2');
         $sheet->getStyle('A2')->getFont()->setBold(true)->setSize(11);
         $sheet->getStyle('A2')->getAlignment()->setHorizontal('center');

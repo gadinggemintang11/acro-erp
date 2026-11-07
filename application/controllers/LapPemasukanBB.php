@@ -16,7 +16,7 @@ class LapPemasukanBB extends MY_Controller {
     public function __construct() {
         parent::__construct();
         check_login(); 
-        $this->load->model(['LapPemasukanBB_model', 'Commoncode_model']);
+        $this->load->model(['LapPemasukanBB_model', 'Commoncode_model', 'Adjustment_model']);
         $this->load->library(['pagination', 'session']);
         $this->load->helper('url');
         
@@ -85,6 +85,172 @@ class LapPemasukanBB extends MY_Controller {
 
 
     /**
+     * Endpoint AJAX: Dokumen terlampir untuk satu adjustment header (dari tombol di traceability)
+     */
+    public function ajax_get_adjustment_documents() {
+        if (!$this->input->is_ajax_request()) { show_error('Direct access not allowed', 403); return; }
+
+        $adj_id = $this->input->get('adj_id');
+        if (empty($adj_id) || !is_numeric($adj_id)) {
+            echo json_encode(['success' => false, 'message' => 'Parameter tidak valid.']); return;
+        }
+
+        $header = $this->Adjustment_model->get_header_by_id($adj_id);
+        $docs   = $this->Adjustment_model->get_adjustment_documents($adj_id);
+        $details = $this->Adjustment_model->get_details_by_header_id($adj_id);
+
+        $html  = '<div class="card border">';
+        $html .= '<div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">';
+        $html .= '<span class="fw-bold"><i class="fas fa-file-alt me-1 text-warning"></i> ' . htmlspecialchars($header->doc_no ?? '-') . '</span>';
+        $html .= '<span class="text-muted small">' . ($header ? date('d/m/Y', strtotime($header->doc_date)) : '-') . '</span>';
+        $html .= '</div>';
+        $html .= '<div class="card-body p-2">';
+
+        // Detail items
+        if (!empty($details)) {
+            $html .= '<div class="table-responsive mb-2"><table class="table table-sm table-bordered mb-0" style="font-size:0.82rem;">';
+            $html .= '<thead class="thead-light"><tr><th>Nama Barang</th><th class="text-center">Tipe</th><th class="text-right">Qty</th><th class="text-center">Satuan</th></tr></thead><tbody>';
+            foreach ($details as $d) {
+                $badge = $d->adjustment_type === 'IN'
+                    ? '<span class="badge badge-success">IN</span>'
+                    : '<span class="badge badge-danger">OUT</span>';
+                $qty_signed = $d->adjustment_type === 'IN'
+                    ? '+' . number_format($d->qty, 2)
+                    : '-' . number_format($d->qty, 2);
+                $html .= '<tr>';
+                $html .= '<td>' . htmlspecialchars($d->item_name ?? '-') . '</td>';
+                $html .= '<td class="text-center">' . $badge . '</td>';
+                $html .= '<td class="text-right font-weight-bold">' . $qty_signed . '</td>';
+                $html .= '<td class="text-center">' . htmlspecialchars($d->item_unit ?? '-') . '</td>';
+                $html .= '</tr>';
+            }
+            $html .= '</tbody></table></div>';
+        }
+
+        // Catatan
+        if (!empty($header->notes)) {
+            $html .= '<p class="text-muted small mb-2"><i class="fas fa-sticky-note me-1"></i>' . htmlspecialchars($header->notes) . '</p>';
+        }
+
+        // Dokumen
+        if (!empty($docs)) {
+            $html .= '<div class="mt-1"><strong class="small"><i class="fas fa-paperclip me-1"></i>Dokumen Terlampir:</strong><ul class="list-unstyled mb-0 mt-1">';
+            foreach ($docs as $doc) {
+                $file_url = base_url('adjustment/view_document/' . $doc->id);
+                $html .= '<li class="small"><a href="' . $file_url . '" target="_blank" class="text-primary">';
+                $html .= '<i class="fas fa-file me-1"></i>' . htmlspecialchars($doc->file_name ?? basename($doc->file_path));
+                $html .= '</a></li>';
+            }
+            $html .= '</ul></div>';
+        } else {
+            $html .= '<p class="text-muted small mb-0"><i class="fas fa-paperclip me-1"></i>Tidak ada dokumen terlampir.</p>';
+        }
+
+        $html .= '</div></div>';
+
+        header('Content-Type: application/json');
+        echo json_encode(['success' => true, 'html' => $html]);
+    }
+
+    /**
+     * Endpoint AJAX: Detail Adjustment untuk item tertentu dalam periode tertentu
+     */
+    public function ajax_get_adjustment_detail() {
+        if (!$this->input->is_ajax_request()) { show_error('Direct access not allowed', 403); return; }
+        if (!check_access('lap_pemasukan_bb', 'view')) {
+            echo json_encode(['success' => false, 'message' => 'Akses ditolak']); return;
+        }
+
+        $item_id    = $this->input->get('item_id');
+        $item_type  = $this->input->get('item_type');
+        $start_date = $this->input->get('start_date');
+        $end_date   = $this->input->get('end_date');
+
+        if (empty($item_id) || !is_numeric($item_id) || empty($item_type)) {
+            echo json_encode(['success' => false, 'message' => 'Parameter tidak valid.']); return;
+        }
+
+        $this->load->model('Adjustment_model');
+        $rows = $this->LapPemasukanBB_model->get_adjustment_detail_for_item($item_id, $item_type, $start_date, $end_date);
+
+        if (empty($rows)) {
+            echo json_encode(['success' => false, 'message' => 'Tidak ada data adjustment untuk item ini dalam periode yang dipilih.']); return;
+        }
+
+        // Kelompokkan rows per header
+        $headers = [];
+        foreach ($rows as $r) {
+            $hid = $r['header_id'];
+            if (!isset($headers[$hid])) {
+                $headers[$hid] = [
+                    'header_id'    => $hid,
+                    'doc_no'       => $r['doc_no'],
+                    'doc_date'     => $r['doc_date'],
+                    'header_notes' => $r['header_notes'],
+                    'details'      => [],
+                    'documents'    => $this->Adjustment_model->get_adjustment_documents($hid)
+                ];
+            }
+            $headers[$hid]['details'][] = $r;
+        }
+
+        // Build HTML
+        $html = '';
+        foreach ($headers as $h) {
+            $html .= '<div class="card mb-3 border">';
+            $html .= '<div class="card-header bg-light py-2 d-flex justify-content-between align-items-center">';
+            $html .= '<span class="fw-bold"><i class="fas fa-file-alt me-1 text-warning"></i> ' . htmlspecialchars($h['doc_no']) . '</span>';
+            $html .= '<span class="text-muted small">' . date('d/m/Y', strtotime($h['doc_date'])) . '</span>';
+            $html .= '</div>';
+            $html .= '<div class="card-body p-2">';
+
+            // Detail items tabel
+            $html .= '<div class="table-responsive mb-2"><table class="table table-sm table-bordered mb-0" style="font-size:0.82rem;">';
+            $html .= '<thead class="thead-light"><tr><th>Nama Barang</th><th class="text-center">Tipe</th><th class="text-right">Qty</th><th class="text-center">Satuan</th><th>Keterangan</th></tr></thead><tbody>';
+            foreach ($h['details'] as $d) {
+                $badge = $d['adjustment_type'] === 'IN'
+                    ? '<span class="badge badge-success">IN</span>'
+                    : '<span class="badge badge-danger">OUT</span>';
+                $qty_signed = $d['adjustment_type'] === 'IN'
+                    ? '+' . number_format($d['qty'], 2)
+                    : '-' . number_format($d['qty'], 2);
+                $html .= '<tr>';
+                $html .= '<td>' . htmlspecialchars($d['item_name']) . '</td>';
+                $html .= '<td class="text-center">' . $badge . '</td>';
+                $html .= '<td class="text-right font-weight-bold">' . $qty_signed . '</td>';
+                $html .= '<td class="text-center">' . htmlspecialchars($d['item_unit']) . '</td>';
+                $html .= '<td>' . htmlspecialchars($d['detail_notes'] ?? '-') . '</td>';
+                $html .= '</tr>';
+            }
+            $html .= '</tbody></table></div>';
+
+            // Catatan header
+            if (!empty($h['header_notes'])) {
+                $html .= '<p class="text-muted small mb-2"><i class="fas fa-sticky-note me-1"></i>' . htmlspecialchars($h['header_notes']) . '</p>';
+            }
+
+            // Dokumen terlampir
+            if (!empty($h['documents'])) {
+                $html .= '<div class="mt-1"><strong class="small"><i class="fas fa-paperclip me-1"></i>Dokumen Terlampir:</strong><ul class="list-unstyled mb-0 mt-1">';
+                foreach ($h['documents'] as $doc) {
+                    $file_url = base_url('adjustment/view_document/' . $doc->id);
+                    $html .= '<li class="small"><a href="' . $file_url . '" target="_blank" class="text-primary">';
+                    $html .= '<i class="fas fa-file me-1"></i>' . htmlspecialchars($doc->file_name ?? basename($doc->file_path));
+                    $html .= '</a> <span class="text-muted">(' . htmlspecialchars($doc->uploaded_by_name ?? '') . ')</span></li>';
+                }
+                $html .= '</ul></div>';
+            } else {
+                $html .= '<p class="text-muted small mb-0"><i class="fas fa-paperclip me-1"></i>Tidak ada dokumen terlampir.</p>';
+            }
+
+            $html .= '</div></div>'; // card-body + card
+        }
+
+        header('Content-Type: application/json');
+        echo json_encode(['success' => true, 'html' => $html]);
+    }
+
+    /**
      * Endpoint AJAX untuk Traceability
      */
     public function traceability() {
@@ -93,14 +259,16 @@ class LapPemasukanBB extends MY_Controller {
              echo json_encode(['success' => false, 'message' => 'Akses ditolak']); return;
         }
 
-        $ledger_id = $this->input->get('ledger_id'); // ID unik dari baris stock_ledger
+        $ledger_id  = $this->input->get('ledger_id');
+        $start_date = $this->input->get('start_date') ?: null;
+        $end_date   = $this->input->get('end_date')   ?: null;
 
         if (empty($ledger_id) || !is_numeric($ledger_id)) {
             echo json_encode(['success' => false, 'message' => 'Parameter ledger_id tidak valid.']); return;
         }
 
-        // Panggil model untuk data traceability (gunakan model laporan ini atau model terpusat)
-        $trace_data = $this->LapPemasukanBB_model->get_trace_detail($ledger_id);
+        // Panggil model untuk data traceability
+        $trace_data = $this->LapPemasukanBB_model->get_trace_detail($ledger_id, $start_date, $end_date);
 
         if (empty($trace_data)) {
             echo json_encode(['success' => false, 'message' => 'Data traceability tidak ditemukan.']); return;
@@ -127,34 +295,76 @@ class LapPemasukanBB extends MY_Controller {
         } else {
             foreach ($trace_data as $row) {
                 
-                $main_ref = $row['grn_number'] ?? '-'; 
+                $is_adj = ($row['transaction_type'] === 'adjustment');
 
-               
-                $doc_source_text = '';
-                if ($row['source_doc_type'] == 'PO') {
-                    
-                    $doc_source_text = "PO: " . htmlspecialchars($row['po_number'] ?? $row['source_doc_id']); 
-                } elseif ($row['source_doc_type'] == 'MIR') {
-                    // Sekarang menggunakan field mir_number yang terpisah
-                    $doc_source_text = "MIR: " . htmlspecialchars($row['mir_number'] ?? 'ID-'.$row['source_doc_id']);
+                // --- No. Ref & Dok. Sumber ---
+                if ($is_adj) {
+                    $main_ref      = $row['adjustment_doc'] ?? ('-ADJ-'.$row['source_doc_id']);
+                    $doc_source_text = '<span class="badge badge-warning text-dark">ADJ</span>';
                 } else {
-                    $doc_source_text = htmlspecialchars($row['source_doc_type']).': '.htmlspecialchars($row['source_doc_id']);
+                    $main_ref = $row['grn_number'] ?? '-';
+                    $doc_source_text = '';
+                    if ($row['source_doc_type'] == 'PO') {
+                        $doc_source_text = 'PO: ' . htmlspecialchars($row['po_number'] ?? $row['source_doc_id']);
+                    } elseif ($row['source_doc_type'] == 'MIR') {
+                        $doc_source_text = 'MIR: ' . htmlspecialchars($row['mir_number'] ?? 'ID-'.$row['source_doc_id']);
+                    } elseif ($row['source_doc_type'] == 'WO') {
+                        $doc_source_text = 'RTN: ' . htmlspecialchars($row['wo_out_number'] ?? 'ID-'.$row['source_doc_id']);
+                    } else {
+                        $doc_source_text = htmlspecialchars($row['source_doc_type']).': '.htmlspecialchars($row['source_doc_id']);
+                    }
                 }
 
-                $partner = $row['nama_supplier'] ?? ($row['nama_customer'] ?? '-');
-                $bc_info = isset($row['bc_type_code']) ? ($row['bc_type_code'].'/'.$row['bc_number']) : '-';
+                $partner   = $row['nama_supplier'] ?? ($row['nama_customer'] ?? '-');
+                $bc_info   = ($is_adj)
+                    ? (!empty($row['adjustment_notes']) ? htmlspecialchars($row['adjustment_notes']) : '-')
+                    : (isset($row['bc_type_code']) ? ($row['bc_type_code'].'/'.$row['bc_number']) : '-');
                 $wo_number = $row['wo_number'] ?? '-';
 
-                $html .= '<tr>';
+                // --- Qty columns (color adjustment) ---
+                $qty_in_html  = '-';
+                $qty_out_html = '-';
+                if ($is_adj) {
+                    if ($row['qty_in'] != 0) {
+                        $qty_in_html = '<span class="text-success font-weight-bold">+'.number_format($row['qty_in'], 2).'</span>';
+                    }
+                    if ($row['qty_out'] != 0) {
+                        $qty_out_html = '<span class="text-danger font-weight-bold">-'.number_format($row['qty_out'], 2).'</span>';
+                    }
+                } else {
+                    $qty_in_html  = ($row['qty_in']  != 0) ? number_format($row['qty_in'],  2) : '-';
+                    $qty_out_html = ($row['qty_out'] != 0) ? number_format($row['qty_out'], 2) : '-';
+                }
+
+                // --- Row highlight for adjustment ---
+                $tr_style = $is_adj ? ' style="background-color:#fffde7;"' : '';
+
+                // --- Dokumen button for adjustment ---
+                $adj_doc_btn = '';
+                if ($is_adj && !empty($row['adjustment_header_id'])) {
+                    $adj_doc_btn = ' <button class="btn btn-info btn-xs btn-adj-trace-doc"
+                        data-adjid="'.htmlspecialchars($row['adjustment_header_id']).'" 
+                        title="Lihat Dokumen Adjustment" style="font-size:0.7rem;padding:1px 5px;">
+                        <i class="fas fa-paperclip"></i>
+                    </button>';
+                }
+
+                $html .= '<tr'.$tr_style.'>';
                 $html .= '<td>'.date('d/m/y H:i', strtotime($row['transaction_date'])).'</td>';
-                $html .= '<td>'.htmlspecialchars($row['transaction_type']).'</td>';
-                $html .= '<td>'.$doc_source_text.'</td>'; // Dok. Sumber
-                $html .= '<td>'.htmlspecialchars($main_ref).'</td>'; // No. Ref
+                $html .= '<td>';
+                if ($is_adj) {
+                    $html .= '<span class="badge badge-warning text-dark">Adjustment</span>';
+                } else {
+                    $html .= htmlspecialchars($row['transaction_type']);
+                }
+                $html .= '</td>';
+                $html .= '<td>'.$doc_source_text.'</td>';
+                $html .= '<td>'.htmlspecialchars($main_ref).$adj_doc_btn.'</td>';
                 $html .= '<td>'.htmlspecialchars($partner).'</td>';
-                $html .= '<td class="text-right">'.($row['qty_in'] != 0 ? number_format($row['qty_in'], 2) : '-').'</td>';
-                $html .= '<td class="text-right">'.($row['qty_out'] != 0 ? number_format($row['qty_out'], 2) : '-').'</td>';
+                $html .= '<td class="text-right">'.$qty_in_html.'</td>';
+                $html .= '<td class="text-right">'.$qty_out_html.'</td>';
                 $html .= '<td class="text-right font-weight-bold">'.number_format($row['balance'], 2).'</td>';
-                $html .= '<td>'.htmlspecialchars($bc_info).'</td>';
+                $html .= '<td>'.$bc_info.'</td>';
                 $html .= '<td>'.htmlspecialchars($wo_number).'</td>';
                 $html .= '</tr>';
             }
@@ -223,13 +433,13 @@ class LapPemasukanBB extends MY_Controller {
 
             // --- Header Laporan ---
             $sheet->setCellValue('A1', $this->report_title);
-            $sheet->mergeCells('A1:M1');
+            $sheet->mergeCells('A1:O1');
             $sheet->getStyle('A1')->getFont()->setBold(true)->setSize(14);
             $sheet->getStyle('A1')->getAlignment()->setHorizontal('center');
             
             // Tambah nama perusahaan
-            $sheet->setCellValue('A2', 'PT MINGBAO LIANCHUANG INTERNATIONAL');
-            $sheet->mergeCells('A2:M2');
+            $sheet->setCellValue('A2', company_info('company_name'));
+            $sheet->mergeCells('A2:O2');
             $sheet->getStyle('A2')->getFont()->setBold(true)->setSize(11);
             $sheet->getStyle('A2')->getAlignment()->setHorizontal('center');
             
@@ -237,7 +447,7 @@ class LapPemasukanBB extends MY_Controller {
             $start_display = date('d M Y', strtotime($start_date));
             $end_display = date('d M Y', strtotime($end_date));
             $sheet->setCellValue('A3', 'Periode: ' . $start_display . ' s/d ' . $end_display);
-            $sheet->mergeCells('A3:M3');
+            $sheet->mergeCells('A3:O3');
             $sheet->getStyle('A3')->getAlignment()->setHorizontal('center');
 
             // --- Header Tabel ---
@@ -252,14 +462,16 @@ class LapPemasukanBB extends MY_Controller {
             $sheet->setCellValue('H'.$headerRow, 'KODE BARANG');
             $sheet->setCellValue('I'.$headerRow, 'NAMA BARANG');
             $sheet->setCellValue('J'.$headerRow, 'JUMLAH');
-            $sheet->setCellValue('K'.$headerRow, 'SATUAN');
-            $sheet->setCellValue('L'.$headerRow, 'MATA UANG');
-            $sheet->setCellValue('M'.$headerRow, 'NILAI BARANG');
+            $sheet->setCellValue('K'.$headerRow, 'ADJUSTMENT');
+            $sheet->setCellValue('L'.$headerRow, 'TOTAL QTY');
+            $sheet->setCellValue('M'.$headerRow, 'SATUAN');
+            $sheet->setCellValue('N'.$headerRow, 'MATA UANG');
+            $sheet->setCellValue('O'.$headerRow, 'NILAI BARANG');
 
             // Style header
-            $sheet->getStyle('A'.$headerRow.':M'.$headerRow)->getFont()->setBold(true);
-            $sheet->getStyle('A'.$headerRow.':M'.$headerRow)->getAlignment()->setHorizontal('center')->setVertical('center');
-            $sheet->getStyle('A'.$headerRow.':M'.$headerRow)->getFill()->setFillType('solid')->getStartColor()->setARGB('FFD3D3D3');
+            $sheet->getStyle('A'.$headerRow.':O'.$headerRow)->getFont()->setBold(true);
+            $sheet->getStyle('A'.$headerRow.':O'.$headerRow)->getAlignment()->setHorizontal('center')->setVertical('center');
+            $sheet->getStyle('A'.$headerRow.':O'.$headerRow)->getFill()->setFillType('solid')->getStartColor()->setARGB('FFD3D3D3');
 
             // --- Isi Data ---
             $rowNum = $headerRow + 1;
@@ -313,30 +525,43 @@ class LapPemasukanBB extends MY_Controller {
                     $sheet->setCellValue('H'.$rowNum, isset($row['item_code']) ? $row['item_code'] : '-');
                     $sheet->setCellValue('I'.$rowNum, isset($row['item_name']) ? $row['item_name'] : '-');
                     $sheet->setCellValue('J'.$rowNum, isset($row['qty_in']) ? (float)$row['qty_in'] : 0);
-                    $sheet->setCellValue('K'.$rowNum, isset($row['item_unit']) ? $row['item_unit'] : '-');
-                    $sheet->setCellValue('L'.$rowNum, isset($row['currency_code']) ? $row['currency_code'] : 'IDR');
-                    $sheet->setCellValue('M'.$rowNum, isset($row['unit_value_idr']) ? (float)$row['unit_value_idr'] : 0);
+                    $adj_qty_val = isset($row['adj_qty']) ? (float)$row['adj_qty'] : 0;
+                    $total_qty_val = isset($row['total_qty']) ? (float)$row['total_qty'] : (float)($row['qty_in'] ?? 0);
+                    $sheet->setCellValue('K'.$rowNum, $adj_qty_val);
+                    $sheet->setCellValue('L'.$rowNum, $total_qty_val);
+                    $sheet->setCellValue('M'.$rowNum, isset($row['item_unit']) ? $row['item_unit'] : '-');
+                    $sheet->setCellValue('N'.$rowNum, isset($row['currency_code']) ? $row['currency_code'] : 'IDR');
+                    $sheet->setCellValue('O'.$rowNum, isset($row['unit_value_idr']) ? (float)$row['unit_value_idr'] : 0);
                     
                     // Format nomor untuk lebih readable
                     $sheet->getStyle('J'.$rowNum)->getNumberFormat()->setFormatCode('#,##0.00');
-                    $sheet->getStyle('M'.$rowNum)->getNumberFormat()->setFormatCode('#,##0.00');
+                    $sheet->getStyle('K'.$rowNum)->getNumberFormat()->setFormatCode('+#,##0.00;-#,##0.00;"-"');
+                    $sheet->getStyle('L'.$rowNum)->getNumberFormat()->setFormatCode('#,##0.00');
+                    $sheet->getStyle('O'.$rowNum)->getNumberFormat()->setFormatCode('#,##0.00');
+                    
+                    // Color adjustment cell
+                    if ($adj_qty_val > 0) {
+                        $sheet->getStyle('K'.$rowNum)->getFont()->getColor()->setARGB('FF228B22');
+                    } elseif ($adj_qty_val < 0) {
+                        $sheet->getStyle('K'.$rowNum)->getFont()->getColor()->setARGB('FFDC143C');
+                    }
                     
                     $rowNum++;
                 }
             } else {
                 $sheet->setCellValue('A'.$rowNum, 'Tidak ada data.');
-                $sheet->mergeCells('A'.$rowNum.':M'.$rowNum);
+                $sheet->mergeCells('A'.$rowNum.':O'.$rowNum);
             }
 
             // --- Styling Akhir ---
-            foreach (range('A', 'M') as $col) {
+            foreach (range('A', 'O') as $col) {
                 $sheet->getColumnDimension($col)->setAutoSize(true);
             }
             
             // Add borders
             $lastRow = $rowNum - 1;
             if ($lastRow >= $headerRow) {
-                $sheet->getStyle('A'.$headerRow.':M'.$lastRow)->getBorders()->getAllBorders()->setBorderStyle('thin');
+                $sheet->getStyle('A'.$headerRow.':O'.$lastRow)->getBorders()->getAllBorders()->setBorderStyle('thin');
             }
 
             // --- Output File ---

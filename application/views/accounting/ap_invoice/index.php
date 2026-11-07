@@ -3,7 +3,7 @@
         <h1 class="h3 mb-0 text-gray-800"><?= $title; ?></h1>
         <a href="<?= base_url('apinvoice/create'); ?>" class="btn btn-primary btn-icon-split">
             <span class="icon text-white-50"><i class="fas fa-plus"></i></span>
-            <span class="text">Buat Faktur Baru</span>
+            <span class="text"><?= lang_line('ap_invoice_create_btn'); ?></span>
         </a>
     </div>
 
@@ -11,22 +11,22 @@
 
     <div class="card shadow mb-4">
         <div class="card-header py-3">
-            <h6 class="m-0 font-weight-bold text-primary">Daftar Faktur Supplier (Utang Usaha)</h6>
+            <h6 class="m-0 font-weight-bold text-primary"><?= lang_line('ap_invoice_list_title'); ?></h6>
         </div>
         <div class="card-body">
             <div class="table-responsive">
                 <table class="table table-bordered" id="dataTable" width="100%" cellspacing="0">
                     <thead>
                         <tr>
-                            <th>No. Faktur</th>
-                            <th>Tgl. Faktur</th>
-                            <th>Supplier</th>
-                            <th>Tipe</th>
-                            <th class="text-right">Total Tagihan</th>
-                            <th class="text-right">Total Terbayar</th>
-                            <th>Status Bayar</th>
-                            <th>Status Jurnal</th>
-                            <th>Aksi</th>
+                            <th><?= lang_line('ap_invoice_no'); ?></th>
+                            <th><?= lang_line('ap_invoice_date'); ?></th>
+                            <th><?= lang_line('ap_invoice_supplier'); ?></th>
+                            <th><?= lang_line('ap_invoice_type'); ?></th>
+                            <th class="text-right"><?= lang_line('ap_invoice_total_bill'); ?></th>
+                            <th class="text-right"><?= lang_line('ap_invoice_total_paid'); ?></th>
+                            <th><?= lang_line('ap_invoice_payment_status'); ?></th>
+                            <th><?= lang_line('ap_invoice_journal_status'); ?></th>
+                            <th><?= lang_line('label_action'); ?></th>
                         </tr>
                     </thead>
                     <tbody>
@@ -40,23 +40,22 @@
                             <td><?= date('d-m-Y', strtotime($inv->invoice_date)); ?></td>
                             <td><?= $inv->nama_supplier; ?></td>
                             <td>
-                                <?php 
-                                    // Ini penanda PO / MIR / Subkon
-                                    if ($inv->invoice_type == 'NON_GRN') {
-                                        echo '<span class="badge badge-warning">Jasa/Subkon</span>';
+                                <?php
+                                    if ($inv->invoice_type == 'PO_BASED') {
+                                        echo '<span class="badge badge-success">' . lang_line('ap_invoice_po_based', 'Berdasarkan PO') . '</span>';
+                                    } elseif ($inv->invoice_type == 'NON_GRN') {
+                                        echo '<span class="badge badge-warning">' . lang_line('ap_invoice_service_subcon') . '</span>';
                                     } else {
-                                        // Gunakan data dari GRN yang sebenarnya
                                         $grn_type = isset($inv->grn_base_on) ? $inv->grn_base_on : '';
                                         if ($grn_type == 'PO') {
-                                            echo '<span class="badge badge-primary">PO (Lokal)</span>';
+                                            echo '<span class="badge badge-primary">' . lang_line('ap_invoice_po_local') . '</span>';
                                         } elseif ($grn_type == 'MIR') {
-                                            echo '<span class="badge badge-info">MIR (Impor)</span>';
+                                            echo '<span class="badge badge-info">' . lang_line('ap_invoice_mir_import') . '</span>';
                                         } else {
-                                            // Fallback ke supplier type jika tidak ada data GRN
                                             if ($inv->supplier_type == 'Lokal') {
-                                                echo '<span class="badge badge-primary">PO (Lokal)</span>';
+                                                echo '<span class="badge badge-primary">' . lang_line('ap_invoice_po_local') . '</span>';
                                             } else {
-                                                echo '<span class="badge badge-info">MIR (Impor)</span>';
+                                                echo '<span class="badge badge-info">' . lang_line('ap_invoice_mir_import') . '</span>';
                                             }
                                         }
                                     }
@@ -80,11 +79,11 @@
                                 </span>
                             </td>
                             <td class="text-center">
-                                <a href="<?= base_url('apinvoice/view/' . $inv->id); ?>" class="btn btn-info btn-circle btn-sm" title="Lihat Detail">
+                                <a href="<?= base_url('apinvoice/view/' . $inv->id); ?>" class="btn btn-info btn-circle btn-sm" title="<?= lang_line('btn_detail'); ?>">
                                     <i class="fas fa-eye"></i>
                                 </a>
                                 <?php if($inv->status == 'Draft'): ?>
-                                <a href="<?= base_url('apinvoice/delete/' . $inv->id); ?>" class="btn btn-danger btn-circle btn-sm" title="Hapus" onclick="return confirm('Anda yakin ingin menghapus faktur DRAFT ini?');">
+                                <a href="<?= base_url('apinvoice/delete/' . $inv->id); ?>" class="btn btn-danger btn-circle btn-sm" title="<?= lang_line('acct_delete_btn'); ?>" onclick="return confirm('<?= addslashes(lang_line('acct_confirm_delete_draft_invoice')); ?>');">
                                     <i class="fas fa-trash"></i>
                                 </a>
                                 <?php endif; ?>

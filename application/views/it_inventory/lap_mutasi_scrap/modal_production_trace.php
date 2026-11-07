@@ -48,16 +48,25 @@ $materials = $materials_used ?? [];
                     <div style="margin-top: 5px; font-size: 14px;"><?= htmlspecialchars($h->wo_number ?? '-'); ?></div>
                 </div>
                 <div style="background: #f8f9fa; border-left: 4px solid #667eea; padding: 15px; border-radius: 4px;">
-                    <strong style="color: #667eea;">Sales Contract:</strong>
+                    <strong style="color: #667eea;">Sales Order Number:</strong>
                     <div style="margin-top: 5px; font-size: 14px;"><?= htmlspecialchars($h->sales_contract ?? '-'); ?></div>
                 </div>
             </div>
         </div>
 
         <!-- Material -->
+        <?php $is_fallback = (($source_mode ?? 'declared') === 'fallback'); ?>
         <h6 class="text-secondary fw-bold mb-2 mt-4">
             <i class="fas fa-boxes text-primary me-1"></i> Material yang Menghasilkan Scrap (Input)
         </h6>
+        <?php if ($is_fallback && !empty($materials)): ?>
+            <div class="alert alert-warning py-2 small">
+                <i class="fas fa-exclamation-triangle me-1"></i>
+                Asal scrap dokumen ini <strong>belum dirinci</strong> saat produksi, jadi yang ditampilkan
+                adalah seluruh material input di tahap yang sama — qty-nya qty pemakaian, bukan qty scrap.
+                Rinci asal scrap lewat menu Proses Produksi supaya penelusurannya tepat.
+            </div>
+        <?php endif; ?>
 
         <?php if (!empty($materials)): ?>
             <div class="table-responsive">
@@ -66,8 +75,11 @@ $materials = $materials_used ?? [];
                         <tr>
                             <th>Kode Material</th>
                             <th>Nama Material</th>
+                            <th>Tahap</th>
                             <th>Satuan</th>
-                            <th>Qty Digunakan</th>
+                            <th><?= $is_fallback ? 'Qty Dipakai' : 'Qty Jadi Scrap'; ?></th>
+                            <th>Qty Input</th>
+                            <th>Supplier</th>
                             <th>BC Asal</th>
                         </tr>
                     </thead>
@@ -76,10 +88,18 @@ $materials = $materials_used ?? [];
                             <tr>
                                 <td><code><?= htmlspecialchars($m['item_code'] ?? '-'); ?></code></td>
                                 <td><?= htmlspecialchars($m['item_name'] ?? '-'); ?></td>
+                                <td class="text-center"><?= htmlspecialchars(ucfirst($m['stage_name'] ?? '-')); ?></td>
                                 <td class="text-center"><?= htmlspecialchars($m['unit'] ?? '-'); ?></td>
                                 <td class="text-end"><strong><?= number_format((float)($m['qty_used'] ?? 0), 2); ?></strong></td>
+                                <td class="text-end text-muted"><?= number_format((float)($m['qty_input_total'] ?? 0), 2); ?></td>
+                                <td><?= htmlspecialchars($m['supplier_name'] ?? '-'); ?></td>
                                 <td class="text-center">
-                                    <span class="badge bg-info"><?= htmlspecialchars(($m['ex_bc_type'] ?? '-') . '/' . ($m['ex_bc_number'] ?? '-')); ?></span>
+                                    <?php $bc = trim((string)($m['ex_bc_number'] ?? '')); ?>
+                                    <?php if ($bc !== ''): ?>
+                                        <span class="badge bg-info"><?= htmlspecialchars(($m['ex_bc_type'] ?? '-') . '/' . $bc); ?></span>
+                                    <?php else: ?>
+                                        <span class="text-muted" title="Batch penerimaannya tidak tercatat, jadi BC tidak bisa ditelusuri pasti">-</span>
+                                    <?php endif; ?>
                                 </td>
                             </tr>
                         <?php endforeach; ?>
