@@ -1,0 +1,8 @@
+# Folder ini berisi file migrasi/dokumen internal -- jangan bisa diunduh lewat web.
+# Halaman "Migrasi Database" membacanya langsung dari disk, jadi tetap berfungsi.
+<IfModule authz_core_module>
+    Require all denied
+</IfModule>
+<IfModule !authz_core_module>
+    Deny from all
+</IfModule>

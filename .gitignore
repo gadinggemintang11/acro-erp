@@ -21,6 +21,20 @@
 !assets/**/*
 !vendor/**/*
 
+# Migrasi database IKUT repo (2026-11-09): halaman "Migrasi Database"
+# (Migration_runner_model) membaca urutan dari db/deploy_migrations.sh,
+# file dari db/migration_*.sql, dan deskripsi dari
+# docs/PENDING_MIGRATIONS_MASTER.md -- server deploy via git pull, jadi tanpa
+# ini migrasi baru tidak pernah sampai ke server. Dump/log di db/ TETAP tidak
+# ikut. db/.htaccess & docs/.htaccess memblokir akses web ke folder itu.
+!db/
+!db/.htaccess
+!db/deploy_migrations.sh
+!db/migration_*.sql
+!docs/
+!docs/.htaccess
+!docs/PENDING_MIGRATIONS_MASTER.md
+
 ##################################
 # 4. KHUSUS CODEIGNITER (AMAN)
 ##################################
