@@ -6,7 +6,7 @@ defined('BASEPATH') OR exit('No direct script access allowed');
  * Berbeda dari QC_production (existing report) yang read-only.
  *
  * Flow:
- *   1. Production output dibuat (stage grinding/assembling/finishing) di Production_process
+ *   1. Production output dibuat (stage cutting/sewing/assembling/finishing) di Production_process
  *   2. Output otomatis masuk antrian Production QC (qc_checked_by = NULL)
  *   3. QC officer buka menu ini, review per output, approve QC
  *   4. Setelah approve, output keluar dari antrian → muncul di QC Production Report
@@ -42,7 +42,7 @@ class Production_qc extends MY_Controller {
         $by_stage = $this->QC_model->count_pending_qc_by_stage();
 
         // Map stage → count untuk badge
-        $stage_counts = ['grinding' => 0, 'assembling' => 0, 'finishing' => 0];
+        $stage_counts = ['cutting' => 0, 'sewing' => 0, 'assembling' => 0, 'finishing' => 0];
         foreach ($by_stage as $s) {
             $stage_counts[$s->stage_name] = (int)$s->total;
         }
@@ -52,7 +52,7 @@ class Production_qc extends MY_Controller {
             'pending'      => $pending,
             'filters'      => $filters,
             'stage_counts' => $stage_counts,
-            'stages'       => ['grinding', 'assembling', 'finishing'],
+            'stages'       => ['cutting', 'sewing', 'assembling', 'finishing'],
         ];
 
         $this->_load_views('production_qc/index', $data);

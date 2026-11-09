@@ -1,458 +1,360 @@
-<div class="container-fluid">
-    <div class="d-sm-flex align-items-center justify-content-between mb-4">
-        <h3 class="h4 mb-0 text-gray-800">
-            <i class="fas fa-dolly-flatbed text-primary mr-2"></i><?= lang_line('material_issuance_process', 'Proses Pengeluaran Material'); ?>
-            <span class="badge badge-primary ml-2"><?= htmlspecialchars($header->mr_number); ?></span>
-            <?php if($header->status == 'Issued' || $header->status == 'Received'): ?>
-                <span class="badge badge-success ml-2"><?= htmlspecialchars($header->issuance_number); ?></span>
-            <?php endif; ?>
-        </h3>
-        <div>
-            <?php
-                // Check if there are any remaining items to issue
-                $has_remaining = false;
-                foreach($details as $d) {
-                    $issued_so_far = (float)($d->issued_qty ?? 0);
-                    $remaining_qty = $d->requested_qty - $issued_so_far;
-                    if ($remaining_qty > 0) {
-                        $has_remaining = true;
-                        break;
-                    }
-                }
-                // Item Release: attachment "Bukti Pengeluaran" wajib diupload
-                // SETELAH pengeluaran terjadi (bukan syarat sebelum), pola
-                // sama dgn Production_receive (aksi dulu, tindak lanjut nyusul).
-                // Fase 2 poin 8.
-                $needs_attachment = (in_array($header->status, ['Partial Issued', 'Partial Received', 'Issued', 'Received']) && empty($attachments));
-            ?>
-            <?php if ((in_array($header->status, ['Approved', 'Partial Issued', 'Partial Received', 'Issued', 'Received']) && $has_remaining) && check_access('material_issuance', 'edit')): ?>
-                <button type="submit" form="issuanceForm" class="btn btn-primary btn-sm mr-1" id="btnConfirmIssuanceHead">
-                    <i class="fas fa-check-circle fa-sm"></i>
-                    <?php if (in_array($header->status, ['Approved', 'Partial Issued', 'Partial Received'])): ?>
-                        <?= lang_line('material_issuance_confirm', 'Confirm Issuance'); ?>
-                    <?php else: ?>
-                        <?= $has_remaining ? lang_line('material_issuance_issue_again', 'Keluarkan Lagi') : lang_line('material_issuance_confirm', 'Confirm Issuance'); ?>
-                    <?php endif; ?>
-                </button>
-            <?php endif; ?>
-            <?php if ($header->status == 'Issued' && check_access('material_issuance', 'edit')): ?>
-                <a href="<?= base_url('material_issuance/reverse_issuance/'.$header->id); ?>" class="btn btn-danger btn-sm mr-1" onclick="return confirm('<?= lang_line('material_issuance_reverse_confirm', 'Yakin ingin membatalkan pengeluaran ini? Stok akan dikembalikan.'); ?>')">
-                    <i class="fas fa-undo fa-sm"></i> <?= lang_line('material_issuance_reverse', 'Batal Keluarkan (Un-issue)'); ?>
-                </a>
-            <?php endif; ?>
-            <?php if (($header->status == 'Issued' || $header->status == 'Received') && check_access('material_issuance', 'view')): ?>
-                <a href="<?= base_url('material_issuance/export_pdf/'.$header->id); ?>" class="btn btn-info btn-sm mr-1" target="_blank">
-                    <i class="fas fa-file-pdf fa-sm"></i> <?= lang_line('material_issuance_export_pdf', 'Export PDF'); ?>
-                </a>
-            <?php endif; ?>
-            <a href="<?= base_url('material_issuance'); ?>" class="btn btn-secondary btn-sm btn-load">
-                <i class="fas fa-arrow-left fa-sm mr-2"></i><?= lang_line('material_issuance_back', 'Kembali'); ?>
-            </a>
-        </div>
-    </div>
-    <?php
-        // Kartu "Buat PR Sisanya" — sama dengan jalur IRF/general (user
-        // 2026-09-21). Tampil kalau MRF masih bersisa DAN ada yang perlu
-        // di-PR-kan, atau sekadar memberi tahu PR-nya sudah pernah dibuat.
-        $mi_need_pr  = (float) ($remaining_pr_qty ?? 0) > 0.0001;
-        $mi_has_docs = !empty($pr_docs);
-    ?>
-    <?php if (!empty($remaining_outstanding) && !empty($can_create_pr) && ($mi_need_pr || $mi_has_docs)): ?>
-    <div class="card border-left-<?= $mi_need_pr ? 'warning' : 'info' ?> shadow-sm mb-3">
-        <div class="card-body py-3">
-            <div class="d-sm-flex align-items-center justify-content-between">
-                <div>
-                    <?php if ($mi_need_pr): ?>
-                    <i class="fas fa-shopping-cart text-warning mr-1"></i>
-                    <strong><?= lang_line('mi_remaining_pr_title', 'Stock belum cukup:'); ?></strong>
-                    <?= lang_line('mi_remaining_pr_desc', 'Material Request ini masih punya sisa yang belum dikeluarkan. Qty PR = sisa dikurangi stok gudang dan qty yang sudah ada di PR sebelumnya.'); ?>
-                    <?php else: ?>
-                    <i class="fas fa-info-circle text-info mr-1"></i>
-                    <strong><?= lang_line('mi_remaining_nopr_title', 'Masih ada sisa Material Request:'); ?></strong>
-                    <?= lang_line('mi_remaining_nopr_desc', 'PR untuk sisa ini sudah dibuat, atau sisanya sudah bisa dipenuhi dari stok gudang.'); ?>
-                    <?php endif; ?>
+<?php defined('BASEPATH') OR exit('No direct script access allowed');
+/**
+ * Proses Pengeluaran Material (gudang) -- redesign 2026-11-08.
+ *
+ * Alur tetap sama: gudang mengisi "Qty keluarkan sekarang" per baris MR ->
+ * Material_issuance::process_issuance (FIFO per batch, 1 dokumen
+ * pengeluaran per proses; MR bisa dikeluarkan bertahap). Qty default =
+ * min(sisa permintaan, stok gudang). Batal Keluarkan hanya saat status Issued.
+ * Bukti pengeluaran (attachment) diupload SETELAH barang keluar.
+ * Footer dimuat controller.
+ */
+$this->load->view('production_process/_pp_style');
+
+$st        = $header->status;
+$can_edit  = check_access('material_issuance', 'edit');
+$open_st   = in_array($st, ['Approved', 'Partial Issued', 'Partial Received', 'Issued', 'Received'], true);
+$fmt_dt    = function ($v, $t = true) { return (!empty($v) && strpos((string) $v, '0000') !== 0) ? date($t ? 'd M Y H:i' : 'd M Y', strtotime($v)) : null; };
+$qty       = function ($n) { $s = number_format((float) $n, 4, ',', '.'); return rtrim(rtrim($s, '0'), ','); };
+
+$groups = []; $has_remaining = false; $n_full = 0; $n_short = 0;
+foreach ($details as $d) {
+    $d->issued_so_far = (float) ($d->issued_qty ?? 0);
+    $d->remaining     = max(0, round((float) $d->requested_qty - $d->issued_so_far, 4));
+    $d->stock         = (float) $d->total_available_stock;
+    $d->default_qty   = max(0, min($d->remaining, $d->stock));
+    if ($d->remaining > 0.00001) $has_remaining = true; else $n_full++;
+    if ($d->remaining > 0.00001 && $d->stock < $d->remaining) $n_short++;
+    $groups[$d->wo_number ?: '-'][] = $d;
+}
+$can_issue        = $open_st && $has_remaining && $can_edit;
+$needs_attachment = in_array($st, ['Partial Issued', 'Partial Received', 'Issued', 'Received'], true) && empty($attachments);
+$mi_need_pr       = (float) ($remaining_pr_qty ?? 0) > 0.0001;
+$pill = ['Approved' => 'pp-status--draft', 'Partial Issued' => 'pp-status--progress', 'Partial Received' => 'pp-status--progress',
+         'Issued' => 'pp-status--completed', 'Received' => 'pp-status--other'][$st] ?? 'pp-status--other';
+$flash_icons = ['success' => 'fa-check-circle', 'error' => 'fa-exclamation-circle', 'warning' => 'fa-exclamation-triangle'];
+?>
+<style>
+.mi2 tr.mr-group td { background: var(--pp-soft); font-size: .78rem; font-weight: 700; padding-top: .55rem; padding-bottom: .55rem; }
+.mi2 .mi-qty { width: 120px; text-align: right; display: inline-block; }
+.mi2 .mi-prog { height: 5px; border-radius: 99px; background: var(--pp-line); overflow: hidden; margin-top: .3rem; width: 90px; margin-left: auto; }
+.mi2 .mi-prog > span { display: block; height: 100%; background: #10b981; }
+.mi2 tr.is-done td { opacity: .6; }
+.mi2 .mi-flag { display: inline-flex; align-items: center; gap: .25rem; font-size: .66rem; font-weight: 700; padding: .1rem .45rem; border-radius: 6px; margin-top: .2rem; background: rgba(244,63,94,.1); color: #be123c; }
+body.dark-mode .mi2 .mi-flag { color: #fda4af; }
+.mi2 .mi-bar { position: sticky; bottom: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; padding: .85rem 1.1rem; border-top: 1px solid var(--pp-line); background: var(--pp-card); border-radius: 0 0 var(--pp-radius) var(--pp-radius); }
+.mi2 .mi-bar-info { font-size: .85rem; color: var(--pp-muted); } .mi2 .mi-bar-info b { color: var(--pp-text); }
+.mi2 .mi-note { display: flex; gap: .7rem; align-items: flex-start; padding: .85rem 1rem; border-radius: 12px; margin-bottom: 1rem; font-size: .86rem; background: rgba(245,158,11,.1); color: #92400e; border: 1px solid rgba(245,158,11,.3); }
+body.dark-mode .mi2 .mi-note { color: #fcd34d; }
+.mi2 .mi-file { display: flex; align-items: center; gap: .75rem; padding: .65rem .8rem; border: 1px solid var(--pp-line); border-radius: 12px; margin-bottom: .5rem; }
+.mi2 .mi-file-ico { width: 36px; height: 36px; border-radius: 10px; display: grid; place-items: center; background: rgba(var(--brand-rgb), .1); color: var(--brand-1); flex: 0 0 auto; }
+</style>
+
+<div class="container-fluid pp2 mi2">
+
+    <section class="pp-hero">
+        <div class="pp-hero-top">
+            <div class="pp-hero-id">
+                <div class="pp-hero-icon"><i class="fas fa-dolly"></i></div>
+                <div style="min-width:0">
+                    <div class="pp-hero-kicker"><?= lang_line('material_issuance_title', 'Pengeluaran Material'); ?></div>
+                    <h1 class="pp-hero-title"><?= htmlspecialchars($header->mr_number); ?> <span class="pp-status <?= $pill; ?>"><?= htmlspecialchars($st); ?></span></h1>
+                    <div class="pp-hero-subline"><i class="far fa-calendar mr-1"></i><?= $fmt_dt($header->request_date, false); ?><span class="mx-1">·</span><i class="fas fa-sitemap mr-1"></i><?= htmlspecialchars($dept_name ?? '-'); ?></div>
                 </div>
-                <?php if ($mi_need_pr): ?>
-                <form method="POST" action="<?= base_url('material_outstanding/create_pr') ?>" class="mt-2 mt-sm-0 ml-sm-3 flex-shrink-0"
-                      onsubmit="return confirm('<?= htmlspecialchars(lang_line('mi_remaining_pr_confirm', 'Buat Purchase Request untuk semua sisa outstanding Material Request ini?'), ENT_QUOTES) ?>');">
-                    <input type="hidden" name="redirect_to" value="<?= base_url('material_issuance/detail/' . $header->id) ?>">
-                    <?php foreach ($remaining_outstanding as $r): ?>
-                        <input type="hidden" name="mr_detail_ids[]" value="<?= (int) $r->mr_detail_id ?>">
-                    <?php endforeach; ?>
-                    <button type="submit" class="btn btn-warning btn-sm">
-                        <i class="fas fa-shopping-cart mr-1"></i> <?= lang_line('mi_btn_remaining_pr', 'Buat PR Sisanya'); ?>
-                    </button>
-                </form>
-                <?php endif; ?>
             </div>
-            <div class="table-responsive mt-2">
-                <table class="table table-sm mb-0 small">
-                    <thead>
-                        <tr class="text-muted">
-                            <th><?= lang_line('mi_rem_th_code', 'Kode'); ?></th>
-                            <th><?= lang_line('mi_rem_th_item', 'Material'); ?></th>
-                            <th class="text-right"><?= lang_line('mi_rem_th_outstanding', 'Sisa Material Request'); ?></th>
-                            <th class="text-right"><?= lang_line('mi_rem_th_stock', 'Dari Stok'); ?></th>
-                            <th class="text-right"><?= lang_line('mi_rem_th_on_pr', 'Sudah di PR'); ?></th>
-                            <th class="text-right"><?= lang_line('mi_rem_th_pr', 'Perlu PR'); ?></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($remaining_outstanding as $r): ?>
-                        <tr>
-                            <td><?= htmlspecialchars($r->item_code ?? '-') ?></td>
-                            <td><?= htmlspecialchars($r->item_name ?? '-') ?></td>
-                            <td class="text-right"><?= number_format((float) $r->qty_outstanding, 2) ?></td>
-                            <td class="text-right" title="<?= htmlspecialchars(sprintf(lang_line('mi_rem_stock_hint', 'Stok gudang saat ini: %s'), number_format((float) $r->stock_available, 2))) ?>"><?= number_format((float) $r->qty_from_stock, 2) ?></td>
-                            <td class="text-right">
-                                <?= number_format((float) $r->qty_on_pr, 2) ?>
-                                <?php $this->load->view('templates/partials/pr_doc_links', ['docs' => $pr_docs[(int) $r->mr_detail_id] ?? []]); ?>
-                            </td>
-                            <td class="text-right font-weight-bold <?= (float) $r->qty_pr > 0 ? 'text-warning' : 'text-muted' ?>"><?= number_format((float) $r->qty_pr, 2) ?></td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
+            <div class="pp-hero-actions">
+                <?php if (check_access('material_request', 'view')): ?>
+                    <a href="<?= base_url('material_request/detail/' . $header->id); ?>" class="btn pp-btn-glass"><i class="fas fa-clipboard-list mr-1"></i><?= lang_line('mi2_btn_view_mr', 'Lihat MR'); ?></a>
+                <?php endif; ?>
+                <?php if ($st === 'Issued' && $can_edit): ?>
+                    <a href="<?= base_url('material_issuance/reverse_issuance/' . $header->id); ?>" class="btn pp-btn-glass mi-confirm" data-danger="1"
+                       data-text="<?= htmlspecialchars(lang_line('material_issuance_reverse_confirm', 'Yakin ingin membatalkan pengeluaran ini? Stok akan dikembalikan.')); ?>"><i class="fas fa-undo mr-1"></i><?= lang_line('mi2_btn_reverse', 'Batal Keluarkan'); ?></a>
+                <?php endif; ?>
+                <?php if (in_array($st, ['Issued', 'Received'], true)): ?>
+                    <a href="<?= base_url('material_issuance/export_pdf/' . $header->id); ?>" target="_blank" class="btn pp-btn-glass"><i class="fas fa-file-pdf mr-1"></i>PDF</a>
+                <?php endif; ?>
+                <a href="<?= base_url('material_issuance'); ?>" class="btn pp-btn-glass"><i class="fas fa-arrow-left mr-1"></i><?= lang_line('material_issuance_back', 'Kembali'); ?></a>
             </div>
         </div>
-    </div>
-    <?php endif; ?>
+        <div class="pp-hero-meta">
+            <div class="pp-meta"><div class="pp-meta-label"><?= lang_line('material_issuance_requester', 'Dibuat Oleh'); ?></div><div class="pp-meta-value"><?= htmlspecialchars($header->requester_name ?: '-'); ?></div></div>
+            <div class="pp-meta"><div class="pp-meta-label"><?= lang_line('mr2_approver', 'Disetujui (Head of Dept)'); ?></div><div class="pp-meta-value"><?= htmlspecialchars(($header->hod_approver_name ?: $header->final_approver_name) ?: '-'); ?></div></div>
+            <div class="pp-meta"><div class="pp-meta-label"><?= lang_line('material_issuance_issued_by', 'Disiapkan Oleh'); ?></div><div class="pp-meta-value"><?= htmlspecialchars($header->issuer_name ?: '-'); ?></div></div>
+            <div class="pp-meta"><div class="pp-meta-label"><?= lang_line('mi2_full_items', 'Item keluar penuh'); ?></div><div class="pp-meta-value"><?= $n_full; ?> <small>/ <?= count($details); ?></small></div></div>
+            <?php if (!empty($header->remarks)): ?>
+            <div class="pp-meta" style="grid-column: span 2;"><div class="pp-meta-label"><?= lang_line('material_request_remarks', 'Catatan'); ?></div><div class="pp-meta-value" style="font-weight:600" title="<?= htmlspecialchars($header->remarks); ?>"><?= htmlspecialchars($header->remarks); ?></div></div>
+            <?php endif; ?>
+        </div>
+    </section>
+
+    <?php foreach ($flash_icons as $fk => $fi): if ($msg = $this->session->flashdata($fk)): ?>
+        <div class="pp-flash pp-flash--<?= $fk; ?>" role="alert"><i class="fas <?= $fi; ?>"></i><div><?= $msg; ?></div>
+            <button type="button" class="close" onclick="this.parentNode.remove()">&times;</button></div>
+    <?php endif; endforeach; ?>
 
     <?php if ($needs_attachment): ?>
-    <div class="alert alert-warning py-2 mb-3">
-        <i class="fas fa-exclamation-triangle mr-1"></i>
-        <strong><?= lang_line('material_issuance_need_attachment_title2', 'Belum selesai:'); ?></strong>
-        <?= lang_line('material_issuance_need_attachment2', 'Barang sudah dikeluarkan — upload attachment bukti pengeluaran di bawah untuk menyelesaikan dokumen ini.'); ?>
-    </div>
+        <div class="mi-note"><i class="fas fa-paperclip mt-1"></i><div><b><?= lang_line('material_issuance_need_attachment_title2', 'Belum selesai:'); ?></b> <?= lang_line('material_issuance_need_attachment2', 'Barang sudah dikeluarkan — upload attachment bukti pengeluaran di bawah untuk menyelesaikan dokumen ini.'); ?>
+            <a href="#miAttachments" class="font-weight-bold ml-1" style="color:inherit;text-decoration:underline"><?= lang_line('mi2_go_upload', 'Upload sekarang'); ?></a></div></div>
     <?php endif; ?>
 
-    <?php if ($this->session->flashdata('success')): ?>
-    <div class="alert alert-success alert-dismissible fade show" role="alert">
-        <?= $this->session->flashdata('success'); ?>
-        <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+    <!-- ================= Form pengeluaran ================= -->
+    <form id="issuanceForm" method="post" action="<?= base_url('material_issuance/process_issuance/' . $header->id); ?>">
+    <div class="pp-card tone-brand">
+        <div class="pp-card-head">
+            <h2><span class="pp-ico"><i class="fas fa-sign-out-alt"></i></span><span><?= lang_line('material_issuance_items_issuance', 'Item Pengeluaran'); ?> (<?= count($details); ?>)
+                <span class="d-block pp-sub"><?= $can_issue ? lang_line('mi2_items_sub', 'Isi qty yang dikeluarkan sekarang — default = sisa permintaan, dibatasi stok gudang.') : ($has_remaining ? lang_line('mi2_items_sub_ro', 'Hanya lihat.') : lang_line('material_issuance_all_issued', 'Semua Material Sudah Dikeluarkan')); ?></span></span></h2>
+            <?php if ($can_issue): ?>
+            <div class="d-flex flex-wrap" style="gap:.4rem">
+                <?php if ($n_short): ?><span class="pp-chip pp-chip--warn"><i class="fas fa-exclamation-triangle"></i><?= sprintf(lang_line('mr2_short_count', '%d item stoknya kurang'), $n_short); ?></span><?php endif; ?>
+                <button type="button" class="btn btn-light btn-sm" id="miFillMax"><i class="fas fa-magic mr-1"></i><?= lang_line('mi2_btn_fill', 'Isi maksimal'); ?></button>
+                <button type="button" class="btn btn-light btn-sm" id="miClear"><i class="fas fa-eraser mr-1"></i><?= lang_line('mi2_btn_clear', 'Kosongkan'); ?></button>
+            </div>
+            <?php endif; ?>
+        </div>
+        <div class="table-responsive">
+            <table class="pp-table" id="itemIssuanceTable">
+                <thead><tr>
+                    <th><?= lang_line('material_issuance_item_name', 'Nama Item'); ?></th>
+                    <th class="num"><?= lang_line('mr2_th_requested_qty', 'Diminta'); ?></th>
+                    <th class="num"><?= lang_line('mr2_th_issued', 'Dikeluarkan'); ?></th>
+                    <th class="num"><?= lang_line('mr2_th_outstanding', 'Sisa'); ?></th>
+                    <th class="num"><?= lang_line('material_issuance_available_stock', 'Stok Tersedia'); ?></th>
+                    <?php if ($can_issue): ?><th class="num"><?= lang_line('material_issuance_qty_issue', 'Qty Keluarkan Sekarang'); ?></th><?php endif; ?>
+                </tr></thead>
+                <tbody>
+                <?php if (empty($details)): ?>
+                    <tr><td colspan="6" class="pp-empty"><i class="fas fa-inbox"></i><?= lang_line('material_issuance_no_items', 'Item Permintaan Barang tidak ditemukan'); ?></td></tr>
+                <?php else: foreach ($groups as $wo => $rows): ?>
+                    <tr class="mr-group"><td colspan="6"><i class="fas fa-clipboard-check mr-1"></i><?= htmlspecialchars($wo); ?> <span class="font-weight-normal" style="color:var(--pp-muted)">· <?= count($rows); ?> item</span></td></tr>
+                    <?php foreach ($rows as $d):
+                        $done = $d->remaining <= 0.00001;
+                        $pct  = (float) $d->requested_qty > 0 ? min(100, round($d->issued_so_far / (float) $d->requested_qty * 100)) : 0;
+                        $short = !$done && $d->stock < $d->remaining; ?>
+                    <tr class="<?= $done ? 'is-done' : ''; ?>">
+                        <td>
+                            <div class="pp-item-name"><?= htmlspecialchars($d->item_name ?: '-'); ?></div>
+                            <div class="pp-item-code"><?= htmlspecialchars($d->item_code); ?> · <?= htmlspecialchars($d->item_type); ?></div>
+                            <?php if ($done): ?><span class="pp-chip pp-chip--ok mt-1"><i class="fas fa-check"></i><?= lang_line('mi2_done', 'Sudah keluar penuh'); ?></span>
+                            <?php elseif ($short): ?><span class="mi-flag"><i class="fas fa-exclamation-circle"></i><?= sprintf(lang_line('mi2_flag_short', 'Stok kurang %s'), $qty($d->remaining - $d->stock)); ?></span><?php endif; ?>
+                        </td>
+                        <td class="num"><b><?= $qty($d->requested_qty); ?></b> <span class="pp-item-code"><?= htmlspecialchars($d->item_unit); ?></span></td>
+                        <td class="num"><?= $qty($d->issued_so_far); ?><div class="mi-prog"><span style="width:<?= $pct; ?>%"></span></div></td>
+                        <td class="num font-weight-bold"><?= $qty($d->remaining); ?></td>
+                        <td class="num<?= $short ? ' text-danger font-weight-bold' : ''; ?>"><?= $qty($d->stock); ?></td>
+                        <?php if ($can_issue): ?>
+                        <td class="num">
+                            <?php if (!$done): ?>
+                                <input type="text" inputmode="decimal" name="items[<?= (int) $d->detail_id; ?>][qty]" class="form-control form-control-sm mi-qty qty-issued"
+                                       value="<?= $d->default_qty > 0 ? rtrim(rtrim(number_format($d->default_qty, 4, '.', ''), '0'), '.') : '0'; ?>"
+                                       data-max="<?= min($d->remaining, $d->stock); ?>" data-remaining="<?= $d->remaining; ?>" data-stock="<?= $d->stock; ?>" autocomplete="off">
+                            <?php else: ?><span class="text-muted">—</span><?php endif; ?>
+                        </td>
+                        <?php endif; ?>
+                    </tr>
+                    <?php endforeach; ?>
+                <?php endforeach; endif; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php if ($can_issue): ?>
+        <div class="mi-bar">
+            <div class="mi-bar-info" id="miBarInfo">—</div>
+            <button type="submit" class="btn btn-pp px-4" id="btnConfirmIssuance"><i class="fas fa-check-circle mr-1"></i><?= lang_line('material_issuance_confirm_issuance', 'Konfirmasi Pengeluaran'); ?></button>
+        </div>
+        <?php endif; ?>
     </div>
-    <?php endif; ?>
-    <?php if ($this->session->flashdata('error')): ?>
-    <div class="alert alert-danger alert-dismissible fade show" role="alert">
-        <?= $this->session->flashdata('error'); ?>
-        <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-    </div>
-    <?php endif; ?>
+    </form>
 
-    <div class="card shadow mb-4">
-        <div class="card-body">
-             <div class="row">
-                <div class="col-md-4"><strong><?= lang_line('material_issuance_mr_number', 'No. Material Request'); ?>:</strong> <?= htmlspecialchars($header->mr_number); ?></div>
-                <div class="col-md-4"><strong><?= lang_line('material_issuance_request_date', 'Tanggal'); ?>:</strong> <?= date('d M Y', strtotime($header->request_date)); ?></div>
-                <div class="col-md-4"><strong><?= lang_line('material_issuance_status', 'Status'); ?>:</strong>
-                    <?php
-                        $color = 'secondary';
-                        if ($header->status == 'Approved')          $color = 'warning';
-                        if ($header->status == 'Partial Issued')    $color = 'info';
-                        if ($header->status == 'Partial Received')  $color = 'info';
-                        if ($header->status == 'Issued')             $color = 'success';
-                        if ($header->status == 'Received')           $color = 'primary';
-                    ?>
-                    <span class="badge badge-<?= $color; ?>"><?= $header->status; ?></span>
-                </div>
-            </div>
-             <div class="row mt-2">
-                <div class="col-md-4"><strong><?= lang_line('material_issuance_requester', 'Dibuat Oleh'); ?>:</strong> <?= htmlspecialchars($header->requester_name ?? '-'); ?></div>
-                <div class="col-md-4"><strong><?= lang_line('material_issuance_issued_by', 'Disiapkan Oleh'); ?>:</strong> <?= htmlspecialchars($header->issuer_name ?? '-'); ?></div>
-                <div class="col-md-4"><strong><?= lang_line('material_issuance_received_by', 'Diterima Oleh'); ?>:</strong> <?= htmlspecialchars($header->receiver_name ?? '-'); ?></div>
-            </div>
+    <?php if (!empty($remaining_outstanding) && !empty($can_create_pr) && ($mi_need_pr || !empty($pr_docs))): ?>
+    <!-- ================= Sisa yang perlu PR ================= -->
+    <div class="pp-card <?= $mi_need_pr ? 'tone-amber' : 'tone-blue'; ?>">
+        <div class="pp-card-head">
+            <h2><span class="pp-ico"><i class="fas fa-shopping-cart"></i></span><span>
+                <?= $mi_need_pr ? lang_line('mi_remaining_pr_title', 'Stock belum cukup:') : lang_line('mi_remaining_nopr_title', 'Masih ada sisa Material Request:'); ?>
+                <span class="d-block pp-sub"><?= $mi_need_pr ? lang_line('mi_remaining_pr_desc', 'Material Request ini masih punya sisa yang belum dikeluarkan. Qty PR = sisa dikurangi stok gudang dan qty yang sudah ada di PR sebelumnya.') : lang_line('mi_remaining_nopr_desc', 'PR untuk sisa ini sudah dibuat, atau sisanya sudah bisa dipenuhi dari stok gudang.'); ?></span></span></h2>
+            <?php if ($mi_need_pr): ?>
+            <form method="POST" action="<?= base_url('material_outstanding/create_pr'); ?>" class="mi-pr-form">
+                <input type="hidden" name="redirect_to" value="<?= base_url('material_issuance/detail/' . $header->id); ?>">
+                <?php foreach ($remaining_outstanding as $r): ?><input type="hidden" name="mr_detail_ids[]" value="<?= (int) $r->mr_detail_id; ?>"><?php endforeach; ?>
+                <button type="submit" class="btn btn-warning btn-sm"><i class="fas fa-shopping-cart mr-1"></i><?= lang_line('mi_btn_remaining_pr', 'Buat PR Sisanya'); ?></button>
+            </form>
+            <?php endif; ?>
+        </div>
+        <div class="table-responsive">
+            <table class="pp-table">
+                <thead><tr>
+                    <th><?= lang_line('mi_rem_th_item', 'Material'); ?></th>
+                    <th class="num"><?= lang_line('mi_rem_th_outstanding', 'Sisa Material Request'); ?></th>
+                    <th class="num"><?= lang_line('mi_rem_th_stock', 'Dari Stok'); ?></th>
+                    <th class="num"><?= lang_line('mi_rem_th_on_pr', 'Sudah di PR'); ?></th>
+                    <th class="num"><?= lang_line('mi_rem_th_pr', 'Perlu PR'); ?></th>
+                </tr></thead>
+                <tbody>
+                <?php foreach ($remaining_outstanding as $r): ?>
+                    <tr>
+                        <td><div class="pp-item-name"><?= htmlspecialchars($r->item_name ?? '-'); ?></div><div class="pp-item-code"><?= htmlspecialchars($r->item_code ?? ''); ?></div></td>
+                        <td class="num"><?= $qty($r->qty_outstanding); ?></td>
+                        <td class="num" title="<?= htmlspecialchars(sprintf(lang_line('mi_rem_stock_hint', 'Stok gudang saat ini: %s'), $qty($r->stock_available))); ?>"><?= $qty($r->qty_from_stock); ?></td>
+                        <td class="num"><?= $qty($r->qty_on_pr); ?><?php $this->load->view('templates/partials/pr_doc_links', ['docs' => $pr_docs[(int) $r->mr_detail_id] ?? []]); ?></td>
+                        <td class="num font-weight-bold <?= (float) $r->qty_pr > 0 ? 'text-warning' : ''; ?>"><?= $qty($r->qty_pr); ?></td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
         </div>
     </div>
+    <?php endif; ?>
 
-    <form id="issuanceForm" method="post" action="<?= base_url('material_issuance/process_issuance/'.$header->id); ?>">
-        <div class="card shadow mb-4">
-            <div class="card-header py-3">
-                <h6 class="m-0 font-weight-bold text-primary"><?= lang_line('material_issuance_items_issuance', 'Item Pengeluaran'); ?></h6>
-            </div>
-            <div class="card-body">
+    <div class="row">
+        <!-- ================= Riwayat pengeluaran ================= -->
+        <div class="col-xl-7">
+            <div class="pp-card">
+                <div class="pp-card-head"><h2><span class="pp-ico"><i class="fas fa-history"></i></span><?= lang_line('mi2_history', 'Riwayat Pengeluaran'); ?> (<?= count($issuances ?? []); ?>)</h2></div>
                 <div class="table-responsive">
-                    <table class="table table-bordered table-sm" id="itemIssuanceTable">
-                        <thead class="thead-light text-center">
-                            <tr>
-                                <th><?= lang_line('material_issuance_wo', 'WO'); ?></th>
-                                <th><?= lang_line('material_issuance_item_code', 'Kode Item'); ?></th>
-                                <th><?= lang_line('material_issuance_item_name', 'Nama Item'); ?></th>
-                                <th><?= lang_line('material_issuance_unit', 'Satuan'); ?></th>
-                                <th style="width:12%"><?= lang_line('material_issuance_qty_request', 'Qty Diminta'); ?></th>
-                                <th style="width:12%"><?= lang_line('material_issuance_qty_issued_so_far'); ?></th>
-                                <th style="width:12%"><?= lang_line('material_issuance_qty_remaining'); ?></th>
-                                <th style="width:12%"><?= lang_line('material_issuance_available_stock', 'Stok Tersedia'); ?></th>
-                                <th style="width:12%"><?= lang_line('material_issuance_qty_issue', 'Qty Keluarkan Sekarang'); ?></th>
-                            </tr>
-                        </thead>
+                    <table class="pp-table">
+                        <thead><tr>
+                            <th><?= lang_line('mr2_th_issuance_no', 'No. Pengeluaran'); ?></th>
+                            <th><?= lang_line('mr2_th_issued_at', 'Dikeluarkan'); ?></th>
+                            <th class="num">Qty</th>
+                            <th><?= lang_line('mr2_th_received', 'Diterima Produksi'); ?></th>
+                        </tr></thead>
                         <tbody>
-                            <?php if(!empty($details)): foreach($details as $d):
-                                $issued_so_far = (float)($d->issued_qty ?? 0);
-                                $remaining_qty = $d->requested_qty - $issued_so_far;
-                                // For first issuance (Submitted), default to remaining. For re-issuance (Issued), default to 0
-                                $default_qty = (in_array($header->status, ['Approved', 'Partial Issued', 'Partial Received'])) ? max(0, $remaining_qty) : 0;
-                            ?>
+                        <?php if (empty($issuances)): ?>
+                            <tr><td colspan="4" class="pp-empty"><i class="fas fa-dolly"></i><?= lang_line('mi2_history_empty', 'Belum ada pengeluaran.'); ?></td></tr>
+                        <?php else: foreach ($issuances as $is): ?>
                             <tr>
-                                <td class="text-center"><?= htmlspecialchars($d->wo_number); ?></td>
-                                <td><?= htmlspecialchars($d->item_code); ?></td>
-                                <td><?= htmlspecialchars($d->item_name); ?></td>
-                                <td class="text-center"><?= htmlspecialchars($d->item_unit); ?></td>
-                                <td class="text-right qty-requested"><?= number_format($d->requested_qty, 2); ?></td>
-                                <td class="text-right" style="background-color: #f0f0f0;"><?= number_format($issued_so_far, 2); ?></td>
-                                <td class="text-right" style="background-color: #fff9e6;"><strong><?= number_format($remaining_qty, 2); ?></strong></td>
-
-                                <td class="text-right stock-on-hand-cell">
-                                    <?= number_format($d->total_available_stock, 2); ?>
-                                </td>
-                                <td>
-                                    <?php if((in_array($header->status, ['Approved', 'Partial Issued', 'Partial Received', 'Issued', 'Received']) && ($remaining_qty > 0 || in_array($header->status, ['Approved', 'Partial Issued', 'Partial Received']))) && check_access('material_issuance', 'edit')): ?>
-                                    <input type="number" step="0.01" min="0"
-                                           name="items[<?= $d->detail_id; ?>][qty]"
-                                           class="form-control form-control-sm text-right qty-issued"
-                                           value="<?= number_format($default_qty, 2, '.', ''); ?>"
-                                           data-maxstock="<?= $d->total_available_stock; ?>"
-                                           data-remaining="<?= $remaining_qty; ?>"
-                                           required> <?php else: ?>
-                                        <p class="form-control-static text-right mb-0">-</p>
-                                    <?php endif; ?>
-                                </td>
+                                <td class="pp-item-name"><?= htmlspecialchars($is->issuance_number); ?></td>
+                                <td><?= $fmt_dt($is->issued_at) ?: '-'; ?><div class="pp-item-code"><?= htmlspecialchars($is->issuer_name ?: ''); ?></div></td>
+                                <td class="num"><?= (int) $is->item_count; ?> item · <?= $qty($is->issued_qty); ?></td>
+                                <td><?php if ($is->status === 'Received'): ?><span class="pp-chip pp-chip--ok"><i class="fas fa-check"></i><?= $fmt_dt($is->received_at); ?></span>
+                                    <?php else: ?><span class="pp-chip pp-chip--warn"><i class="fas fa-hourglass-half"></i><?= lang_line('mr2_waiting', 'Menunggu'); ?></span><?php endif; ?></td>
                             </tr>
-                            <?php endforeach; else: ?>
-                            <tr><td colspan="9" class="text-center text-muted py-5"><?= lang_line('material_issuance_no_items', 'Item Permintaan Barang tidak ditemukan'); ?></td></tr>
-                            <?php endif; ?>
+                        <?php endforeach; endif; ?>
                         </tbody>
                     </table>
                 </div>
             </div>
-            <?php if (in_array($header->status, ['Approved', 'Partial Issued', 'Partial Received', 'Issued', 'Received']) && $has_remaining): ?>
-            <div class="card-footer text-right">
-                <button type="submit" form="issuanceForm" class="btn btn-primary btn-load" id="btnConfirmIssuanceFoot">
-                    <i class="fas fa-check-circle mr-1"></i>
-                    <?php if (in_array($header->status, ['Approved', 'Partial Issued', 'Partial Received'])): ?>
-                        <?= lang_line('material_issuance_confirm_issuance', 'Konfirmasi Pengeluaran'); ?>
-                    <?php else: ?>
-                        <?= $has_remaining ? lang_line('material_issuance_issue_again', 'Keluarkan Lagi') : lang_line('material_issuance_confirm_issuance', 'Konfirmasi Pengeluaran'); ?>
-                    <?php endif; ?>
-                </button>
-            </div>
-            <?php endif; ?>
         </div>
-    </form>
 
-    <!-- Attachments: Bukti Pengeluaran (Item Release, wajib diupload SETELAH pengeluaran terjadi) -->
-    <div class="card border-0 shadow-sm mb-3">
-        <div class="card-header py-3">
-            <h6 class="m-0 font-weight-bold text-primary"><i class="fas fa-paperclip mr-1"></i> <?= lang_line('material_issuance_attachments_title', 'Bukti Pengeluaran'); ?> (<?= count($attachments); ?>)</h6>
-        </div>
-        <div class="card-body">
-            <?php if (check_access('material_issuance', 'edit')): ?>
-            <form method="POST" action="<?= base_url('material_issuance/upload_attachment/' . $header->id); ?>" enctype="multipart/form-data" class="mb-3">
-                <div class="form-group mb-0">
-                    <label for="attachment" class="small font-weight-bold"><?= lang_line('material_issuance_lbl_choose_file', 'Pilih File'); ?></label>
-                    <div class="input-group input-group-sm">
-                        <input type="file" name="attachment" id="attachment" class="form-control-file" required>
-                        <div class="input-group-append">
-                            <button type="submit" class="btn btn-primary"><i class="fas fa-upload mr-1"></i> <?= lang_line('material_issuance_btn_upload', 'Upload'); ?></button>
+        <!-- ================= Bukti pengeluaran ================= -->
+        <div class="col-xl-5" id="miAttachments">
+            <div class="pp-card">
+                <div class="pp-card-head"><h2><span class="pp-ico"><i class="fas fa-paperclip"></i></span><span><?= lang_line('material_issuance_attachments_title', 'Bukti Pengeluaran'); ?> (<?= count($attachments); ?>)
+                    <span class="d-block pp-sub"><?= lang_line('mi2_att_sub', 'Foto / scan dokumen serah terima, diupload setelah barang keluar'); ?></span></span></h2></div>
+                <div class="pp-card-body">
+                    <?php if ($can_edit): ?>
+                    <form method="POST" action="<?= base_url('material_issuance/upload_attachment/' . $header->id); ?>" enctype="multipart/form-data" class="d-flex mb-3" style="gap:.5rem">
+                        <div class="custom-file flex-grow-1">
+                            <input type="file" name="attachment" class="custom-file-input" id="miFile" required>
+                            <label class="custom-file-label text-truncate" for="miFile"><?= lang_line('material_issuance_lbl_choose_file', 'Pilih File'); ?></label>
                         </div>
-                    </div>
+                        <button type="submit" class="btn btn-pp"><i class="fas fa-upload"></i></button>
+                    </form>
+                    <?php endif; ?>
+                    <?php if (empty($attachments)): ?>
+                        <div class="text-center small py-3" style="color:var(--pp-muted)"><i class="fas fa-folder-open d-block mb-2" style="font-size:1.6rem;opacity:.35"></i><?= lang_line('material_issuance_no_attachment', 'Belum ada attachment.'); ?></div>
+                    <?php else: foreach ($attachments as $a): ?>
+                        <div class="mi-file">
+                            <span class="mi-file-ico"><i class="fas <?= preg_match('/\.(jpe?g|png|gif|webp|bmp)$/i', $a->original_name) ? 'fa-image' : (preg_match('/\.pdf$/i', $a->original_name) ? 'fa-file-pdf' : 'fa-file'); ?>"></i></span>
+                            <span style="min-width:0;flex:1"><span class="pp-item-name d-block text-truncate" title="<?= htmlspecialchars($a->original_name); ?>"><?= htmlspecialchars($a->original_name); ?></span>
+                                <span class="pp-item-code"><?= number_format($a->file_size / 1024, 1); ?> KB · <?= $fmt_dt($a->created_at); ?></span></span>
+                            <button type="button" class="btn btn-sm btn-light btn-view-attachment" data-name="<?= htmlspecialchars($a->original_name); ?>" data-url="<?= base_url('material_issuance/attachment/' . $a->id); ?>" title="<?= htmlspecialchars(lang_line('material_issuance_btn_view', 'View')); ?>"><i class="fas fa-eye"></i></button>
+                            <?php if ($st !== 'Received' && $can_edit): ?>
+                                <a href="<?= base_url('material_issuance/delete_attachment/' . $a->id); ?>" class="btn btn-sm btn-outline-danger mi-confirm" data-danger="1" data-text="<?= htmlspecialchars(lang_line('material_issuance_confirm_delete_att', 'Hapus attachment?')); ?>"><i class="fas fa-trash-alt"></i></a>
+                            <?php endif; ?>
+                        </div>
+                    <?php endforeach; endif; ?>
                 </div>
-            </form>
-            <?php endif; ?>
-
-            <?php if (empty($attachments)): ?>
-                <p class="text-muted text-center py-3 mb-0"><?= lang_line('material_issuance_no_attachment', 'Belum ada attachment.'); ?></p>
-            <?php else: ?>
-                <table class="table table-sm mb-0">
-                    <thead class="thead-light">
-                        <tr><th><?= lang_line('material_issuance_th_att_file', 'File'); ?></th><th><?= lang_line('material_issuance_th_att_type', 'Type'); ?></th><th><?= lang_line('material_issuance_th_att_size', 'Size'); ?></th><th><?= lang_line('material_issuance_th_att_uploaded', 'Uploaded'); ?></th><th width="140"><?= lang_line('label_action', 'Aksi'); ?></th></tr>
-                    </thead>
-                    <tbody>
-                        <?php foreach ($attachments as $a): ?>
-                        <tr>
-                            <td><i class="fas fa-file mr-1"></i> <?= htmlspecialchars($a->original_name); ?></td>
-                            <td class="small"><?= htmlspecialchars($a->file_type); ?></td>
-                            <td class="small"><?= number_format($a->file_size / 1024, 1); ?> KB</td>
-                            <td class="small"><?= date('d M Y H:i', strtotime($a->created_at)); ?></td>
-                            <td>
-                                <button type="button" class="btn btn-sm btn-link text-info btn-view-attachment" data-id="<?= $a->id; ?>" data-name="<?= htmlspecialchars($a->original_name); ?>" data-url="<?= base_url('material_issuance/attachment/' . $a->id); ?>"><i class="fas fa-eye mr-1"></i> <?= lang_line('material_issuance_btn_view', 'View'); ?></button>
-                                <?php if ($header->status !== 'Received' && check_access('material_issuance', 'edit')): ?>
-                                <a href="<?= base_url('material_issuance/delete_attachment/' . $a->id); ?>" class="btn btn-sm btn-link text-danger" onclick="return confirm('<?= lang_line('material_issuance_confirm_delete_att', 'Hapus attachment?'); ?>');"><i class="fas fa-trash"></i> <?= lang_line('material_issuance_btn_delete_att', 'Hapus'); ?></a>
-                                <?php endif; ?>
-                            </td>
-                        </tr>
-                        <?php endforeach; ?>
-                    </tbody>
-                </table>
-            <?php endif; ?>
+            </div>
         </div>
     </div>
 </div>
 
-<!-- Modal: View Attachment -->
-<div class="modal fade" id="attachmentModal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-        <div class="modal-content border-0 shadow">
-            <div class="modal-header bg-info text-white">
-                <h5 class="modal-title"><i class="fas fa-file mr-2"></i> <span id="attachmentName"></span></h5>
-                <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
-            </div>
-            <div class="modal-body" id="attachmentBody" style="max-height: 500px; overflow-y: auto;">
-                <div class="text-center text-muted py-5">
-                    <i class="fas fa-spinner fa-spin fa-2x mb-3"></i>
-                    <p><?= lang_line('material_issuance_att_loading', 'Loading...'); ?></p>
-                </div>
-            </div>
-            <div class="modal-footer">
-                <a id="attachmentDownload" href="#" class="btn btn-primary" download><i class="fas fa-download mr-1"></i> <?= lang_line('material_issuance_att_download', 'Download'); ?></a>
-                <button type="button" class="btn btn-secondary" data-dismiss="modal"><?= lang_line('material_issuance_att_close', 'Close'); ?></button>
-            </div>
+<div class="modal fade pp-modal" id="attachmentModal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-lg"><div class="modal-content">
+        <div class="modal-header"><h5 class="modal-title text-truncate"><i class="fas fa-file mr-2"></i><span id="attachmentName"></span></h5><button type="button" class="close" data-dismiss="modal">&times;</button></div>
+        <div class="modal-body" id="attachmentBody" style="max-height:70vh;overflow-y:auto"></div>
+        <div class="modal-footer">
+            <a id="attachmentDownload" href="#" class="btn btn-pp" download><i class="fas fa-download mr-1"></i><?= lang_line('material_issuance_att_download', 'Download'); ?></a>
+            <button type="button" class="btn btn-light" data-dismiss="modal"><?= lang_line('material_issuance_att_close', 'Close'); ?></button>
         </div>
-    </div>
+    </div></div>
 </div>
 
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    document.querySelectorAll('.btn-view-attachment').forEach(function(btn) {
-        btn.addEventListener('click', function(e) {
-            e.preventDefault();
-            const fileName = this.getAttribute('data-name');
-            const fileUrl = this.getAttribute('data-url');
-            const fileExtension = fileName.split('.').pop().toLowerCase();
+document.addEventListener('DOMContentLoaded', function () {
+    var $ = window.jQuery;
+    var T = {
+        yes: <?= json_encode(lang_line('pp_sw_yes', 'Ya')); ?>, cancel: <?= json_encode(lang_line('pp_sw_cancel', 'Batal')); ?>,
+        wait: <?= json_encode(lang_line('pp_sw_please_wait', 'Mohon tunggu...')); ?>,
+        bar: <?= json_encode(lang_line('mi2_bar', '<b>%1$d</b> item akan dikeluarkan · <b>%2$d</b> item sisa menunggu')); ?>,
+        none: <?= json_encode(lang_line('mi2_bar_none', 'Belum ada qty yang diisi.')); ?>,
+        over: <?= json_encode(lang_line('mi2_over', 'Qty melebihi sisa atau stok (maks. %s).')); ?>,
+        confirm: <?= json_encode(lang_line('material_issuance_confirm_submit', 'Yakin ingin mengkonfirmasi pengeluaran ini? Stok akan dipotong.')); ?>,
+        partial: <?= json_encode(lang_line('mi2_confirm_partial', 'Sebagian item tidak dikeluarkan penuh — sisanya tetap menunggu pengeluaran berikutnya.')); ?>,
+        need: <?= json_encode(lang_line('mi2_need_qty', 'Isi qty minimal untuk satu item.')); ?>,
+        noPreview: <?= json_encode(lang_line('material_issuance_att_no_preview', 'Preview tidak tersedia untuk tipe file ini.')); ?>,
+        processing: <?= json_encode(lang_line('material_issuance_processing', 'Memproses...')); ?>
+    };
+    function num(v) { var s = String(v == null ? '' : v).replace(/\s+/g, ''); if (s.indexOf(',') !== -1 && s.indexOf('.') !== -1) s = s.replace(/\./g, ''); var n = parseFloat(s.replace(/,/g, '.')); return isNaN(n) ? 0 : n; }
+    function fmt(n) { return (Math.round((parseFloat(n) || 0) * 10000) / 10000).toLocaleString('id-ID', { maximumFractionDigits: 4 }); }
 
-            document.getElementById('attachmentName').textContent = fileName;
-            const downloadBtn = document.getElementById('attachmentDownload');
-            downloadBtn.href = fileUrl;
-            downloadBtn.setAttribute('download', fileName);
-
-            const attachmentBody = document.getElementById('attachmentBody');
-            const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'];
-
-            if (imageExtensions.includes(fileExtension)) {
-                attachmentBody.innerHTML = '<img src="' + fileUrl + '" style="max-width: 100%; height: auto;" class="rounded" />';
-            } else if (fileExtension === 'pdf') {
-                attachmentBody.innerHTML = '<embed src="' + fileUrl + '" type="application/pdf" style="width: 100%; height: 500px;" />';
-            } else {
-                attachmentBody.innerHTML = '<div class="text-center text-muted py-5"><i class="fas fa-file fa-3x mb-3 text-secondary"></i><p><?= lang_line('material_issuance_att_no_preview', 'Preview tidak tersedia untuk tipe file ini.'); ?></p><p class="small"><?= lang_line('material_issuance_att_click_download', 'Klik Download untuk membuka file.'); ?></p></div>';
-            }
-
-            $('#attachmentModal').modal('show');
+    function refresh() {
+        var go = 0, partial = 0, bad = 0;
+        $('.qty-issued').each(function () {
+            var q = num(this.value), max = parseFloat($(this).data('max')) || 0, rem = parseFloat($(this).data('remaining')) || 0;
+            var invalid = q < 0 || q > max + 0.00001;
+            $(this).toggleClass('is-invalid', invalid).attr('title', invalid ? T.over.replace('%s', fmt(max)) : '');
+            if (invalid) bad++;
+            if (q > 0) go++;
+            if (q + 0.00001 < rem) partial++;
         });
+        $('#miBarInfo').html(go ? T.bar.replace('%1$d', go).replace('%2$d', partial) : T.none);
+        $('#btnConfirmIssuance').prop('disabled', !go || bad > 0);
+        return { go: go, partial: partial, bad: bad };
+    }
+    $('#itemIssuanceTable').on('input', '.qty-issued', refresh);
+    $('#miFillMax').on('click', function () { $('.qty-issued').each(function () { var m = parseFloat($(this).data('max')) || 0; this.value = m > 0 ? +(+m).toFixed(4) : 0; }); refresh(); });
+    $('#miClear').on('click', function () { $('.qty-issued').val(0); refresh(); });
+    refresh();
+
+    $('#issuanceForm').on('submit', function (e) {
+        e.preventDefault();
+        var r = refresh(), form = this;
+        if (r.bad) return;
+        if (!r.go) { Swal.fire({ icon: 'warning', text: T.need }); return; }
+        $('.qty-issued').each(function () { this.value = num(this.value); });   // kirim titik desimal
+        Swal.fire({ icon: 'question', text: T.confirm, html: r.partial ? '<div>' + T.confirm + '</div><small class="text-muted">' + T.partial + '</small>' : undefined,
+            showCancelButton: true, confirmButtonText: T.yes, cancelButtonText: T.cancel })
+        .then(function (res) {
+            if (!res.isConfirmed) return;
+            $('#btnConfirmIssuance').prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i>' + T.processing);
+            form.submit();
+        });
+    });
+
+    $(document).on('click', '.mi-confirm', function (e) {
+        e.preventDefault();
+        var url = $(this).attr('href');
+        Swal.fire({ icon: 'warning', text: $(this).data('text') || '', showCancelButton: true, confirmButtonColor: '#e11d48', confirmButtonText: T.yes, cancelButtonText: T.cancel })
+        .then(function (r) { if (r.isConfirmed) { Swal.fire({ title: T.wait, allowOutsideClick: false, didOpen: function () { Swal.showLoading(); } }); window.location.href = url; } });
+    });
+    $('.mi-pr-form').on('submit', function (e) {
+        var f = this; e.preventDefault();
+        Swal.fire({ icon: 'question', text: <?= json_encode(lang_line('mi_remaining_pr_confirm', 'Buat Purchase Request untuk semua sisa outstanding Material Request ini?')); ?>, showCancelButton: true, confirmButtonText: T.yes, cancelButtonText: T.cancel })
+        .then(function (r) { if (r.isConfirmed) f.submit(); });
+    });
+    $('#miFile').on('change', function () { $(this).next('.custom-file-label').text(this.files.length ? this.files[0].name : ''); });
+
+    $('.btn-view-attachment').on('click', function () {
+        var name = $(this).data('name'), url = $(this).data('url'), ext = String(name).split('.').pop().toLowerCase();
+        $('#attachmentName').text(name);
+        $('#attachmentDownload').attr({ href: url, download: name });
+        var $b = $('#attachmentBody').empty();
+        if (['jpg', 'jpeg', 'png', 'gif', 'bmp', 'webp'].indexOf(ext) !== -1) $b.append($('<img class="rounded" style="max-width:100%;height:auto">').attr('src', url));
+        else if (ext === 'pdf') $b.append($('<embed type="application/pdf" style="width:100%;height:65vh">').attr('src', url));
+        else $b.html('<div class="text-center text-muted py-5"><i class="fas fa-file fa-3x mb-3"></i><p></p></div>').find('p').text(T.noPreview);
+        $('#attachmentModal').modal('show');
     });
 });
 </script>
-<?php $this->load->view('templates/footer'); // Panggil footer utama ?>
-
-<script>
-$(document).ready(function() {
-    
-    // 1. Fungsi untuk validasi Qty Input (Lebih Sederhana)
-    function validateQty(input) {
-        const currentVal = parseFloat(input.val() || 0);
-        const maxStock = parseFloat(input.attr('data-maxstock') || 0); // Baca dari 'data-maxstock'
-        
-        let isValid = true;
-        
-        if (currentVal < 0) { 
-            input.val(0); // Jangan input minus
-            isValid = true; // Anggap valid
-        } else if (currentVal > maxStock) {
-            input.removeClass('is-valid').addClass('is-invalid'); // Tandai merah jika > stok
-            isValid = false;
-        } else {
-            input.removeClass('is-invalid').addClass('is-valid'); // Tandai hijau
-            isValid = true;
-        }
-        return isValid;
-    }
-
-    // 2. Validasi semua input saat halaman dimuat (jika status Submitted, Issued, atau Received dengan sisa qty)
-    const status = '<?= $header->status; ?>';
-    if (status === 'Approved' || status === 'Partial Issued' || status === 'Partial Received' || status === 'Issued' || status === 'Received') {
-        let allValidOnLoad = true;
-        let hasRemainingQty = false;
-        $('.qty-issued').each(function() {
-            if (!validateQty($(this))) {
-                allValidOnLoad = false;
-            }
-            const remainingQty = parseFloat($(this).data('remaining') || 0);
-            if (remainingQty > 0) {
-                hasRemainingQty = true;
-            }
-        });
-
-        // Check if all items are fully issued (sisa qty = 0)
-        let allFullyIssued = !hasRemainingQty;
-
-        // Disable form & button hanya jika semua items fully issued (sisa qty = 0)
-        if (allFullyIssued) {
-            $('.qty-issued').prop('readonly', true).addClass('form-control-plaintext');
-            $('#btnConfirmIssuanceHead, #btnConfirmIssuanceFoot').prop('disabled', true).html(
-                '<i class="fas fa-check-circle mr-1"></i> <?= lang_line('material_issuance_all_issued', 'Semua Material Sudah Dikeluarkan'); ?>'
-            );
-        } else {
-            // Form dapat diedit karena masih ada sisa qty
-            // Nonaktifkan tombol simpan jika ada yg tidak valid saat load
-            $('#btnConfirmIssuanceHead, #btnConfirmIssuanceFoot').prop('disabled', !allValidOnLoad);
-            if(!allValidOnLoad){
-                 alert('<?= lang_line('material_issuance_stock_warning', 'PERHATIAN: Beberapa item memiliki stok tersedia yang lebih kecil dari qty diminta. Qty dikeluarkan telah disesuaikan.'); ?>');
-            }
-        }
-
-        // 3. Tambahkan event listener 'input'
-        $('#itemIssuanceTable').on('input', '.qty-issued', function() {
-            let allValid = true;
-            $('.qty-issued').each(function() {
-                 // Panggil validateQty untuk setiap input saat ada perubahan
-                 if (!validateQty($(this))) {
-                     allValid = false;
-                 }
-            });
-            // Aktifkan/nonaktifkan tombol simpan berdasarkan validitas semua input
-            $('#btnConfirmIssuanceHead, #btnConfirmIssuanceFoot').prop('disabled', !allValid);
-        });
-        
-        // 4. Konfirmasi sebelum submit form
-        $('#issuanceForm').on('submit', function(e) {
-            let confirmationText = "<?= lang_line('material_issuance_confirm_submit', 'Yakin ingin mengkonfirmasi pengeluaran ini? Stok akan dipotong.'); ?>";
-            let hasInvalid = false;
-            
-            $('.qty-issued').each(function() {
-                 if ($(this).hasClass('is-invalid')) { // Cek kelas invalid
-                     hasInvalid = true;
-                 }
-                 // Cek jika issue < request (Peringatan)
-                 if (parseFloat($(this).val() || 0) < parseFloat($(this).data('requested') || 0)) {
-                     confirmationText = "<?= lang_line('material_issuance_qty_less_warning', 'PERHATIAN: Ada Qty Dikeluarkan lebih kecil dari Qty Diminta. Yakin lanjut?'); ?>";
-                 }
-            });
-            
-            if(hasInvalid) {
-                 alert('<?= lang_line('material_issuance_qty_exceed_error', 'Terdapat item dengan Qty Dikeluarkan melebihi Stok Tersedia. Harap perbaiki.'); ?>');
-                 e.preventDefault(); // Hentikan submit
-                 return false;
-            }
-            
-            if (!confirm(confirmationText)) {
-                 e.preventDefault(); // Hentikan submit jika user klik 'Cancel'
-                 return false;
-            }
-            
-            // Jika lolos, tambahkan spinner ke tombol
-            $('#btnConfirmIssuanceHead, #btnConfirmIssuanceFoot').prop('disabled', true).html('<i class="fas fa-spinner fa-spin mr-1"></i> <?= lang_line('material_issuance_processing', 'Memproses...'); ?>');
-        });
-    }
-});
-</script>
-
-<style>
-/* Style validasi input */
-.qty-issued.is-invalid { 
-    border-color: #e74a3b; 
-    background-image: none; /* Hilangkan ikon ceklis/silang bootstrap */
-}
-.qty-issued.is-valid { 
-    border-color: #1cc88a; 
-    background-image: none; /* Hilangkan ikon ceklis/silang bootstrap */
-}
-.btn-xs { padding: .125rem .25rem; font-size: .75rem; line-height: 1.5; border-radius: .2rem; }
-</style>

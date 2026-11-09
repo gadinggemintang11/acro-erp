@@ -18,7 +18,7 @@ class Production_model extends CI_Model {
     public function get_all($filters = []) {
         $this->db->select('
             p.id, p.production_number, p.production_date, p.planned_qty, p.status,
-            wo.wo_number, sc.sc_number, fg.nama_barang as fg_name
+            wo.wo_number, sc.sc_number, fg.nama_barang as fg_name, fg.kode_barang as fg_code, fg.satuan as fg_unit
         ');
         $this->db->from($this->table_header . ' p');
         $this->db->join('wo_header wo', 'p.wo_header_id = wo.id', 'left');
@@ -31,12 +31,28 @@ class Production_model extends CI_Model {
             $this->db->like('p.production_number', $term);
             $this->db->or_like('wo.wo_number', $term);
             $this->db->or_like('sc.sc_number', $term);
+            $this->db->or_like('fg.nama_barang', $term);
             $this->db->group_end();
+        }
+        if (!empty($filters['status'])) {
+            $this->db->where('p.status', $filters['status']);
         }
 
         $this->db->order_by('p.id', 'DESC');
         $query = $this->db->get();
         return $query ? $query->result() : []; // Return array kosong jika gagal
+    }
+
+    /** Jumlah dokumen produksi per status (kartu ringkasan di daftar). */
+    public function count_by_status() {
+        $out = ['all' => 0, 'Draft' => 0, 'In Progress' => 0, 'Completed' => 0];
+        $rows = $this->db->select('status, COUNT(*) AS n', FALSE)
+            ->from($this->table_header)->group_by('status')->get()->result();
+        foreach ($rows as $r) {
+            $out['all'] += (int) $r->n;
+            if (isset($out[$r->status])) $out[$r->status] = (int) $r->n;
+        }
+        return $out;
     }
 
     public function get_header_by_id($id) {
@@ -327,6 +343,174 @@ class Production_model extends CI_Model {
         return $query->row_array(); // Kembalikan hasil (bisa null jika WO tidak ditemukan)
     }
 
+    // =================================================================
+    // WAKTU PROSES PER TAHAP (2026-11-08)
+    // User: "kadang ga semua input hari ini saat user input di sistem, bisa
+    // aja itu produksi lama". Tiap tahap (cutting/sewing/assembling/
+    // finishing) punya Mulai & Selesai sendiri di production_stage_times.
+    // Semua input/output tahap itu dicatat di stok WIP pada waktu MULAI
+    // tahapnya (stage_tx_date), bukan jam user mengetik.
+    // =================================================================
+
+    /** Tabel sudah dibuat? (migration_tahap_produksi_acropoly.sql) */
+    public function stage_times_ready()
+    {
+        static $ready = null;
+        if ($ready === null) {
+            $ready = $this->db->table_exists('production_stage_times');
+        }
+        return $ready;
+    }
+
+    /** [stage_name => row(started_at, finished_at, updated_by, updated_at, updated_by_name)] */
+    public function get_stage_times($prod_id)
+    {
+        if (!$this->stage_times_ready()) return [];
+        $rows = $this->db->select('t.*, u.fullname AS updated_by_name')
+            ->from('production_stage_times t')
+            ->join('users u', 'u.id = t.updated_by', 'left')
+            ->where('t.production_header_id', (int) $prod_id)
+            ->get()->result();
+        $out = [];
+        foreach ($rows as $r) $out[$r->stage_name] = $r;
+        return $out;
+    }
+
+    /** Waktu mulai tahap (Y-m-d H:i:s) atau null kalau belum diisi. */
+    public function get_stage_start($prod_id, $stage)
+    {
+        $times = $this->get_stage_times($prod_id);
+        return !empty($times[$stage]->started_at) ? $times[$stage]->started_at : null;
+    }
+
+    /**
+     * Tanggal transaksi stok untuk input/output tahap ini = waktu mulai
+     * tahap; fallback sekarang kalau belum diisi / tabel belum ada.
+     */
+    public function stage_tx_date($prod_id, $stage)
+    {
+        $start = $this->get_stage_start($prod_id, $stage);
+        return $start ?: date('Y-m-d H:i:s');
+    }
+
+    /**
+     * Simpan Mulai/Selesai tahap (upsert) lalu samakan tanggal transaksi stok
+     * WIP semua input/output tahap itu dengan waktu mulai yang baru, supaya
+     * Laporan Mutasi WIP (filter stock_ledger.transaction_date) ikut benar.
+     * Validasi format/urutan waktu dilakukan di controller.
+     */
+    public function save_stage_time($prod_id, $stage, $started_at, $finished_at, $user_id)
+    {
+        if (!$this->stage_times_ready()) return false;
+        $prod_id = (int) $prod_id;
+        $now = date('Y-m-d H:i:s');
+
+        $this->db->trans_start();
+
+        $exists = $this->db->get_where('production_stage_times',
+            ['production_header_id' => $prod_id, 'stage_name' => $stage])->row();
+        $data = [
+            'started_at'  => $started_at,
+            'finished_at' => $finished_at,
+            'updated_by'  => $user_id ?: null,
+            'updated_at'  => $now,
+        ];
+        if ($exists) {
+            $this->db->where('id', $exists->id)->update('production_stage_times', $data);
+        } else {
+            $this->db->insert('production_stage_times', $data + [
+                'production_header_id' => $prod_id,
+                'stage_name'           => $stage,
+                'created_at'           => $now,
+            ]);
+        }
+
+        // Sinkron tanggal stok WIP: wip_out (pemakaian/input) & wip_in (hasil
+        // semi-finished) yang dibuat oleh input/output tahap ini.
+        $this->db->query("
+            UPDATE stock_ledger sl
+            JOIN {$this->table_inputs} pi ON pi.id = sl.transaction_id
+            SET sl.transaction_date = ?
+            WHERE sl.source_doc_type = 'PROD' AND sl.transaction_type = 'wip_out'
+              AND pi.production_header_id = ? AND pi.stage_name = ?
+        ", [$started_at, $prod_id, $stage]);
+        $this->db->query("
+            UPDATE stock_ledger sl
+            JOIN {$this->table_outputs} po ON po.id = sl.transaction_id
+            SET sl.transaction_date = ?
+            WHERE sl.source_doc_type = 'PROD' AND sl.transaction_type = 'wip_in'
+              AND po.production_header_id = ? AND po.stage_name = ?
+        ", [$started_at, $prod_id, $stage]);
+        // received_at hasil tahap ini juga = waktu mulai tahap (diisi begitu saat simpan output).
+        $this->db->where(['production_header_id' => $prod_id, 'stage_name' => $stage])
+                 ->update($this->table_outputs, ['received_at' => $started_at]);
+
+        $this->db->trans_complete();
+        return $this->db->trans_status() !== FALSE;
+    }
+
+    /**
+     * Ringkasan per tahap untuk stepper & daftar produksi:
+     * [prod_id][stage] => (object) started_at, finished_at, inputs, qty_in,
+     * outputs, qty_good (semi-finished/FG), qty_scrap, qc_pending.
+     */
+    public function get_stage_overview_bulk(array $prod_ids, array $stages)
+    {
+        $prod_ids = array_values(array_filter(array_map('intval', $prod_ids)));
+        $out = [];
+        foreach ($prod_ids as $pid) {
+            foreach ($stages as $st) {
+                $out[$pid][$st] = (object) [
+                    'started_at' => null, 'finished_at' => null,
+                    'inputs' => 0, 'qty_in' => 0.0,
+                    'outputs' => 0, 'qty_good' => 0.0, 'qty_scrap' => 0.0, 'qc_pending' => 0,
+                ];
+            }
+        }
+        if (empty($prod_ids)) return $out;
+
+        $in_rows = $this->db->select('production_header_id AS pid, stage_name, COUNT(*) AS n, SUM(qty_used) AS qty', FALSE)
+            ->from($this->table_inputs)->where_in('production_header_id', $prod_ids)
+            ->group_by(['production_header_id', 'stage_name'])->get()->result();
+        foreach ($in_rows as $r) {
+            if (!isset($out[$r->pid][$r->stage_name])) continue;
+            $out[$r->pid][$r->stage_name]->inputs = (int) $r->n;
+            $out[$r->pid][$r->stage_name]->qty_in = (float) $r->qty;
+        }
+
+        $out_rows = $this->db->select("production_header_id AS pid, stage_name, COUNT(*) AS n,
+                SUM(CASE WHEN item_type <> 'scrap' THEN qty_produced ELSE 0 END) AS qty_good,
+                SUM(CASE WHEN item_type = 'scrap' THEN qty_produced ELSE 0 END) AS qty_scrap,
+                SUM(CASE WHEN qc_checked_by IS NULL THEN 1 ELSE 0 END) AS qc_pending", FALSE)
+            ->from($this->table_outputs)->where_in('production_header_id', $prod_ids)
+            ->group_by(['production_header_id', 'stage_name'])->get()->result();
+        foreach ($out_rows as $r) {
+            if (!isset($out[$r->pid][$r->stage_name])) continue;
+            $o = $out[$r->pid][$r->stage_name];
+            $o->outputs = (int) $r->n;
+            $o->qty_good = (float) $r->qty_good;
+            $o->qty_scrap = (float) $r->qty_scrap;
+            $o->qc_pending = (int) $r->qc_pending;
+        }
+
+        if ($this->stage_times_ready()) {
+            $t_rows = $this->db->where_in('production_header_id', $prod_ids)
+                ->get('production_stage_times')->result();
+            foreach ($t_rows as $r) {
+                if (!isset($out[$r->production_header_id][$r->stage_name])) continue;
+                $out[$r->production_header_id][$r->stage_name]->started_at  = $r->started_at;
+                $out[$r->production_header_id][$r->stage_name]->finished_at = $r->finished_at;
+            }
+        }
+        return $out;
+    }
+
+    public function get_stage_overview($prod_id, array $stages)
+    {
+        $all = $this->get_stage_overview_bulk([$prod_id], $stages);
+        return $all[(int) $prod_id] ?? [];
+    }
+
     // === STAGES ===
 
     /**
@@ -506,7 +690,8 @@ class Production_model extends CI_Model {
         $ledger_data = [
             'item_id'           => $data['item_id'],
             'item_type'         => $data['item_type'],
-            'transaction_date'  => date('Y-m-d H:i:s'),
+            // Tanggal = waktu mulai tahap (bukan jam input), lihat stage_tx_date().
+            'transaction_date'  => $this->stage_tx_date($data['production_header_id'], $data['stage_name']),
             'transaction_type'  => 'wip_out', // Pemakaian WIP
             'transaction_id'    => $input_id,
             'source_doc_type'   => 'PROD',
@@ -620,7 +805,8 @@ class Production_model extends CI_Model {
             $ledger_data = [
                 'item_id'           => $data['item_id'],
                 'item_type'         => $data['item_type'],
-                'transaction_date'  => date('Y-m-d H:i:s'),
+                // Tanggal = waktu mulai tahap (bukan jam input), lihat stage_tx_date().
+                'transaction_date'  => $this->stage_tx_date($data['production_header_id'], $data['stage_name']),
                 'transaction_type'  => 'wip_in', // Hasil produksi masuk WIP
                 'transaction_id'    => $output_id,
                 'source_doc_type'   => 'PROD',
@@ -817,10 +1003,16 @@ class Production_model extends CI_Model {
             pi.*, 
             CASE 
                 WHEN pi.item_type = "material" THEN m.nama_material 
-                WHEN pi.item_type = "semifinished" THEN sf_item.nama_barang 
+                WHEN pi.item_type = "semifinished" THEN sf_item.nama_barang
             END as item_name,
-            
-            
+            CASE
+                WHEN pi.item_type = "material" THEN m.kode_material
+                WHEN pi.item_type = "semifinished" THEN sf_item.kode_barang
+            END as item_code,
+            CASE
+                WHEN pi.item_type = "material" THEN m.satuan
+                WHEN pi.item_type = "semifinished" THEN sf_item.satuan
+            END as item_unit,
             mr_h.mr_number,
             po_source.stage_name as source_output_stage,
             CASE 
@@ -1025,7 +1217,7 @@ class Production_model extends CI_Model {
 
 
 
-    public function get_available_previous_stage_outputs($prod_id, $current_stage = 'assembling', $previous_stage = 'grinding') {
+    public function get_available_previous_stage_outputs($prod_id, $current_stage = 'sewing', $previous_stage = 'cutting') {
         // 1. Ambil semua output semi-finished dari stage sebelumnya
         $this->db->select("
             po.id as output_id, 
@@ -1059,7 +1251,7 @@ class Production_model extends CI_Model {
 
         return $outputs;
     }
-    public function get_additional_materials_with_remaining($wo_id, $prod_id, $stage = 'assembling') {
+    public function get_additional_materials_with_remaining($wo_id, $prod_id, $stage = 'sewing') {
         // 1. Ambil SEMUA batch material yg diterima dari MR utk WO ini
         $batches = $this->get_wip_material_for_wo($wo_id); // Fungsi ini mengambil dari mr_details
 

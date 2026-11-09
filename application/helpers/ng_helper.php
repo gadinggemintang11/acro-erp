@@ -2,6 +2,12 @@
 defined('BASEPATH') OR exit('No direct script access allowed');
 
 /**
+ * TIDAK DIPAKAI LAGI untuk input sejak 2026-11-08 (Acropoly): NG di QC
+ * Production Receive & asal scrap Proses Produksi cukup Qty NG + Keterangan
+ * (user: "hilangkan 4 kategori rinci itu, sederhanakan saja"). Kolom ng_* di
+ * tabel dibiarkan untuk data lama; helper ini dipertahankan agar kode/data
+ * lama yang masih memanggilnya tidak error.
+ *
  * Rincian NG material — 4 kategori penyebab + kode NG.
  *
  * Acuan: assets/DAILY PRODUCTION REPORT (PQC & MATERIAL) (1).xlsx, sheet

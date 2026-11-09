@@ -10,6 +10,20 @@ class Production_process extends MY_Controller {
 
     protected $module_name = 'Production Process';
 
+    /**
+     * Tahap produksi Acropoly (2026-11-08), urut: tahap => tahap sebelumnya.
+     * Kode tahap tersimpan di stage_name (production_inputs/production_outputs)
+     * dan dipakai juga oleh QC Produksi. Cutting mengambil material dari
+     * MR/WIP; tahap berikutnya mengambil hasil tahap sebelumnya (+ material
+     * tambahan); Finishing menghasilkan Barang Jadi.
+     */
+    const STAGES = [
+        'cutting'    => null,
+        'sewing'     => 'cutting',
+        'assembling' => 'sewing',
+        'finishing'  => 'assembling',
+    ];
+
     public function __construct() {
         parent::__construct();
         check_login();
@@ -33,11 +47,19 @@ class Production_process extends MY_Controller {
     public function index() {
         if (!check_access('production_process', 'view')) { show_error('Tidak ada izin.', 403); return; }
 
-        $filters = ['search' => $this->input->get('search')];
+        $filters = [
+            'search' => trim((string) $this->input->get('search', TRUE)),
+            'status' => trim((string) $this->input->get('status', TRUE)),
+        ];
+        $processes = $this->Production_model->get_all($filters);
         $data = [
-            'title'     => lang_line('title_pp_main'),
-            'processes' => $this->Production_model->get_all($filters),
-            'filters'   => $filters
+            'title'          => lang_line('title_pp_main'),
+            'processes'      => $processes,
+            'filters'        => $filters,
+            'status_counts'  => $this->Production_model->count_by_status(),
+            // Progres tahap per baris (stepper mini di daftar)
+            'stage_overview' => $this->Production_model->get_stage_overview_bulk(
+                array_map(function ($p) { return $p->id; }, $processes), array_keys(self::STAGES)),
         ];
 
         $this->_load_views('production_process/index', $data);
@@ -286,7 +308,7 @@ class Production_process extends MY_Controller {
             $this->_log('CREATE', $deskripsi);
             // --- END LOG ---
             log_message('info', 'Production Header created successfully. ID: ' . $new_prod_id . ' Number: ' . $prod_number);
-            redirect('production_process/grinding/' . $new_prod_id);
+            redirect('production_process/cutting/' . $new_prod_id);
         } else {
             log_message('error', 'Gagal membuat Production Header. DB Error: ' . print_r($this->db->error(), true) . ' Data: ' . json_encode($data));
             $this->session->set_flashdata('error', 'Gagal membuat Proses Produksi! Terjadi kesalahan database.');
@@ -294,110 +316,163 @@ class Production_process extends MY_Controller {
         }
     }
 
-    private function _show_stage_view($id, $current_stage, $previous_stage = null) {
+    /**
+     * Halaman tahap (satu tampilan untuk semua tahap: production_process/stage).
+     * Cutting  : input material dari MR/WIP.
+     * Sewing / Assembling / Finishing : input hasil tahap sebelumnya + material
+     *            tambahan. Finishing menghasilkan Barang Jadi (+ scrap).
+     */
+    private function _show_stage_view($id, $current_stage) {
         if (!check_access('production_process', 'view')) { show_error('Tidak ada izin.', 403); return; }
+        if (!array_key_exists($current_stage, self::STAGES)) { show_404(); return; }
         if (empty($id) || !is_numeric($id)) { show_404(); return; }
 
         $header = $this->Production_model->get_header_by_id($id);
         if (!$header) { show_404(); return; }
 
-        $data = [
-            'title'           => sprintf(lang_line('title_pp_stage'), lang_line('pp_stage_' . $current_stage)),
-            'header'          => $header,
-            'current_stage'   => $current_stage,
-        ];
+        $stages         = array_keys(self::STAGES);
+        $previous_stage = self::STAGES[$current_stage];
+        $stage_times    = $this->Production_model->get_stage_times($id);
 
-        // Data spesifik per stage
-        if ($current_stage == 'grinding') {
-            $data['available_batches'] = $this->Production_model->get_wip_materials_with_remaining($header->wo_header_id);
-            $data['grinding_inputs'] = $this->Production_model->get_production_inputs($id, 'grinding');
-            $data['grinding_outputs'] = $this->Production_model->get_production_outputs($id, 'grinding');
-        } else {
-            $data['available_previous_outputs'] = $this->Production_model->get_available_previous_stage_outputs($id, $current_stage, $previous_stage);
-            $data['available_batches'] = $this->Production_model->get_wip_materials_with_remaining($header->wo_header_id); // Material tambahan
-            $data['current_inputs'] = $this->Production_model->get_production_inputs($id, $current_stage);
-            $data['current_outputs'] = $this->Production_model->get_production_outputs($id, $current_stage);
-            if ($previous_stage) {
-                $data['previous_stage_name'] = ucfirst($previous_stage);
-            }
-        }
+        $data = [
+            'title'             => sprintf(lang_line('title_pp_stage'), lang_line('pp_stage_' . $current_stage)),
+            'header'            => $header,
+            'current_stage'     => $current_stage,
+            'previous_stage'    => $previous_stage,
+            'stage_index'       => array_search($current_stage, $stages, true),
+            'stage_overview'    => $this->Production_model->get_stage_overview($id, $stages),
+            'stage_time'        => $stage_times[$current_stage] ?? null,
+            'stage_times_ready' => $this->Production_model->stage_times_ready(),
+            // Material dari MR/WIP (Cutting: bahan utama; tahap lain: tambahan)
+            'available_batches' => $this->Production_model->get_wip_materials_with_remaining($header->wo_header_id),
+            'available_previous_outputs' => $previous_stage
+                ? $this->Production_model->get_available_previous_stage_outputs($id, $current_stage, $previous_stage)
+                : [],
+            'current_inputs'    => $this->Production_model->get_production_inputs($id, $current_stage),
+            'current_outputs'   => $this->Production_model->get_production_outputs($id, $current_stage),
+        ];
 
         if ($current_stage == 'finishing') {
-            $data['finished_goods_options'] = $this->FinishedGoods_model->get_finished_goods_list();
+            // Sinkronisasi size breakdown dari production_output_sizes (perilaku lama).
+            foreach ($data['current_outputs'] as &$out) {
+                $sizes = $this->db->get_where('production_output_sizes', ['output_id' => $out->id])->result();
+                if (!empty($sizes)) {
+                    $breakdown = [];
+                    foreach ($sizes as $sz) {
+                        $breakdown[] = ['size' => trim($sz->size_label), 'qty' => (float) $sz->qty];
+                    }
+                    $out->sizes = $breakdown;
+                    if (empty($out->size_breakdown)) {
+                        $json = json_encode($breakdown);
+                        $this->db->where('id', $out->id)->update('production_outputs', ['size_breakdown' => $json]);
+                        $out->size_breakdown = $json;
+                    }
+                } else {
+                    $out->sizes = [];
+                }
+            }
+            unset($out);
         }
 
-        $this->_load_views('production_process/' . $current_stage . '_view', $data);
+        $this->_load_views('production_process/stage', $data);
     }
 
-    public function grinding($id) { $this->_show_stage_view($id, 'grinding'); }
-    public function assembling($id) { $this->_show_stage_view($id, 'assembling', 'grinding'); }
-    public function finishing($id)
-    {
-        // ================= VALIDASI AKSES =================
-        if (!check_access('production_process', 'view')) {
-            show_error('Tidak ada izin.', 403);
-            return;
+    // Halaman per tahap -- urutannya lihat self::STAGES.
+    public function cutting($id)    { $this->_show_stage_view($id, 'cutting'); }
+    public function sewing($id)     { $this->_show_stage_view($id, 'sewing'); }
+    public function assembling($id) { $this->_show_stage_view($id, 'assembling'); }
+    public function finishing($id)  { $this->_show_stage_view($id, 'finishing'); }
+
+    // URL lama era NSI (tahap 1 = Grinding) -- diarahkan ke Cutting supaya
+    // bookmark / link lama tidak 404.
+    public function grinding($id = null) { redirect('production_process/cutting/' . (int) $id); }
+
+    // ======================================================
+    // WAKTU PROSES PER TAHAP (2026-11-08)
+    // ======================================================
+
+    /**
+     * Simpan Mulai/Selesai tahap. Waktu mulai menjadi tanggal transaksi stok
+     * WIP semua input/output tahap itu (lihat Production_model::save_stage_time).
+     * POST started_at (wajib), finished_at (opsional) -- format datetime-local.
+     */
+    public function save_stage_time($prod_id = null, $stage = null) {
+        if (!array_key_exists((string) $stage, self::STAGES) || empty($prod_id) || !is_numeric($prod_id)) { show_404(); return; }
+        $back = 'production_process/' . $stage . '/' . (int) $prod_id;
+
+        if (!check_access('production_process', 'edit')) {
+            $this->session->set_flashdata('error', 'Tidak ada izin.');
+            redirect($back); return;
+        }
+        $header = $this->Production_model->get_header_by_id($prod_id);
+        if (!$header) { show_404(); return; }
+        if ($header->status != 'Draft') {
+            $this->session->set_flashdata('error', 'Waktu proses hanya bisa diubah saat status Draft.');
+            redirect($back); return;
+        }
+        if (!$this->Production_model->stage_times_ready()) {
+            $this->session->set_flashdata('error', 'Tabel waktu proses belum ada. Jalankan db/migration_tahap_produksi_acropoly.sql.');
+            redirect($back); return;
         }
 
-        if (empty($id) || !is_numeric($id)) {
-            show_404();
-            return;
+        $stage_label = lang_line('pp_stage_' . $stage);
+        $start_raw   = trim((string) $this->input->post('started_at'));
+        $finish_raw  = trim((string) $this->input->post('finished_at'));
+        $start       = $this->_parse_datetime($start_raw);
+        $finish      = $finish_raw === '' ? null : $this->_parse_datetime($finish_raw);
+        $limit       = date('Y-m-d H:i:s', time() + 600); // toleransi jam perangkat 10 menit
+
+        $error = null;
+        if (!$start) {
+            $error = 'Waktu mulai tahap ' . $stage_label . ' wajib diisi (tanggal & jam).';
+        } elseif ($finish_raw !== '' && !$finish) {
+            $error = 'Format waktu selesai tidak valid.';
+        } elseif ($start > $limit) {
+            $error = 'Waktu mulai tidak boleh di masa depan.';
+        } elseif ($finish && $finish < $start) {
+            $error = 'Waktu selesai tidak boleh sebelum waktu mulai.';
+        } elseif ($finish && $finish > $limit) {
+            $error = 'Waktu selesai tidak boleh di masa depan.';
+        }
+        if ($error) {
+            $this->session->set_flashdata('error', $error);
+            redirect($back); return;
         }
 
-        // ================= AMBIL DATA HEADER =================
-        $header = $this->Production_model->get_header_by_id($id);
-        if (!$header) {
-            show_404();
-            return;
+        $user_id = $this->session->userdata('user_id') ?? null;
+        if ($this->Production_model->save_stage_time($prod_id, $stage, $start, $finish, $user_id)) {
+            $this->_log('UPDATE', "Waktu proses {$stage_label} {$header->production_number}: mulai {$start}" . ($finish ? ", selesai {$finish}" : ''));
+            $this->session->set_flashdata('success', 'Waktu proses ' . $stage_label . ' disimpan. Input & output tahap ini tercatat per ' . date('d M Y H:i', strtotime($start)) . '.');
+        } else {
+            $this->session->set_flashdata('error', 'Gagal menyimpan waktu proses (Database Error).');
         }
+        redirect($back);
+    }
 
-        // ================= AMBIL DATA FINISHING =================
-        $data = [
-            'title'                 => lang_line('title_pp_finishing'),
-            'header'                => $header,
-            'current_stage'         => 'finishing',
-            'available_previous_outputs' => $this->Production_model->get_available_previous_stage_outputs($id, 'finishing', 'assembling'),
-            'available_batches'     => $this->Production_model->get_wip_materials_with_remaining($header->wo_header_id),
-            'current_inputs'        => $this->Production_model->get_production_inputs($id, 'finishing'),
-            'current_outputs'       => $this->Production_model->get_production_outputs($id, 'finishing'),
-            'finished_goods_options'=> $this->FinishedGoods_model->get_finished_goods_list()
-        ];
-
-        // ================= SINKRONISASI SIZE BREAKDOWN =================
-        foreach ($data['current_outputs'] as &$out) {
-            // Ambil dari tabel production_output_sizes
-            $sizes = $this->db->get_where('production_output_sizes', ['output_id' => $out->id])->result();
-
-            if (!empty($sizes)) {
-                $breakdown = [];
-                foreach ($sizes as $s) {
-                    $breakdown[] = [
-                        'size' => trim($s->size_label),
-                        'qty'  => (float)$s->qty
-                    ];
-                }
-
-                // Simpan sementara ke variabel untuk view
-                $out->sizes = $breakdown;
-
-                // Jika size_breakdown di DB kosong, isi otomatis (sinkron permanen)
-                if (empty($out->size_breakdown)) {
-                    $json = json_encode($breakdown);
-                    $this->db->where('id', $out->id)->update('production_outputs', [
-                        'size_breakdown' => $json
-                    ]);
-                    $out->size_breakdown = $json;
-                }
-            } else {
-                $out->sizes = [];
+    /** 'Y-m-d\TH:i' / 'Y-m-d H:i' / ...:s -> 'Y-m-d H:i:s', atau null kalau tidak valid. */
+    private function _parse_datetime($raw) {
+        $raw = trim((string) $raw);
+        if ($raw === '') return null;
+        foreach (['Y-m-d\TH:i', 'Y-m-d\TH:i:s', 'Y-m-d H:i', 'Y-m-d H:i:s'] as $fmt) {
+            $dt = DateTime::createFromFormat('!' . $fmt, $raw);
+            $err = DateTime::getLastErrors();
+            if ($dt && (!$err || ($err['warning_count'] == 0 && $err['error_count'] == 0))) {
+                return $dt->format('Y-m-d H:i:s');
             }
         }
-
-        // ================= RENDER VIEW =================
-        $this->_load_views('production_process/finishing_view', $data);
+        return null;
     }
 
-
+    /**
+     * Pesan penolakan kalau waktu mulai tahap belum diisi (null = boleh).
+     * Input/output tidak boleh dicatat tanpa tanggal proses -- kalau tidak,
+     * stok WIP kembali tercatat pada jam user mengetik.
+     */
+    private function _stage_start_missing_msg($prod_id, $stage) {
+        if (!$this->Production_model->stage_times_ready()) return null;
+        if ($this->Production_model->get_stage_start($prod_id, $stage)) return null;
+        return sprintf(lang_line('pp_time_required_msg'), lang_line('pp_stage_' . $stage));
+    }
 
 
     // ======================================================
@@ -418,6 +493,10 @@ class Production_process extends MY_Controller {
         $header = $this->Production_model->get_header_by_id($prod_id);
         if (!$header || $header->status != 'Draft') {
             $response['message'] = 'Hanya status Draft yang bisa diubah.';
+            $this->_send_response($response, $is_ajax, $current_stage, $prod_id); return;
+        }
+        if ($msg = $this->_stage_start_missing_msg($prod_id, $current_stage)) {
+            $response['message'] = $msg;
             $this->_send_response($response, $is_ajax, $current_stage, $prod_id); return;
         }
 
@@ -488,6 +567,10 @@ class Production_process extends MY_Controller {
             $response['message'] = 'Hanya status Draft yang bisa diubah.';
             $this->_send_response($response, $is_ajax, $current_stage, $prod_id); return;
          }
+        if ($msg = $this->_stage_start_missing_msg($prod_id, $current_stage)) {
+            $response['message'] = $msg;
+            $this->_send_response($response, $is_ajax, $current_stage, $prod_id); return;
+        }
 
          // Validasi Input
          $batch_id         = $this->input->post('batch_id'); // Format: item_id_item_type
@@ -592,6 +675,10 @@ class Production_process extends MY_Controller {
             $response['message'] = 'Hanya status Draft yang bisa diubah.';
             $this->_send_response($response, $is_ajax, $current_stage, $prod_id); return;
         }
+        if ($msg = $this->_stage_start_missing_msg($prod_id, $current_stage)) {
+            $response['message'] = $msg;
+            $this->_send_response($response, $is_ajax, $current_stage, $prod_id); return;
+        }
 
         // Validasi Input
         $item_value = $this->input->post('item_id');
@@ -632,7 +719,7 @@ class Production_process extends MY_Controller {
             'qty_produced' => $qty,  // Semua output disimpan di qty_produced
             'qty_scrap' => 0,        // qty_scrap hanya untuk referensi
             'received_by' => $this->session->userdata('user_id') ?? null,
-            'received_at' => date('Y-m-d H:i:s')
+            'received_at' => $this->Production_model->stage_tx_date($prod_id, $current_stage) // waktu proses tahap
         ];
 
         // Panggil Model (buat ledger HANYA jika semifinished)
@@ -671,16 +758,21 @@ class Production_process extends MY_Controller {
     // FUNGSI KHUSUS PER STAGE (Panggil fungsi generic)
     // ======================================================
 
-    // --- Grinding (formerly Cutting) ---
-    public function save_grinding_material_usage($prod_id) { $this->_save_stage_additional_input($prod_id, 'grinding'); }
-    public function save_grinding_output($prod_id) { $this->_save_stage_output($prod_id, 'grinding', ['semifinished', 'scrap']); }
+    // --- 1. Cutting ---
+    public function save_cutting_material_usage($prod_id) { $this->_save_stage_additional_input($prod_id, 'cutting'); }
+    public function save_cutting_output($prod_id) { $this->_save_stage_output($prod_id, 'cutting', ['semifinished', 'scrap']); }
 
-    // --- Assembling ---
-    public function save_assembling_grinding_input($prod_id) { $this->_save_stage_input_from_output($prod_id, 'assembling', 'grinding'); }
+    // --- 2. Sewing (input dari hasil Cutting) ---
+    public function save_sewing_cutting_input($prod_id) { $this->_save_stage_input_from_output($prod_id, 'sewing', 'cutting'); }
+    public function save_sewing_additional_input($prod_id) { $this->_save_stage_additional_input($prod_id, 'sewing'); }
+    public function save_sewing_output($prod_id) { $this->_save_stage_output($prod_id, 'sewing', ['semifinished', 'scrap']); }
+
+    // --- 3. Assembling (input dari hasil Sewing) ---
+    public function save_assembling_sewing_input($prod_id) { $this->_save_stage_input_from_output($prod_id, 'assembling', 'sewing'); }
     public function save_assembling_additional_input($prod_id) { $this->_save_stage_additional_input($prod_id, 'assembling'); }
     public function save_assembling_output($prod_id) { $this->_save_stage_output($prod_id, 'assembling', ['semifinished', 'scrap']); }
 
-    // --- Finishing ---
+    // --- 4. Finishing (input dari hasil Assembling) ---
     public function save_finishing_assembling_input($prod_id) { $this->_save_stage_input_from_output($prod_id, 'finishing', 'assembling'); }
     public function save_finishing_additional_input($prod_id) { $this->_save_stage_additional_input($prod_id, 'finishing'); }
     public function save_finishing_output($production_id)
@@ -706,6 +798,11 @@ class Production_process extends MY_Controller {
         $header = $this->Production_model->get_header_by_id($production_id);
         if (!$header || $header->status != 'Draft') {
             $this->session->set_flashdata('error', 'Hanya produksi berstatus Draft yang bisa ditambah output.');
+            redirect('production_process/finishing/' . $production_id);
+            return;
+        }
+        if ($msg = $this->_stage_start_missing_msg($production_id, 'finishing')) {
+            $this->session->set_flashdata('error', $msg);
             redirect('production_process/finishing/' . $production_id);
             return;
         }
@@ -756,6 +853,7 @@ class Production_process extends MY_Controller {
             'qty_produced'         => $qty_total,
             'qty_scrap'            => 0,
             'size_breakdown'       => !empty($size_breakdown) ? json_encode($size_breakdown) : null, // ✅ penting
+            'received_at'          => $this->Production_model->stage_tx_date($production_id, 'finishing'),
             'created_at'           => date('Y-m-d H:i:s'),
             'received_by'          => $this->session->userdata('user_id') ?? null
         ];
@@ -864,7 +962,6 @@ class Production_process extends MY_Controller {
     public function save_qc_sewing($prod_id, $output_id) { $this->_save_qc($prod_id, $output_id, 'sewing'); }
     public function save_qc_assembling($prod_id, $output_id) { $this->_save_qc($prod_id, $output_id, 'assembling'); }
     public function save_qc_finishing($prod_id, $output_id) { $this->_save_qc($prod_id, $output_id, 'finishing'); }
-    public function save_qc_grinding($prod_id, $output_id) { $this->_save_qc($prod_id, $output_id, 'grinding'); }
 
     // Save scrap source (trace scrap asal dari material input)
     public function save_scrap_source($prod_id, $output_id, $stage = null) {
@@ -877,7 +974,7 @@ class Production_process extends MY_Controller {
                 return;
             }
             $this->session->set_flashdata('error', 'Tidak ada izin.');
-            redirect('production_process/' . ($stage ?? 'grinding') . '/' . $prod_id);
+            redirect('production_process/' . ($stage ?? 'cutting') . '/' . $prod_id);
             return;
         }
 
@@ -904,13 +1001,22 @@ class Production_process extends MY_Controller {
             'source_qty' => $source_qty
         ];
 
-        // Rincian NG (4 kategori penyebab + kode NG + remark) -- lihat
-        // ng_helper.php. Murni catatan untuk Daily Material NG Report, tidak
-        // menyentuh stok. Dilewati diam-diam kalau migrasi belum dijalankan.
-        $data += ng_collect_post($this->input->post(), $source_qty, 'production_scrap_sources');
+        // NG cukup qty + keterangan (2026-11-08; rincian 4 kategori + Kode NG
+        // warisan NSI dihapus). Keterangan masuk ke Daily Material NG Report.
         if (db_has_column('production_scrap_sources', 'notes')) {
-            $remark = trim((string) $this->input->post('ng_remark', true));
-            if ($remark !== '') $data['notes'] = substr($remark, 0, 255);
+            $remark = trim((string) ($this->input->post('notes', true) ?? $this->input->post('ng_remark', true)));
+            if ($remark === '') {
+                $msg = lang_line('pp2_scrap_notes_required', 'Keterangan NG wajib diisi.');
+                if ($is_ajax) {
+                    header('Content-Type: application/json');
+                    echo json_encode(['status' => 'error', 'message' => $msg]);
+                    return;
+                }
+                $this->session->set_flashdata('error', $msg);
+                redirect('production_process/' . $stage . '/' . $prod_id);
+                return;
+            }
+            $data['notes'] = mb_substr($remark, 0, 255);
         }
 
         $ok = (bool) $this->db->insert('production_scrap_sources', $data);
@@ -1247,25 +1353,26 @@ class Production_process extends MY_Controller {
     // ======================================================
     // FUNGSI KHUSUS PER STAGE QC/DELETE (Panggil generic)
     // ======================================================
+    // --- 1. Cutting ---
     public function confirm_qc_cutting($prod_id, $output_id) { $this->_confirm_qc($prod_id, $output_id, 'cutting'); }
     public function unconfirm_qc_cutting($prod_id, $output_id) { $this->_unconfirm_qc($prod_id, $output_id, 'cutting'); }
     public function delete_cutting_input($prod_id, $input_id) { $this->_delete_input($prod_id, $input_id, 'cutting'); }
     public function delete_cutting_output($prod_id, $output_id) { $this->_delete_output($prod_id, $output_id, 'cutting'); }
+    public function delete_material_usage($prod_id, $input_id) { $this->_delete_input($prod_id, $input_id, $this->_get_stage_from_referer()); } // Cek referer
 
+    // --- 2. Sewing ---
     public function confirm_qc_sewing($prod_id, $output_id) { $this->_confirm_qc($prod_id, $output_id, 'sewing'); }
     public function unconfirm_qc_sewing($prod_id, $output_id) { $this->_unconfirm_qc($prod_id, $output_id, 'sewing'); }
     public function delete_sewing_input($prod_id, $input_id) { $this->_delete_input($prod_id, $input_id, 'sewing'); }
     public function delete_sewing_output($prod_id, $output_id) { $this->_delete_output($prod_id, $output_id, 'sewing'); }
 
-    public function confirm_qc_grinding($prod_id, $output_id) { $this->_confirm_qc($prod_id, $output_id, 'grinding'); }
-    public function unconfirm_qc_grinding($prod_id, $output_id) { $this->_unconfirm_qc($prod_id, $output_id, 'grinding'); }
-    public function delete_material_usage($prod_id, $input_id) { $this->_delete_input($prod_id, $input_id, $this->_get_stage_from_referer()); } // Cek referer
-    public function delete_grinding_output($prod_id, $output_id) { $this->_delete_output($prod_id, $output_id, 'grinding'); }
-
+    // --- 3. Assembling ---
     public function confirm_qc_assembling($prod_id, $output_id) { $this->_confirm_qc($prod_id, $output_id, 'assembling'); }
     public function unconfirm_qc_assembling($prod_id, $output_id) { $this->_unconfirm_qc($prod_id, $output_id, 'assembling'); }
     public function delete_assembling_input($prod_id, $input_id) { $this->_delete_input($prod_id, $input_id, 'assembling'); }
     public function delete_assembling_output($prod_id, $output_id) { $this->_delete_output($prod_id, $output_id, 'assembling'); }
+
+    // --- 4. Finishing ---
 
     public function confirm_qc_finishing($prod_id, $output_id) { $this->_confirm_qc($prod_id, $output_id, 'finishing'); }
     public function unconfirm_qc_finishing($prod_id, $output_id) { $this->_unconfirm_qc($prod_id, $output_id, 'finishing'); }
@@ -1273,8 +1380,9 @@ class Production_process extends MY_Controller {
     public function delete_finishing_output($prod_id, $output_id) { $this->_delete_output($prod_id, $output_id, 'finishing'); }
 
     // Helper untuk menentukan stage saat delete material usage
-    private function _get_stage_from_referer($default = 'grinding') {
+    private function _get_stage_from_referer($default = 'cutting') {
         $referer = $this->agent->is_referral() ? $this->agent->referrer() : '';
+        if(strpos($referer, '/sewing/') !== false) return 'sewing';
         if(strpos($referer, '/assembling/') !== false) return 'assembling';
         if(strpos($referer, '/finishing/') !== false) return 'finishing';
         return $default;
@@ -1456,28 +1564,33 @@ class Production_process extends MY_Controller {
         }
     }
 
-    public function export_grinding_pdf($id) {
+    public function export_cutting_pdf($id) {
         if (!check_access('production_process', 'view')) { show_error('Tidak ada izin.', 403); }
         $header = $this->Production_model->get_header_by_id($id);
         if (!$header) show_404();
         $data = [
-            'header'              => $header,
-            'grinding_inputs'  => $this->Production_model->get_production_inputs_for_trace($id, 'grinding'), // Pakai trace agar ada info GRN
-            'grinding_outputs' => $this->Production_model->get_production_outputs($id, 'grinding'),
+            'header'          => $header,
+            'cutting_inputs'  => $this->Production_model->get_production_inputs_for_trace($id, 'cutting'), // Pakai trace agar ada info GRN
+            'cutting_outputs' => $this->Production_model->get_production_outputs($id, 'cutting'),
         ];
-        $this->_generate_pdf('production_process/grinding_pdf_template', $data, "ProdGrinding_".str_replace('/', '-', $header->production_number));
+        $this->_generate_pdf('production_process/cutting_pdf_template', $data, "ProdCutting_".str_replace('/', '-', $header->production_number));
     }
 
-     public function export_assembling_pdf($id) {
+     public function export_sewing_pdf($id) { $this->_export_stage_pdf($id, 'sewing'); }
+     public function export_assembling_pdf($id) { $this->_export_stage_pdf($id, 'assembling'); }
+
+     // PDF tahap tengah (Sewing, Assembling) -- satu template bersama.
+     private function _export_stage_pdf($id, $stage) {
          if (!check_access('production_process', 'view')) { show_error('Tidak ada izin.', 403); }
          $header = $this->Production_model->get_header_by_id($id);
          if (!$header) show_404();
          $data = [
-             'header' => $header,
-             'assembling_inputs' => $this->Production_model->get_production_inputs_for_trace($id, 'assembling'), // Pakai trace
-             'assembling_outputs' => $this->Production_model->get_production_outputs($id, 'assembling'),
+             'header'        => $header,
+             'stage_title'   => ucfirst($stage),
+             'stage_inputs'  => $this->Production_model->get_production_inputs_for_trace($id, $stage), // Pakai trace
+             'stage_outputs' => $this->Production_model->get_production_outputs($id, $stage),
          ];
-         $this->_generate_pdf('production_process/assembling_pdf_template', $data, "ProdAssembling_".str_replace('/', '-', $header->production_number));
+         $this->_generate_pdf('production_process/stage_pdf_template', $data, "Prod".ucfirst($stage)."_".str_replace('/', '-', $header->production_number));
      }
 
      public function export_finishing_pdf($id) {
@@ -1492,6 +1605,7 @@ class Production_process extends MY_Controller {
          $this->_generate_pdf('production_process/finishing_pdf_template', $data, "ProdFinishing_".str_replace('/', '-', $header->production_number));
      }
      private function _load_views($main_view, $data = []) {
+        $data['pp_stages'] = array_keys(self::STAGES); // untuk tab tahap (_stage_tabs.php)
         $this->load->view('templates/header', $data);
         $this->load->view('templates/sidebar', $data);
         $this->load->view('templates/topbar', $data);

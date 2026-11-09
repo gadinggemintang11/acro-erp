@@ -1,96 +1,148 @@
-<div class="container-fluid">
-    <div class="d-sm-flex align-items-center justify-content-between mb-4">
-        <h3 class="h4 mb-0 text-gray-800"><i class="fas fa-tasks text-primary mr-2"></i><?= htmlspecialchars($title); ?></h3>
+<?php defined('BASEPATH') OR exit('No direct script access allowed');
+/**
+ * Daftar Proses Produksi (redesign 2026-11-08).
+ * Progres tiap dokumen ditampilkan sebagai stepper mini 4 tahap
+ * (Cutting -> Sewing -> Assembling -> Finishing).
+ */
+$this->load->view('production_process/_pp_helpers');
+$this->load->view('production_process/_pp_style');
+$pp_stages  = $pp_stages ?? ['cutting', 'sewing', 'assembling', 'finishing'];
+$cur_status = $filters['status'] ?? '';
+$kpis = [
+    ''            => ['label' => lang_line('pp2_kpi_all', 'Semua Produksi'), 'icon' => 'fa-layer-group',  'tone' => 'tone-brand', 'n' => $status_counts['all'] ?? 0],
+    'Draft'       => ['label' => lang_line('pp_status_draft'),               'icon' => 'fa-pencil-alt',   'tone' => 'tone-amber', 'n' => $status_counts['Draft'] ?? 0],
+    'In Progress' => ['label' => lang_line('pp_status_in_progress'),         'icon' => 'fa-cogs',         'tone' => 'tone-blue',  'n' => $status_counts['In Progress'] ?? 0],
+    'Completed'   => ['label' => lang_line('pp_status_completed'),           'icon' => 'fa-check-double', 'tone' => 'tone-green', 'n' => $status_counts['Completed'] ?? 0],
+];
+$flash_icons = ['success' => 'fa-check-circle', 'error' => 'fa-exclamation-circle', 'warning' => 'fa-exclamation-triangle'];
+?>
+<div class="container-fluid pp2">
+    <div class="d-flex align-items-center justify-content-between flex-wrap mb-3" style="gap:.75rem">
+        <div>
+            <h1 class="h4 mb-0 font-weight-bold" style="color:var(--pp-text)"><?= htmlspecialchars($title); ?></h1>
+            <div class="small" style="color:var(--pp-muted)"><?= lang_line('pp2_list_sub', 'Cutting → Sewing → Assembling → Finishing, lengkap dengan waktu proses tiap tahap.'); ?></div>
+        </div>
         <?php if (check_access('production_process', 'add')): ?>
-            <button class="btn btn-primary shadow-sm" data-toggle="modal" data-target="#createProcessModal">
+            <button class="btn btn-pp shadow-sm px-3" data-toggle="modal" data-target="#createProcessModal">
                 <i class="fas fa-plus-circle mr-1"></i> <?= lang_line('production_process_create'); ?>
             </button>
         <?php endif; ?>
     </div>
 
-    <div class="card shadow mb-4">
-        <div class="card-body py-2">
-            <form method="get" action="<?= base_url('production_process/index'); ?>" class="form-inline">
-                <div class="form-group mr-3 mb-2 flex-grow-1">
-                    <label for="search" class="sr-only"><?= lang_line('btn_search'); ?></label>
-                    <input type="text" name="search" id="search" class="form-control form-control-sm w-100" placeholder="<?= lang_line('production_search_placeholder'); ?>" value="<?= htmlspecialchars($filters['search'] ?? ''); ?>">
+    <?php foreach ($flash_icons as $fk => $fi): if ($msg = $this->session->flashdata($fk)): ?>
+        <div class="pp-flash pp-flash--<?= $fk; ?>" role="alert">
+            <i class="fas <?= $fi; ?>"></i><div><?= $msg; ?></div>
+            <button type="button" class="close" onclick="this.parentNode.remove()">&times;</button>
+        </div>
+    <?php endif; endforeach; ?>
+
+    <div class="pp-kpis">
+        <?php foreach ($kpis as $k => $kp):
+            $q = array_filter(['search' => $filters['search'] ?? '', 'status' => $k]); ?>
+            <a href="<?= base_url('production_process') . ($q ? '?' . http_build_query($q) : ''); ?>" class="pp-kpi <?= $kp['tone']; ?><?= $cur_status === $k ? ' is-active' : ''; ?>">
+                <span class="pp-kpi-ico"><i class="fas <?= $kp['icon']; ?>"></i></span>
+                <span><span class="pp-kpi-num d-block"><?= number_format((int) $kp['n']); ?></span><span class="pp-kpi-label d-block"><?= htmlspecialchars($kp['label']); ?></span></span>
+            </a>
+        <?php endforeach; ?>
+    </div>
+
+    <div class="pp-card">
+        <div class="pp-card-head">
+            <form method="get" action="<?= base_url('production_process'); ?>" class="pp-toolbar w-100">
+                <?php if ($cur_status !== ''): ?><input type="hidden" name="status" value="<?= htmlspecialchars($cur_status); ?>"><?php endif; ?>
+                <div class="pp-search">
+                    <i class="fas fa-search"></i>
+                    <input type="text" name="search" class="form-control" placeholder="<?= htmlspecialchars(lang_line('pp2_search_ph', 'Cari no. produksi, WO, Sales Order, barang jadi…')); ?>" value="<?= htmlspecialchars($filters['search'] ?? ''); ?>">
                 </div>
-                <div class="form-group mb-2">
-                    <button type="submit" class="btn btn-primary btn-sm"><i class="fas fa-search mr-1"></i> <?= lang_line('btn_search'); ?></button>
-                    <a href="<?= base_url('production_process'); ?>" class="btn btn-secondary btn-sm ml-1"><i class="fas fa-redo mr-1"></i> <?= lang_line('btn_reset'); ?></a>
-                </div>
+                <button type="submit" class="btn btn-pp"><i class="fas fa-search mr-1"></i><?= lang_line('btn_search'); ?></button>
+                <?php if (!empty($filters['search']) || $cur_status !== ''): ?>
+                    <a href="<?= base_url('production_process'); ?>" class="btn btn-light"><i class="fas fa-times mr-1"></i><?= lang_line('btn_reset'); ?></a>
+                <?php endif; ?>
             </form>
         </div>
-    </div>
-
-    <?php if ($this->session->flashdata('success')): ?><div class="alert alert-success alert-dismissible fade show" role="alert"><?= $this->session->flashdata('success'); ?><button type="button" class="close" data-dismiss="alert">&times;</button></div><?php endif; ?>
-    <?php if ($this->session->flashdata('error')): ?><div class="alert alert-danger alert-dismissible fade show" role="alert"><?= $this->session->flashdata('error'); ?><button type="button" class="close" data-dismiss="alert">&times;</button></div><?php endif; ?>
-    <?php if ($this->session->flashdata('warning')): ?><div class="alert alert-warning alert-dismissible fade show" role="alert"><?= $this->session->flashdata('warning'); ?><button type="button" class="close" data-dismiss="alert">&times;</button></div><?php endif; ?>
-
-    <div class="card border-0 shadow-sm rounded">
-        <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-striped table-hover align-middle">
-                    <thead class="thead-light text-center">
-                        <tr>
-                            <th><?= lang_line('production_number'); ?></th>
-                            <th><?= lang_line('production_wo_number'); ?></th>
-                            <th><?= lang_line('production_sc_number'); ?></th>
-                            <th><?= lang_line('production_style'); ?></th>
-                            <th><?= lang_line('production_qty_plan'); ?></th>
-                            <th><?= lang_line('production_date'); ?></th>
-                            <th><?= lang_line('production_status'); ?></th>
-                            <th width="150"><?= lang_line('label_action'); ?></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if(!empty($processes)): foreach($processes as $proc): ?>
-                        <tr class="text-center">
-                            <td class="font-weight-bold text-primary"><?= htmlspecialchars($proc->production_number); ?></td>
-                            <td><?= htmlspecialchars($proc->wo_number); ?></td>
-                            <td><?= htmlspecialchars($proc->sc_number); ?></td>
-                            <td class="text-left"><?= htmlspecialchars($proc->fg_name); ?></td>
-                            <td class="text-right"><?= number_format($proc->planned_qty); ?></td>
-                            <td><?= date('d M Y', strtotime($proc->production_date)); ?></td>
-                            <td>
-                                <?php
-                                    $badge_class = 'secondary';
-                                    if ($proc->status == 'Draft') $badge_class = 'warning';
-                                    if ($proc->status == 'In Progress') $badge_class = 'primary';
-                                    if ($proc->status == 'Completed') $badge_class = 'success';
-                                ?>
-                                <span class="badge badge-<?= $badge_class; ?>"><?= htmlspecialchars($proc->status); ?></span>
-                            </td>
-                            <td>
-                                <a href="<?= base_url('production_process/grinding/'.$proc->id); ?>" class="btn btn-sm btn-info">
-                                    <i class="fas fa-cogs"></i> <?= lang_line('production_detail_action'); ?>
-                                </a>
+        <div class="table-responsive">
+            <table class="pp-table">
+                <thead><tr>
+                    <th><?= lang_line('production_number'); ?></th>
+                    <th><?= lang_line('pp2_th_wo_so', 'Work Order / Sales Order'); ?></th>
+                    <th><?= lang_line('pp2_meta_fg', 'Barang Jadi'); ?></th>
+                    <th class="num"><?= lang_line('production_qty_plan'); ?></th>
+                    <th><?= lang_line('pp2_th_progress', 'Progres Tahap'); ?></th>
+                    <th><?= lang_line('production_status'); ?></th>
+                    <th class="text-right"><?= lang_line('label_action'); ?></th>
+                </tr></thead>
+                <tbody>
+                <?php if (!empty($processes)): foreach ($processes as $proc):
+                    $ov = $stage_overview[$proc->id] ?? [];
+                    // "Buka" ke tahap pertama yang belum selesai
+                    $open_stage = end($pp_stages);
+                    foreach ($pp_stages as $s) { if (empty($ov[$s]->finished_at)) { $open_stage = $s; break; } }
+                    reset($pp_stages);
+                ?>
+                    <tr>
+                        <td>
+                            <a href="<?= base_url('production_process/' . $open_stage . '/' . $proc->id); ?>" class="pp-list-title"><?= htmlspecialchars($proc->production_number); ?></a>
+                            <div class="pp-item-code"><i class="far fa-calendar mr-1"></i><?= pp_fmt_dt($proc->production_date, '-', false); ?></div>
+                        </td>
+                        <td>
+                            <div class="font-weight-bold" style="font-size:.82rem"><?= htmlspecialchars($proc->wo_number ?: '-'); ?></div>
+                            <div class="pp-item-code"><?= htmlspecialchars($proc->sc_number ?: '-'); ?></div>
+                        </td>
+                        <td>
+                            <div class="pp-item-name"><?= htmlspecialchars($proc->fg_name ?: '-'); ?></div>
+                            <?php if (!empty($proc->fg_code)): ?><div class="pp-item-code"><?= htmlspecialchars($proc->fg_code); ?></div><?php endif; ?>
+                        </td>
+                        <td class="num"><b><?= pp_qty($proc->planned_qty, 2); ?></b> <span class="pp-item-code"><?= htmlspecialchars($proc->fg_unit ?? ''); ?></span></td>
+                        <td>
+                            <div class="pp-mini">
+                                <?php foreach ($pp_stages as $i => $s):
+                                    $o = $ov[$s] ?? null;
+                                    $has = $o && ($o->inputs || $o->outputs || $o->started_at);
+                                    $done = $o && $o->finished_at;
+                                    $tip = lang_line('pp_stage_' . $s) . ': ' . ($o && $o->started_at ? pp_fmt_range($o->started_at, $o->finished_at) : lang_line('pp2_time_not_set', 'Waktu belum diisi'))
+                                         . ($o ? ' · ' . (int) $o->outputs . ' output' : '');
+                                    if ($i): ?><span class="pp-mini-line"></span><?php endif; ?>
+                                    <a href="<?= base_url('production_process/' . $s . '/' . $proc->id); ?>" class="pp-mini-dot <?= pp_stage_meta($s)['tone']; ?><?= $done ? ' is-done' : ($has ? ' has-data' : ''); ?>"
+                                       title="<?= htmlspecialchars($tip); ?>" data-toggle="tooltip"><?= $done ? '<i class="fas fa-check"></i>' : '<i class="fas ' . pp_stage_meta($s)['icon'] . '"></i>'; ?></a>
+                                <?php endforeach; ?>
+                            </div>
+                        </td>
+                        <td><?= pp_status_pill($proc->status); ?></td>
+                        <td class="text-right">
+                            <div class="pp-actions">
+                                <a href="<?= base_url('production_process/' . $open_stage . '/' . $proc->id); ?>" class="btn btn-pp"><i class="fas fa-arrow-right mr-1"></i><?= lang_line('production_detail_action'); ?></a>
                                 <?php if ($proc->status == 'Draft' && check_access('production_process', 'delete')): ?>
-                                <a href="<?= base_url('production_process/delete_header/'.$proc->id); ?>" class="btn btn-sm btn-danger btn-delete ml-1" data-message="<?= lang_line('production_delete_confirm'); ?>">
-                                    <i class="fas fa-trash"></i>
-                                </a>
+                                    <a href="<?= base_url('production_process/delete_header/' . $proc->id); ?>" class="btn btn-outline-danger btn-delete" data-message="<?= htmlspecialchars(lang_line('production_delete_confirm')); ?>" title="<?= htmlspecialchars(lang_line('btn_delete', 'Hapus')); ?>"><i class="fas fa-trash-alt"></i></a>
                                 <?php endif; ?>
-                            </td>
-                        </tr>
-                        <?php endforeach; else: ?>
-                            <tr><td colspan="8" class="text-center text-muted py-3"><?= lang_line('production_no_data'); ?></td></tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
+                            </div>
+                        </td>
+                    </tr>
+                <?php endforeach; else: ?>
+                    <tr><td colspan="7" class="pp-empty"><i class="fas fa-industry"></i><?= lang_line('production_no_data'); ?></td></tr>
+                <?php endif; ?>
+                </tbody>
+            </table>
         </div>
+        <?php if (!empty($processes)): ?>
+        <div class="pp-foot">
+            <span><?= count($processes); ?> <?= lang_line('pp2_docs', 'dokumen'); ?></span>
+            <span class="d-flex align-items-center flex-wrap" style="gap:.6rem">
+                <?php foreach ($pp_stages as $s): ?><span><i class="fas <?= pp_stage_meta($s)['icon']; ?> mr-1"></i><?= htmlspecialchars(lang_line('pp_stage_' . $s)); ?></span><?php endforeach; ?>
+                <span><span class="pp-chip pp-chip--ok"><i class="fas fa-check"></i></span> = <?= lang_line('pp2_legend_done', 'selesai'); ?></span>
+            </span>
+        </div>
+        <?php endif; ?>
     </div>
 </div>
-<!-- /.container-fluid -->
 
 <!-- Modal Create Process -->
-<div class="modal fade" id="createProcessModal" tabindex="-1" aria-labelledby="createProcessModalLabel" aria-hidden="true">
+<div class="modal fade pp-modal" id="createProcessModal" tabindex="-1" aria-labelledby="createProcessModalLabel" aria-hidden="true">
         <div class="modal-dialog modal-lg modal-dialog-centered">
              <form id="createProcessForm" method="post" action="<?= base_url('production_process/create_header'); ?>">
                 <div class="modal-content border-0 shadow">
-                    <div class="modal-header bg-gradient-primary text-white">
+                    <div class="modal-header">
                         <h5 class="modal-title" id="createProcessModalLabel"><i class="fas fa-plus-circle mr-2"></i><?= lang_line('production_create_modal_title'); ?></h5>
-                        <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">&times;</button>
+                        <button type="button" class="close" data-dismiss="modal" aria-label="Close">&times;</button>
                     </div>
                     <div class="modal-body">
                         <div class="form-group">
@@ -103,13 +155,13 @@
                                 id="wo_selector" DIPERTAHANKAN supaya validasi submit yang sudah
                                 ada tidak perlu diubah.
                             */ ?>
-                            <label><?= lang_line('production_select_wo'); ?></label>
+                            <label class="pp-label"><?= lang_line('production_select_wo'); ?></label>
                             <input type="hidden" name="wo_header_id" id="wo_selector" value="">
                             <div class="input-group">
                                 <input type="text" id="wo_display" class="form-control" readonly
                                        placeholder="<?= lang_line('production_wo_none_selected', 'Belum ada Work Order dipilih'); ?>">
                                 <div class="input-group-append">
-                                    <button type="button" class="btn btn-info" id="btnPickWo" data-toggle="modal" data-target="#pickWoModal">
+                                    <button type="button" class="btn btn-pp" id="btnPickWo" data-toggle="modal" data-target="#pickWoModal">
                                         <i class="fas fa-list mr-1"></i> <?= lang_line('production_btn_pick_wo', 'Pilih dari Daftar'); ?>
                                     </button>
                                 </div>
@@ -123,30 +175,28 @@
                             */ ?>
                             <div class="invalid-feedback d-block" style="display:none;" id="woInvalidMsg">Work Order wajib dipilih.</div>
                         </div>
-                        <div id="wo_details_info" style="display: none;" class="alert alert-secondary p-2 mb-3">
-                            <small>
-                                Sales Order Number: <strong id="info_sc_number">-</strong><br>
-                                Style: <strong id="info_fg_name">-</strong><br>
-                                Qty Rencana: <strong id="info_planned_qty">-</strong>
-                            </small>
+                        <div id="wo_details_info" style="display: none;" class="pp-kv mb-3">
+                            <div><span class="pp-label">Sales Order</span><div class="v" id="info_sc_number">-</div></div>
+                            <div><span class="pp-label"><?= lang_line('pp2_meta_fg', 'Barang Jadi'); ?></span><div class="v" id="info_fg_name">-</div></div>
+                            <div><span class="pp-label"><?= lang_line('pp2_meta_planned', 'Qty Rencana'); ?></span><div class="v" id="info_planned_qty">-</div></div>
                         </div>
                          <div class="row">
                              <div class="col-md-6 form-group">
-                                 <label for="production_date">Tanggal Mulai Produksi</label>
+                                 <label class="pp-label" for="production_date"><?= lang_line('pp2_meta_prod_date', 'Tanggal Produksi'); ?></label>
                                  <input type="date" name="production_date" id="production_date" class="form-control" value="<?= date('Y-m-d'); ?>" required>
                                  <div class="invalid-feedback">Tanggal wajib diisi.</div>
                              </div>
                          </div>
                         <div class="form-group">
-                            <label for="remarks">Catatan</label>
+                            <label class="pp-label" for="remarks"><?= lang_line('pp2_meta_remarks', 'Catatan'); ?></label>
                             <textarea name="remarks" id="remarks" class="form-control" rows="2"></textarea>
                         </div>
                     </div>
                     <div class="modal-footer">
-                        <button type="submit" class="btn btn-primary">
-                            <i class="fas fa-arrow-right mr-1"></i> Simpan & Lanjut ke Proses Grinding
+                        <button type="button" class="btn btn-light" data-dismiss="modal"><?= lang_line('pp_sw_cancel'); ?></button>
+                        <button type="submit" class="btn btn-pp">
+                            <i class="fas fa-arrow-right mr-1"></i> <?= lang_line('pp2_create_submit', 'Simpan & Lanjut ke Cutting'); ?>
                         </button>
-                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
                     </div>
                 </div>
             </form>
@@ -154,21 +204,17 @@
     </div>
 
 
-    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.6.0/dist/js/bootstrap.bundle.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/select2@4.1.0-rc.0/dist/js/select2.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
 <?php /*
     Modal daftar Work Order -- polanya sama dengan "Pilih dari Daftar IPO" di
     Buat Work Order dan "Tarik dari PR" di Purchase Order.
 */ ?>
-<div class="modal fade" id="pickWoModal" tabindex="-1" role="dialog" aria-hidden="true">
+<div class="modal fade pp-modal" id="pickWoModal" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered" role="document">
         <div class="modal-content border-0 shadow">
-            <div class="modal-header bg-info text-white">
+            <div class="modal-header">
                 <h5 class="modal-title"><i class="fas fa-list mr-2"></i><?= lang_line('production_wo_modal_title', 'Daftar Work Order'); ?></h5>
-                <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
             </div>
             <div class="modal-body">
                 <p class="small text-muted mb-2">
@@ -214,7 +260,9 @@
 </div>
 
     <script>
-    $(function() { // Shorthand for $(document).ready()
+    // DOMContentLoaded: jQuery + Bootstrap + SweetAlert dimuat oleh footer.
+    document.addEventListener('DOMContentLoaded', function() { var $ = window.jQuery;
+        if ($.fn.tooltip) $('.pp2 [data-toggle="tooltip"]').tooltip();
 
         // Inisialisasi select2 untuk WO sudah DIHAPUS -- pemilihan WO sekarang
         // lewat modal daftar di bawah (#pickWoModal).
@@ -445,5 +493,5 @@
             });
         });
 
-    }); // Akhir $(function() {})
+    }); // Akhir DOMContentLoaded
     </script>

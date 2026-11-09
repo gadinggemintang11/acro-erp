@@ -55,11 +55,15 @@ class Mr_model extends CI_Model {
             // Tahap approval yang boleh ditangani, dibatasi departemen.
             $conds[] = approval_stage_scope_sql('material_request_approval', 'mr.status', 'mr.department_code', self::APPROVAL_STAGE_MAP);
             // Status final (Approved ke atas) tampak untuk siapapun yang lolos check_access('view')
-            $conds[] = "mr.status IN ('Approved', 'Partial Issued', 'Issued', 'Received', 'Closed')";
+            $conds[] = "mr.status IN ('Approved', 'Partial Issued', 'Partial Received', 'Issued', 'Received', 'Closed')";
             $visibility_sql = '(' . implode(' OR ', $conds) . ')';
         }
 
-        $this->db->select('mr.id, mr.mr_number, mr.request_date, mr.status, mr.department_code, u.fullname as requester_name');
+        // + jumlah item/WO & item yang sudah keluar penuh (daftar MR, redesign 2026-11-08)
+        $this->db->select("mr.id, mr.mr_number, mr.request_date, mr.status, mr.department_code, mr.remarks, u.fullname as requester_name,
+            (SELECT COUNT(*) FROM mr_details d WHERE d.mr_header_id = mr.id) AS line_count,
+            (SELECT COUNT(DISTINCT d.wo_header_id) FROM mr_details d WHERE d.mr_header_id = mr.id) AS wo_count,
+            (SELECT COUNT(*) FROM mr_details d WHERE d.mr_header_id = mr.id AND COALESCE(d.issued_qty, 0) >= d.requested_qty - 0.0001) AS full_count", FALSE);
         $this->db->from($this->table_header . ' mr');
         $this->db->join('users u', 'mr.requester_id = u.id', 'left');
 
@@ -102,12 +106,14 @@ class Mr_model extends CI_Model {
         $scope_sql = approval_stage_scope_sql('material_request_approval', 'mr.status', 'mr.department_code', self::APPROVAL_STAGE_MAP);
 
         $this->db->select('
-            mr.id, mr.mr_number, mr.request_date, mr.status, mr.remarks,
+            mr.id, mr.mr_number, mr.request_date, mr.status, mr.remarks, mr.department_code,
             mr.requested_at, mr.hod_approved_at, mr.endorsed_at,
             req.fullname as requester_name,
             hod.fullname as hod_approver_name,
-            end.fullname as endorser_name
-        ');
+            end.fullname as endorser_name,
+            (SELECT COUNT(*) FROM mr_details d WHERE d.mr_header_id = mr.id) AS line_count,
+            (SELECT COUNT(DISTINCT d.wo_header_id) FROM mr_details d WHERE d.mr_header_id = mr.id) AS wo_count
+        ', FALSE);
         $this->db->from($this->table_header . ' mr');
         $this->db->join('users req', 'mr.requester_id = req.id',     'left');
         $this->db->join('users hod', 'mr.hod_approved_by = hod.id',  'left');
@@ -503,6 +509,87 @@ class Mr_model extends CI_Model {
                          ->get()->result();
         foreach ($rows as $r) $r->material_count = (int) $r->material_count;
         return $rows;
+    }
+
+    /**
+     * Rencana material satu WO untuk form Buat Material Request (redesign
+     * 2026-11-08): per baris rencana WO dihitung juga berapa yang SUDAH
+     * diminta di MR lain (semua status kecuali Rejected -- Draft ikut supaya
+     * tidak terjadi permintaan ganda), berapa yang sudah dikeluarkan gudang,
+     * sisa kebutuhan, dan stok gudang saat ini.
+     *
+     * @return array|null ['header' => obj, 'lines' => [obj...]] atau null kalau WO tidak ada
+     */
+    public function get_wo_plan_for_mrf($wo_id, $exclude_mr_id = 0) {
+        $wo_id = (int) $wo_id;
+        $exclude_mr_id = (int) $exclude_mr_id;
+        $header = $this->db->select("
+                wo.id, wo.wo_number, wo.status, wo.planned_qty, wo.planned_start_date,
+                COALESCE(sc.sc_number, '')   AS sc_number,
+                COALESCE(fg.kode_barang, '') AS fg_code,
+                COALESCE(fg.nama_barang, '') AS fg_name,
+                COALESCE(fg.satuan, '')      AS fg_unit
+            ", FALSE)
+            ->from('wo_header wo')
+            ->join('sales_contracts sc', 'sc.id = wo.sales_contract_id', 'left')
+            ->join('finished_goods fg', 'fg.id = wo.fg_id', 'left')
+            ->where('wo.id', $wo_id)->get()->row();
+        if (!$header) return null;
+
+        $lines = $this->db->query("
+            SELECT d.component_item_id AS item_id, d.component_item_type AS item_type,
+                   SUM(d.planned_qty) AS planned_qty,
+                   MAX(COALESCE(NULLIF(d.unit_measure, ''), m.satuan, sf.satuan, 'PCS')) AS unit,
+                   MAX(CASE WHEN d.component_item_type = 'material' THEN m.kode_material ELSE sf.kode_barang END) AS item_code,
+                   MAX(CASE WHEN d.component_item_type = 'material' THEN m.nama_material ELSE sf.nama_barang END) AS item_name
+            FROM wo_details_material d
+            LEFT JOIN materials m ON m.id = d.component_item_id AND d.component_item_type = 'material'
+            LEFT JOIN semifinished_goods sf ON sf.id = d.component_item_id AND d.component_item_type = 'semifinished'
+            WHERE d.wo_header_id = ?
+            GROUP BY d.component_item_id, d.component_item_type
+            ORDER BY item_name
+        ", [$wo_id])->result();
+
+        $req = [];
+        $rows = $this->db->query("
+            SELECT d.component_item_id AS item_id, d.component_item_type AS item_type,
+                   SUM(d.requested_qty) AS requested_qty, SUM(COALESCE(d.issued_qty, 0)) AS issued_qty,
+                   GROUP_CONCAT(DISTINCT h.mr_number ORDER BY h.id SEPARATOR ', ') AS mr_numbers
+            FROM {$this->table_details} d
+            JOIN mr_header h ON h.id = d.mr_header_id
+            WHERE d.wo_header_id = ? AND h.status <> 'Rejected' AND h.id <> ?
+            GROUP BY d.component_item_id, d.component_item_type
+        ", [$wo_id, $exclude_mr_id])->result();
+        foreach ($rows as $r) $req[$r->item_id . '|' . $r->item_type] = $r;
+
+        foreach ($lines as $l) {
+            $k = $l->item_id . '|' . $l->item_type;
+            $l->planned_qty   = (float) $l->planned_qty;
+            $l->requested_qty = isset($req[$k]) ? (float) $req[$k]->requested_qty : 0.0;
+            $l->issued_qty    = isset($req[$k]) ? (float) $req[$k]->issued_qty : 0.0;
+            $l->mr_numbers    = isset($req[$k]) ? (string) $req[$k]->mr_numbers : '';
+            $l->remaining_qty = max(0.0, round($l->planned_qty - $l->requested_qty, 4));
+            $l->stock         = (float) $this->get_stock_for_item($l->item_id, $l->item_type);
+        }
+        return ['header' => $header, 'lines' => $lines];
+    }
+
+    /** Daftar pengeluaran gudang (mr_issuances) satu MR + nama pengeluar/penerima & jumlah qty. */
+    public function get_issuances_by_mr($mr_id) {
+        return $this->db->select("
+                mi.id, mi.issuance_number, mi.status, mi.qc_status, mi.issued_at, mi.received_at, mi.qc_done_at,
+                iu.fullname AS issuer_name, ru.fullname AS receiver_name,
+                (SELECT COALESCE(SUM(sl.qty_out), 0) FROM stock_ledger sl
+                  WHERE sl.issuance_id = mi.id AND sl.transaction_type = 'OUT_ISSUE') AS issued_qty,
+                (SELECT COUNT(DISTINCT CONCAT(sl.item_id, '|', sl.item_type)) FROM stock_ledger sl
+                  WHERE sl.issuance_id = mi.id AND sl.transaction_type = 'OUT_ISSUE') AS item_count
+            ", FALSE)
+            ->from('mr_issuances mi')
+            ->join('users iu', 'iu.id = mi.issuer_id', 'left')
+            ->join('users ru', 'ru.id = mi.receiver_id', 'left')
+            ->where('mi.mr_header_id', (int) $mr_id)
+            ->order_by('mi.id', 'ASC')
+            ->get()->result();
     }
 
     public function search_open_wos($term) {
@@ -981,7 +1068,8 @@ class Mr_model extends CI_Model {
      * Proses QC untuk satu issuance.
      *
      * $qc_items = [
-     *   ['item_id'=>1,'item_type'=>'material','accept_qty'=>58,'reject_qty'=>2,'qc_notes'=>'...'],
+     *   ['item_id'=>1,'item_type'=>'material','accept_qty'=>58,'reject_qty'=>2,'qc_notes'=>'sobek'],
+     *   (reject_qty = Qty NG; qc_notes = Keterangan NG, wajib kalau Qty NG > 0)
      *   ...
      * ]
      *
@@ -1151,9 +1239,19 @@ class Mr_model extends CI_Model {
             if ($item_id <= 0) continue;
 
             // Validasi
+            if ($accept_qty < 0 || $reject_qty < 0) {
+                $this->db->trans_rollback();
+                return ['success' => false, 'message' => "Qty OK / Qty NG tidak boleh negatif untuk item ID $item_id"];
+            }
             if ($accept_qty + $reject_qty > $issued_qty + 0.0001) {
                 $this->db->trans_rollback();
-                return ['success' => false, 'message' => "Accept + Reject qty melebihi issued qty untuk item ID $item_id"];
+                return ['success' => false, 'message' => "Qty OK + Qty NG melebihi issued qty untuk item ID $item_id"];
+            }
+            // QC disederhanakan 2026-11-08: NG cukup qty + keterangan, dan
+            // keterangannya wajib supaya NG-nya bisa ditelusuri.
+            if ($reject_qty > 0.0001 && trim((string) $qc_notes) === '') {
+                $this->db->trans_rollback();
+                return ['success' => false, 'message' => "Keterangan NG wajib diisi untuk item ID $item_id (Qty NG " . number_format($reject_qty, 2) . ")"];
             }
 
             // Tentukan QC status
@@ -1179,12 +1277,8 @@ class Mr_model extends CI_Model {
                 'qc_done_at'  => date('Y-m-d H:i:s'),
             ];
 
-            // Rincian NG: 4 kategori penyebab + kode NG (lihat ng_helper.php).
-            // Hanya relevan kalau ada yang ditolak; catatan saja, tidak
-            // mempengaruhi stok/ledger. Dilewati kalau migrasi belum jalan.
-            if ($reject_qty > 0.0001) {
-                $qc_row += ng_collect_post($qi, $reject_qty, 'issuance_qc_results');
-            }
+            // Rincian 4 kategori + Kode NG tidak diisi lagi (2026-11-08) --
+            // kolom ng_* di tabel dibiarkan untuk data lama, bernilai 0/NULL.
 
             $this->db->insert('issuance_qc_results', $qc_row);
 

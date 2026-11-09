@@ -1,348 +1,216 @@
-<?php
+<?php defined('BASEPATH') OR exit('No direct script access allowed');
 /**
- * Quality Assurance - Detail View
+ * Quality Assurance - Detail (redesign 2026-11-08, selaras halaman produksi/MR).
+ * Alur: GRN dikonfirmasi -> QC per item (In Progress) -> Complete QA (Draft,
+ * menunggu approval) -> Approve (Completed: qty PASS masuk stok) / Reject.
+ * Modal & fungsi JS (editQCItem, viewQCItem, bulk*, approve/unapprove/reject)
+ * TIDAK diubah perilakunya -- ID elemen dipertahankan.
  */
+$this->load->view('production_process/_pp_style');
+$st   = $qa_header->status;
+$qty  = function ($n) { $s = number_format((float) $n, 4, ',', '.'); return rtrim(rtrim($s, '0'), ','); };
+$dt   = function ($v, $t = true) { return (!empty($v) && strpos((string) $v, '0000') !== 0) ? date($t ? 'd M Y H:i' : 'd M Y', strtotime($v)) : null; };
+$n_checked = 0; $sum_recv = 0; $sum_pass = 0; $sum_ng = 0;
+foreach ($qa_details as $d) {
+    if ($d->qa_status !== 'Pending') $n_checked++;
+    $sum_recv += (float) $d->receive_qty; $sum_pass += (float) $d->qa_pass_qty; $sum_ng += (float) $d->qa_reject_qty;
+}
+$pill = ['Pending' => 'pp-status--other', 'In Progress' => 'pp-status--progress', 'Draft' => 'pp-status--draft',
+         'Completed' => 'pp-status--completed', 'Rejected' => 'pp-status--other'][$st] ?? 'pp-status--other';
+$level = ['Pending' => 1, 'In Progress' => 1, 'Draft' => 2, 'Completed' => 3, 'Rejected' => 2][$st] ?? 0;
+$steps = [
+    [lang_line('qa2_step_grn', 'Barang diterima (GRN)'),   'fa-truck',        $qa_header->created_by_name ?? null, $dt($qa_header->created_at)],
+    [lang_line('qa2_step_qc', 'QC per item'),              'fa-microscope',   $qa_header->qa_checked_by_name ?? null, $dt($qa_header->qa_checked_at)],
+    [lang_line('qa2_step_approval', 'Approval atasan'),    'fa-user-check',   null, null],
+    [lang_line('qa2_step_stock', 'Masuk stok gudang'),     'fa-warehouse',    null, null],
+];
+if (!empty($latest_approval)) { $steps[2][2] = $latest_approval->approver_name ?? null; $steps[2][3] = $dt($latest_approval->approval_date ?? null); }
+$qa_status_tone = ['Pending' => 'tone-slate', 'Pass' => 'tone-green', 'Reject' => 'tone-rose', 'Partial' => 'tone-amber'];
 ?>
+<style>
+.qa2 .mr-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .6rem; margin-bottom: 1.25rem; }
+.qa2 .mr-step { display: flex; gap: .65rem; padding: .8rem .9rem; border-radius: 14px; background: var(--pp-card); border: 1px solid var(--pp-line); box-shadow: var(--pp-shadow); min-width: 0; }
+.qa2 .mr-step-dot { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: 0 0 auto; font-size: .82rem; background: var(--pp-soft); color: var(--pp-muted); border: 1px solid var(--pp-line); }
+.qa2 .mr-step.is-done .mr-step-dot { background: #10b981; color: #fff; border-color: transparent; }
+.qa2 .mr-step.is-current { border-color: var(--brand-1); box-shadow: 0 0 0 3px rgba(var(--brand-rgb), .12), var(--pp-shadow); }
+.qa2 .mr-step.is-current .mr-step-dot { background: var(--brand-1); color: #fff; border-color: transparent; }
+.qa2 .mr-step.is-rejected { border-color: #f43f5e; } .qa2 .mr-step.is-rejected .mr-step-dot { background: #f43f5e; color: #fff; border-color: transparent; }
+.qa2 .mr-step-name { font-weight: 700; font-size: .84rem; }
+.qa2 .mr-step-meta { font-size: .72rem; color: var(--pp-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 991.98px) { .qa2 .mr-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.qa2 .qa-note { display: flex; gap: .7rem; align-items: center; justify-content: space-between; flex-wrap: wrap; padding: .85rem 1rem; border-radius: 12px; margin-bottom: 1.25rem; font-size: .87rem; border: 1px solid transparent; }
+.qa2 .qa-note--ok { background: rgba(16,185,129,.1); color: #065f46; border-color: rgba(16,185,129,.25); }
+.qa2 .qa-note--warn { background: rgba(245,158,11,.1); color: #92400e; border-color: rgba(245,158,11,.3); }
+.qa2 .qa-note--bad { background: rgba(244,63,94,.08); color: #9f1239; border-color: rgba(244,63,94,.25); }
+body.dark-mode .qa2 .qa-note--ok { color: #6ee7b7; } body.dark-mode .qa2 .qa-note--warn { color: #fcd34d; } body.dark-mode .qa2 .qa-note--bad { color: #fda4af; }
+.qa2 .qa-reason { font-size: .74rem; color: #be123c; max-width: 220px; }
+body.dark-mode .qa2 .qa-reason { color: #fda4af; }
+.qa2 .qa-actbar { display: flex; gap: .6rem; flex-wrap: wrap; align-items: center; justify-content: flex-end; padding: .85rem 1.1rem; border-top: 1px solid var(--pp-line); background: var(--pp-soft); border-radius: 0 0 var(--pp-radius) var(--pp-radius); }
+</style>
 
-<div class="container-fluid py-4">
-    <!-- Header -->
-    <div class="row mb-4">
-        <div class="col-md-8">
-            <h1 class="mb-1"><?= lang_line('quality_assurance_detail_title', 'Quality Assurance Detail'); ?></h1>
-            <p class="text-muted">
-                QA: <strong><?php echo htmlspecialchars($qa_header->qa_number); ?></strong> |
-                GRN: <strong><?php echo htmlspecialchars($qa_header->grn_number); ?></strong>
-            </p>
-        </div>
-        <div class="col-md-4 text-right">
-            <a href="<?php echo base_url('quality_assurance/export_detail_excel/' . $qa_header->id); ?>"
-               class="btn btn-sm btn-success" title="<?= lang_line('quality_assurance_export_excel', 'Export to Excel'); ?>">
-                <i class="fas fa-file-excel"></i> Excel
-            </a>
-            <a href="<?php echo base_url('quality_assurance/export_detail_pdf/' . $qa_header->id); ?>"
-               class="btn btn-sm btn-danger" title="<?= lang_line('quality_assurance_export_pdf', 'Export to PDF'); ?>">
-                <i class="fas fa-file-pdf"></i> PDF
-            </a>
-            <a href="<?php echo base_url('quality_assurance'); ?>" class="btn btn-sm btn-outline-secondary ml-1">
-                <i class="fas fa-arrow-left"></i> <?= lang_line('quality_assurance_back_button', 'Back'); ?>
-            </a>
-        </div>
-    </div>
+<div class="container-fluid pp2 qa2">
 
-    <!-- QA Header Info -->
-    <div class="card mb-4">
-        <div class="card-header bg-light">
-            <h5 class="mb-0"><?= lang_line('quality_assurance_detail_header', 'Quality Assurance Information'); ?></h5>
-        </div>
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-3">
-                    <small class="d-block text-muted"><?= lang_line('quality_assurance_qa_number_label', 'QA Number'); ?></small>
-                    <strong><?php echo htmlspecialchars($qa_header->qa_number); ?></strong>
-                </div>
-                <div class="col-md-3">
-                    <small class="d-block text-muted"><?= lang_line('quality_assurance_grn_number_label', 'GRN Number'); ?></small>
-                    <strong><?php echo htmlspecialchars($qa_header->grn_number); ?></strong>
-                </div>
-                <div class="col-md-3">
-                    <small class="d-block text-muted"><?= lang_line('quality_assurance_supplier_label', 'Supplier'); ?></small>
-                    <strong><?php echo htmlspecialchars($qa_header->nama_supplier ?? '-'); ?></strong>
-                </div>
-                <div class="col-md-3">
-                    <small class="d-block text-muted"><?= lang_line('quality_assurance_qa_date_label', 'QA Date'); ?></small>
-                    <strong><?php echo date('d-m-Y', strtotime($qa_header->qa_date)); ?></strong>
+    <section class="pp-hero">
+        <div class="pp-hero-top">
+            <div class="pp-hero-id">
+                <div class="pp-hero-icon"><i class="fas fa-microscope"></i></div>
+                <div style="min-width:0">
+                    <div class="pp-hero-kicker">Quality Assurance · <?= lang_line('qa2_incoming', 'Incoming Material'); ?></div>
+                    <h1 class="pp-hero-title"><?= htmlspecialchars($qa_header->qa_number); ?> <span class="pp-status <?= $pill; ?>"><?= htmlspecialchars($st); ?></span></h1>
+                    <div class="pp-hero-subline"><i class="fas fa-truck mr-1"></i>GRN <?= htmlspecialchars($qa_header->grn_number); ?><span class="mx-1">·</span><i class="fas fa-industry mr-1"></i><?= htmlspecialchars($qa_header->nama_supplier ?? '-'); ?></div>
                 </div>
             </div>
-
-            <hr class="my-3">
-
-            <div class="row">
-                <div class="col-md-3">
-                    <small class="d-block text-muted"><?= lang_line('quality_assurance_status_label', 'Status'); ?></small>
-                    <?php
-                    $status_class = ['Pending' => 'secondary', 'In Progress' => 'info', 'Draft' => 'warning', 'Completed' => 'success', 'Rejected' => 'danger'];
-                    $badge_class = $status_class[$qa_header->status] ?? 'secondary';
-                    ?>
-                    <span class="badge badge-<?php echo $badge_class; ?> badge-lg">
-                        <?php echo htmlspecialchars($qa_header->status); ?>
+            <div class="pp-hero-actions">
+                <?php if ($can_edit && $st === 'In Progress'): ?>
+                    <button type="button" class="btn pp-btn-light" onclick="completeQA(<?= (int) $qa_header->id; ?>)"><i class="fas fa-check-circle mr-1"></i><?= lang_line('quality_assurance_complete_button', 'Complete QA'); ?></button>
+                <?php endif; ?>
+                <?php if ($can_approve && $st === 'Draft'): ?>
+                    <span id="approvalActions" class="d-inline-flex" style="gap:.5rem">
+                        <button type="button" class="btn pp-btn-light" data-toggle="modal" data-target="#approveModal"><i class="fas fa-check-circle mr-1"></i><?= lang_line('quality_assurance_approve_button', 'Approve QA'); ?></button>
+                        <button type="button" class="btn pp-btn-glass" data-toggle="modal" data-target="#rejectModal"><i class="fas fa-times-circle mr-1"></i><?= lang_line('qa_reject_final_button', 'Reject'); ?></button>
                     </span>
-                </div>
-                <div class="col-md-3">
-                    <small class="d-block text-muted"><?= lang_line('quality_assurance_created_by_label', 'Created By'); ?></small>
-                    <strong><?php echo htmlspecialchars($qa_header->created_by_name ?? '-'); ?></strong>
-                    <br><small class="text-muted"><?php echo date('d-m-Y H:i', strtotime($qa_header->created_at)); ?></small>
-                </div>
-                <div class="col-md-3">
-                    <small class="d-block text-muted"><?= lang_line('quality_assurance_qc_checked_by_label', 'QC Checked By'); ?></small>
-                    <strong><?php echo htmlspecialchars($qa_header->qa_checked_by_name ?? '-'); ?></strong>
-                    <?php if ($qa_header->qa_checked_at): ?>
-                        <br><small class="text-muted"><?php echo date('d-m-Y H:i', strtotime($qa_header->qa_checked_at)); ?></small>
-                    <?php endif; ?>
-                </div>
-                <div class="col-md-3">
-                    <small class="d-block text-muted"><?= lang_line('quality_assurance_total_items_label', 'Total Items'); ?></small>
-                    <strong><?php echo count($qa_details); ?> <?= lang_line('quality_assurance_items_count', 'items'); ?></strong>
-                </div>
+                <?php endif; ?>
+                <a href="<?= base_url('quality_assurance/export_detail_excel/' . $qa_header->id); ?>" class="btn pp-btn-glass"><i class="fas fa-file-excel mr-1"></i>Excel</a>
+                <a href="<?= base_url('quality_assurance/export_detail_pdf/' . $qa_header->id); ?>" class="btn pp-btn-glass" target="_blank"><i class="fas fa-file-pdf mr-1"></i>PDF</a>
+                <a href="<?= base_url('quality_assurance'); ?>" class="btn pp-btn-glass"><i class="fas fa-arrow-left mr-1"></i><?= lang_line('quality_assurance_back_button', 'Back'); ?></a>
             </div>
-
-            <?php if ($qa_header->inspector_notes): ?>
-                <hr class="my-3">
-                <div>
-                    <small class="d-block text-muted"><?= lang_line('quality_assurance_inspector_notes_label', 'Inspector Notes'); ?></small>
-                    <p class="mb-0"><?php echo nl2br(htmlspecialchars($qa_header->inspector_notes)); ?></p>
-                </div>
+        </div>
+        <div class="pp-hero-meta">
+            <div class="pp-meta"><div class="pp-meta-label"><?= lang_line('quality_assurance_qa_date_label', 'QA Date'); ?></div><div class="pp-meta-value"><?= $dt($qa_header->qa_date, false) ?: '-'; ?></div></div>
+            <div class="pp-meta"><div class="pp-meta-label"><?= lang_line('qa2_checked', 'Item diperiksa'); ?></div><div class="pp-meta-value"><?= $n_checked; ?> <small>/ <?= count($qa_details); ?></small></div></div>
+            <div class="pp-meta"><div class="pp-meta-label"><?= lang_line('quality_assurance_receive_qty_label', 'Receive Qty'); ?></div><div class="pp-meta-value"><?= $qty($sum_recv); ?></div></div>
+            <div class="pp-meta"><div class="pp-meta-label"><?= lang_line('quality_assurance_pass_qty_label', 'Pass Qty'); ?></div><div class="pp-meta-value"><?= $qty($sum_pass); ?></div></div>
+            <div class="pp-meta"><div class="pp-meta-label"><?= lang_line('quality_assurance_ng_qty_label', 'NG Qty'); ?></div><div class="pp-meta-value"><?= $qty($sum_ng); ?></div></div>
+            <?php if (!empty($qa_header->inspector_notes)): ?>
+            <div class="pp-meta" style="grid-column: span 2;"><div class="pp-meta-label"><?= lang_line('quality_assurance_inspector_notes_label', 'Inspector Notes'); ?></div><div class="pp-meta-value" style="font-weight:600" title="<?= htmlspecialchars($qa_header->inspector_notes); ?>"><?= htmlspecialchars($qa_header->inspector_notes); ?></div></div>
             <?php endif; ?>
         </div>
-    </div>
+    </section>
 
-    <!-- QA Items Table -->
-    <div class="card mb-4">
-        <div class="card-header bg-light">
-            <div class="row align-items-center">
-                <div class="col-md-8">
-                    <h5 class="mb-0"><?= lang_line('quality_assurance_items_control_title', 'Items Quality Control'); ?></h5>
-                </div>
-                <div class="col-md-4 text-right">
-                    <?php if (!empty($can_edit_items)): ?>
-                        <span id="bulkSelectionInfo" class="mr-2 text-muted small" style="display:none;"></span>
-                        <button type="button" id="btnBulkPass" class="btn btn-sm btn-success" style="display:none;" onclick="bulkPassSelected()">
-                            <i class="fas fa-check"></i> Pass Selected
-                        </button>
-                        <button type="button" id="btnBulkReject" class="btn btn-sm btn-danger" style="display:none;" data-toggle="modal" data-target="#bulkRejectModal">
-                            <i class="fas fa-times"></i> Reject Selected
-                        </button>
-                    <?php endif; ?>
-                </div>
+    <nav class="mr-steps">
+        <?php foreach ($steps as $i => $s):
+            $cls = ($st === 'Rejected' && $i === 2) ? 'is-rejected' : ($i < $level || ($st === 'Completed' && $i <= 3) ? 'is-done' : ($i === $level ? 'is-current' : ''));
+            $name = ($st === 'Rejected' && $i === 2) ? lang_line('mr2_rejected', 'Ditolak') : $s[0]; ?>
+        <div class="mr-step <?= $cls; ?>">
+            <span class="mr-step-dot"><i class="fas <?= $cls === 'is-done' ? 'fa-check' : ($cls === 'is-rejected' ? 'fa-times' : $s[1]); ?>"></i></span>
+            <span style="min-width:0"><span class="mr-step-name d-block"><?= htmlspecialchars($name); ?></span>
+                <span class="mr-step-meta d-block"><?= ($cls === 'is-done' || $cls === 'is-rejected') ? htmlspecialchars(trim(($s[2] ?: '') . ($s[3] ? ' · ' . $s[3] : '')) ?: '✓') : ($cls === 'is-current' ? lang_line('mr2_waiting', 'Menunggu') : '—'); ?></span></span>
+        </div>
+        <?php endforeach; ?>
+    </nav>
+
+    <?php if ($st === 'Completed'): ?>
+        <div class="qa-note qa-note--ok"><span><i class="fas fa-check-circle mr-2"></i><b><?= lang_line('quality_assurance_approved_message', 'QA has been Approved'); ?></b> <?= lang_line('qa_approved_passed_to_stock', ''); ?></span>
+            <?php if (!empty($can_unapprove)): ?><button type="button" class="btn btn-sm btn-outline-danger" data-toggle="modal" data-target="#unapproveModal"><i class="fas fa-undo mr-1"></i>Unapprove</button><?php endif; ?></div>
+    <?php elseif ($st === 'Rejected'): ?>
+        <div class="qa-note qa-note--bad"><span><i class="fas fa-times-circle mr-2"></i><b>QA Rejected (final).</b> <?= lang_line('qa2_rejected_note', 'Stok tidak masuk ledger. Klik Reopen untuk recovery jika salah klik.'); ?></span></div>
+    <?php elseif ($st === 'Draft'): ?>
+        <div class="qa-note qa-note--warn"><span><i class="fas fa-clock mr-2"></i><b><?= lang_line('qa2_waiting_approval', 'QA menunggu approval atasan.'); ?></b> <?= lang_line('qa2_stock_not_yet', 'Stok belum masuk ledger.'); ?></span></div>
+    <?php endif; ?>
+
+    <div class="pp-card">
+        <div class="pp-card-head">
+            <h2><span class="pp-ico"><i class="fas fa-clipboard-check"></i></span><span><?= lang_line('quality_assurance_items_control_title', 'Items Quality Control'); ?> (<?= count($qa_details); ?>)
+                <span class="d-block pp-sub"><?= !empty($can_edit_items) ? lang_line('qa2_items_sub', 'Klik ikon edit per item, atau centang beberapa item lalu Pass / Reject sekaligus.') : lang_line('qa2_items_sub_ro', 'Hasil pemeriksaan per item.'); ?></span></span></h2>
+            <?php if (!empty($can_edit_items)): ?>
+            <div class="d-flex align-items-center flex-wrap" style="gap:.4rem">
+                <span id="bulkSelectionInfo" class="small" style="display:none;color:var(--pp-muted)"></span>
+                <button type="button" id="btnBulkPass" class="btn btn-sm btn-success" style="display:none;" onclick="bulkPassSelected()"><i class="fas fa-check mr-1"></i>Pass Selected</button>
+                <button type="button" id="btnBulkReject" class="btn btn-sm btn-danger" style="display:none;" data-toggle="modal" data-target="#bulkRejectModal"><i class="fas fa-times mr-1"></i>Reject Selected</button>
             </div>
+            <?php endif; ?>
         </div>
         <div class="table-responsive">
-            <table class="table table-hover mb-0" style="font-size:0.88rem;">
-                <thead class="table-light">
-                    <tr>
-                        <?php if (!empty($can_edit_items)): ?>
-                            <th class="text-center" style="width:34px;">
-                                <input type="checkbox" id="bulkSelectAll" onclick="toggleSelectAll(this)" title="Select all">
-                            </th>
-                        <?php endif; ?>
-                        <th><?= lang_line('label_no', 'No'); ?></th>
-                        <th><?= lang_line('quality_assurance_item_code_label', 'Item Code'); ?></th>
-                        <th><?= lang_line('quality_assurance_item_name_label', 'Item Name'); ?></th>
-                        <th class="text-center"><?= lang_line('quality_assurance_receive_qty_label', 'Receive Qty'); ?></th>
-                        <th class="text-center"><?= lang_line('quality_assurance_pass_qty_label', 'Pass Qty'); ?></th>
-                        <th class="text-center"><?= lang_line('quality_assurance_ng_qty_label', 'NG Qty'); ?></th>
-                        <th class="text-center"><?= lang_line('quality_assurance_qc_status_label', 'Status'); ?></th>
-                        <th><?= lang_line('quality_assurance_pic_label', 'PIC'); ?></th>
-                        <th><?= lang_line('quality_assurance_ng_category_label', 'NG Category'); ?></th>
-                        <th><?= lang_line('quality_assurance_reject_reason_label', 'Reject Reason'); ?></th>
-                        <th><?= lang_line('quality_assurance_photo_label', 'Photo'); ?></th>
-                        <th><?= lang_line('quality_assurance_action_label', 'Action'); ?></th>
-                    </tr>
-                </thead>
+            <table class="pp-table">
+                <thead><tr>
+                    <?php if (!empty($can_edit_items)): ?><th style="width:34px"><input type="checkbox" id="bulkSelectAll" onclick="toggleSelectAll(this)" title="Select all"></th><?php endif; ?>
+                    <th><?= lang_line('quality_assurance_item_name_label', 'Item Name'); ?></th>
+                    <th class="num"><?= lang_line('quality_assurance_receive_qty_label', 'Receive Qty'); ?></th>
+                    <th class="num"><?= lang_line('quality_assurance_pass_qty_label', 'Pass Qty'); ?></th>
+                    <th class="num"><?= lang_line('quality_assurance_ng_qty_label', 'NG Qty'); ?></th>
+                    <th><?= lang_line('quality_assurance_qc_status_label', 'Status'); ?></th>
+                    <th><?= lang_line('qa2_th_ng_info', 'Keterangan NG'); ?></th>
+                    <th><?= lang_line('quality_assurance_pic_label', 'PIC'); ?></th>
+                    <th class="text-right"><?= lang_line('quality_assurance_action_label', 'Action'); ?></th>
+                </tr></thead>
                 <tbody>
-                    <?php foreach ($qa_details as $index => $detail): ?>
-                        <tr id="qa-row-<?php echo $detail->id; ?>">
-                            <?php if (!empty($can_edit_items)): ?>
-                                <td class="text-center">
-                                    <input type="checkbox" class="bulk-row-check" value="<?php echo $detail->id; ?>" onchange="updateBulkUI()">
-                                </td>
-                            <?php endif; ?>
-                            <td><?php echo $index + 1; ?></td>
-                            <td><?php echo htmlspecialchars($detail->item_code ?? '-'); ?></td>
-                            <td><?php echo htmlspecialchars($detail->item_name ?? '-'); ?></td>
-                            <td class="text-center">
-                                <strong><?php echo number_format($detail->receive_qty, 2); ?></strong>
-                            </td>
-                            <td class="text-center">
-                                <span class="text-success font-weight-bold">
-                                    <?php echo number_format($detail->qa_pass_qty, 2); ?>
-                                </span>
-                            </td>
-                            <td class="text-center">
-                                <span class="<?php echo $detail->qa_reject_qty > 0 ? 'text-danger font-weight-bold' : 'text-muted'; ?>">
-                                    <?php echo number_format($detail->qa_reject_qty, 2); ?>
-                                </span>
-                            </td>
-                            <td class="text-center">
-                                <?php
-                                $qa_status_class = ['Pending' => 'secondary', 'Pass' => 'success', 'Reject' => 'danger', 'Partial' => 'warning'];
-                                $class = $qa_status_class[$detail->qa_status] ?? 'secondary';
-                                ?>
-                                <span class="badge badge-<?php echo $class; ?>">
-                                    <?php echo htmlspecialchars($detail->qa_status); ?>
-                                </span>
-                            </td>
-                            <td>
-                                <small><?php echo htmlspecialchars($detail->pic ?? '-'); ?></small>
-                            </td>
-                            <td>
-                                <?php if (!empty($detail->ng_category)): ?>
-                                    <span class="badge badge-warning text-dark">
-                                        <?php echo htmlspecialchars($detail->ng_category); ?>
-                                    </span>
-                                <?php else: ?>
-                                    <small class="text-muted">-</small>
-                                <?php endif; ?>
-                            </td>
-                            <td>
-                                <small>
-                                    <?php if ($detail->qa_status === 'Reject' || $detail->qa_status === 'Partial'): ?>
-                                        <span class="text-danger" title="<?php echo htmlspecialchars($detail->reject_reason ?? ''); ?>">
-                                            <i class="fas fa-exclamation-triangle"></i>
-                                            <?php echo htmlspecialchars(substr($detail->reject_reason ?? '', 0, 25)); ?>
-                                        </span>
-                                    <?php else: ?>
-                                        <span class="text-muted">-</span>
-                                    <?php endif; ?>
-                                </small>
-                            </td>
-                            <td class="text-center">
+                <?php if (empty($qa_details)): ?>
+                    <tr><td colspan="9" class="pp-empty"><i class="fas fa-inbox"></i><?= lang_line('pr_no_items', 'Tidak ada item'); ?></td></tr>
+                <?php endif; ?>
+                <?php foreach ($qa_details as $detail): $is_ng = in_array($detail->qa_status, ['Reject', 'Partial'], true); ?>
+                    <tr id="qa-row-<?= (int) $detail->id; ?>">
+                        <?php if (!empty($can_edit_items)): ?><td><input type="checkbox" class="bulk-row-check" value="<?= (int) $detail->id; ?>" onchange="updateBulkUI()"></td><?php endif; ?>
+                        <td><div class="pp-item-name"><?= htmlspecialchars($detail->item_name ?? '-'); ?></div><div class="pp-item-code"><?= htmlspecialchars($detail->item_code ?? '-'); ?></div></td>
+                        <td class="num"><b><?= $qty($detail->receive_qty); ?></b></td>
+                        <td class="num text-success font-weight-bold"><?= $qty($detail->qa_pass_qty); ?></td>
+                        <td class="num<?= $detail->qa_reject_qty > 0 ? ' text-danger font-weight-bold' : ''; ?>"><?= $qty($detail->qa_reject_qty); ?></td>
+                        <td><span class="pp-tag <?= $qa_status_tone[$detail->qa_status] ?? 'tone-slate'; ?>"><?= htmlspecialchars($detail->qa_status); ?></span></td>
+                        <td>
+                            <?php if ($is_ng): ?>
+                                <?php if (!empty($detail->ng_category)): ?><span class="pp-chip pp-chip--warn"><?= htmlspecialchars($detail->ng_category); ?></span><?php endif; ?>
+                                <div class="qa-reason mt-1" title="<?= htmlspecialchars($detail->reject_reason ?? ''); ?>"><?= htmlspecialchars(mb_strimwidth((string) ($detail->reject_reason ?? ''), 0, 60, '…')); ?></div>
+                            <?php else: ?><span class="text-muted">—</span><?php endif; ?>
+                        </td>
+                        <td><span class="pp-item-code" style="font-size:.8rem"><?= htmlspecialchars($detail->pic ?: '—'); ?></span></td>
+                        <td class="text-right">
+                            <div class="pp-actions">
                                 <?php if (!empty($detail->photo_link)): ?>
-                                    <button type="button" class="btn btn-sm btn-info"
-                                            onclick="previewPhoto('<?php echo addslashes(htmlspecialchars($detail->photo_link)); ?>')"
-                                            title="<?= lang_line('quality_assurance_preview_photo', 'Preview Photo'); ?>">
-                                        <i class="fas fa-image"></i>
-                                    </button>
-                                <?php else: ?>
-                                    <small class="text-muted">-</small>
+                                    <button type="button" class="btn btn-outline-info" onclick="previewPhoto('<?= addslashes(htmlspecialchars($detail->photo_link)); ?>')" title="<?= htmlspecialchars(lang_line('quality_assurance_preview_photo', 'Preview Photo')); ?>"><i class="fas fa-image"></i></button>
                                 <?php endif; ?>
-                            </td>
-                            <td>
-                                <div class="btn-group btn-group-sm" role="group">
-                                    <button type="button" class="btn btn-outline-success"
-                                            data-toggle="modal"
-                                            data-target="#viewQCModal"
-                                            onclick="viewQCItem(<?php echo $detail->id; ?>)"
-                                            title="<?= lang_line('quality_assurance_view_detail', 'View Detail'); ?>">
-                                        <i class="fas fa-eye"></i>
-                                    </button>
+                                <button type="button" class="btn btn-light" data-toggle="modal" data-target="#viewQCModal" onclick="viewQCItem(<?= (int) $detail->id; ?>)" title="<?= htmlspecialchars(lang_line('quality_assurance_view_detail', 'View Detail')); ?>"><i class="fas fa-eye"></i></button>
+                                <?php if (!empty($can_edit_items)): ?>
+                                    <button type="button" class="btn btn-pp" data-toggle="modal" data-target="#qcModal" onclick="editQCItem(<?= (int) $detail->id; ?>, <?= (float) $detail->receive_qty; ?>)" title="<?= $st === 'Draft' ? 'Koreksi item (status Draft)' : 'Edit QC item'; ?>"><i class="fas fa-edit"></i></button>
+                                <?php endif; ?>
+                                <?php if (!empty($detail->attachments)): ?>
+                                    <button type="button" class="btn btn-outline-secondary" data-toggle="modal" data-target="#attachmentModal" onclick="showAttachments(<?= (int) $detail->id; ?>)"><i class="fas fa-paperclip mr-1"></i><?= count($detail->attachments); ?></button>
+                                <?php elseif (!empty($can_edit_items) && $is_ng): ?>
+                                    <button type="button" class="btn btn-outline-secondary" data-toggle="modal" data-target="#attachmentModal" onclick="showAttachmentUpload(<?= (int) $detail->id; ?>)" title="Attachment"><i class="fas fa-paperclip"></i><i class="fas fa-plus" style="font-size:.55rem"></i></button>
+                                <?php endif; ?>
+                            </div>
+                        </td>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+            </table>
+        </div>
+        <?php if (!empty($can_reopen)): ?>
+        <div class="qa-actbar">
+            <span class="small mr-auto" style="color:var(--pp-muted)"><?= $st === 'Rejected' ? lang_line('qa2_reopen_hint_rej', 'Salah reject? Pulihkan dokumen ini.') : lang_line('qa_reset_re_qc_note', ''); ?></span>
+            <button type="button" class="btn btn-light" onclick="reopenQA(<?= (int) $qa_header->id; ?>, '<?= htmlspecialchars($st); ?>')"><i class="fas fa-redo mr-1"></i><?= $st === 'Rejected' ? lang_line('qa_reopen_undo_reject', 'Reopen') : lang_line('qa_reset_re_qc', 'Reset & Re-QC'); ?></button>
+        </div>
+        <?php endif; ?>
+    </div>
 
-                                    <?php if (!empty($can_edit_items)): ?>
-                                        <button type="button" class="btn btn-outline-primary"
-                                                data-toggle="modal"
-                                                data-target="#qcModal"
-                                                onclick="editQCItem(<?php echo $detail->id; ?>, <?php echo $detail->receive_qty; ?>)"
-                                                title="<?php echo $qa_header->status === 'Draft' ? 'Koreksi item (status Draft)' : 'Edit QC item'; ?>">
-                                            <i class="fas fa-edit"></i>
-                                        </button>
-                                    <?php endif; ?>
-
-                                    <?php if (!empty($detail->attachments)): ?>
-                                        <button type="button" class="btn btn-outline-info"
-                                                data-toggle="modal"
-                                                data-target="#attachmentModal"
-                                                onclick="showAttachments(<?php echo $detail->id; ?>)">
-                                            <i class="fas fa-paperclip"></i> (<?php echo count($detail->attachments); ?>)
-                                        </button>
-                                    <?php elseif (!empty($can_edit_items) && ($detail->qa_status === 'Reject' || $detail->qa_status === 'Partial')): ?>
-                                        <button type="button" class="btn btn-outline-secondary"
-                                                data-toggle="modal"
-                                                data-target="#attachmentModal"
-                                                onclick="showAttachmentUpload(<?php echo $detail->id; ?>)">
-                                            <i class="fas fa-plus"></i>
-                                        </button>
-                                    <?php endif; ?>
-                                </div>
-                            </td>
-                        </tr>
-                    <?php endforeach; ?>
+    <?php if (in_array($st, ['Draft', 'Completed', 'Rejected'], true) && !empty($approval_logs)): ?>
+    <div class="pp-card">
+        <div class="pp-card-head"><h2><span class="pp-ico"><i class="fas fa-history"></i></span><?= lang_line('quality_assurance_approval_history_title', 'Approval History'); ?></h2></div>
+        <div class="table-responsive">
+            <table class="pp-table">
+                <tbody>
+                <?php foreach ($approval_logs as $log):
+                    $tone = ['Approved' => 'tone-green', 'Rejected' => 'tone-rose', 'Unapproved' => 'tone-blue', 'Pending Review' => 'tone-amber'][$log->approval_status] ?? 'tone-slate'; ?>
+                    <tr>
+                        <td style="width:220px"><div class="pp-item-name"><?= htmlspecialchars($log->approver_name); ?></div><div class="pp-item-code"><?= $dt($log->approval_date); ?></div></td>
+                        <td style="width:140px"><span class="pp-tag <?= $tone; ?>"><?= htmlspecialchars($log->approval_status); ?></span></td>
+                        <td><span style="font-size:.84rem"><?= nl2br(htmlspecialchars($log->approval_notes ?? '-')); ?></span></td>
+                    </tr>
+                <?php endforeach; ?>
                 </tbody>
             </table>
         </div>
     </div>
-
-    <!-- Approval History -->
-    <?php if (in_array($qa_header->status, ['Draft', 'Completed', 'Rejected']) && !empty($approval_logs)): ?>
-        <div class="card mb-4">
-            <div class="card-header bg-light">
-                <h5 class="mb-0"><?= lang_line('quality_assurance_approval_history_title', 'Approval History'); ?></h5>
-            </div>
-            <div class="card-body">
-                <?php foreach ($approval_logs as $log): ?>
-                    <div class="row mb-3">
-                        <div class="col-md-2">
-                            <strong><?php echo htmlspecialchars($log->approver_name); ?></strong>
-                            <br><small class="text-muted"><?php echo date('d-m-Y H:i', strtotime($log->approval_date)); ?></small>
-                        </div>
-                        <div class="col-md-2">
-                            <?php
-                            $approval_class = ['Approved' => 'success', 'Rejected' => 'danger', 'Unapproved' => 'info', 'Pending Review' => 'warning'];
-                            $class = $approval_class[$log->approval_status] ?? 'secondary';
-                            ?>
-                            <span class="badge badge-<?php echo $class; ?>">
-                                <?php echo htmlspecialchars($log->approval_status); ?>
-                            </span>
-                        </div>
-                        <div class="col-md-8">
-                            <small><?php echo nl2br(htmlspecialchars($log->approval_notes ?? '-')); ?></small>
-                        </div>
-                    </div>
-                <?php endforeach; ?>
-            </div>
-        </div>
     <?php endif; ?>
-
-    <!-- Action Buttons -->
-    <div class="row mb-4">
-        <div class="col-md-12">
-            <?php if ($can_edit && $qa_header->status === 'In Progress'): ?>
-                <button type="button" class="btn btn-lg btn-success" onclick="completeQA(<?php echo $qa_header->id; ?>)">
-                    <i class="fas fa-check-circle"></i> <?= lang_line('quality_assurance_complete_button', 'Complete QA'); ?>
-                </button>
-            <?php endif; ?>
-
-            <?php if (!empty($can_reopen)): ?>
-                <button type="button" class="btn btn-lg btn-outline-secondary" onclick="reopenQA(<?php echo $qa_header->id; ?>, '<?php echo $qa_header->status; ?>')">
-                    <i class="fas fa-redo"></i>
-                    <?php if ($qa_header->status === 'Rejected'): ?>
-                        <?= lang_line('qa_reopen_undo_reject'); ?>
-                    <?php else: ?>
-                        <?= lang_line('qa_reset_re_qc'); ?> <small class="text-muted"><?= lang_line('qa_reset_re_qc_note'); ?></small>
-                    <?php endif; ?>
-                </button>
-            <?php endif; ?>
-
-            <?php if ($can_approve && $qa_header->status === 'Draft'): ?>
-                <div id="approvalActions" class="d-inline-block">
-                    <button type="button" class="btn btn-lg btn-success" data-toggle="modal" data-target="#approveModal">
-                        <i class="fas fa-check-circle mr-2"></i> <?= lang_line('quality_assurance_approve_button', 'Approve QA'); ?>
-                    </button>
-                    <button type="button" class="btn btn-lg btn-danger ml-2" data-toggle="modal" data-target="#rejectModal">
-                        <i class="fas fa-times-circle mr-2"></i> <?= lang_line('qa_reject_final_button'); ?>
-                    </button>
-                </div>
-            <?php endif; ?>
-
-            <?php if ($qa_header->status === 'Completed'): ?>
-                <div class="alert alert-success border-0 shadow-sm mt-3 mb-0 d-flex justify-content-between align-items-center">
-                    <span><i class="fas fa-check-circle mr-2"></i> <strong><?= lang_line('quality_assurance_approved_message', 'QA has been Approved'); ?></strong> <?= lang_line('qa_approved_passed_to_stock'); ?></span>
-                    <?php if (!empty($can_unapprove)): ?>
-                        <button type="button" class="btn btn-sm btn-outline-danger" data-toggle="modal" data-target="#unapproveModal">
-                            <i class="fas fa-undo mr-1"></i> Unapprove
-                        </button>
-                    <?php endif; ?>
-                </div>
-            <?php elseif ($qa_header->status === 'Rejected'): ?>
-                <div class="alert alert-danger border-0 shadow-sm mt-3 mb-0">
-                    <i class="fas fa-times-circle mr-2"></i> <strong>QA Rejected (final).</strong> Stok tidak masuk ledger. Klik Reopen untuk recovery jika salah klik.
-                </div>
-            <?php elseif ($qa_header->status === 'Draft'): ?>
-                <div class="alert alert-warning border-0 shadow-sm mt-3 mb-0">
-                    <i class="fas fa-clock mr-2"></i> <strong>QA menunggu approval atasan.</strong> Stok belum masuk ledger.
-                </div>
-            <?php endif; ?>
-        </div>
-    </div>
 </div>
 
 <!-- ===== MODALS ===== -->
 
 <!-- QC Edit Modal -->
-<div class="modal fade" id="qcModal" tabindex="-1">
+<div class="modal fade pp-modal" id="qcModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <div class="modal-header bg-primary text-white">
+            <div class="modal-header">
                 <h5 class="modal-title"><i class="fas fa-edit mr-2"></i><?= lang_line('quality_assurance_qc_input_modal_title', 'Input QC Results'); ?></h5>
-                <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
             </div>
             <div class="modal-body">
                 <form id="qcForm">
@@ -437,7 +305,7 @@
 </div>
 
 <!-- View QC Detail Modal -->
-<div class="modal fade" id="viewQCModal" tabindex="-1">
+<div class="modal fade pp-modal" id="viewQCModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
@@ -515,7 +383,7 @@
 </div>
 
 <!-- Photo Preview Modal (standalone) -->
-<div class="modal fade" id="photoPreviewModal" tabindex="-1">
+<div class="modal fade pp-modal" id="photoPreviewModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
@@ -536,7 +404,7 @@
 </div>
 
 <!-- Attachment Modal -->
-<div class="modal fade" id="attachmentModal" tabindex="-1">
+<div class="modal fade pp-modal" id="attachmentModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
             <div class="modal-header">
@@ -588,7 +456,7 @@
 </div>
 
 <!-- Approve Modal -->
-<div class="modal fade" id="approveModal" tabindex="-1">
+<div class="modal fade pp-modal" id="approveModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
@@ -615,7 +483,7 @@
 </div>
 
 <!-- Bulk Reject Modal -->
-<div class="modal fade" id="bulkRejectModal" tabindex="-1">
+<div class="modal fade pp-modal" id="bulkRejectModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
@@ -654,7 +522,7 @@
 </div>
 
 <!-- Unapprove Modal -->
-<div class="modal fade" id="unapproveModal" tabindex="-1">
+<div class="modal fade pp-modal" id="unapproveModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
@@ -687,7 +555,7 @@
 </div>
 
 <!-- Reject Modal -->
-<div class="modal fade" id="rejectModal" tabindex="-1">
+<div class="modal fade pp-modal" id="rejectModal" tabindex="-1">
     <div class="modal-dialog">
         <div class="modal-content">
             <div class="modal-header">
@@ -1121,7 +989,7 @@ function approveQA(qaHeaderId) {
                 $('#approvalActions').fadeOut(300);
                 $('#approveModal').modal('hide');
                 var msg = '<div class="alert alert-success alert-dismissible fade show"><i class="fas fa-check-circle mr-2"></i><strong>' + I18N_QA.alert_qa_approved + '</strong><button type="button" class="close" data-dismiss="alert">&times;</button></div>';
-                $('.container-fluid').prepend(msg);
+                $('.qa2').prepend(msg);
                 setTimeout(function() { location.reload(); }, 2000);
             } else {
                 alert(I18N_QA.alert_error_prefix + response.message);
@@ -1142,7 +1010,7 @@ function unapproveQA(qaHeaderId) {
             if (response.status === 'success') {
                 $('#unapproveModal').modal('hide');
                 var msg = '<div class="alert alert-info alert-dismissible fade show"><i class="fas fa-undo mr-2"></i><strong>' + response.message + '</strong><button type="button" class="close" data-dismiss="alert">&times;</button></div>';
-                $('.container-fluid').prepend(msg);
+                $('.qa2').prepend(msg);
                 setTimeout(function() { location.reload(); }, 1500);
             } else {
                 alert(I18N_QA.alert_error_prefix + response.message);
@@ -1165,7 +1033,7 @@ function rejectQA(qaHeaderId) {
                 $('#approvalActions').fadeOut(300);
                 $('#rejectModal').modal('hide');
                 var msg = '<div class="alert alert-warning alert-dismissible fade show"><i class="fas fa-exclamation-circle mr-2"></i><strong>' + I18N_QA.alert_qa_rejected + '</strong> ' + I18N_QA.alert_qa_rejected_note + '<button type="button" class="close" data-dismiss="alert">&times;</button></div>';
-                $('.container-fluid').prepend(msg);
+                $('.qa2').prepend(msg);
                 setTimeout(function() { location.reload(); }, 2000);
             } else {
                 alert(I18N_QA.alert_error_prefix + response.message);
@@ -1175,5 +1043,4 @@ function rejectQA(qaHeaderId) {
     });
 }
 </script>
-
-<?php $this->load->view('templates/footer'); ?>
+<?php /* Footer dimuat controller (dulu dimuat di sini juga -> footer & skripnya ganda). */ ?>

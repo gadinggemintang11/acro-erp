@@ -21,8 +21,8 @@ class Production_receive extends MY_Controller {
         }
 
         $filters = [
-            'search' => $this->input->get('search'),
-            'status' => $this->input->get('status')
+            'search' => trim((string) $this->input->get('search', TRUE)),
+            'status' => trim((string) $this->input->get('status', TRUE)),
         ];
 
         // Query issuances with MR info
@@ -32,27 +32,47 @@ class Production_receive extends MY_Controller {
             ->join('mr_header mrh', 'mri.mr_header_id = mrh.id', 'left')
             ->join('users u', 'mrh.requester_id = u.id', 'left');
 
-        if (!empty($filters['status'])) {
+        // Filter status (redesign 2026-11-08): Issued = menunggu diterima,
+        // need_qc = sudah diterima tapi belum QC, qc_done = selesai.
+        if ($filters['status'] === 'need_qc') {
+            $this->db->where('mri.status', 'Received')->where('mri.qc_status !=', 'QC Done');
+        } elseif ($filters['status'] === 'qc_done') {
+            $this->db->where('mri.qc_status', 'QC Done');
+        } elseif (!empty($filters['status'])) {
             $this->db->where('mri.status', $filters['status']);
         } else {
             $this->db->where_in('mri.status', ['Issued', 'Received']);
         }
 
-        // Tambahkan qc_status ke select
-        $this->db->select('mri.qc_status, mri.qc_done_at', FALSE);
+        // qc_status + jumlah item/qty yang dikeluarkan + total NG + departemen MR
+        $this->db->select("mri.qc_status, mri.qc_done_at, mrh.department_code,
+            (SELECT COUNT(DISTINCT CONCAT(sl.item_id, '|', sl.item_type)) FROM stock_ledger sl WHERE sl.issuance_id = mri.id AND sl.transaction_type = 'OUT_ISSUE') AS item_count,
+            (SELECT COALESCE(SUM(sl.qty_out), 0) FROM stock_ledger sl WHERE sl.issuance_id = mri.id AND sl.transaction_type = 'OUT_ISSUE') AS issued_qty,
+            (SELECT COALESCE(SUM(q.reject_qty), 0) FROM issuance_qc_results q WHERE q.issuance_id = mri.id) AS ng_qty", FALSE);
 
         if (!empty($filters['search'])) {
             $term = $this->db->escape_like_str($filters['search']);
-            $this->db->where('(mrh.mr_number LIKE "%' . $term . '%" OR mri.issuance_number LIKE "%' . $term . '%")');
+            $this->db->where('(mrh.mr_number LIKE "%' . $term . '%" OR mri.issuance_number LIKE "%' . $term . '%" OR u.fullname LIKE "%' . $term . '%")');
         }
 
+        // Yang perlu ditindaklanjuti tampil paling atas.
+        $this->db->order_by("CASE WHEN mri.status = 'Issued' THEN 0 WHEN mri.qc_status <> 'QC Done' THEN 1 ELSE 2 END", '', FALSE);
         $this->db->order_by('mri.issued_at', 'DESC');
         $issuances = $this->db->get()->result();
 
+        $cnt = $this->db->query("SELECT
+                SUM(status = 'Issued') AS waiting,
+                SUM(status = 'Received' AND qc_status <> 'QC Done') AS need_qc,
+                SUM(qc_status = 'QC Done') AS qc_done,
+                COUNT(*) AS total
+            FROM mr_issuances WHERE status IN ('Issued', 'Received')")->row();
+
         $data = [
-            'title'   => lang_line('title_pr_index'),
-            'issuances' => $issuances,
-            'filters' => $filters
+            'title'      => lang_line('title_pr_index'),
+            'issuances'  => $issuances,
+            'filters'    => $filters,
+            'counts'     => $cnt,
+            'dept_names' => department_names(),
         ];
 
         $this->load->view('templates/header', $data);
@@ -136,9 +156,18 @@ class Production_receive extends MY_Controller {
             $qc_results_map[$qr->item_id . '_' . $qr->item_type] = $qr;
         }
 
+        // Nama pengeluar / penerima / pemeriksa QC untuk header & alur.
+        $people = $this->db->query("SELECT
+                (SELECT fullname FROM users WHERE id = ?) AS issuer_name,
+                (SELECT fullname FROM users WHERE id = ?) AS receiver_name,
+                (SELECT fullname FROM users WHERE id = ?) AS qc_by_name",
+            [(int) $issuance->issuer_id, (int) $issuance->receiver_id, (int) $issuance->qc_done_by])->row();
+
         $data = [
             'title'          => lang_line('title_pr_detail_issuance'),
             'issuance'       => $issuance,
+            'people'         => $people,
+            'dept_name'      => department_names()[$mr_header->department_code ?? ''] ?? ($mr_header->department_code ?: '-'),
             'header'         => $mr_header,
             'items'          => $issued_items,
             'qc_results'     => $qc_results,
@@ -149,6 +178,7 @@ class Production_receive extends MY_Controller {
         $this->load->view('templates/sidebar', $data);
         $this->load->view('templates/topbar', $data);
         $this->load->view('production_receive/detail_issuance', $data);
+        $this->load->view('templates/footer');
     }
 
     // Proses Konfirmasi Terima (oleh Produksi) - per issuance
@@ -236,14 +266,9 @@ class Production_receive extends MY_Controller {
                 'issued_qty'  => (float)($val['issued_qty'] ?? 0),
                 'accept_qty'  => (float)($val['accept_qty'] ?? 0),
                 'reject_qty'  => (float)($val['reject_qty'] ?? 0),
-                'qc_notes'    => $val['qc_notes'] ?? null,
-                // Rincian NG per baris -- diteruskan apa adanya ke model,
-                // yang menyaringnya lewat ng_collect_post() (ng_helper.php).
-                'ng_human'    => $val['ng_human']    ?? 0,
-                'ng_material' => $val['ng_material'] ?? 0,
-                'ng_mechanic' => $val['ng_mechanic'] ?? 0,
-                'ng_others'   => $val['ng_others']   ?? 0,
-                'ng_code'     => $val['ng_code']     ?? null,
+                // Keterangan NG (wajib kalau reject_qty > 0 -- dicek di model).
+                // Rincian 4 kategori + Kode NG warisan NSI dihapus 2026-11-08.
+                'qc_notes'    => trim(strip_tags((string) ($val['qc_notes'] ?? ''))),
             ];
         }
 
@@ -251,7 +276,7 @@ class Production_receive extends MY_Controller {
         $result  = $this->Mr_model->process_qc_issuance($issuance_id, $qc_items, $user_id);
 
         if ($result['success']) {
-            $this->session->set_flashdata('success', 'QC berhasil diproses. Item lolos masuk ke WIP, item reject dapat diretur ke supplier via Warehouse Out → Production Return.');
+            $this->session->set_flashdata('success', 'QC berhasil diproses. Qty OK masuk WIP; Qty NG dapat diretur ke supplier via Warehouse Out → Production Return.');
         } else {
             $this->session->set_flashdata('error', 'Gagal proses QC: ' . $result['message']);
         }

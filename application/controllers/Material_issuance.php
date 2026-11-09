@@ -32,9 +32,11 @@ class Material_issuance extends MY_Controller {
         ];
 
         $data = [
-            'title'   => lang_line('title_mi_index'),
-            'mrs'     => $this->Material_issuance_model->get_all_mrs($filters),
-            'filters' => $filters
+            'title'         => lang_line('title_mi_index'),
+            'mrs'           => $this->Material_issuance_model->get_all_mrs($filters),
+            'filters'       => $filters,
+            'status_counts' => $this->Material_issuance_model->count_by_status(),
+            'dept_names'    => department_names(),
         ];
 
         $this->load->view('templates/header', $data);
@@ -90,13 +92,16 @@ class Material_issuance extends MY_Controller {
             // PR material = tipe produksi -> menu `purchase_request`; endpoint
             // pembuatnya juga menuntut izin lihat IRF/MRF Outstanding.
             'can_create_pr'         => check_access('purchase_request', 'add') && check_access('material_outstanding', 'view'),
+            // Riwayat pengeluaran (1 MR bisa dikeluarkan bertahap) & departemen.
+            'issuances'             => $this->Mr_model->get_issuances_by_mr($mr_id),
+            'dept_name'             => (department_names()[$header->department_code ?? ''] ?? ($header->department_code ?: '-')),
         ];
 
         $this->load->view('templates/header', $data);
         $this->load->view('templates/sidebar', $data);
         $this->load->view('templates/topbar', $data);
         $this->load->view('material_issuance/detail', $data);
-        
+        $this->load->view('templates/footer');
     }
     
     // --- FUNGSI ajax_get_stock() DIHAPUS KARENA TIDAK DIPERLUKAN LAGI ---

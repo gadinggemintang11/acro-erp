@@ -5,15 +5,10 @@ require FCPATH . 'vendor/autoload.php';
 use PhpOffice\PhpSpreadsheet\Writer\Xlsx;
 
 /**
- * Daily Material NG Report.
- *
- * Bentuk laporan & export mengikuti file klien
- * assets/DAILY PRODUCTION REPORT (PQC & MATERIAL) (1).xlsx: satu sheet
- * "MATERIAL" berisi rincian per baris, satu sheet "PIVOT" berisi rekapnya.
- *
- * Datanya dikumpulkan dari dua titik input (lihat Material_ng_model):
- * rincian NG pada asal scrap di Production Process, dan pada hasil QC di
- * Production Receive.
+ * Daily Material NG Report -- disederhanakan 2026-11-08: tiap NG cukup
+ * Qty NG + Keterangan (rincian 4 kategori & Kode NG warisan NSI dihapus).
+ * Sumber: QC Production Receive & asal scrap Proses Produksi
+ * (lihat Material_ng_model).
  */
 class Material_ng_report extends MY_Controller {
 
@@ -31,7 +26,6 @@ class Material_ng_report extends MY_Controller {
             'ipo'       => trim((string) $this->input->get('ipo', TRUE)),
             'model'     => trim((string) $this->input->get('model', TRUE)),
             'part'      => trim((string) $this->input->get('part', TRUE)),
-            'ng_code'   => trim((string) $this->input->get('ng_code', TRUE)),
             'source'    => trim((string) $this->input->get('source', TRUE)),
         ];
     }
@@ -49,9 +43,8 @@ class Material_ng_report extends MY_Controller {
             'title'      => lang_line('mng_title', 'Daily Material NG Report'),
             'filters'    => $filters,
             'rows'       => $rows,
-            'pivot'      => $this->Material_ng_model->pivot($rows),
+            'recap'      => $this->Material_ng_model->recap($rows),
             'totals'     => $this->Material_ng_model->totals($rows),
-            'ng_codes'   => ng_code_options(),
             'ready'      => $ready,
         ];
 
@@ -62,11 +55,7 @@ class Material_ng_report extends MY_Controller {
         $this->load->view('templates/footer');
     }
 
-    /**
-     * Export 2 sheet: MATERIAL (rincian) & PIVOT (rekap), judul kolom sama
-     * persis dengan file klien supaya bisa langsung ditempel ke template
-     * mereka.
-     */
+    /** Export 2 sheet: NG Material (rincian) & Rekap per Part. */
     public function export_excel() {
         if (!check_access('material_ng_report', 'view')) {
             show_error('Anda tidak memiliki izin.', 403);
@@ -75,10 +64,10 @@ class Material_ng_report extends MY_Controller {
         $filters = $this->_filters();
         $rows    = $this->Material_ng_model->is_ready()
                  ? $this->Material_ng_model->get_rows($filters) : [];
-        $pivot   = $this->Material_ng_model->pivot($rows);
+        $recap   = $this->Material_ng_model->recap($rows);
         $totals  = $this->Material_ng_model->totals($rows);
 
-        $ss = $this->Material_ng_model->build_spreadsheet($rows, $pivot, $totals);
+        $ss = $this->Material_ng_model->build_spreadsheet($rows, $recap, $totals);
 
         $filename = 'Daily_Material_NG_Report_' . date('Ymd_His') . '.xlsx';
         header('Content-Type: application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');

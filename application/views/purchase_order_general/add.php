@@ -27,222 +27,229 @@
     $fixed_route = $fixed_route ?? null;           // mis. 'purchase_order'
     $fixed_kategori = $fixed_kategori ?? 'general'; // kunci utk peta URL JS
 ?>
-<div class="container-fluid py-4">
-    <div class="row mb-4">
-        <div class="col">
-            <h1 class="h4 mb-0"><i class="fas fa-plus-circle text-primary mr-2"></i><?= lang_line('po_create_new', 'Buat Header Purchase Order'); ?></h1>
-        </div>
-        <div class="col text-right">
-            <a href="<?= base_url($fixed_route ?: 'purchase_order_general'); ?>" class="btn btn-outline-secondary">
-                <i class="fas fa-arrow-left"></i> <?= lang_line('po_cancel', 'Batal'); ?>
-            </a>
-        </div>
-    </div>
+<?php
+    // Redesign tampilan 2026-11-08 (user: "po juga rombak tampilannya agak
+    // berantakan"). HANYA markup/gaya yang berubah -- semua ID & name field
+    // dipertahankan karena dipakai skrip di bawah (staged items, tarik PR,
+    // PPN, kurs). Gaya dari production_process/_pp_style (.pp2).
+    $this->load->view('production_process/_pp_style');
+    $po_list_url = base_url($fixed_route ?: 'purchase_order_general');
+    $po_kind = $fixed_route ? 'Material Produksi' : 'General / Jasa / Asset';
+?>
+<style>
+.po2 .po-sticky { position: sticky; top: 1rem; }
+.po2 .select2-container--default .select2-selection--single { height: calc(1.5em + .75rem + 2px); padding: .3rem .6rem; border: 1px solid var(--pp-line); border-radius: 10px; background: var(--pp-card); }
+.po2 .select2-container--default .select2-selection--single .select2-selection__arrow { height: 100%; }
+.po2 .select2-container--default .select2-selection--single .select2-selection__rendered { color: var(--pp-text); line-height: 1.6; }
+body.dark-mode .select2-dropdown { background: #1b2330; color: #e5e7eb; border-color: #2c3646; }
+.po2 .po-ppn { border: 1px solid var(--pp-line) !important; border-radius: 12px; padding: .8rem .9rem; background: var(--pp-soft); }
+.po2 #items_table tfoot td { background: var(--pp-soft); border-top: 1px solid var(--pp-line); padding: .55rem .9rem; font-size: .86rem; }
+.po2 #items_table tfoot tr.po-grand td { font-size: 1rem; }
+.po2 #input_row td { background: rgba(var(--brand-rgb), .04); padding: .5rem .5rem; }
+.po2 .btn-xs { padding: .2rem .45rem; font-size: .72rem; border-radius: 8px; }
+.po2 .po-bar { position: sticky; bottom: 0; z-index: 20; display: flex; align-items: center; justify-content: space-between; gap: 1rem; flex-wrap: wrap; padding: .85rem 1.1rem; margin-top: .5rem; border-radius: 14px; background: var(--pp-card); border: 1px solid var(--pp-line); box-shadow: 0 -6px 24px rgba(15,23,42,.08); }
+.po2 .po-bar-total { font-size: .8rem; color: var(--pp-muted); } .po2 .po-bar-total b { font-size: 1.15rem; color: var(--pp-text); }
+@media (max-width: 1199.98px) { .po2 .po-sticky { position: static; } }
+</style>
 
-    <?php if ($this->session->flashdata('error')): ?>
-    <div class="alert alert-danger alert-dismissible fade show" role="alert"><?= $this->session->flashdata('error'); ?><button type="button" class="close" data-dismiss="alert">&times;</button></div>
-    <?php endif; ?>
-    <?php if ($this->session->flashdata('warning')): ?>
-    <div class="alert alert-warning alert-dismissible fade show" role="alert"><?= $this->session->flashdata('warning'); ?><button type="button" class="close" data-dismiss="alert">&times;</button></div>
-    <?php endif; ?>
+<div class="container-fluid pp2 po2">
+    <section class="pp-hero">
+        <div class="pp-hero-top">
+            <div class="pp-hero-id">
+                <div class="pp-hero-icon"><i class="fas fa-file-invoice"></i></div>
+                <div style="min-width:0">
+                    <div class="pp-hero-kicker">Purchase Order · <?= htmlspecialchars($po_kind); ?></div>
+                    <h1 class="pp-hero-title"><?= lang_line('po2_title_create', 'Buat Purchase Order'); ?></h1>
+                    <div class="pp-hero-subline"><?= $allow_manual_items ? lang_line('po2_sub_manual', 'Pilih supplier, tambah item (cari manual atau tarik dari PR), lalu simpan.') : lang_line('po2_sub_pr', 'Pilih supplier, tarik item dari Purchase Request yang sudah disetujui, lalu simpan.'); ?></div>
+                </div>
+            </div>
+            <div class="pp-hero-actions">
+                <a href="<?= $po_list_url; ?>" class="btn pp-btn-glass"><i class="fas fa-arrow-left mr-1"></i><?= lang_line('po_cancel', 'Batal'); ?></a>
+            </div>
+        </div>
+    </section>
+
+    <?php foreach (['error' => 'fa-exclamation-circle', 'warning' => 'fa-exclamation-triangle'] as $fk => $fi): if ($msg = $this->session->flashdata($fk)): ?>
+        <div class="pp-flash pp-flash--<?= $fk; ?>" role="alert"><i class="fas <?= $fi; ?>"></i><div><?= $msg; ?></div>
+            <button type="button" class="close" onclick="this.parentNode.remove()">&times;</button></div>
+    <?php endif; endforeach; ?>
 
     <form method="post" id="gmpoAddForm" action="<?= base_url(($fixed_route ?: 'purchase_order_general') . '/store'); ?>">
         <input type="hidden" name="items" id="items_payload" value="[]">
         <input type="hidden" name="pulled_pr_rows" id="pulled_pr_payload" value="[]">
 
-        <div class="card shadow border-0 mb-4">
-            <div class="card-header bg-gradient-primary text-white">
-                <h6 class="m-0 font-weight-bold"><i class="fas fa-info-circle mr-2"></i><?= lang_line('po_header_info', 'Informasi Header'); ?></h6>
-            </div>
-            <div class="card-body">
-                <div class="row">
-                    <?php if (!$fixed_route): // PMPO cuma satu kategori -> dropdown tidak perlu ?>
-                    <div class="col-md-4 form-group">
-                        <label><?= lang_line('po_kategori', 'Kategori'); ?> <span class="text-danger">*</span></label>
-                        <select id="gmpo_kategori" class="form-control" required>
-                            <option value="general">General</option>
-                            <option value="jasa">Jasa</option>
-                            <option value="asset">Asset</option>
-                        </select>
-                        <small class="form-text text-muted"><?= lang_line('po_kategori_hint', 'Menentukan jenis item yang bisa dipilih di bawah.'); ?></small>
-                    </div>
-                    <?php endif; ?>
-                    <div class="col-md-4 form-group">
-                        <label><?= lang_line('po_supplier', 'Supplier'); ?> <span class="text-danger">*</span></label>
-                        <select name="supplier_id" class="form-control select2-modal" required style="width: 100%;">
-                            <option value=""><?= lang_line('po_supplier_select', '-- Pilih Supplier --'); ?></option>
-                            <?php foreach($suppliers as $sup): ?>
-                                <option value="<?= $sup->id; ?>"><?= htmlspecialchars($sup->nama_supplier); ?></option>
-                            <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="col-md-4 form-group">
-                        <label><?= lang_line('po_date', 'Tanggal PO'); ?> <span class="text-danger">*</span></label>
-                        <input type="date" name="po_date" class="form-control" value="<?= date('Y-m-d'); ?>" required>
-                    </div>
-                </div>
-                <div class="row">
-                    <div class="col-md-4 form-group">
-                        <label><?= lang_line('po_number_label', 'Nomor PO'); ?> <small class="text-muted"><?= lang_line('po_number_help', '(Biarkan kosong untuk auto-generate)'); ?></small></label>
-                        <input type="text" name="po_number" class="form-control" placeholder="<?= lang_line('po_number_placeholder', 'Contoh: POG/ACRO/26110001'); ?>">
-                    </div>
-                    <div class="col-md-4 form-group">
-                        <label><?= lang_line('po_shipping_mode', 'Mode Pengiriman'); ?></label>
-                        <select name="shipping_mode_code" class="form-control select2-modal" style="width: 100%;">
-                            <option value=""><?= lang_line('po_shipping_mode_select', '-- Pilih Mode --'); ?></option>
-                            <?php foreach($shipping_modes as $mode): ?> <option value="<?= $mode->code; ?>"><?= htmlspecialchars($mode->description); ?></option> <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="col-md-4 form-group">
-                        <label><?= lang_line('po_payment_mode', 'Mode Pembayaran'); ?></label>
-                        <select name="payment_mode_code" class="form-control select2-modal" style="width: 100%;">
-                            <option value=""><?= lang_line('po_payment_mode_select', '-- Pilih Mode --'); ?></option>
-                            <?php foreach($payment_modes as $mode): ?> <option value="<?= $mode->code; ?>"><?= htmlspecialchars($mode->description); ?></option> <?php endforeach; ?>
-                        </select>
-                    </div>
-                </div>
-                <div class="row">
-                     <div class="col-md-4 form-group">
-                        <label><?= lang_line('po_currency', 'Mata Uang'); ?> <span class="text-danger">*</span></label>
-                        <select name="currency_code" id="add_currency_code" class="form-control select2-modal" required style="width: 100%;">
-                            <?php foreach($currencies as $curr): ?> <option value="<?= $curr->code; ?>" <?= ($curr->code == 'IDR') ? 'selected' : ''; ?>><?= htmlspecialchars($curr->description); ?></option> <?php endforeach; ?>
-                        </select>
-                    </div>
-                    <div class="col-md-4 form-group" id="add_exchange_rate_div" style="display: none;">
-                        <label><?= lang_line('po_exchange_rate', 'Kurs Tukar'); ?> (Rate) <span class="text-danger">*</span></label>
-                        <input type="text" name="exchange_rate" class="form-control autonumeric-4dec text-right" value="1.0000">
-                        <small id="add_kurs_info" class="form-text text-muted"><?= lang_line('pog_kurs_auto_info'); ?></small>
-                    </div>
-                </div>
-                <div class="form-row">
-                    <?php /*
-                        PPN tiga langkah (klien 2026-10-02): centang kena PPN dulu,
-                        lalu pilih harga sudah termasuk PPN atau belum, lalu isi
-                        persennya -- tidak dipatok 11% lagi.
-                          EXCLUDE : PPN dihitung dari subtotal, lalu ditambahkan
-                          INCLUDE : PPN diambil dari total (harga sudah mengandungnya)
-                    */ ?>
-                    <div class="col-md-12">
-                        <div class="border rounded p-2 mb-2 bg-light">
-                            <div class="form-check mb-2">
-                                <input type="checkbox" class="form-check-input ppn-toggle" id="add_has_ppn" name="has_ppn" value="1" >
-                                <label class="form-check-label font-weight-bold" for="add_has_ppn"><?= lang_line('po_has_ppn_check', 'Kena PPN'); ?></label>
+        <div class="row">
+            <!-- ================= KIRI: header PO ================= -->
+            <div class="col-xl-4">
+                <div class="po-sticky">
+                    <div class="pp-card">
+                        <div class="pp-card-head"><h2><span class="pp-ico"><i class="fas fa-info"></i></span><?= lang_line('po_header_info', 'Informasi Header'); ?></h2></div>
+                        <div class="pp-card-body">
+                            <?php if (!$fixed_route): // PMPO cuma satu kategori -> dropdown tidak perlu ?>
+                            <div class="form-group">
+                                <label class="pp-label" for="gmpo_kategori"><?= lang_line('po_kategori', 'Kategori'); ?> <span class="text-danger">*</span></label>
+                                <select id="gmpo_kategori" class="form-control" required>
+                                    <option value="general">General</option>
+                                    <option value="jasa">Jasa</option>
+                                    <option value="asset">Asset</option>
+                                </select>
+                                <small class="pp-hint"><?= lang_line('po_kategori_hint', 'Menentukan jenis item yang bisa dipilih di bawah.'); ?></small>
                             </div>
-                            <div class="form-row ppn-detail" style="display:none;">
-                                <div class="col-md-6 form-group mb-0">
-                                    <label class="small mb-1"><?= lang_line('po_ppn_mode', 'Perhitungan PPN'); ?></label>
-                                    <select name="ppn_inclusive" class="form-control form-control-sm">
-                                        <option value="0" selected><?= lang_line('po_ppn_exclude', 'Exclude — harga belum termasuk PPN (PPN ditambahkan)'); ?></option>
-                                        <option value="1" ><?= lang_line('po_ppn_include', 'Include — harga sudah termasuk PPN (PPN diambil dari total)'); ?></option>
+                            <?php endif; ?>
+                            <div class="form-group">
+                                <label class="pp-label"><?= lang_line('po_supplier', 'Supplier'); ?> <span class="text-danger">*</span></label>
+                                <select name="supplier_id" class="form-control select2-modal" required style="width: 100%;">
+                                    <option value=""><?= lang_line('po_supplier_select', '-- Pilih Supplier --'); ?></option>
+                                    <?php foreach ($suppliers as $sup): ?>
+                                        <option value="<?= $sup->id; ?>"><?= htmlspecialchars($sup->nama_supplier); ?></option>
+                                    <?php endforeach; ?>
+                                </select>
+                            </div>
+                            <div class="form-row">
+                                <div class="col-6 form-group">
+                                    <label class="pp-label"><?= lang_line('po_date', 'Tanggal PO'); ?> <span class="text-danger">*</span></label>
+                                    <input type="date" name="po_date" class="form-control" value="<?= date('Y-m-d'); ?>" required>
+                                </div>
+                                <div class="col-6 form-group">
+                                    <label class="pp-label"><?= lang_line('po_number_label', 'Nomor PO'); ?></label>
+                                    <input type="text" name="po_number" class="form-control" placeholder="<?= htmlspecialchars(lang_line('po2_number_auto', 'Otomatis')); ?>" title="<?= htmlspecialchars(lang_line('po_number_help', '(Biarkan kosong untuk auto-generate)')); ?>">
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="col-6 form-group mb-0">
+                                    <label class="pp-label"><?= lang_line('po_currency', 'Mata Uang'); ?> <span class="text-danger">*</span></label>
+                                    <select name="currency_code" id="add_currency_code" class="form-control select2-modal" required style="width: 100%;">
+                                        <?php foreach ($currencies as $curr): ?> <option value="<?= $curr->code; ?>" <?= ($curr->code == 'IDR') ? 'selected' : ''; ?>><?= htmlspecialchars($curr->description); ?></option> <?php endforeach; ?>
                                     </select>
                                 </div>
-                                <div class="col-md-3 form-group mb-0">
-                                    <label class="small mb-1"><?= lang_line('po_ppn_rate', 'Persen PPN'); ?></label>
-                                    <div class="input-group input-group-sm">
-                                        <input type="number" name="ppn_rate" class="form-control text-right" step="0.01" min="0" max="100" value="11">
-                                        <div class="input-group-append"><span class="input-group-text">%</span></div>
+                                <div class="col-6 form-group mb-0" id="add_exchange_rate_div" style="display: none;">
+                                    <label class="pp-label"><?= lang_line('po_exchange_rate', 'Kurs Tukar'); ?> <span class="text-danger">*</span></label>
+                                    <input type="text" name="exchange_rate" class="form-control autonumeric-4dec text-right" value="1.0000">
+                                </div>
+                            </div>
+                            <small id="add_kurs_info" class="pp-hint"><?= lang_line('pog_kurs_auto_info'); ?></small>
+                        </div>
+                    </div>
+
+                    <div class="pp-card">
+                        <div class="pp-card-head"><h2><span class="pp-ico"><i class="fas fa-truck"></i></span><?= lang_line('po2_terms', 'Pengiriman, Pembayaran & Pajak'); ?></h2></div>
+                        <div class="pp-card-body">
+                            <div class="form-row">
+                                <div class="col-6 form-group">
+                                    <label class="pp-label"><?= lang_line('po_shipping_mode', 'Mode Pengiriman'); ?></label>
+                                    <select name="shipping_mode_code" class="form-control select2-modal" style="width: 100%;">
+                                        <option value=""><?= lang_line('po_shipping_mode_select', '-- Pilih Mode --'); ?></option>
+                                        <?php foreach ($shipping_modes as $mode): ?> <option value="<?= $mode->code; ?>"><?= htmlspecialchars($mode->description); ?></option> <?php endforeach; ?>
+                                    </select>
+                                </div>
+                                <div class="col-6 form-group">
+                                    <label class="pp-label"><?= lang_line('po_payment_mode', 'Mode Pembayaran'); ?></label>
+                                    <select name="payment_mode_code" class="form-control select2-modal" style="width: 100%;">
+                                        <option value=""><?= lang_line('po_payment_mode_select', '-- Pilih Mode --'); ?></option>
+                                        <?php foreach ($payment_modes as $mode): ?> <option value="<?= $mode->code; ?>"><?= htmlspecialchars($mode->description); ?></option> <?php endforeach; ?>
+                                    </select>
+                                </div>
+                            </div>
+                            <?php /* PPN tiga langkah (klien 2026-10-02): kena PPN -> include/exclude -> persen.
+                                     Wrapper .border WAJIB ada: skrip toggle mencari .closest('.border'). */ ?>
+                            <div class="border po-ppn mb-3">
+                                <div class="custom-control custom-switch">
+                                    <input type="checkbox" class="custom-control-input ppn-toggle" id="add_has_ppn" name="has_ppn" value="1">
+                                    <label class="custom-control-label font-weight-bold" for="add_has_ppn"><?= lang_line('po_has_ppn_check', 'Kena PPN'); ?></label>
+                                </div>
+                                <div class="form-row ppn-detail mt-2" style="display:none;">
+                                    <div class="col-8 form-group mb-0">
+                                        <label class="pp-label"><?= lang_line('po_ppn_mode', 'Perhitungan PPN'); ?></label>
+                                        <select name="ppn_inclusive" class="form-control form-control-sm">
+                                            <option value="0" selected><?= lang_line('po_ppn_exclude', 'Exclude — harga belum termasuk PPN (PPN ditambahkan)'); ?></option>
+                                            <option value="1"><?= lang_line('po_ppn_include', 'Include — harga sudah termasuk PPN (PPN diambil dari total)'); ?></option>
+                                        </select>
+                                    </div>
+                                    <div class="col-4 form-group mb-0">
+                                        <label class="pp-label"><?= lang_line('po_ppn_rate', 'Persen PPN'); ?></label>
+                                        <div class="input-group input-group-sm">
+                                            <input type="number" name="ppn_rate" class="form-control text-right" step="0.01" min="0" max="100" value="11">
+                                            <div class="input-group-append"><span class="input-group-text">%</span></div>
+                                        </div>
                                     </div>
                                 </div>
+                            </div>
+                            <div class="form-group mb-0">
+                                <label class="pp-label"><?= lang_line('po_remarks', 'Catatan / Remarks'); ?></label>
+                                <textarea name="remarks" class="form-control" rows="2" placeholder="<?= htmlspecialchars(lang_line('po2_remarks_ph', 'Catatan untuk supplier / internal (opsional)')); ?>"></textarea>
                             </div>
                         </div>
                     </div>
                 </div>
-                <div class="form-group mb-0">
-                    <label><?= lang_line('po_remarks', 'Catatan / Remarks'); ?></label>
-                    <textarea name="remarks" class="form-control" rows="2"></textarea>
-                </div>
             </div>
-        </div>
 
-        <div class="card shadow border-0 mb-4">
-            <div class="card-header py-3">
-                <div class="row align-items-center">
-                    <div class="col-md-6">
-                        <h6 class="m-0 font-weight-bold text-primary">
-                            <i class="fas fa-boxes mr-2"></i><?= lang_line('po_item_section', 'Item Barang'); ?> (<span id="item_count">0</span>)
-                        </h6>
-                    </div>
-                    <div class="col-md-6 text-right">
-                        <button type="button" class="btn btn-info btn-sm" id="btn-open-pull-pr" data-toggle="modal" data-target="#pullPrModal">
-                            <i class="fas fa-file-import mr-1"></i> <?= lang_line('po_pull_pr', 'Tarik dari PR'); ?>
+            <!-- ================= KANAN: item ================= -->
+            <div class="col-xl-8">
+                <div class="pp-card">
+                    <div class="pp-card-head">
+                        <h2><span class="pp-ico"><i class="fas fa-boxes"></i></span><span><?= lang_line('po_item_section', 'Item Barang'); ?> (<span id="item_count">0</span>)
+                            <span class="d-block pp-sub"><?= $allow_manual_items ? lang_line('po2_items_sub_manual', 'Cari item di baris bawah, atau tarik dari PR. Item dari PR: harga diisi di halaman detail.') : lang_line('po2_items_sub_pr', 'Item PO wajib ditarik dari PR — harga diisi di halaman detail setelah tersimpan.'); ?></span></span></h2>
+                        <button type="button" class="btn btn-pp btn-sm" id="btn-open-pull-pr" data-toggle="modal" data-target="#pullPrModal">
+                            <i class="fas fa-file-import mr-1"></i><?= lang_line('po_pull_pr', 'Tarik dari PR'); ?>
                         </button>
                     </div>
-                </div>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-sm table-bordered mb-0" id="items_table">
-                        <thead class="thead-light">
-                            <tr>
-                                <th style="width:35%;"><?= lang_line('po_th_item', 'Item'); ?> <span class="text-danger">*</span></th>
-                                <th style="width:12%;"><?= lang_line('po_th_unit', 'Satuan'); ?></th>
-                                <th style="width:15%;"><?= lang_line('po_th_qty', 'Qty'); ?> <span class="text-danger">*</span></th>
-                                <th style="width:18%;"><?= lang_line('po_th_price', 'Harga Satuan'); ?> <span class="text-danger">*</span></th>
+                    <div class="table-responsive">
+                        <table class="pp-table" id="items_table">
+                            <thead><tr>
+                                <th style="width:36%;"><?= lang_line('po_th_item', 'Item'); ?> <span class="text-danger">*</span></th>
+                                <th class="text-center" style="width:9%;"><?= lang_line('po_th_unit', 'Satuan'); ?></th>
+                                <th class="num" style="width:14%;"><?= lang_line('po_th_qty', 'Qty'); ?> <span class="text-danger">*</span></th>
+                                <th class="num" style="width:17%;"><?= lang_line('po_th_price', 'Harga Satuan'); ?><?= $allow_manual_items ? ' <span class="text-danger">*</span>' : ''; ?></th>
                                 <th><?= lang_line('po_th_desc', 'Deskripsi'); ?></th>
-                                <th style="width:8%;" class="text-center"><?= lang_line('common_action', 'Aksi'); ?></th>
-                            </tr>
-                        </thead>
-                        <tbody id="items_body">
-                            <tr id="empty_row">
-                                <td colspan="6" class="text-center text-muted py-3">
-                                    <i class="fas fa-inbox fa-2x mb-2 d-block text-secondary"></i>
-                                    <?php if ($allow_manual_items): ?>
-                                        <?= lang_line('po_no_item_yet', 'Belum ada item. Cari & tambahkan item di baris bawah.'); ?>
-                                    <?php else: ?>
-                                        <?= lang_line('po_no_item_yet_pr_only', 'Belum ada item. Klik "Tarik dari PR" untuk mengambil item dari Purchase Request.'); ?>
-                                    <?php endif; ?>
-                                </td>
-                            </tr>
-                            <?php if ($allow_manual_items): ?>
-                            <tr id="input_row" class="bg-light">
-                                <td class="p-1">
-                                    <select id="input_item" class="form-control form-control-sm" style="width:100%;">
-                                        <option value="">-- <?= lang_line('po_search_item', 'Cari item...'); ?> --</option>
-                                    </select>
-                                </td>
-                                <td class="p-1 text-center align-middle"><small id="input_unit" class="text-muted font-weight-bold">-</small></td>
-                                <td class="p-1"><input type="number" id="input_qty" class="form-control form-control-sm text-right" placeholder="0.00" step="any" min="0.01"></td>
-                                <td class="p-1"><input type="number" id="input_price" class="form-control form-control-sm text-right" placeholder="0" step="any" min="0"></td>
-                                <td class="p-1"><input type="text" id="input_desc" class="form-control form-control-sm" placeholder="<?= lang_line('po_th_desc', 'Deskripsi'); ?>..."></td>
-                                <td class="text-center align-middle">
-                                    <button type="button" id="btn_add_item" class="btn btn-success btn-sm" disabled title="<?= lang_line('common_add', 'Tambah'); ?>">
-                                        <i class="fas fa-plus"></i>
-                                    </button>
-                                </td>
-                            </tr>
-                            <?php endif; ?>
-                        </tbody>
-                        <?php /*
-                            Ringkasan nilai PO -- dihitung ulang di sisi klien setiap kali
-                            item berubah atau pengaturan PPN diubah. Rumusnya sengaja
-                            dibuat sama persis dengan po_ppn_breakdown() di ppn_helper.php
-                            supaya angka di layar == angka yang disimpan server.
-                        */ ?>
-                        <tfoot class="bg-light">
-                            <tr>
-                                <td colspan="4" class="text-right align-middle font-weight-bold py-1"><?= lang_line('po_subtotal', 'Subtotal'); ?></td>
-                                <td colspan="2" class="text-right align-middle font-weight-bold py-1"><span id="sum_subtotal">0.00</span></td>
-                            </tr>
-                            <tr id="sum_ppn_row" style="display:none;">
-                                <td colspan="4" class="text-right align-middle py-1"><span id="sum_ppn_label">PPN</span></td>
-                                <td colspan="2" class="text-right align-middle py-1"><span id="sum_ppn">0.00</span></td>
-                            </tr>
-                            <tr>
-                                <td colspan="4" class="text-right align-middle font-weight-bold py-1"><?= lang_line('po_grand_total', 'Grand Total'); ?></td>
-                                <td colspan="2" class="text-right align-middle font-weight-bold text-primary py-1"><span id="sum_total">0.00</span></td>
-                            </tr>
-                            <tr id="sum_pending_row" style="display:none;">
-                                <td colspan="6" class="text-right small text-muted py-1"><i class="fas fa-info-circle mr-1"></i><span id="sum_pending_text"></span></td>
-                            </tr>
-                        </tfoot>
-                    </table>
+                                <th style="width:6%;"></th>
+                            </tr></thead>
+                            <tbody id="items_body">
+                                <tr id="empty_row">
+                                    <td colspan="6" class="pp-empty"><i class="fas fa-inbox"></i>
+                                        <?= $allow_manual_items ? lang_line('po_no_item_yet', 'Belum ada item. Cari & tambahkan item di baris bawah.') : lang_line('po_no_item_yet_pr_only', 'Belum ada item. Klik "Tarik dari PR" untuk mengambil item dari Purchase Request.'); ?>
+                                    </td>
+                                </tr>
+                                <?php if ($allow_manual_items): ?>
+                                <tr id="input_row">
+                                    <td><select id="input_item" class="form-control form-control-sm" style="width:100%;"><option value="">-- <?= lang_line('po_search_item', 'Cari item...'); ?> --</option></select></td>
+                                    <td class="text-center"><small id="input_unit" class="text-muted font-weight-bold">-</small></td>
+                                    <td><input type="number" id="input_qty" class="form-control form-control-sm text-right" placeholder="0" step="any" min="0.01"></td>
+                                    <td><input type="number" id="input_price" class="form-control form-control-sm text-right" placeholder="0" step="any" min="0"></td>
+                                    <td><input type="text" id="input_desc" class="form-control form-control-sm" placeholder="<?= htmlspecialchars(lang_line('po_th_desc', 'Deskripsi')); ?>…"></td>
+                                    <td class="text-center"><button type="button" id="btn_add_item" class="btn btn-pp btn-sm" disabled title="<?= htmlspecialchars(lang_line('common_add', 'Tambah')); ?>"><i class="fas fa-plus"></i></button></td>
+                                </tr>
+                                <?php endif; ?>
+                            </tbody>
+                            <?php /* Ringkasan nilai -- rumus sama dengan po_ppn_breakdown() (ppn_helper.php). */ ?>
+                            <tfoot>
+                                <tr>
+                                    <td colspan="4" class="text-right font-weight-bold"><?= lang_line('po_subtotal', 'Subtotal'); ?></td>
+                                    <td colspan="2" class="text-right font-weight-bold"><span id="sum_subtotal">0.00</span></td>
+                                </tr>
+                                <tr id="sum_ppn_row" style="display:none;">
+                                    <td colspan="4" class="text-right"><span id="sum_ppn_label">PPN</span></td>
+                                    <td colspan="2" class="text-right"><span id="sum_ppn">0.00</span></td>
+                                </tr>
+                                <tr class="po-grand">
+                                    <td colspan="4" class="text-right font-weight-bold"><?= lang_line('po_grand_total', 'Grand Total'); ?></td>
+                                    <td colspan="2" class="text-right font-weight-bold" style="color:var(--brand-1)"><span id="sum_total">0.00</span></td>
+                                </tr>
+                                <tr id="sum_pending_row" style="display:none;">
+                                    <td colspan="6" class="text-right small text-muted"><i class="fas fa-info-circle mr-1"></i><span id="sum_pending_text"></span></td>
+                                </tr>
+                            </tfoot>
+                        </table>
+                    </div>
                 </div>
             </div>
         </div>
 
-        <div class="text-right mb-4">
-            <a href="<?= base_url($fixed_route ?: 'purchase_order_general'); ?>" class="btn btn-secondary"><?= lang_line('po_cancel', 'Batal'); ?></a>
-            <button type="submit" class="btn btn-primary btn-load" id="btnSubmitPo"><i class="fas fa-save mr-1"></i> <?= lang_line('po_save', 'Simpan'); ?></button>
+        <div class="po-bar">
+            <div class="po-bar-total"><?= lang_line('po_grand_total', 'Grand Total'); ?><br><b id="barTotal">0.00</b> <span id="barCount"></span></div>
+            <div class="d-flex" style="gap:.5rem">
+                <a href="<?= $po_list_url; ?>" class="btn btn-light"><?= lang_line('po_cancel', 'Batal'); ?></a>
+                <button type="submit" class="btn btn-pp px-4 btn-load" id="btnSubmitPo"><i class="fas fa-save mr-1"></i><?= lang_line('po_save', 'Simpan'); ?></button>
+            </div>
         </div>
     </form>
 </div>
@@ -255,12 +262,12 @@
     // SENGAJA ditiru dari partial itu, TAPI ditulis terpisah di sini biar
     // 0 resiko ke 4 halaman detail yg sudah pakai partial aslinya.
 ?>
-<div class="modal fade" id="pullPrModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade pp-modal" id="pullPrModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered">
         <div class="modal-content border-0 shadow">
-            <div class="modal-header bg-info text-white">
+            <div class="modal-header">
                 <h5 class="modal-title"><i class="fas fa-file-import mr-2"></i> <?= lang_line('po_pull_pr_title', 'Tarik Item dari Purchase Request'); ?></h5>
-                <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
             </div>
             <div class="modal-body">
                 <p class="small text-muted mb-2">
@@ -309,7 +316,7 @@
                 <small class="text-muted"><strong id="pullPrCount">0</strong> baris dipilih</small>
                 <div>
                     <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
-                    <button type="button" class="btn btn-info" id="pullPrSubmit" disabled>
+                    <button type="button" class="btn btn-pp" id="pullPrSubmit" disabled>
                         <i class="fas fa-file-import mr-1"></i> <?= lang_line('po_pull_pr_add', 'Tambahkan ke Daftar Item'); ?>
                     </button>
                 </div>
@@ -495,6 +502,7 @@ $(document).ready(function() {
         $('#sum_subtotal').text(pre + sumFmt(dpp));
         $('#sum_ppn').text(pre + sumFmt(ppn));
         $('#sum_total').text(pre + sumFmt(total));
+        $('#barTotal').text(pre + sumFmt(total));   // ringkasan di bar bawah (redesign 2026-11-08)
         $('#sum_ppn_row').toggle(hasPpn && rate > 0);
         $('#sum_ppn_label').text('PPN ' + rate + '% (' + (inclusive ? 'Include' : 'Exclude') + ')');
 
@@ -518,14 +526,14 @@ $(document).ready(function() {
             var priceCell = isFromPr
                 ? '<span class="text-muted font-italic small">' + '<?= lang_line("po_price_later", "diisi nanti"); ?>' + '</span>'
                 : item.base_price.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2});
-            var nameCell = escapeHtml(item.text) + (isFromPr ? ' <span class="badge badge-info">PR</span>' : '');
+            var nameCell = '<div class="pp-item-name">' + escapeHtml(item.text) + '</div>' + (isFromPr ? '<span class="pp-tag tone-blue"><i class="fas fa-file-import mr-1"></i>PR</span>' : '');
             var row = '<tr class="staged-item-row">' +
                 '<td>' + nameCell + '</td>' +
                 '<td class="text-center">' + escapeHtml(item.unit) + '</td>' +
-                '<td class="text-right">' + item.qty.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) + '</td>' +
-                '<td class="text-right">' + priceCell + '</td>' +
-                '<td>' + escapeHtml(item.description) + '</td>' +
-                '<td class="text-center"><button type="button" class="btn btn-danger btn-xs btn-remove-staged-item" data-key="' + item.key + '"><i class="fas fa-trash"></i></button></td>' +
+                '<td class="num"><b>' + item.qty.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2}) + '</b></td>' +
+                '<td class="num">' + priceCell + '</td>' +
+                '<td><span class="pp-item-code" style="font-size:.8rem">' + escapeHtml(item.description) + '</span></td>' +
+                '<td class="text-center"><button type="button" class="btn btn-outline-danger btn-xs btn-remove-staged-item" data-key="' + item.key + '"><i class="fas fa-trash-alt"></i></button></td>' +
                 '</tr>';
             // Baris input manual jadi anchor kalau ada; kalau dimatikan
             // (item wajib dari PR), baris hasil tarik-PR di-append biasa.
@@ -534,6 +542,7 @@ $(document).ready(function() {
         });
         $('#item_count').text(stagedItems.length);
         recalcTotals();
+        $('#barCount').text(stagedItems.length ? '· ' + stagedItems.length + ' item' : '');
     }
 
     // ============ TARIK DARI PR (staged) ============
@@ -763,10 +772,6 @@ $(document).ready(function() {
 });
 </script>
 
-<style>
-.select2-container--default .select2-selection--single { height: calc(1.5em + .75rem + 2px); padding: .375rem .75rem; border: 1px solid #d1d3e2; }
-.btn-xs { padding: .125rem .25rem; font-size: .75rem; line-height: 1.5; border-radius: .2rem; }
-</style>
 
 <script>
 /* Bagian rincian PPN (include/exclude + persen) hanya terbuka kalau "Kena PPN"

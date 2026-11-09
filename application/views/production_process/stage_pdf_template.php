@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="utf-8">
-    <title>Assembling Report - <?= htmlspecialchars($header->production_number ?? 'N/A'); ?></title>
+    <title><?= htmlspecialchars($stage_title ?? 'Production'); ?> Report - <?= htmlspecialchars($header->production_number ?? 'N/A'); ?></title>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body { 
@@ -314,7 +314,7 @@
                 </div>
             </div>
             <div class="doc-header">
-                <div class="title">ASSEMBLING REPORT</div>
+                <div class="title"><?= strtoupper(htmlspecialchars($stage_title ?? 'Production')); ?> REPORT</div>
                 <div class="doc-meta">
                     <div class="item">
                         <span class="label">No:</span>
@@ -371,12 +371,12 @@
 
         <?php
             $total_input_qty = 0.0;
-            foreach ($assembling_inputs ?? [] as $r) {
+            foreach ($stage_inputs ?? [] as $r) {
                 $total_input_qty += (float)($r->qty_used ?? 0);
             }
             $total_output_qty = 0.0;
             $total_scrap_qty = 0.0;
-            foreach ($assembling_outputs ?? [] as $r) {
+            foreach ($stage_outputs ?? [] as $r) {
                 if ($r->item_type == 'semifinished') {
                     $total_output_qty += (float)($r->qty_produced ?? 0);
                 }
@@ -400,7 +400,7 @@
                 </tr>
             </thead>
             <tbody>
-                <?php if (!empty($assembling_inputs)): $i = 1; foreach ($assembling_inputs as $in): ?>
+                <?php if (!empty($stage_inputs)): $i = 1; foreach ($stage_inputs as $in): ?>
                 <tr>
                     <td class="col-no"><?= $i++; ?></td>
                     <td class="col-item">
@@ -438,7 +438,7 @@
                 </tr>
             </thead>
             <tbody>
-                <?php $j = 1; $has_output = false; foreach ($assembling_outputs ?? [] as $out): if ($out->item_type == 'semifinished'): $has_output = true; ?>
+                <?php $j = 1; $has_output = false; foreach ($stage_outputs ?? [] as $out): if ($out->item_type == 'semifinished'): $has_output = true; ?>
                 <tr>
                     <td class="col-no"><?= $j++; ?></td>
                     <td class="col-item">
@@ -478,7 +478,7 @@
                 </tr>
             </thead>
             <tbody>
-                <?php $k = 1; $has_scrap = false; foreach ($assembling_outputs ?? [] as $out): if ($out->item_type == 'scrap'): $has_scrap = true; ?>
+                <?php $k = 1; $has_scrap = false; foreach ($stage_outputs ?? [] as $out): if ($out->item_type == 'scrap'): $has_scrap = true; ?>
                 <tr>
                     <td class="col-no"><?= $k++; ?></td>
                     <td class="col-item">
@@ -500,13 +500,13 @@
                 foreach (['creator_name', 'ppic_name', 'produksi_name', 'created_by_name', 'requester_name'] as $f) {
                     if (!empty($header->{$f})) $operator_candidates[] = $header->{$f};
                 }
-                if (!empty($assembling_inputs ?? []) && !empty($assembling_inputs[0])) {
-                    $in0 = $assembling_inputs[0];
+                if (!empty($stage_inputs ?? []) && !empty($stage_inputs[0])) {
+                    $in0 = $stage_inputs[0];
                     if (!empty($in0->receiver_name)) $operator_candidates[] = $in0->receiver_name;
                     if (!empty($in0->created_by_name)) $operator_candidates[] = $in0->created_by_name;
                 }
-                if (!empty($assembling_outputs ?? []) && !empty($assembling_outputs[0])) {
-                    $out0 = $assembling_outputs[0];
+                if (!empty($stage_outputs ?? []) && !empty($stage_outputs[0])) {
+                    $out0 = $stage_outputs[0];
                     if (!empty($out0->receiver_name)) $operator_candidates[] = $out0->receiver_name;
                     if (!empty($out0->created_by_name)) $operator_candidates[] = $out0->created_by_name;
                 }
@@ -522,16 +522,16 @@
                 if (!empty($header->qc_name)) {
                     $qc_name = htmlspecialchars($header->qc_name);
                 } else {
-                    if (!empty($assembling_outputs ?? [])) {
-                        foreach ($assembling_outputs as $o) {
+                    if (!empty($stage_outputs ?? [])) {
+                        foreach ($stage_outputs as $o) {
                             if (!empty($o->qc_name)) {
                                 $qc_name = htmlspecialchars($o->qc_name);
                                 break;
                             }
                         }
                     }
-                    if ($qc_name == '(............................... )' && !empty($assembling_inputs ?? [])) {
-                        foreach ($assembling_inputs as $i) {
+                    if ($qc_name == '(............................... )' && !empty($stage_inputs ?? [])) {
+                        foreach ($stage_inputs as $i) {
                             if (!empty($i->qc_name)) {
                                 $qc_name = htmlspecialchars($i->qc_name);
                                 break;

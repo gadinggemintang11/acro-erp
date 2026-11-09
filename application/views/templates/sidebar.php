@@ -46,7 +46,8 @@ $isMasterActive = in_array($current, $master_items);
 $isSystemActive = in_array($current, $system_items);
 
 // CEK IZIN AKSES
-$canViewDashboard = check_access('dashboard', 'view');
+// Dashboard TIDAK ditampilkan sbg menu sidebar (user 2026-11-09: "cukup klik logo
+// saja masuk ke dashboard") -- logo di atas sidebar menautkan ke /dashboard.
 $canViewOrder = check_access('sales_contract', 'view') || check_access('sales_contract_approval', 'view') || check_access('sales_contract_list', 'view');
 $canViewPurchase = check_access('purchase_order', 'view') || check_access('purchase_order_approval', 'view') || check_access('pmpo_status', 'view') || check_access('purchase_order_general', 'view') || check_access('purchase_order_approval_general', 'view') || check_access('gmpo_status', 'view') || check_access('purchase_order_jasa', 'view') || check_access('purchase_order_approval_jasa', 'view') || check_access('purchase_order_asset', 'view') || check_access('purchase_order_approval_asset', 'view') || check_access('po_report', 'view') || check_access('pmpo_list', 'view') || check_access('gmpo_list', 'view') || check_access('po_monitoring', 'view') || check_access('pr_monitoring', 'view');
 $canViewInventory = check_access('warehouse_in', 'view') || check_access('warehouse_out', 'view') || check_access('supplier_general_item_receipt', 'view') || check_access('supplier_general_item_receipt_general', 'view') || check_access('supplier_general_item_receipt_produksi', 'view') || check_access('material_issuance', 'view') || check_access('consumable_out', 'view') || check_access('consumable_out_general', 'view') || check_access('consumable_out_produksi', 'view') || check_access('stock_transfer', 'view') || check_access('purchase_request', 'view') || check_access('purchase_request_approval', 'view') || check_access('purchase_request_general', 'view') || check_access('purchase_request_approval_general', 'view') || check_access('purchase_request_jasa', 'view') || check_access('purchase_request_approval_jasa', 'view') || check_access('purchase_request_asset', 'view') || check_access('purchase_request_approval_asset', 'view') || check_access('stock_material', 'view') || check_access('stock_inventory', 'view') || check_access('stock_machine', 'view') || check_access('stock_ledger', 'view') || check_access('initial_stock', 'view') || check_access('adjustment', 'view') || check_access('stockopname', 'view') || check_access('prodreturn', 'view') || check_access('stock_alert', 'view') || check_access('material_traceability', 'view') || check_access('inventory_traceability', 'view');
@@ -71,466 +72,213 @@ $canViewConfiguration = $canViewMaster || $canViewSystem;
 ?>
 
 <style>
-/* ============================================
-   SIDEBAR & CONTENT - INDEPENDENT SCROLL
-   Sidebar tetap fix, content scroll sendiri
-   ============================================ */
+/* =====================================================================
+   SIDEBAR ACROPOLY -- redesign 2026-11-09.
+   Riwayat masukan user: "rombak total agar modern dan profesional" ->
+   "ga suka warna gelap, kurang suka point biru, suka agak sederhana" ->
+   "kurang modern". Hasil: tema TERANG & sederhana gaya dashboard modern:
+   logo + nama aplikasi, kotak "Cari menu", ikon di dalam kotak bulat,
+   menu aktif = kartu putih + ikon charcoal (--brand-1), TANPA titik/garis
+   aksen biru. Menu dikelompokkan heading (sidebar_section_groups()).
+   Struktur SB Admin 2 tetap: .nav-item/.nav-link, .collapse-inner/
+   .collapse-item, mode ciut (.toggled) & slide di mobile. Warna gelap hanya
+   bila user memilih "Dark Mode" di topbar.
+   ===================================================================== */
 
-/* Hilangkan scroll di body, semua scroll internal */
-html, body {
-    height: 100% !important;
-    overflow: hidden !important;
-    margin: 0 !important;
-    padding: 0 !important;
-}
+/* ---------- Scroll terpisah: sidebar & konten ---------- */
+html, body { height: 100% !important; overflow: hidden !important; margin: 0 !important; padding: 0 !important; }
+#wrapper { display: flex !important; height: 100vh !important; overflow: hidden !important; }
+#content-wrapper { flex: 1 !important; overflow-y: auto !important; overflow-x: hidden !important; height: 100vh !important; }
 
-/* KUNCI: Wrapper jadi flex container dengan height 100vh */
-#wrapper {
-    display: flex !important;
-    height: 100vh !important;
-    overflow: hidden !important;
-}
-
-/* SIDEBAR: Fixed height, scroll internal
-   (Background overridden below by Brand Light Sidebar theme) */
 #accordionSidebar {
-    background: #f5f6f8 !important;
-    height: 100vh !important;
-    overflow-y: auto !important;
-    overflow-x: hidden !important;
-    flex-shrink: 0 !important;
-    position: sticky !important;
-    top: 0 !important;
+    --sb-bg: #f7f8fa; --sb-card: #ffffff; --sb-line: #eaecf0; --sb-chip-line: #e6e9ee;
+    --sb-text: #344054; --sb-strong: #101828; --sb-icon: #667085; --sb-head: #98a2b3; --sb-sub: #667085;
+    --sb-hover: #eef0f3; --sb-sub-active: #eaedf1; --sb-accent: var(--brand-1, #334155);
+    height: 100vh !important; overflow-y: auto !important; overflow-x: hidden !important;
+    flex-shrink: 0 !important; position: sticky !important; top: 0 !important;
+    background: var(--sb-bg) !important; background-image: none !important;
+    border-right: 1px solid var(--sb-line) !important; box-shadow: none !important;
+    padding-bottom: 1.5rem;
 }
+body.dark-mode #accordionSidebar {
+    --sb-bg: #0f141c; --sb-card: #1a212c; --sb-line: rgba(255,255,255,.07); --sb-chip-line: rgba(255,255,255,.08);
+    --sb-text: #cfd6e0; --sb-strong: #f8fafc; --sb-icon: #8b95a5; --sb-head: #6b7584; --sb-sub: #98a2b3;
+    --sb-hover: rgba(255,255,255,.05); --sb-sub-active: rgba(255,255,255,.08); --sb-accent: #e2e8f0;
+}
+@media (min-width: 768px) { #accordionSidebar:not(.toggled) { width: 16rem !important; } }
+/* sidebar = flex-column dgn tinggi 100vh: anak langsung jangan ikut menyusut (logo sempat terjepit jadi 33px) */
+#accordionSidebar > * { flex-shrink: 0 !important; }
+#accordionSidebar::-webkit-scrollbar { width: 6px; }
+#accordionSidebar::-webkit-scrollbar-track { background: transparent; }
+#accordionSidebar::-webkit-scrollbar-thumb { background: transparent; border-radius: 10px; }
+#accordionSidebar:hover::-webkit-scrollbar-thumb { background: #d0d5dd; }
+#accordionSidebar .sidebar-divider { display: none !important; }
 
-/* CONTENT WRAPPER: Flex grow, scroll internal */
-#content-wrapper {
-    flex: 1 !important;
-    overflow-y: auto !important;
-    overflow-x: hidden !important;
-    height: 100vh !important;
+/* ---------- Logo + nama aplikasi ---------- */
+#accordionSidebar .sidebar-brand {
+    display: flex !important; align-items: center; justify-content: flex-start; gap: .7rem;
+    height: auto !important; min-height: 0 !important; padding: 1.1rem 1.1rem .8rem !important;
+    background: var(--sb-bg) !important; text-align: left !important; text-transform: none !important;
+    letter-spacing: 0 !important; line-height: 1.2 !important; text-decoration: none !important;
+    position: sticky; top: 0; z-index: 3;
 }
+#accordionSidebar .sb-logo {
+    width: 40px; height: 40px; min-width: 40px; border-radius: 50%; overflow: hidden; background: #fff;
+    box-shadow: 0 0 0 1px var(--sb-chip-line), 0 2px 6px rgba(16,24,40,.08);
+    display: flex; align-items: center; justify-content: center;
+}
+#accordionSidebar .sb-logo img { width: 100%; height: 100%; object-fit: cover; display: block; }
+#accordionSidebar .sb-brand-text { display: flex; flex-direction: column; min-width: 0; }
+#accordionSidebar .sb-brand-name { color: var(--sb-strong); font-size: .92rem; font-weight: 700; letter-spacing: -.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#accordionSidebar .sb-brand-sub { color: var(--sb-head); font-size: .66rem; font-weight: 500; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin-top: 2px; }
+#accordionSidebar.toggled .sidebar-brand { justify-content: center; padding: 1rem .5rem .8rem !important; }
+#accordionSidebar.toggled .sb-brand-text { display: none; }
 
-/* Brand Logo */
-.sidebar-brand-full {
-    max-height: 60px;
-    display: block;
+/* ---------- Cari menu ---------- */
+#accordionSidebar .sb-search { position: relative; margin: .1rem .9rem .35rem; }
+#accordionSidebar .sb-search > i { position: absolute; left: .75rem; top: 50%; transform: translateY(-50%); font-size: .75rem; color: var(--sb-head); pointer-events: none; }
+#accordionSidebar .sb-search input {
+    width: 100%; height: 36px; padding: 0 2rem 0 2.05rem; font-size: .8rem; color: var(--sb-strong);
+    background: var(--sb-card); border: 1px solid var(--sb-chip-line); border-radius: 10px; outline: none;
+    box-shadow: 0 1px 2px rgba(16,24,40,.04); transition: border-color .15s ease, box-shadow .15s ease;
 }
-.sidebar-brand-mini {
-    max-height: 45px;
-    display: none;
+#accordionSidebar .sb-search input::placeholder { color: var(--sb-head); }
+#accordionSidebar .sb-search input:focus { border-color: #c4cad4; box-shadow: 0 0 0 3px rgba(var(--brand-rgb, 51,65,85), .08); }
+#accordionSidebar .sb-search-clear {
+    position: absolute; right: .35rem; top: 50%; transform: translateY(-50%); display: none;
+    width: 24px; height: 24px; border: 0; border-radius: 6px; background: transparent; color: var(--sb-head); font-size: 1rem; line-height: 1;
 }
-.sidebar.toggled .sidebar-brand-full {
-    display: none;
-}
-.sidebar.toggled .sidebar-brand-mini {
-    display: block;
-}
+#accordionSidebar .sb-search-clear:hover { background: var(--sb-hover); color: var(--sb-strong); }
+#accordionSidebar .sb-search-empty { display: none; padding: 1.25rem 1.2rem; font-size: .78rem; color: var(--sb-head); text-align: center; }
+#accordionSidebar.toggled .sb-search, #accordionSidebar.toggled .sb-search-empty { display: none !important; }
 
-/* Dropdown Menu base — colors overridden by Brand Light Sidebar theme below */
-.collapse-inner {
-    background-color: #ebedf0 !important;
+/* ---------- Heading kelompok ---------- */
+#accordionSidebar .sidebar-heading {
+    color: var(--sb-head) !important; opacity: 1 !important;
+    font-size: calc(.64rem * var(--sb-font-scale, 1)) !important; font-weight: 600 !important;
+    letter-spacing: .08em !important; text-transform: uppercase !important;
+    padding: 1.15rem 1.35rem .4rem !important; margin: 0 !important; border: 0 !important; white-space: nowrap;
 }
-.collapse-inner .collapse-header {
-    color: #999 !important;
-}
-.collapse-inner .collapse-item {
-    color: #444 !important;
-    display: block !important;
-    padding: 0.5rem 1rem !important;
-    white-space: normal !important;
-    word-wrap: break-word !important;
-    word-break: break-word !important;
-    overflow-wrap: break-word !important;
-    line-height: 1.4 !important;
-    min-height: auto !important;
-    margin: 0 !important;
-}
-.collapse-inner .collapse-item:hover {
-    background-color: #ffeaea !important;
-    color: var(--brand-1) !important;
-}
-.collapse-inner .collapse-item.active {
-    background-color: #fff !important;
-    color: var(--brand-1) !important;
-}
+#accordionSidebar.toggled .sidebar-heading { text-align: center; font-size: .52rem !important; letter-spacing: .03em !important; padding: .9rem .2rem .3rem !important; white-space: normal; }
 
-/* Top-level menu hover (red theme) */
+/* ---------- Menu utama ---------- */
+#accordionSidebar .nav-item { padding: 0 .7rem; margin: 2px 0; }
+#accordionSidebar .nav-item .nav-link {
+    color: var(--sb-text) !important; font-weight: 500 !important; border-radius: 10px;
+    border: 0 !important; box-shadow: none !important; background: transparent;
+    transition: background .15s ease, color .15s ease, box-shadow .15s ease;
+}
+#accordionSidebar:not(.toggled) .nav-item .nav-link {
+    display: flex !important; align-items: center; gap: .65rem; width: 100% !important;
+    padding: .34rem .5rem !important; font-size: calc(.845rem * var(--sb-font-scale, 1)) !important; line-height: 1.3;
+}
+/* ikon di dalam kotak bulat */
+#accordionSidebar .nav-item .nav-link i {
+    display: inline-flex !important; align-items: center; justify-content: center;
+    width: 30px !important; height: 30px; min-width: 30px; margin: 0 !important; border-radius: 8px;
+    background: var(--sb-card); box-shadow: inset 0 0 0 1px var(--sb-chip-line);
+    color: var(--sb-icon) !important; font-size: .8rem !important; transition: all .15s ease;
+}
+#accordionSidebar:not(.toggled) .nav-item .nav-link span { flex: 1; min-width: 0; font-size: inherit !important; }
 #accordionSidebar .nav-item .nav-link:hover,
-#accordionSidebar .nav-item .nav-link:focus,
-#accordionSidebar .nav-item .nav-link:active {
-    background-color: #ffeaea !important;
-    color: var(--brand-1) !important;
+#accordionSidebar .nav-item .nav-link:focus { background: var(--sb-hover) !important; color: var(--sb-strong) !important; }
+#accordionSidebar .nav-item .nav-link:hover i { color: var(--sb-strong) !important; }
+#accordionSidebar .nav-item .nav-link[data-toggle="collapse"]:not(.collapsed) { color: var(--sb-strong) !important; }
+/* menu aktif: kartu putih + ikon charcoal */
+#accordionSidebar .nav-item.active > .nav-link {
+    background: var(--sb-card) !important; color: var(--sb-strong) !important; font-weight: 600 !important;
+    box-shadow: 0 1px 2px rgba(16,24,40,.06), 0 0 0 1px var(--sb-chip-line) !important;
+}
+#accordionSidebar .nav-item.active > .nav-link i {
+    background: var(--sb-accent); box-shadow: none; color: #fff !important;
+}
+body.dark-mode #accordionSidebar .nav-item.active > .nav-link i { color: #0f141c !important; }
+/* panah buka/tutup */
+#accordionSidebar .nav-item .nav-link[data-toggle="collapse"]::after {
+    float: none !important; margin-left: auto; width: auto !important; font-size: .62rem; color: var(--sb-head) !important;
+    content: '\f107'; font-family: 'Font Awesome 5 Free'; font-weight: 900; transition: transform .2s ease;
+}
+#accordionSidebar .nav-item .nav-link[data-toggle="collapse"].collapsed::after { content: '\f107'; transform: rotate(-90deg); }
+
+/* ---------- Submenu: panah › + ikon tiap item (user 2026-11-09: "jangan polos, harusnya ada icon panah") ---------- */
+#accordionSidebar .nav-item .collapse,
+#accordionSidebar .nav-item .collapsing { margin: 0 !important; }
+#accordionSidebar:not(.toggled) .nav-item .collapse .collapse-inner,
+#accordionSidebar:not(.toggled) .nav-item .collapsing .collapse-inner {
+    background: transparent !important; box-shadow: none !important; border-radius: 0 !important; border: 0 !important;
+    border-left: 1px solid var(--sb-line) !important;
+    margin: .2rem 0 .45rem 1.45rem !important; padding: 0 0 0 .5rem !important; min-width: 0 !important;
+}
+#accordionSidebar .collapse-inner .collapse-header {
+    color: var(--sb-head) !important; font-size: calc(.6rem * var(--sb-font-scale, 1)) !important; font-weight: 600;
+    letter-spacing: .07em; text-transform: uppercase; padding: .55rem .55rem .2rem !important; margin: 0 !important;
+}
+#accordionSidebar .collapse-inner .collapse-item {
+    display: flex !important; align-items: baseline; gap: .45rem; position: relative; color: var(--sb-sub) !important; background: transparent !important;
+    font-size: calc(.8rem * var(--sb-font-scale, 1)) !important; font-weight: 500; line-height: 1.35 !important;
+    padding: .36rem .55rem !important; margin: 1px 0 !important; border-radius: 7px; white-space: normal !important;
+    word-break: break-word; box-shadow: none !important; transition: background .15s ease, color .15s ease;
+}
+#accordionSidebar .collapse-inner .collapse-item::after { content: none !important; }
+#accordionSidebar .collapse-inner .collapse-item::before {
+    content: '\f105' !important; font-family: 'Font Awesome 5 Free'; font-weight: 900; font-size: .62rem;
+    position: static !important; color: var(--sb-head); width: .45rem; min-width: .45rem; flex-shrink: 0;
+    transition: transform .15s ease, color .15s ease;
+}
+#accordionSidebar .collapse-inner .collapse-item i {
+    display: inline-block !important; width: .95rem; min-width: .95rem; flex-shrink: 0; text-align: center;
+    margin: 0 !important; font-size: .72rem !important; color: var(--sb-icon); opacity: .85;
+}
+#accordionSidebar .collapse-inner .collapse-item:hover { background: var(--sb-hover) !important; color: var(--sb-strong) !important; }
+#accordionSidebar .collapse-inner .collapse-item:hover::before { color: var(--sb-strong); transform: translateX(2px); }
+#accordionSidebar .collapse-inner .collapse-item:hover i { color: var(--sb-strong); opacity: 1; }
+#accordionSidebar .collapse-inner .collapse-item.active {
+    background: var(--sb-sub-active) !important; color: var(--sb-strong) !important; font-weight: 600 !important;
+}
+#accordionSidebar .collapse-inner .collapse-item.active::before,
+#accordionSidebar .collapse-inner .collapse-item.active i { color: var(--sb-accent); opacity: 1; }
+
+/* ---------- Mode ciut (desktop): kotak ikon + label kecil, submenu melayang ---------- */
+#accordionSidebar.toggled .nav-item { padding: 0 .45rem; }
+#accordionSidebar.toggled .nav-item .nav-link {
+    display: flex !important; flex-direction: column; align-items: center; gap: .3rem;
+    padding: .5rem .2rem !important; width: 100% !important; text-align: center !important;
+}
+#accordionSidebar.toggled .nav-item .nav-link span { font-size: .6rem !important; line-height: 1.2; color: inherit; }
+#accordionSidebar.toggled .nav-item .nav-link[data-toggle="collapse"]::after { display: none !important; }
+#accordionSidebar.toggled .nav-item .collapse .collapse-inner {
+    background: var(--sb-card) !important; border: 1px solid var(--sb-line) !important; border-radius: 12px !important;
+    box-shadow: 0 12px 32px rgba(16,24,40,.12) !important; padding: .4rem !important; margin: 0 !important; min-width: 13rem;
 }
 
-/* Desktop: Ensure collapse-inner allows text wrapping */
-#accordionSidebar .collapse .collapse-inner {
-    padding: 0.5rem 0 !important;
-    overflow: visible !important;
-    word-break: break-word !important;
-}
-
-/* Scrollbar Styling untuk Sidebar */
-#accordionSidebar::-webkit-scrollbar {
-    width: 6px;
-}
-#accordionSidebar::-webkit-scrollbar-track {
-    background: #ebedf0;
-}
-#accordionSidebar::-webkit-scrollbar-thumb {
-    background: rgba(var(--brand-rgb),0.4);
-    border-radius: 10px;
-}
-
-/* ============================================
-   MOBILE RESPONSIVE - SIMPLE & CLEAN
-   ============================================ */
+/* ---------- Mobile: slide dari kiri ---------- */
 @media (max-width: 768px) {
-    /* Sidebar: Hidden by default, slide from left */
     #accordionSidebar {
-        position: fixed !important;
-        left: -16rem !important;
-        top: 0 !important;
-        width: 16rem !important;
-        height: 100vh !important;
-        z-index: 9999 !important;
-        transition: left 0.3s ease !important;
-        padding-top: 0.5rem !important;
+        position: fixed !important; left: -17rem !important; top: 0 !important; width: 17rem !important;
+        height: 100vh !important; z-index: 9999 !important; transition: left .3s ease !important;
     }
-    
-    /* Sidebar: Visible when toggled */
-    #accordionSidebar.show-mobile {
-        left: 0 !important;
-    }
-    
-    /* Content: Full width */
-    #content-wrapper {
-        margin-left: 0 !important;
-        width: 100% !important;
-    }
-    
-    /* Overlay backdrop */
-    .sidebar-backdrop {
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0,0,0,0.5);
-        z-index: 9998;
-        display: none;
-    }
-    .sidebar-backdrop.show {
-        display: block;
-    }
-    
-    /* ===== MENU STYLING MOBILE ===== */
-    
-    /* Logo lebih kecil */
-    #accordionSidebar .sidebar-brand {
-        padding: 0.75rem !important;
-    }
-    #accordionSidebar .sidebar-brand img {
-        max-height: 50px !important;
-    }
-    
-    /* Section heading */
-    #accordionSidebar .sidebar-heading {
-        font-size: 0.65rem !important;
-        padding: 0.5rem 1rem !important;
-        margin-top: 0.25rem !important;
-    }
-    
-    /* Menu items - horizontal layout */
+    #accordionSidebar.show-mobile { left: 0 !important; box-shadow: 0 0 40px rgba(16,24,40,.18) !important; }
+    #content-wrapper { margin-left: 0 !important; width: 100% !important; }
+    .sidebar-backdrop { position: fixed; inset: 0; background: rgba(16,24,40,.45); z-index: 9998; display: none; }
+    .sidebar-backdrop.show { display: block; }
+    #accordionSidebar .sidebar-brand { justify-content: flex-start !important; }
+    #accordionSidebar .sb-brand-text { display: flex !important; }
+    #accordionSidebar .sb-search { display: block !important; }
     #accordionSidebar .nav-item .nav-link {
-        display: flex !important;
-        flex-direction: row !important;
-        align-items: center !important;
-        padding: 0.6rem 1rem !important;
-        font-size: 0.85rem !important;
+        display: flex !important; flex-direction: row !important; align-items: center; gap: .65rem;
+        padding: .34rem .5rem !important; text-align: left !important; width: 100% !important; font-size: .845rem !important;
     }
-    
-    #accordionSidebar .nav-item .nav-link i {
-        width: 1.5rem !important;
-        font-size: 0.9rem !important;
-        margin-right: 0.5rem !important;
-        text-align: center !important;
-    }
-    
-    #accordionSidebar .nav-item .nav-link span {
-        font-size: 0.85rem !important;
-    }
-    
-    /* Dropdown arrow */
-    #accordionSidebar .nav-link[data-toggle="collapse"]::after {
-        margin-left: auto !important;
-    }
-    
-    /* ===== DROPDOWN SUBMENU STYLING ===== */
-    /* Reset SEMUA styling bawaan sb-admin-2 */
-    #accordionSidebar .nav-item .collapse {
-        position: relative !important;
-        left: 0 !important;
-        top: 0 !important;
-        z-index: 1 !important;
-        margin: 0 !important;
-    }
-
+    #accordionSidebar .nav-item .nav-link span { flex: 1; min-width: 0; display: inline !important; text-align: left !important; font-size: .845rem !important; }
+    #accordionSidebar .nav-item .nav-link[data-toggle="collapse"]::after { display: inline-block !important; }
+    #accordionSidebar .sidebar-heading { text-align: left !important; padding: 1.15rem 1.35rem .4rem !important; font-size: .64rem !important; }
+    #accordionSidebar .nav-item .collapse { position: relative !important; left: 0 !important; top: 0 !important; }
     #accordionSidebar .nav-item .collapse .collapse-inner,
     #accordionSidebar .nav-item .collapsing .collapse-inner {
-        padding: 0 !important;
-        margin: 0 !important;
-        border-radius: 0 !important;
-        background: rgba(0, 0, 0, 0.15) !important;
-        box-shadow: none !important;
-        min-width: 0 !important;
-        overflow: visible !important;
-        width: 100% !important;
-    }
-    
-    /* Sembunyikan header di mobile */
-    #accordionSidebar .collapse .collapse-header {
-        display: none !important;
-    }
-    
-    /* Submenu items mobile (red light theme) */
-    #accordionSidebar .nav-item .collapse .collapse-inner .collapse-item,
-    #accordionSidebar .nav-item .collapsing .collapse-inner .collapse-item {
-        padding: 0.5rem 1rem !important;
-        margin: 0 !important;
-        font-size: 0.85rem !important;
-        color: #444 !important;
-        white-space: normal !important;
-        word-wrap: break-word !important;
-        word-break: break-word !important;
-        overflow-wrap: break-word !important;
-        line-height: 1.5 !important;
-        display: flex !important;
-        align-items: center !important;
-        min-height: auto !important;
-        overflow: visible !important;
-        border: none !important;
-        border-radius: 0 !important;
-        background: transparent !important;
-    }
-
-    #accordionSidebar .nav-item .collapse .collapse-inner .collapse-item:hover {
-        background: #ffeaea !important;
-        color: var(--brand-1) !important;
-    }
-
-    #accordionSidebar .nav-item .collapse .collapse-inner .collapse-item.active {
-        background: #fff !important;
-        color: var(--brand-1) !important;
-        font-weight: 600 !important;
-    }
-    
-    /* Divider */
-    #accordionSidebar .sidebar-divider {
-        margin: 0.5rem 1rem !important;
+        background: transparent !important; box-shadow: none !important; border-radius: 0 !important; border: 0 !important;
+        border-left: 1px solid var(--sb-line) !important; margin: .2rem 0 .45rem 1.45rem !important; padding: 0 0 0 .75rem !important; width: auto !important;
     }
 }
-
-/* Tablet (768px - 992px) */
-@media (min-width: 769px) and (max-width: 992px) {
-    #accordionSidebar {
-        width: 14rem !important;
-    }
-}
-
-/* ============================================
-   BRAND LIGHT SIDEBAR (override blue gradient)
-   ============================================ */
-#accordionSidebar.bg-gradient-primary,
-#accordionSidebar {
-    background: #f5f6f8 !important;
-    border-right: 1px solid #e0e2e6 !important;
-}
-
-/* Brand area: white block with red bottom border.
-   Override SB Admin 2 default fixed height (4.375rem) so square logo fits. */
-#accordionSidebar .sidebar-brand {
-    background: #fff !important;
-    border-bottom: 3px solid var(--brand-1) !important;
-    padding: 1rem 0.5rem !important;
-    height: auto !important;
-    min-height: auto !important;
-    line-height: normal !important;
-    text-transform: none !important;
-}
-
-/* Logo framed in a box. Dulu kotak persegi 110x110 (mockup klien NSI);
-   rebrand Acropoly 2026-11-05: logo resminya melebar (badge + "ERP",
-   assets/img/logo_full.png), jadi kotaknya ikut melebar & tingginya
-   mengikuti logo. Mode ciut tetap kotak 48x48 (aturan .toggled di bawah). */
-#accordionSidebar .sidebar-brand-box {
-    border: 2px solid #1a1a1a;
-    background: #fff;
-    padding: 0.5rem;
-    border-radius: 4px;
-    width: 100%;
-    max-width: 190px;
-    height: auto;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-    overflow: hidden;
-}
-
-#accordionSidebar .sidebar-brand-box .sidebar-brand-full {
-    max-width: 100%;
-    max-height: 100%;
-    width: auto;
-    height: auto;
-    object-fit: contain;
-    display: block;
-}
-
-/* Toggled (collapsed) sidebar: smaller box, mini logo */
-.sidebar.toggled #accordionSidebar .sidebar-brand,
-#accordionSidebar.toggled .sidebar-brand {
-    padding: 0.5rem !important;
-}
-.sidebar.toggled #accordionSidebar .sidebar-brand-box,
-#accordionSidebar.toggled .sidebar-brand-box {
-    width: 48px;
-    height: 48px;
-    padding: 0.25rem;
-}
-
-/* Section heading (e.g., ITEM REQUEST, WAREHOUSE) */
-#accordionSidebar .sidebar-heading {
-    color: #1a1a1a !important;
-    font-weight: 800 !important;
-    font-size: 0.78rem !important;
-    text-transform: uppercase !important;
-    letter-spacing: 0.4px !important;
-    padding: 0.85rem 1rem 0.4rem !important;
-    opacity: 1 !important;
-}
-
-/* Top-level menu item */
-#accordionSidebar .nav-item .nav-link {
-    color: #2c2c2c !important;
-    font-weight: 600 !important;
-    padding: 0.55rem 1rem !important;
-    border-left: 3px solid transparent;
-}
-#accordionSidebar .nav-item .nav-link i {
-    color: var(--brand-1) !important;
-    width: 1.4rem;
-    text-align: center;
-}
-#accordionSidebar .nav-item .nav-link:hover,
-#accordionSidebar .nav-item .nav-link:focus {
-    background: #ffeaea !important;
-    color: var(--brand-1) !important;
-    border-left-color: var(--brand-1);
-}
-#accordionSidebar .nav-item .nav-link:hover i {
-    color: var(--brand-1) !important;
-}
-
-#accordionSidebar .nav-item.active > .nav-link,
-#accordionSidebar .nav-item .nav-link.active {
-    background: #ffeaea !important;
-    color: var(--brand-1) !important;
-    border-left-color: var(--brand-1);
-    font-weight: 700 !important;
-}
-
-/* Dropdown caret arrow color */
-#accordionSidebar .nav-link[data-toggle="collapse"]::after {
-    color: #888 !important;
-}
-
-/* Submenu container */
-#accordionSidebar .collapse-inner,
-#accordionSidebar .nav-item .collapse .collapse-inner,
-#accordionSidebar .nav-item .collapsing .collapse-inner {
-    background: #ebedf0 !important;
-    box-shadow: inset 3px 0 0 var(--brand-1) !important;
-    margin: 0 !important;
-    padding: 0.25rem 0 !important;
-}
-
-#accordionSidebar .collapse-inner .collapse-header {
-    color: #999 !important;
-    font-size: 0.7rem !important;
-}
-
-/* Submenu item */
-#accordionSidebar .collapse-inner .collapse-item {
-    color: #444 !important;
-    font-size: 0.83rem !important;
-    padding: 0.4rem 1rem 0.4rem 2rem !important;
-    position: relative;
-    background: transparent !important;
-}
-#accordionSidebar .collapse-inner .collapse-item::before {
-    content: "›";
-    position: absolute;
-    left: 1.1rem;
-    color: var(--brand-1);
-    font-weight: 700;
-}
-#accordionSidebar .collapse-inner .collapse-item:hover {
-    background: #ffeaea !important;
-    color: var(--brand-1) !important;
-}
-#accordionSidebar .collapse-inner .collapse-item.active {
-    background: #fff !important;
-    color: var(--brand-1) !important;
-    font-weight: 700 !important;
-    box-shadow: inset 3px 0 0 var(--brand-1);
-}
-
-/* Divider line */
-#accordionSidebar .sidebar-divider {
-    border-color: #e0e2e6 !important;
-}
-
-/* Scrollbar tone */
-#accordionSidebar::-webkit-scrollbar-track { background: #ebedf0 !important; }
-#accordionSidebar::-webkit-scrollbar-thumb { background: var(--brand-1) !important; opacity: 0.4; }
-
-/* Mobile overrides keep light theme */
-@media (max-width: 768px) {
-    #accordionSidebar .nav-item .collapse .collapse-inner .collapse-item,
-    #accordionSidebar .nav-item .collapsing .collapse-inner .collapse-item {
-        color: #444 !important;
-    }
-    #accordionSidebar .nav-item .collapse .collapse-inner .collapse-item:hover {
-        background: #ffeaea !important;
-        color: var(--brand-1) !important;
-    }
-    #accordionSidebar .nav-item .collapse .collapse-inner .collapse-item.active {
-        background: #fff !important;
-        color: var(--brand-1) !important;
-    }
-}
-
-/* Dark mode: keep dark sidebar for users that prefer it */
-body.dark-mode #accordionSidebar,
-body.dark-mode #accordionSidebar.bg-gradient-primary {
-    background: #1a1d23 !important;
-    border-right-color: #2a2f37 !important;
-}
-body.dark-mode #accordionSidebar .sidebar-heading { color: #d0d3d8 !important; }
-body.dark-mode #accordionSidebar .nav-item .nav-link { color: #d0d3d8 !important; }
-body.dark-mode #accordionSidebar .nav-item .nav-link:hover { background: #2a2f37 !important; color: #ff8a8a !important; }
-body.dark-mode #accordionSidebar .nav-item .nav-link i { color: #ff8a8a !important; }
-body.dark-mode #accordionSidebar .collapse-inner,
-body.dark-mode #accordionSidebar .nav-item .collapse .collapse-inner,
-body.dark-mode #accordionSidebar .nav-item .collapsing .collapse-inner {
-    background: #14171c !important;
-    box-shadow: inset 3px 0 0 var(--brand-dm-accent) !important;
-}
-body.dark-mode #accordionSidebar .collapse-inner .collapse-item { color: #c0c3c8 !important; }
-body.dark-mode #accordionSidebar .collapse-inner .collapse-item:hover { background: #2a2f37 !important; color: #ff8a8a !important; }
-body.dark-mode #accordionSidebar .sidebar-brand { background: #14171c !important; border-bottom-color: var(--brand-dm-accent) !important; }
-body.dark-mode #accordionSidebar .sidebar-brand-box { background: #fff; border-color: #fff; }
+@media (min-width: 769px) and (max-width: 992px) { #accordionSidebar:not(.toggled) { width: 15rem !important; } }
 </style>
 
 <!-- Mobile Sidebar Backdrop -->
@@ -585,33 +333,32 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <ul class="navbar-nav bg-gradient-primary sidebar sidebar-dark accordion shadow-sm" id="accordionSidebar">
 
-    <a class="sidebar-brand d-flex align-items-center justify-content-center py-3" href="<?= $base; ?>dashboard">
-        <div class="sidebar-brand-box">
-            <?php // Logo bisa diganti via Developer Mode (site_asset(), ERP Revision
-                  // Notes user 2026-09-03) - default tetap file bawaan kalau belum
-                  // pernah di-custom. ?>
-            <img src="<?= $base . site_asset('logo_sidebar_full', 'assets/img/logo_full.png'); ?>" class="sidebar-brand-full" alt="<?= htmlspecialchars(company_info('company_name')); ?>">
-            <img src="<?= $base . site_asset('logo_sidebar_mini', 'assets/img/logo_mini.png'); ?>" class="sidebar-brand-mini" alt="N">
-        </div>
+    <a class="sidebar-brand" href="<?= $base; ?>dashboard" title="Dashboard">
+        <?php // Logo bisa diganti via Developer Mode (site_asset() slot logo_sidebar_mini);
+              // nama dari company_info() (app_name & company_name). Klik = Dashboard
+              // (menu Dashboard sengaja tidak ada di sidebar, user 2026-11-09). ?>
+        <span class="sb-logo"><img src="<?= $base . site_asset('logo_sidebar_mini', 'assets/img/logo_mini.png'); ?>" alt="<?= htmlspecialchars(company_info('company_name')); ?>"></span>
+        <span class="sb-brand-text">
+            <span class="sb-brand-name"><?= htmlspecialchars(company_info('app_name')); ?></span>
+            <span class="sb-brand-sub"><?= htmlspecialchars(company_info('company_name')); ?></span>
+        </span>
     </a>
+
+    <div class="sb-search" role="search">
+        <i class="fas fa-search"></i>
+        <input type="text" id="sbMenuSearch" autocomplete="off" spellcheck="false"
+               placeholder="<?= htmlspecialchars(lang_line('sidebar_search_ph', 'Cari menu...')); ?>"
+               aria-label="<?= htmlspecialchars(lang_line('sidebar_search_ph', 'Cari menu...')); ?>">
+        <button type="button" class="sb-search-clear" id="sbMenuSearchClear" aria-label="Clear">&times;</button>
+    </div>
+    <div class="sb-search-empty" id="sbMenuSearchEmpty"><?= lang_line('sidebar_search_empty', 'Menu tidak ditemukan'); ?></div>
 
     <hr class="sidebar-divider my-0">
 
-    <?php if ($canViewDashboard): ?>
-    <li class="nav-item <?= ($current == 'dashboard' || $current == '') ? 'active' : ''; ?>">
-        <a class="nav-link" href="<?= $base; ?>dashboard">
-            <i class="fas fa-fw fa-tachometer-alt"></i>
-            <span><?= lang_line('sidebar_dashboard', 'Dashboard'); ?></span>
-        </a>
-    </li>
-    <?php endif; ?>
 
-    <?php if ($canViewCoreOperations): ?>
-    <hr class="sidebar-divider">
-    <div class="sidebar-heading">
-        <?= lang_line('sidebar_core_operations', 'Core Operations'); ?>
-    </div>
-    <?php endif; ?>
+    <?php // Heading tunggal "Core Operations / OPERASI INTI" diganti heading per
+          // kelompok (Penjualan & Produksi, Pengadaan & Gudang, Kepabeanan,
+          // Keuangan, Data & Sistem) -- lihat sidebar_render_grouped_sections(). ?>
 
     <?php
         // Ditampung dulu ke buffer per-section (bukan langsung di-echo)
@@ -1219,27 +966,39 @@ document.addEventListener('DOMContentLoaded', function() {
         $sections['it_inventory'] = ob_get_clean();
     ?>
 
-    <?php ob_start(); if ($canViewAccounting): ?>
-    <li class="nav-item <?= $isAccountingActive ? 'active' : ''; ?>">
-        <a class="nav-link <?= $isAccountingActive ? '' : 'collapsed'; ?>" href="#" data-toggle="collapse" data-target="#collapseAccounting"
-            aria-expanded="<?= $isAccountingActive ? 'true' : 'false'; ?>" aria-controls="collapseAccounting">
-            <i class="fas fa-fw fa-calculator"></i>
-            <span><?= lang_line('sidebar_finance_accounting', 'Finance & Accounting'); ?></span>
-        </a>
-        <div id="collapseAccounting" class="collapse <?= $isAccountingActive ? 'show' : ''; ?>" data-parent="#accordionSidebar">
-            <div class="py-2 collapse-inner rounded"><?php ob_start(); ?>
+    <?php
+    /* =====================================================================
+       FINANCE & ACCOUNTING -- DIPECAH jadi 6 menu (user 2026-11-09:
+       "accounting juga harusnya di pisah"). Dulu 1 dropdown berisi ±25 item.
+       - Hak akses tiap item TIDAK berubah (check_access() sama persis), dan
+         baris <a> (href/data-lk) sama persis -> item_key "Atur Urutan
+         Sidebar" tetap sama (lihat db/migration_sidebar_accounting_split.sql).
+       - Key section 'accounting' tetap dipakai utk "Kas, Bank & Jurnal" supaya
+         baris sidebar_order lama tidak jadi yatim.
+       - Menu yang isinya kosong utk user ybs (tidak punya akses) tidak tampil.
+       ===================================================================== */
+    $sb_dropdown = function ($dd_key, $icon, $label, $is_active, $inner) use ($base) {
+        $inner = sidebar_render_ordered_items($dd_key, $inner, $base);
+        if (trim(strip_tags($inner, '<a>')) === '') return '';
+        $id = 'collapse_' . $dd_key;
+        return '<li class="nav-item' . ($is_active ? ' active' : '') . '">'
+             . '<a class="nav-link' . ($is_active ? '' : ' collapsed') . '" href="#" data-toggle="collapse" data-target="#' . $id . '"'
+             . ' aria-expanded="' . ($is_active ? 'true' : 'false') . '" aria-controls="' . $id . '">'
+             . '<i class="fas fa-fw ' . $icon . '"></i><span>' . htmlspecialchars($label) . '</span></a>'
+             . '<div id="' . $id . '" class="collapse' . ($is_active ? ' show' : '') . '" data-parent="#accordionSidebar">'
+             . '<div class="py-2 collapse-inner rounded">' . $inner . '</div></div></li>';
+    };
+    $isAccFundActive    = in_array($current, ['prf', 'prf_approval', 'prf_payment', 'prf_list', 'erf', 'erf_approval', 'erf_payment', 'erf_list'], true);
+    $isAccLedgerActive  = in_array($current, ['jurnalumum', 'summary_ledger', 'voucher_disbursement_list', 'cashbank'], true);
+    $isAccAparActive    = in_array($current, ['apinvoice', 'appayment', 'hutang', 'arinvoice', 'arreceipt', 'piutang'], true);
+    $isAccReportActive  = in_array($current, ['reports', 'laba_rugi', 'neraca', 'balance_sheet', 'trial_balance', 'cash_flow'], true);
+    $isAccStockActive   = in_array($current, ['stockopname', 'adjustment'], true);
+    $isAccSettingActive = in_array($current, ['coa', 'settingakun', 'kurs_pajak'], true);
+    ?>
 
-                <?php
-                    $hasFinance = check_access('prf', 'view') || check_access('prf_approval', 'view') || check_access('prf_payment', 'view') || check_access('erf', 'view') || check_access('erf_approval', 'view') || check_access('erf_payment', 'view') || check_access('prf_list', 'view') || check_access('erf_list', 'view');
-                    $hasAcct    = check_access('jurnalumum', 'view') || check_access('summary_ledger', 'view') || check_access('voucher_disbursement_list', 'view') || check_access('apinvoice', 'view') || check_access('hutang', 'view') || check_access('piutang', 'view') || check_access('appayment', 'view') || check_access('arreceipt', 'view') || check_access('arinvoice', 'view') || check_access('cashbank', 'view');
-                    $hasReport  = check_access('laba_rugi', 'view') || check_access('neraca', 'view') || check_access('trial_balance', 'view') || check_access('cash_flow', 'view');
-                    $hasOpname  = check_access('stockopname', 'view') || check_access('adjustment', 'view');
-                    $hasSetting = check_access('coa', 'view') || check_access('settingakun', 'view') || check_access('kurs_pajak', 'view');
-                ?>
-
-                <!-- ==================== FINANCE ==================== -->
-                <?php if ($hasFinance): ?>
-                    <h6 class="collapse-header" data-gk="sidebar_finance_group"><?= lang_line('sidebar_finance_group', 'FINANCE'); ?></h6>
+    <?php /* ---- 1. Pengajuan Dana (PRF & ERF) ---- */ ob_start(); ?>
+                <?php if (check_access('prf', 'add') || check_access('prf_approval', 'view') || check_access('prf_payment', 'view') || check_access('prf_list', 'view') || check_access('prf', 'view')): ?>
+                    <h6 class="collapse-header" data-gk="sidebar_fund_prf_group"><?= lang_line('sidebar_fund_prf_group', 'PAYMENT REQUEST (PRF)'); ?></h6>
                     <?php if (check_access('prf', 'add')): ?>
                         <a data-lk="sidebar_prf_create" class="collapse-item <?= ($current == 'prf' && $current_action == 'create') ? 'active' : ''; ?>" href="<?= $base; ?>prf/create"><i class="fas fa-file-invoice" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_prf_create', 'Create Payment Request'); ?></a>
                     <?php endif; ?>
@@ -1249,6 +1008,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     <?php if (check_access('prf_payment', 'view')): ?>
                         <a data-lk="sidebar_prf_payment" class="collapse-item <?= ($current == 'prf' && $current_action == 'payment') ? 'active' : ''; ?>" href="<?= $base; ?>prf/payment"><i class="fas fa-wallet" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_prf_payment', 'Payment Request Payment'); ?></a>
                     <?php endif; ?>
+                    <?php if (check_access('prf_list', 'view') || check_access('prf', 'view')): ?>
+                        <a data-lk="sidebar_prf_list" class="collapse-item <?= ($current == 'prf' && $current_action == 'list_all') ? 'active' : ''; ?>" href="<?= $base; ?>prf/list_all"><i class="fas fa-clipboard-list" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_prf_list', 'Payment Request List'); ?></a>
+                    <?php endif; ?>
+                <?php endif; ?>
+                <?php if (check_access('erf', 'add') || check_access('erf_approval', 'view') || check_access('erf_payment', 'view') || check_access('erf_list', 'view') || check_access('erf', 'view')): ?>
+                    <h6 class="collapse-header" data-gk="sidebar_fund_erf_group"><?= lang_line('sidebar_fund_erf_group', 'REIMBURSE (ERF)'); ?></h6>
                     <?php if (check_access('erf', 'add')): ?>
                         <a data-lk="sidebar_erf_create" class="collapse-item <?= ($current == 'erf' && $current_action == 'create') ? 'active' : ''; ?>" href="<?= $base; ?>erf/create"><i class="fas fa-hand-holding-usd" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_erf_create', 'Create Reimburse Request'); ?></a>
                     <?php endif; ?>
@@ -1258,29 +1023,30 @@ document.addEventListener('DOMContentLoaded', function() {
                     <?php if (check_access('erf_payment', 'view')): ?>
                         <a data-lk="sidebar_erf_payment" class="collapse-item <?= ($current == 'erf' && $current_action == 'payment') ? 'active' : ''; ?>" href="<?= $base; ?>erf/payment"><i class="fas fa-wallet" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_erf_payment', 'Reimburse Request Payment'); ?></a>
                     <?php endif; ?>
-                    <?php if (check_access('prf_list', 'view') || check_access('erf_list', 'view') || check_access('prf', 'view') || check_access('erf', 'view')): ?>
-                        <h6 class="collapse-header" data-gk="sidebar_finance_report"><?= lang_line('sidebar_finance_report', 'REPORT:'); ?></h6>
-                        <?php if (check_access('prf_list', 'view') || check_access('prf', 'view')): ?>
-                            <a data-lk="sidebar_prf_list" class="collapse-item <?= ($current == 'prf' && $current_action == 'list_all') ? 'active' : ''; ?>" href="<?= $base; ?>prf/list_all"><i class="fas fa-clipboard-list" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_prf_list', 'Payment Request List'); ?></a>
-                        <?php endif; ?>
-                        <?php if (check_access('erf_list', 'view') || check_access('erf', 'view')): ?>
-                            <a data-lk="sidebar_erf_list" class="collapse-item <?= ($current == 'erf' && $current_action == 'list_all') ? 'active' : ''; ?>" href="<?= $base; ?>erf/list_all"><i class="fas fa-clipboard-list" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_erf_list', 'Reimburse Request List'); ?></a>
-                        <?php endif; ?>
+                    <?php if (check_access('erf_list', 'view') || check_access('erf', 'view')): ?>
+                        <a data-lk="sidebar_erf_list" class="collapse-item <?= ($current == 'erf' && $current_action == 'list_all') ? 'active' : ''; ?>" href="<?= $base; ?>erf/list_all"><i class="fas fa-clipboard-list" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_erf_list', 'Reimburse Request List'); ?></a>
                     <?php endif; ?>
                 <?php endif; ?>
+    <?php $sections['acc_fund'] = $sb_dropdown('acc_fund', 'fa-hand-holding-usd', lang_line('sidebar_acc_fund', 'Pengajuan Dana'), $isAccFundActive, ob_get_clean()); ?>
 
-                <!-- ==================== ACCOUNTING ==================== -->
-                <?php if ($hasAcct || $hasReport || $hasOpname || $hasSetting): ?>
-                    <h6 class="collapse-header" data-gk="sidebar_accounting_group"><?= lang_line('sidebar_accounting_group', 'ACCOUNTING'); ?></h6>
-                    <?php if (check_access('jurnalumum', 'view')): ?>
-                        <a data-lk="sidebar_general_journal" class="collapse-item <?= ($current == 'jurnalumum') ? 'active' : ''; ?>" href="<?= $base; ?>jurnalumum"><i class="fas fa-journal-whills" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_general_journal', 'General Journal'); ?></a>
-                    <?php endif; ?>
-                    <?php if (check_access('summary_ledger', 'view')): ?>
-                        <a data-lk="sidebar_summary_ledger" class="collapse-item <?= ($current == 'summary_ledger') ? 'active' : ''; ?>" href="<?= $base; ?>summary_ledger"><i class="fas fa-file-import" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_summary_ledger', 'Voucher Disbursement Upload'); ?></a>
-                    <?php endif; ?>
-                    <?php if (check_access('voucher_disbursement_list', 'view')): ?>
-                        <a data-lk="sidebar_voucher_disbursement_list" class="collapse-item <?= ($current == 'summary_ledger' && $current_action == 'voucher_list') ? 'active' : ''; ?>" href="<?= $base; ?>summary_ledger/voucher_list"><i class="fas fa-file-invoice-dollar" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_voucher_disbursement_list', 'Voucher Disbursement List'); ?></a>
-                    <?php endif; ?>
+    <?php /* ---- 2. Kas, Bank & Jurnal (key lama 'accounting') ---- */ ob_start(); ?>
+                <?php if (check_access('cashbank', 'view')): ?>
+                    <a data-lk="sidebar_cash_bank" class="collapse-item <?= ($current == 'cashbank') ? 'active' : ''; ?>" href="<?= $base; ?>cashbank"><i class="fas fa-university" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_cash_bank', 'Cash & Bank'); ?></a>
+                <?php endif; ?>
+                <?php if (check_access('jurnalumum', 'view')): ?>
+                    <a data-lk="sidebar_general_journal" class="collapse-item <?= ($current == 'jurnalumum') ? 'active' : ''; ?>" href="<?= $base; ?>jurnalumum"><i class="fas fa-journal-whills" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_general_journal', 'General Journal'); ?></a>
+                <?php endif; ?>
+                <?php if (check_access('summary_ledger', 'view')): ?>
+                    <a data-lk="sidebar_summary_ledger" class="collapse-item <?= ($current == 'summary_ledger') ? 'active' : ''; ?>" href="<?= $base; ?>summary_ledger"><i class="fas fa-file-import" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_summary_ledger', 'Voucher Disbursement Upload'); ?></a>
+                <?php endif; ?>
+                <?php if (check_access('voucher_disbursement_list', 'view')): ?>
+                    <a data-lk="sidebar_voucher_disbursement_list" class="collapse-item <?= ($current == 'summary_ledger' && $current_action == 'voucher_list') ? 'active' : ''; ?>" href="<?= $base; ?>summary_ledger/voucher_list"><i class="fas fa-file-invoice-dollar" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_voucher_disbursement_list', 'Voucher Disbursement List'); ?></a>
+                <?php endif; ?>
+    <?php $sections['accounting'] = $sb_dropdown('accounting', 'fa-book', lang_line('sidebar_acc_ledger', 'Kas, Bank & Jurnal'), $isAccLedgerActive, ob_get_clean()); ?>
+
+    <?php /* ---- 3. Hutang & Piutang ---- */ ob_start(); ?>
+                <?php if (check_access('apinvoice', 'view') || check_access('appayment', 'view') || check_access('hutang', 'view')): ?>
+                    <h6 class="collapse-header" data-gk="sidebar_ap_group"><?= lang_line('sidebar_ap_group', 'HUTANG USAHA (AP)'); ?></h6>
                     <?php if (check_access('apinvoice', 'view')): ?>
                         <a data-lk="sidebar_account_payable" class="collapse-item <?= ($current == 'apinvoice') ? 'active' : ''; ?>" href="<?= $base; ?>apinvoice"><i class="fas fa-file-invoice-dollar" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_account_payable', 'Account Payable'); ?></a>
                     <?php endif; ?>
@@ -1290,6 +1056,9 @@ document.addEventListener('DOMContentLoaded', function() {
                     <?php if (check_access('hutang', 'view')): ?>
                         <a data-lk="sidebar_hutang_list" class="collapse-item <?= ($current == 'hutang') ? 'active' : ''; ?>" href="<?= $base; ?>hutang"><i class="fas fa-list-alt" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_hutang_list', 'Daftar Hutang'); ?></a>
                     <?php endif; ?>
+                <?php endif; ?>
+                <?php if (check_access('arinvoice', 'view') || check_access('arreceipt', 'view') || check_access('piutang', 'view')): ?>
+                    <h6 class="collapse-header" data-gk="sidebar_ar_group"><?= lang_line('sidebar_ar_group', 'PIUTANG USAHA (AR)'); ?></h6>
                     <?php if (check_access('arinvoice', 'view')): ?>
                         <a data-lk="sidebar_receivable_invoice" class="collapse-item <?= ($current == 'arinvoice') ? 'active' : ''; ?>" href="<?= $base; ?>arinvoice"><i class="fas fa-file-invoice-dollar" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_receivable_invoice', 'Receivable Invoice'); ?></a>
                     <?php endif; ?>
@@ -1299,54 +1068,44 @@ document.addEventListener('DOMContentLoaded', function() {
                     <?php if (check_access('piutang', 'view')): ?>
                         <a data-lk="sidebar_piutang_list" class="collapse-item <?= ($current == 'piutang') ? 'active' : ''; ?>" href="<?= $base; ?>piutang"><i class="fas fa-list-alt" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_piutang_list', 'Daftar Piutang'); ?></a>
                     <?php endif; ?>
-                    <?php if (check_access('cashbank', 'view')): ?>
-                        <a data-lk="sidebar_cash_bank" class="collapse-item <?= ($current == 'cashbank') ? 'active' : ''; ?>" href="<?= $base; ?>cashbank"><i class="fas fa-university" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_cash_bank', 'Cash & Bank'); ?></a>
-                    <?php endif; ?>
-
-                    <?php if ($hasOpname): ?>
-                        <h6 class="collapse-header" data-gk="sidebar_stock_opname_group"><?= lang_line('sidebar_stock_opname_group', 'STOCK OPNAME:'); ?></h6>
-                        <?php if (check_access('stockopname', 'view')): ?>
-                            <a data-lk="sidebar_stock_opname" class="collapse-item <?= ($current == 'stockopname') ? 'active' : ''; ?>" href="<?= $base; ?>stockopname"><i class="fas fa-clipboard-check" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_stock_opname', 'Stock Opname'); ?></a>
-                        <?php endif; ?>
-                        <?php if (check_access('adjustment', 'view')): ?>
-                            <a data-lk="sidebar_stock_adjustment" class="collapse-item <?= ($current == 'adjustment') ? 'active' : ''; ?>" href="<?= $base; ?>Adjustment"><i class="fas fa-sliders-h" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_stock_adjustment', 'Stock Adjustment'); ?></a>
-                        <?php endif; ?>
-                    <?php endif; ?>
-
-                    <?php if ($hasReport): ?>
-                        <h6 class="collapse-header" data-gk="sidebar_accounting_report"><?= lang_line('sidebar_accounting_report', 'REPORT:'); ?></h6>
-                        <?php if (check_access('laba_rugi', 'view')): ?>
-                            <a data-lk="sidebar_profit_loss" class="collapse-item <?= ($current == 'reports' && $current_action == 'profit_loss') ? 'active' : ''; ?>" href="<?= $base; ?>reports/profit_loss"><i class="fas fa-chart-pie" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_profit_loss', 'Profit & Loss'); ?></a>
-                        <?php endif; ?>
-                        <?php if (check_access('neraca', 'view')): ?>
-                            <a data-lk="sidebar_balance_sheet" class="collapse-item <?= ($current == 'reports' && $current_action == 'balance_sheet') ? 'active' : ''; ?>" href="<?= $base; ?>reports/balance_sheet"><i class="fas fa-balance-scale" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_balance_sheet', 'Balance Sheet'); ?></a>
-                        <?php endif; ?>
-                        <?php if (check_access('trial_balance', 'view')): ?>
-                            <a data-lk="sidebar_trial_balance" class="collapse-item <?= ($current == 'reports' && $current_action == 'trial_balance') ? 'active' : ''; ?>" href="<?= $base; ?>reports/trial_balance"><i class="fas fa-clipboard-list" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_trial_balance', 'Trial Balance'); ?></a>
-                        <?php endif; ?>
-                        <?php if (check_access('cash_flow', 'view')): ?>
-                            <a data-lk="sidebar_cash_flow" class="collapse-item <?= ($current == 'reports' && $current_action == 'cash_flow') ? 'active' : ''; ?>" href="<?= $base; ?>reports/cash_flow"><i class="fas fa-water" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_cash_flow', 'Cash Flow'); ?></a>
-                        <?php endif; ?>
-                    <?php endif; ?>
-
-                    <?php if ($hasSetting): ?>
-                        <h6 class="collapse-header" data-gk="sidebar_accounting_setting"><?= lang_line('sidebar_accounting_setting', 'SETTING:'); ?></h6>
-                        <?php if (check_access('coa', 'view')): ?>
-                            <a data-lk="sidebar_coa" class="collapse-item <?= ($current == 'coa') ? 'active' : ''; ?>" href="<?= $base; ?>coa"><i class="fas fa-sitemap" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_coa', 'Chart of Account (COA)'); ?></a>
-                        <?php endif; ?>
-                        <?php if (check_access('settingakun', 'view')): ?>
-                            <a data-lk="sidebar_account_settings" class="collapse-item <?= ($current == 'settingakun') ? 'active' : ''; ?>" href="<?= $base; ?>settingakun"><i class="fas fa-sliders-h" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_account_settings', 'Account Settings'); ?></a>
-                        <?php endif; ?>
-                        <?php if (check_access('kurs_pajak', 'view')): ?>
-                            <a data-lk="sidebar_kurs_pajak" class="collapse-item <?= ($current == 'kurs_pajak') ? 'active' : ''; ?>" href="<?= $base; ?>kurs_pajak"><i class="fas fa-coins" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_kurs_pajak', 'Kurs Pajak'); ?></a>
-                        <?php endif; ?>
-                    <?php endif; ?>
                 <?php endif; ?>
-                <?php echo sidebar_render_ordered_items('accounting', ob_get_clean(), $base); ?>
-            </div>
-        </div>
-    </li>
-    <?php endif; $sections['accounting'] = ob_get_clean(); ?>
+    <?php $sections['acc_apar'] = $sb_dropdown('acc_apar', 'fa-file-invoice-dollar', lang_line('sidebar_acc_apar', 'Hutang & Piutang'), $isAccAparActive, ob_get_clean()); ?>
+
+    <?php /* ---- 4. Laporan Keuangan ---- */ ob_start(); ?>
+                <?php if (check_access('laba_rugi', 'view')): ?>
+                    <a data-lk="sidebar_profit_loss" class="collapse-item <?= ($current == 'reports' && $current_action == 'profit_loss') ? 'active' : ''; ?>" href="<?= $base; ?>reports/profit_loss"><i class="fas fa-chart-pie" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_profit_loss', 'Profit & Loss'); ?></a>
+                <?php endif; ?>
+                <?php if (check_access('neraca', 'view')): ?>
+                    <a data-lk="sidebar_balance_sheet" class="collapse-item <?= ($current == 'reports' && $current_action == 'balance_sheet') ? 'active' : ''; ?>" href="<?= $base; ?>reports/balance_sheet"><i class="fas fa-balance-scale" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_balance_sheet', 'Balance Sheet'); ?></a>
+                <?php endif; ?>
+                <?php if (check_access('trial_balance', 'view')): ?>
+                    <a data-lk="sidebar_trial_balance" class="collapse-item <?= ($current == 'reports' && $current_action == 'trial_balance') ? 'active' : ''; ?>" href="<?= $base; ?>reports/trial_balance"><i class="fas fa-clipboard-list" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_trial_balance', 'Trial Balance'); ?></a>
+                <?php endif; ?>
+                <?php if (check_access('cash_flow', 'view')): ?>
+                    <a data-lk="sidebar_cash_flow" class="collapse-item <?= ($current == 'reports' && $current_action == 'cash_flow') ? 'active' : ''; ?>" href="<?= $base; ?>reports/cash_flow"><i class="fas fa-water" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_cash_flow', 'Cash Flow'); ?></a>
+                <?php endif; ?>
+    <?php $sections['acc_report'] = $sb_dropdown('acc_report', 'fa-chart-pie', lang_line('sidebar_acc_report', 'Laporan Keuangan'), $isAccReportActive, ob_get_clean()); ?>
+
+    <?php /* ---- 5. Stock Opname ---- */ ob_start(); ?>
+                <?php if (check_access('stockopname', 'view')): ?>
+                    <a data-lk="sidebar_stock_opname" class="collapse-item <?= ($current == 'stockopname') ? 'active' : ''; ?>" href="<?= $base; ?>stockopname"><i class="fas fa-clipboard-check" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_stock_opname', 'Stock Opname'); ?></a>
+                <?php endif; ?>
+                <?php if (check_access('adjustment', 'view')): ?>
+                    <a data-lk="sidebar_stock_adjustment" class="collapse-item <?= ($current == 'adjustment') ? 'active' : ''; ?>" href="<?= $base; ?>Adjustment"><i class="fas fa-sliders-h" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_stock_adjustment', 'Stock Adjustment'); ?></a>
+                <?php endif; ?>
+    <?php $sections['acc_stock'] = $sb_dropdown('acc_stock', 'fa-clipboard-check', lang_line('sidebar_acc_stock', 'Stock Opname'), $isAccStockActive, ob_get_clean()); ?>
+
+    <?php /* ---- 6. Pengaturan Akuntansi ---- */ ob_start(); ?>
+                <?php if (check_access('coa', 'view')): ?>
+                    <a data-lk="sidebar_coa" class="collapse-item <?= ($current == 'coa') ? 'active' : ''; ?>" href="<?= $base; ?>coa"><i class="fas fa-sitemap" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_coa', 'Chart of Account (COA)'); ?></a>
+                <?php endif; ?>
+                <?php if (check_access('settingakun', 'view')): ?>
+                    <a data-lk="sidebar_account_settings" class="collapse-item <?= ($current == 'settingakun') ? 'active' : ''; ?>" href="<?= $base; ?>settingakun"><i class="fas fa-sliders-h" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_account_settings', 'Account Settings'); ?></a>
+                <?php endif; ?>
+                <?php if (check_access('kurs_pajak', 'view')): ?>
+                    <a data-lk="sidebar_kurs_pajak" class="collapse-item <?= ($current == 'kurs_pajak') ? 'active' : ''; ?>" href="<?= $base; ?>kurs_pajak"><i class="fas fa-coins" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_kurs_pajak', 'Kurs Pajak'); ?></a>
+                <?php endif; ?>
+    <?php $sections['acc_setting'] = $sb_dropdown('acc_setting', 'fa-sliders-h', lang_line('sidebar_acc_setting', 'Pengaturan Akuntansi'), $isAccSettingActive, ob_get_clean()); ?>
 
     <?php ob_start(); if ($canViewMaster): ?>
     <li class="nav-item <?= $isMasterActive ? 'active' : ''; ?>">
@@ -1464,7 +1223,8 @@ document.addEventListener('DOMContentLoaded', function() {
         foreach (sidebar_section_lang_keys() as $__sk => $__def) {
             $sidebar_section_labels[$__sk] = lang_line($__def[0], $__def[1]);
         }
-        echo sidebar_render_ordered_sections($sections, $sidebar_section_labels);
+        // 2026-11-09: dirender per KELOMPOK dengan heading (sidebar_section_groups()).
+        echo sidebar_render_grouped_sections($sections, $sidebar_section_labels);
     ?>
 
     <?php // Tombol bulat "ciutkan sidebar" (#sidebarToggle) DIHAPUS 2026-09-09
@@ -1474,5 +1234,82 @@ document.addEventListener('DOMContentLoaded', function() {
           // aman walau salah satunya tidak dirender. ?>
 
 </ul>
+<script>
+/* Cari menu sidebar (2026-11-09): saring menu & submenu sesuai teks, dropdown yang
+   cocok otomatis terbuka; Enter = buka hasil pertama, Esc = kosongkan. Vanilla JS
+   (jQuery dimuat ulang di footer). Kosongkan kotak = kembali ke keadaan semula. */
+(function () {
+    var sb = document.getElementById('accordionSidebar'), inp = document.getElementById('sbMenuSearch');
+    if (!sb || !inp) return;
+    var clr = document.getElementById('sbMenuSearchClear'), empty = document.getElementById('sbMenuSearchEmpty');
+    var kids = Array.prototype.slice.call(sb.children);
+    var lis = kids.filter(function (el) { return el.matches('li.nav-item'); });
+    var norm = function (t) { return (t || '').toLowerCase().replace(/\s+/g, ' ').trim(); };
+    var saved = null;
+
+    function run() {
+        var q = norm(inp.value);
+        clr.style.display = q ? 'block' : 'none';
+        if (q && !saved) saved = lis.map(function (li) { var c = li.querySelector('.collapse'); return c ? c.classList.contains('show') : null; });
+        var anyVisible = false;
+        lis.forEach(function (li, i) {
+            var link = li.querySelector('.nav-link'), col = li.querySelector('.collapse');
+            var subs = col ? Array.prototype.slice.call(col.querySelectorAll('.collapse-inner > *')) : [];
+            if (!q) {
+                li.style.display = '';
+                subs.forEach(function (e) { e.style.display = ''; });
+                if (col && saved) { col.classList.toggle('show', !!saved[i]); link.classList.toggle('collapsed', !saved[i]); }
+                return;
+            }
+            var self = norm(link ? link.textContent : '').indexOf(q) > -1, hit = self;
+            subs.forEach(function (e) {
+                if (e.matches('.collapse-item')) {
+                    var ok = self || norm(e.textContent).indexOf(q) > -1;
+                    e.style.display = ok ? '' : 'none';
+                    if (ok) hit = true;
+                }
+            });
+            // judul grup submenu (mis. "LAPORAN:") tampil hanya bila ada item di bawahnya
+            subs.forEach(function (e, k) {
+                if (!e.matches('.collapse-header')) return;
+                var show = false;
+                for (var j = k + 1; j < subs.length && !subs[j].matches('.collapse-header'); j++) {
+                    if (subs[j].matches('.collapse-item') && subs[j].style.display !== 'none') { show = true; break; }
+                }
+                e.style.display = show ? '' : 'none';
+            });
+            li.style.display = hit ? '' : 'none';
+            if (hit) anyVisible = true;
+            if (hit && col) { col.classList.add('show'); link.classList.remove('collapsed'); }
+        });
+        // heading kelompok tampil hanya bila ada menu terlihat di bawahnya
+        kids.forEach(function (el, k) {
+            if (!el.matches('.sidebar-heading')) return;
+            var show = !q;
+            for (var j = k + 1; q && j < kids.length && !kids[j].matches('.sidebar-heading'); j++) {
+                if (kids[j].matches('li.nav-item') && kids[j].style.display !== 'none') { show = true; break; }
+            }
+            el.style.display = show ? '' : 'none';
+        });
+        empty.style.display = (q && !anyVisible) ? 'block' : 'none';
+        if (!q) saved = null;
+    }
+    inp.addEventListener('input', run);
+    inp.addEventListener('keydown', function (e) {
+        if (e.key === 'Escape') { inp.value = ''; run(); inp.blur(); }
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            var first = Array.prototype.slice.call(sb.querySelectorAll('li.nav-item')).filter(function (li) { return li.style.display !== 'none'; })
+                .map(function (li) {
+                    var items = Array.prototype.slice.call(li.querySelectorAll('.collapse-item')).filter(function (a) { return a.style.display !== 'none'; });
+                    if (items.length) return items[0];
+                    var l = li.querySelector('.nav-link'); return (l && l.getAttribute('href') !== '#') ? l : null;
+                }).filter(Boolean)[0];
+            if (first) window.location.href = first.href;
+        }
+    });
+    clr.addEventListener('click', function () { inp.value = ''; run(); inp.focus(); });
+})();
+</script>
 <div id="content-wrapper" class="d-flex flex-column">
     <div id="content">

@@ -19,16 +19,17 @@
     <?php endforeach; ?>
 
     <!-- Stats per stage -->
-    <div class="row mb-4">
+    <div class="row mb-2">
         <?php
             $stage_meta = [
-                'grinding'    => ['label' => lang_line('pqc_stage_grinding', 'Grinding'),     'icon' => 'fa-cut',     'color' => 'warning'],
-                'assembling'  => ['label' => lang_line('pqc_stage_assembling', 'Assembling'), 'icon' => 'fa-tools',   'color' => 'info'],
-                'finishing'   => ['label' => lang_line('pqc_stage_finishing', 'Finishing'),   'icon' => 'fa-check',   'color' => 'success'],
+                'cutting'     => ['label' => lang_line('pqc_stage_cutting', 'Cutting'),       'icon' => 'fa-cut',       'color' => 'warning'],
+                'sewing'      => ['label' => lang_line('pqc_stage_sewing', 'Sewing'),         'icon' => 'fa-tshirt',    'color' => 'primary'],
+                'assembling'  => ['label' => lang_line('pqc_stage_assembling', 'Assembling'), 'icon' => 'fa-tools',     'color' => 'info'],
+                'finishing'   => ['label' => lang_line('pqc_stage_finishing', 'Finishing'),   'icon' => 'fa-check',     'color' => 'success'],
             ];
             $total_pending = array_sum($stage_counts);
         ?>
-        <div class="col-md-3">
+        <div class="col-sm-6 col-xl mb-3">
             <div class="card border-left-primary shadow h-100 py-2">
                 <div class="card-body">
                     <div class="row no-gutters align-items-center">
@@ -42,7 +43,7 @@
             </div>
         </div>
         <?php foreach ($stages as $stage): $meta = $stage_meta[$stage]; ?>
-        <div class="col-md-3">
+        <div class="col-sm-6 col-xl mb-3">
             <div class="card border-left-<?= $meta['color']; ?> shadow h-100 py-2">
                 <div class="card-body">
                     <div class="row no-gutters align-items-center">
@@ -115,7 +116,8 @@
                             <td>
                                 <?php
                                     $cls = 'secondary';
-                                    if ($p->stage_name == 'grinding') $cls = 'warning';
+                                    if ($p->stage_name == 'cutting') $cls = 'warning';
+                                    elseif ($p->stage_name == 'sewing') $cls = 'primary';
                                     elseif ($p->stage_name == 'assembling') $cls = 'info';
                                     elseif ($p->stage_name == 'finishing')  $cls = 'success';
                                 ?>

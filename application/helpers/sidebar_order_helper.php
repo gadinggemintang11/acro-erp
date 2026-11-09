@@ -54,11 +54,76 @@ if (!function_exists('sidebar_section_lang_keys')) {
             'scrap'            => ['sidebar_scrap_group', 'Scrap'],
             'subkon'           => ['sidebar_subcon', 'Subkon'],
             'it_inventory'     => ['sidebar_it_inventory', 'IT Inventory [BC]'],
-            'accounting'       => ['sidebar_finance_accounting', 'Finance & Accounting'],
+            // Finance & Accounting dipecah jadi 6 menu (2026-11-09); 'accounting' = Kas, Bank & Jurnal.
+            'acc_fund'         => ['sidebar_acc_fund', 'Pengajuan Dana'],
+            'accounting'       => ['sidebar_acc_ledger', 'Kas, Bank & Jurnal'],
+            'acc_apar'         => ['sidebar_acc_apar', 'Hutang & Piutang'],
+            'acc_report'       => ['sidebar_acc_report', 'Laporan Keuangan'],
+            'acc_stock'        => ['sidebar_acc_stock', 'Stock Opname'],
+            'acc_setting'      => ['sidebar_acc_setting', 'Pengaturan Akuntansi'],
             'master'           => ['sidebar_master_database', 'Master Database'],
             'document_sharing' => ['sidebar_document_sharing', 'Document Sharing'],
             'system'           => ['sidebar_system_setup', 'System Setup'],
         ];
+    }
+}
+
+if (!function_exists('sidebar_section_groups')) {
+    /**
+     * Kelompok heading sidebar (redesign 2026-11-09, user: "header masih cuma
+     * operasi inti harusnya di pisah beberapa, accounting juga harusnya di
+     * pisah"). Urutan KELOMPOK tetap di sini; urutan section DI DALAM tiap
+     * kelompok tetap mengikuti "Atur Urutan Sidebar" (Developer Mode).
+     * Section yang tidak terdaftar di kelompok mana pun masuk kelompok terakhir.
+     *
+     * @return array group_key => [lang_key, default_label, icon, [section_key...]]
+     */
+    function sidebar_section_groups() {
+        return [
+            'sales_prod' => ['sidebar_grp_sales_prod', 'Penjualan & Produksi', 'fa-industry',  ['order', 'produksi', 'fg', 'exim']],
+            'supply'     => ['sidebar_grp_supply',     'Pengadaan & Gudang',   'fa-boxes',     ['permintaan', 'purchase', 'warehouse', 'qa', 'scrap', 'subkon']],
+            'customs'    => ['sidebar_grp_customs',    'Kepabeanan',           'fa-landmark',  ['it_inventory']],
+            'finance'    => ['sidebar_grp_finance',    'Keuangan & Akuntansi',             'fa-coins',     ['acc_fund', 'accounting', 'acc_apar', 'acc_report', 'acc_stock', 'acc_setting']],
+            'admin'      => ['sidebar_grp_admin',      'Data & Sistem',        'fa-cogs',      ['master', 'document_sharing', 'system']],
+        ];
+    }
+}
+
+if (!function_exists('sidebar_render_grouped_sections')) {
+    /**
+     * Seperti sidebar_render_ordered_sections(), tapi diberi heading per
+     * kelompok (sidebar_section_groups()). Heading hanya tampil kalau minimal
+     * satu section di kelompok itu tampil untuk user ybs (punya akses & tidak
+     * dicopot di Developer Mode).
+     */
+    function sidebar_render_grouped_sections(array $sections, array $labels = []) {
+        // Urutan + filter "dicopot" tetap lewat fungsi lama: pecah lagi per section.
+        $ordered_keys = [];
+        $marker = '<!--sbsec:%s-->';
+        $tagged = [];
+        foreach ($sections as $k => $html) $tagged[$k] = sprintf($marker, $k) . $html;
+        $flat = sidebar_render_ordered_sections($tagged, $labels);
+        if (preg_match_all('/<!--sbsec:([a-z0-9_]+)-->/', $flat, $m)) $ordered_keys = $m[1];
+
+        $groups   = sidebar_section_groups();
+        $assigned = [];
+        foreach ($groups as $g) foreach ($g[3] as $sk) $assigned[$sk] = true;
+        $last = array_key_last($groups);
+
+        $out = '';
+        foreach ($groups as $gk => $g) {
+            $html = '';
+            foreach ($ordered_keys as $sk) {
+                $in_group = in_array($sk, $g[3], true) || ($gk === $last && !isset($assigned[$sk]));
+                if (!$in_group) continue;
+                if (trim(strip_tags($sections[$sk] ?? '', '<a><li>')) === '') continue;
+                $html .= $sections[$sk];
+            }
+            if ($html === '') continue;
+            $out .= '<div class="sidebar-heading sb-group" data-group="' . $gk . '"><span>'
+                  . htmlspecialchars(lang_line($g[0], $g[1])) . '</span></div>' . $html;
+        }
+        return $out;
     }
 }
 

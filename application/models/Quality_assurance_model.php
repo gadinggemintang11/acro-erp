@@ -262,8 +262,10 @@ class Quality_assurance_model extends CI_Model {
 
         $this->db->join($this->table_qa_details . ' qad', 'qh.id = qad.qa_header_id', 'left');
 
-        // Apply filters
-        if (!empty($filters['status'])) {
+        // Apply filters ('need_qc' = Pending + In Progress, kartu ringkasan 2026-11-08)
+        if (($filters['status'] ?? '') === 'need_qc') {
+            $this->db->where_in('qh.status', ['Pending', 'In Progress']);
+        } elseif (!empty($filters['status'])) {
             $this->db->where('qh.status', $filters['status']);
         }
         if (!empty($filters['qa_status'])) {
@@ -296,16 +298,31 @@ class Quality_assurance_model extends CI_Model {
         return $this->db->get()->result();
     }
 
+    /** Jumlah dokumen QA per status (kartu ringkasan daftar QA, seluruh data). */
+    public function count_by_status() {
+        $out = ['Pending' => 0, 'In Progress' => 0, 'Draft' => 0, 'Completed' => 0, 'Rejected' => 0, 'all' => 0];
+        $rows = $this->db->select('status, COUNT(*) AS n', FALSE)->from($this->table_qa_header)->group_by('status')->get()->result();
+        foreach ($rows as $r) { $out['all'] += (int) $r->n; if (isset($out[$r->status])) $out[$r->status] = (int) $r->n; }
+        return $out;
+    }
+
     /**
      * Count total QA headers (for pagination)
      */
     public function count_qa_headers($filters = []) {
+        // Pencarian ikut nama supplier (butuh join berlapis di get_all_qa_headers);
+        // dulu filter search diabaikan di sini sehingga jumlah halaman salah.
+        if (!empty($filters['search'])) {
+            return count($this->get_all_qa_headers(100000, 0, $filters));
+        }
         $this->db->reset_query();
         $this->db->select('COUNT(DISTINCT qh.id) as total')
             ->from($this->table_qa_header . ' qh')
             ->join($this->table_grn_header . ' gh', 'qh.grn_header_id = gh.id', 'left');
 
-        if (!empty($filters['status'])) {
+        if (($filters['status'] ?? '') === 'need_qc') {
+            $this->db->where_in('qh.status', ['Pending', 'In Progress']);
+        } elseif (!empty($filters['status'])) {
             $this->db->where('qh.status', $filters['status']);
         }
         if (!empty($filters['qa_status'])) {

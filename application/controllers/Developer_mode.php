@@ -437,7 +437,13 @@ class Developer_mode extends MY_Controller {
         'scrap'        => 'Scrap',
         'subkon'       => 'Subkon',
         'it_inventory' => 'IT Inventory [BC]',
-        'accounting'   => 'Finance & Accounting',
+        // Finance & Accounting dipecah jadi 6 dropdown (2026-11-09).
+        'acc_fund'     => 'Pengajuan Dana (PRF & ERF)',
+        'accounting'   => 'Kas, Bank & Jurnal',
+        'acc_apar'     => 'Hutang & Piutang',
+        'acc_report'   => 'Laporan Keuangan',
+        'acc_stock'    => 'Stock Opname',
+        'acc_setting'  => 'Pengaturan Akuntansi',
         'master'       => 'Master Database',
         'system'       => 'System Setup',
     ];

@@ -1,6 +1,6 @@
 <?php
     $is_approved = !empty($qc_detail->qc_checked_by);
-    $stage_color_map = ['grinding' => 'warning', 'assembling' => 'info', 'finishing' => 'success'];
+    $stage_color_map = ['cutting' => 'warning', 'sewing' => 'primary', 'assembling' => 'info', 'finishing' => 'success'];
     $stage_color = $stage_color_map[$qc_detail->stage_name] ?? 'secondary';
     $stage_label = lang_line('pqc_stage_'.$qc_detail->stage_name, ucfirst($qc_detail->stage_name));
 ?>

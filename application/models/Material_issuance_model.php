@@ -19,22 +19,43 @@ class Material_issuance_model extends CI_Model {
      */
     public function get_all_mrs($filters = []) {
         $this->db->reset_query();
-        $this->db->select('mr.id, mr.mr_number, mr.request_date, mr.status, u.fullname as requester_name');
+        // + jumlah baris, baris yang sudah keluar penuh, departemen (redesign 2026-11-08)
+        $this->db->select("mr.id, mr.mr_number, mr.request_date, mr.status, mr.issued_at, mr.department_code,
+            u.fullname as requester_name,
+            (SELECT COUNT(*) FROM mr_details d WHERE d.mr_header_id = mr.id) AS line_count,
+            (SELECT COUNT(*) FROM mr_details d WHERE d.mr_header_id = mr.id AND COALESCE(d.issued_qty, 0) >= d.requested_qty - 0.0001) AS full_count,
+            (SELECT COUNT(*) FROM mr_issuances mi WHERE mi.mr_header_id = mr.id) AS issuance_count", FALSE);
         $this->db->from('mr_header mr');
         $this->db->join('users u', 'mr.requester_id = u.id', 'left');
 
-        if (!empty($filters['status'])) {
+        if (($filters['status'] ?? '') === 'partial') {
+            // Kartu "Sebagian dikeluarkan": masih ada sisa yang harus dikeluarkan.
+            $this->db->where_in('mr.status', ['Partial Issued', 'Partial Received']);
+        } elseif (!empty($filters['status'])) {
             $this->db->where('mr.status', $filters['status']);
         } else {
             $this->db->where_in('mr.status', ['Approved', 'Partial Issued', 'Partial Received', 'Issued', 'Received']);
         }
         if (!empty($filters['search'])) {
             $term = $this->db->escape_like_str($filters['search']);
-            $this->db->like('mr.mr_number', $term);
+            $this->db->group_start()->like('mr.mr_number', $term)->or_like('u.fullname', $term)
+                     ->or_like('mr.issuance_number', $term)->group_end();
         }
+        // Yang masih perlu dikerjakan gudang tampil paling atas.
+        $this->db->order_by("FIELD(mr.status, 'Approved', 'Partial Issued', 'Partial Received', 'Issued', 'Received')", '', FALSE);
         $this->db->order_by('mr.request_date', 'DESC');
+        $this->db->order_by('mr.id', 'DESC');
         $query = $this->db->get();
         return $query ? $query->result() : [];
+    }
+
+    /** Jumlah MR per status gudang (kartu ringkasan halaman Pengeluaran Material). */
+    public function count_by_status() {
+        $out = ['Approved' => 0, 'Partial Issued' => 0, 'Partial Received' => 0, 'Issued' => 0, 'Received' => 0];
+        $rows = $this->db->select('status, COUNT(*) AS n', FALSE)->from('mr_header')
+            ->where_in('status', array_keys($out))->group_by('status')->get()->result();
+        foreach ($rows as $r) $out[$r->status] = (int) $r->n;
+        return $out;
     }
 
     /**
@@ -123,12 +144,22 @@ class Material_issuance_model extends CI_Model {
         $this->db->insert('mr_issuances', $issuance_data);
         $issuance_id = $this->db->insert_id();
 
+        $processed = 0;
         foreach ($items as $detail_id => $data) {
-            $issued_qty_total = (float) $data['qty'];
+            $issued_qty_total = round((float) ($data['qty'] ?? 0), 4);
             if ($issued_qty_total <= 0) continue;
 
-            $detail = $this->db->get_where('mr_details', ['id' => $detail_id])->row();
+            // Baris harus milik MR ini (2026-11-08: sebelumnya tidak dicek).
+            $detail = $this->db->get_where('mr_details', ['id' => (int) $detail_id, 'mr_header_id' => (int) $mr_id])->row();
             if (!$detail) continue;
+
+            // Tidak boleh mengeluarkan lebih dari sisa permintaan.
+            $remaining = round((float) $detail->requested_qty - (float) ($detail->issued_qty ?? 0), 4);
+            if ($issued_qty_total > $remaining + 0.0001) {
+                $this->db->trans_rollback();
+                return ['success' => false, 'message' => "Qty dikeluarkan ({$issued_qty_total}) melebihi sisa permintaan ({$remaining}) untuk item ID {$detail->component_item_id}."];
+            }
+            $processed++;
 
             $item_id = $detail->component_item_id;
             $item_type = $detail->component_item_type;
@@ -263,6 +294,12 @@ class Material_issuance_model extends CI_Model {
             $this->db->where('id', $detail_id)->update('mr_details', ['issued_qty' => $new_issued_qty]);
         }
 
+        // Semua qty 0 -> jangan sampai tercipta dokumen pengeluaran kosong.
+        if ($processed === 0) {
+            $this->db->trans_rollback();
+            return ['success' => false, 'message' => 'Isi qty yang dikeluarkan minimal untuk satu item.'];
+        }
+
         // Hitung status MR header pakai helper Mr_model — single source of truth.
         // Possible result setelah issue: Partial Issued, Issued, Partial Received (kalau ada
         // issuance sebelumnya yang sudah received), atau Received.
@@ -322,6 +359,13 @@ class Material_issuance_model extends CI_Model {
 
         // Update mr_details - reset issued_qty
         $this->db->where('mr_header_id', $mr_id)->update('mr_details', ['issued_qty' => 0]);
+
+        // Hapus juga dokumen pengeluarannya (2026-11-08). Sebelumnya baris
+        // mr_issuances tertinggal, sehingga calculate_header_status() masih
+        // menganggap MR sudah dikeluarkan: status jadi 'Partial Issued' dengan
+        // issued_qty 0. Batal Keluarkan hanya boleh saat status 'Issued' (belum
+        // ada yang diterima produksi), jadi yang Received tidak ikut terhapus.
+        $this->db->where('mr_header_id', $mr_id)->where('status !=', 'Received')->delete('mr_issuances');
         
         // Recalc status MR header pakai helper Mr_model.
         $this->load->model('Mr_model');

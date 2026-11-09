@@ -60,10 +60,29 @@ class Material_request extends MY_Controller {
             ]
         ];
 
+        // Kelompok status untuk kartu ringkasan & filter (redesign 2026-11-08).
+        $groups = [
+            'draft'    => ['Draft'],
+            'approval' => ['Submitted', 'Approved Head Dept', 'Endorsed'],
+            'process'  => ['Approved', 'Partial Issued', 'Issued', 'Partial Received'],
+            'done'     => ['Received', 'Closed'],
+            'rejected' => ['Rejected'],
+        ];
+        $all    = $this->Mr_model->get_all($filters);
+        $counts = array_fill_keys(array_keys($groups), 0);
+        foreach ($all as $r) foreach ($groups as $g => $sts) if (in_array($r->status, $sts, true)) $counts[$g]++;
+        $group = (string) $this->input->get('group', TRUE);
+        $filters['group'] = isset($groups[$group]) ? $group : '';
+        $mrs = $filters['group'] === '' ? $all : array_values(array_filter($all, function ($r) use ($groups, $group) {
+            return in_array($r->status, $groups[$group], true);
+        }));
+
         $data = [
-            'title'   => lang_line('title_mr_list', 'Material Request List - Production Material Requisition'),
-            'mrs'     => $this->Mr_model->get_all($filters),
-            'filters' => $filters
+            'title'      => lang_line('title_mr_list', 'Material Request List - Production Material Requisition'),
+            'mrs'        => $mrs,
+            'filters'    => $filters,
+            'counts'     => $counts + ['all' => count($all)],
+            'dept_names' => department_names(),
         ];
 
         $this->load->view('templates/header', $data);
@@ -119,8 +138,8 @@ class Material_request extends MY_Controller {
      * "header dan form itemnya jadikan 1", dipilih via AskUserQuestion opsi
      * "Staging penuh" — semua item ditahan di browser, TIDAK langsung
      * ke-insert, baru dikirim sekaligus pas klik "Simpan MRF"). Lihat
-     * material_request/add.php + assets/js/mr_inline_input_staged.js +
-     * store() di bawah. create_header()/add_item_ajax() LAMA tetap ada
+     * material_request/add.php (redesign 2026-11-08: pilih WO -> tarik
+     * rencana material -> sesuaikan qty; skrip inline di view) + store(). create_header()/add_item_ajax() LAMA tetap ada
      * tidak diubah — masih dipakai detail.php utk tambah item ke MR yang
      * SUDAH ada (bukan dead code, beda use-case).
      */
@@ -131,6 +150,7 @@ class Material_request extends MY_Controller {
 
         $data = [
             'title' => lang_line('title_mr_create'),
+            'mode'  => 'create',
             // Departemen dokumen dari role user (tahap 3, poin 8).
             'dept_options' => dept_options_for('material_request', 'add'),
         ];
@@ -144,7 +164,8 @@ class Material_request extends MY_Controller {
     }
 
     /**
-     * Simpan MRF baru — header + SEMUA item sekaligus dalam 1 submit,
+     * Simpan MRF baru — header + SEMUA item sekaligus dalam 1 submit
+     * (form material_request/add.php, redesign 2026-11-08),
      * dikirim dari form staged di material_request/add.php (field POST
      * `items` = JSON array [{wo_header_id, component_id, component_type,
      * qty, notes}, ...]). Reuse penuh Mr_model::insert_header()/insert_item()
@@ -181,6 +202,14 @@ class Material_request extends MY_Controller {
             return;
         }
 
+        $merged = $this->_merge_items_payload($items);
+
+        if (empty($merged)) {
+            $this->session->set_flashdata('error', 'Tidak ada item valid (WO, item, dan qty > 0 wajib diisi).');
+            redirect('material_request/add');
+            return;
+        }
+
         $header_data = [
             'mr_number'    => $this->Mr_model->generate_mr_number($department_code),
             'request_date' => $request_date,
@@ -200,18 +229,14 @@ class Material_request extends MY_Controller {
         }
 
         $success_count = 0;
-        foreach ($items as $it) {
-            $qty = isset($it['qty']) ? (float) $it['qty'] : 0;
-            if ($qty <= 0 || empty($it['wo_header_id']) || empty($it['component_id']) || empty($it['component_type'])) {
-                continue;
-            }
+        foreach ($merged as $m) {
             $inserted = $this->Mr_model->insert_item([
                 'mr_header_id'        => $new_mr_id,
-                'wo_header_id'        => $it['wo_header_id'],
-                'component_item_id'   => $it['component_id'],
-                'component_item_type' => $it['component_type'],
-                'requested_qty'       => $qty,
-                'notes'               => $it['notes'] ?? null,
+                'wo_header_id'        => $m['wo'],
+                'component_item_id'   => $m['cid'],
+                'component_item_type' => $m['ctype'],
+                'requested_qty'       => $m['qty'],
+                'notes'               => $m['notes'],
             ]);
             if ($inserted) $success_count++;
         }
@@ -222,6 +247,146 @@ class Material_request extends MY_Controller {
             $this->session->set_flashdata('error', 'Material Request dibuat tapi semua item gagal disimpan. Silakan tambahkan item manual di halaman ini.');
         }
         redirect('material_request/detail/' . $new_mr_id);
+    }
+
+    /**
+     * Normalisasi payload item form Buat/Edit MR: buang baris tidak valid dan
+     * GABUNG baris ganda (WO + item sama; qty dijumlah, catatan disambung) --
+     * satu MR hanya boleh 1 baris per (WO, item), unique key
+     * mr_wo_component_unique.
+     * @return array key "wo|cid|ctype" => [wo, cid, ctype, qty, notes(string|null)]
+     */
+    private function _merge_items_payload($items) {
+        $merged = [];
+        foreach ((array) $items as $it) {
+            if (!is_array($it)) continue;
+            $qty   = isset($it['qty']) ? round((float) $it['qty'], 4) : 0;
+            $wo    = (int) ($it['wo_header_id'] ?? 0);
+            $cid   = (int) ($it['component_id'] ?? 0);
+            $ctype = in_array(($it['component_type'] ?? ''), ['material', 'semifinished'], true) ? $it['component_type'] : '';
+            if ($qty <= 0 || !$wo || !$cid || $ctype === '') continue;
+            $key   = $wo . '|' . $cid . '|' . $ctype;
+            $note  = trim(strip_tags((string) ($it['notes'] ?? '')));
+            if (!isset($merged[$key])) {
+                $merged[$key] = ['wo' => $wo, 'cid' => $cid, 'ctype' => $ctype, 'qty' => 0, 'notes' => []];
+            }
+            $merged[$key]['qty'] += $qty;
+            if ($note !== '') $merged[$key]['notes'][] = $note;
+        }
+        foreach ($merged as &$m) {
+            $m['notes'] = $m['notes'] ? mb_substr(implode('; ', array_unique($m['notes'])), 0, 255) : null;
+        }
+        unset($m);
+        return $merged;
+    }
+
+    /**
+     * Edit MR Draft -- form yang sama dengan Buat MR (material_request/add.php,
+     * mode 'edit'), terisi header & item yang ada (redesign 2026-11-08).
+     */
+    public function edit($id) {
+        if (!check_access('material_request', 'edit')) { show_error('Anda tidak memiliki akses untuk mengedit MR.', 403); }
+        $header = $this->Mr_model->get_header_by_id($id);
+        if (!$header) { show_404(); return; }
+        if (!$this->_in_scope($header, 'edit')) { show_error('Material Request ini milik departemen lain — Anda tidak berhak mengubahnya.', 403); }
+        if ($header->status !== 'Draft') {
+            $this->session->set_flashdata('error', 'Material Request hanya bisa diedit saat status Draft.');
+            redirect('material_request/detail/' . $id); return;
+        }
+
+        $dept_options = dept_options_for('material_request', 'edit');
+        if (!empty($header->department_code) && !isset($dept_options[$header->department_code])) {
+            $names = department_names();
+            $dept_options[$header->department_code] = $names[$header->department_code] ?? $header->department_code;
+        }
+
+        $data = [
+            'title'        => sprintf(lang_line('mr2_title_edit', 'Edit Material Request %s'), $header->mr_number),
+            'mode'         => 'edit',
+            'header'       => $header,
+            'details'      => $this->Mr_model->get_details_by_id($id),
+            'dept_options' => $dept_options,
+            'dept_default' => $header->department_code ?: default_dept_for($dept_options),
+        ];
+        $this->load->view('templates/header', $data);
+        $this->load->view('templates/sidebar', $data);
+        $this->load->view('templates/topbar', $data);
+        $this->load->view('material_request/add', $data);
+        $this->load->view('templates/footer');
+    }
+
+    /**
+     * Simpan hasil Edit MR Draft: header (tanggal, departemen, catatan) +
+     * sinkron item -- baris baru di-insert, yang ada diperbarui qty/catatannya,
+     * yang dihapus dari form ikut dihapus. Satu transaksi.
+     */
+    public function update($id) {
+        if (!check_access('material_request', 'edit')) { show_error('Anda tidak memiliki akses untuk mengedit MR.', 403); }
+        $header = $this->Mr_model->get_header_by_id($id);
+        if (!$header) { show_404(); return; }
+        if (!$this->_in_scope($header, 'edit')) { show_error('Material Request ini milik departemen lain — Anda tidak berhak mengubahnya.', 403); }
+        if ($header->status !== 'Draft') {
+            $this->session->set_flashdata('error', 'Material Request hanya bisa diedit saat status Draft.');
+            redirect('material_request/detail/' . $id); return;
+        }
+
+        $request_date = $this->input->post('request_date');
+        $merged       = $this->_merge_items_payload(json_decode((string) $this->input->post('items'), true));
+        $dept_options = dept_options_for('material_request', 'edit');
+        if (!empty($header->department_code)) $dept_options[$header->department_code] = true;
+        $department_code = normalize_department_code($this->input->post('department_code')) ?: $header->department_code;
+
+        $error = null;
+        if (empty($request_date))                                         $error = 'Tanggal request wajib diisi.';
+        elseif (!$department_code || !isset($dept_options[$department_code])) $error = 'Departemen Material Request tidak valid atau di luar departemen role Anda.';
+        elseif (empty($merged))                                           $error = 'Minimal satu item valid (WO, item, qty > 0) harus ada.';
+        if ($error) {
+            $this->session->set_flashdata('error', $error);
+            redirect('material_request/edit/' . $id); return;
+        }
+
+        $existing = [];
+        foreach ($this->Mr_model->get_details_by_id($id) as $d) {
+            $existing[(int) $d->wo_header_id . '|' . (int) $d->component_item_id . '|' . $d->component_item_type] = $d;
+        }
+
+        $this->db->trans_start();
+        $this->db->where('id', (int) $id)->where('status', 'Draft')->update('mr_header', [
+            'request_date'    => $request_date,
+            'remarks'         => $this->input->post('remarks'),
+            'department_code' => $department_code,
+        ]);
+        $n_add = 0; $n_upd = 0; $n_del = 0;
+        foreach ($merged as $k => $m) {
+            if (isset($existing[$k])) {
+                $old = $existing[$k];
+                if (abs((float) $old->requested_qty - $m['qty']) > 0.00001 || (string) $old->notes !== (string) $m['notes']) {
+                    $this->Mr_model->update_item($old->id, ['requested_qty' => $m['qty'], 'notes' => $m['notes']]);
+                    $n_upd++;
+                }
+                unset($existing[$k]);
+            } else {
+                $this->Mr_model->insert_item([
+                    'mr_header_id' => (int) $id, 'wo_header_id' => $m['wo'], 'component_item_id' => $m['cid'],
+                    'component_item_type' => $m['ctype'], 'requested_qty' => $m['qty'], 'notes' => $m['notes'],
+                ]);
+                $n_add++;
+            }
+        }
+        foreach ($existing as $old) {
+            // Lepas tautan asal scrap (MR otomatis dari scrap) sebelum barisnya dihapus.
+            $this->db->set('mr_detail_id', null)->where('mr_detail_id', (int) $old->id)->update('production_scrap_sources');
+            $this->Mr_model->delete_item($old->id);
+            $n_del++;
+        }
+        $this->db->trans_complete();
+
+        if ($this->db->trans_status() === FALSE) {
+            $this->session->set_flashdata('error', 'Gagal menyimpan perubahan Material Request.');
+            redirect('material_request/edit/' . $id); return;
+        }
+        $this->session->set_flashdata('success', sprintf('Perubahan disimpan: %d item baru, %d diperbarui, %d dihapus.', $n_add, $n_upd, $n_del));
+        redirect('material_request/detail/' . $id);
     }
 
     /**
@@ -277,23 +442,38 @@ class Material_request extends MY_Controller {
         // Dokumen departemen lain tidak bisa dibuka lewat URL (tahap 3). MRF final tetap terbuka (sama dengan daftar).
         if (!can_view_dept_doc('material_request', 'material_request_approval', $this->_doc_dept($header),
                 (int) $header->requester_id === (int) $this->session->userdata('user_id'),
-                in_array($header->status, ['Approved', 'Partial Issued', 'Issued', 'Received', 'Closed'], true))) {
+                in_array($header->status, ['Approved', 'Partial Issued', 'Partial Received', 'Issued', 'Received', 'Closed'], true))) {
             show_error('Material Request ini milik departemen lain — Anda tidak berhak melihatnya.', 403);
         }
 
+        $doc_dept = $this->_doc_dept($header);
+        $names    = department_names();
+        // Aksi approval langsung dari halaman detail (1 tahap: Head of Dept).
+        $appr_action = approval_action_for_status($header->status, Mr_model::APPROVAL_STAGE_MAP);
+        $can_approve = $header->status === 'Submitted' && $appr_action
+            && check_access('material_request_approval', $appr_action)
+            && $this->_in_scope($header, $appr_action, 'material_request_approval');
+
         $data = [
-            'title'   => lang_line('title_mr_detail'),
-            'header'  => $header,
-            'details' => $this->Mr_model->get_details_by_id($id),
+            'title'     => lang_line('title_mr_detail'),
+            'header'    => $header,
+            'details'   => $this->Mr_model->get_details_by_id($id),
             // Tombol edit/submit mengikuti departemen MRF (tahap 3).
-            'doc_dept' => $this->_doc_dept($header),
+            'doc_dept'  => $doc_dept,
+            'dept_name' => $doc_dept ? ($names[$doc_dept] ?? $doc_dept) : '-',
+            'issuances' => $this->Mr_model->get_issuances_by_mr($id),
+            'can_edit'   => $header->status === 'Draft' && check_access('material_request', 'edit') && $this->_in_scope($header, 'edit'),
+            'can_submit' => $header->status === 'Draft' && check_access('material_request', 'submit') && $this->_in_scope($header, 'submit'),
+            'can_unsubmit' => $header->status === 'Submitted' && check_access('material_request', 'edit') && $this->_in_scope($header, 'edit'),
+            'can_delete' => $header->status === 'Draft' && check_access('material_request', 'delete') && $this->_in_scope($header, 'delete'),
+            'can_approve' => (bool) $can_approve,
         ];
 
         $this->load->view('templates/header', $data);
         $this->load->view('templates/sidebar', $data);
         $this->load->view('templates/topbar', $data);
         $this->load->view('material_request/detail', $data);
-        // Footer dipanggil di view
+        $this->load->view('templates/footer');
     }
 
     /**
@@ -330,6 +510,53 @@ class Material_request extends MY_Controller {
         }
 
         echo json_encode(['success' => true, 'rows' => $out]);
+    }
+
+    /**
+     * Rencana material 1 WO untuk form Buat MR (redesign 2026-11-08):
+     * rencana, sudah diminta di MR lain, sudah dikeluarkan, sisa kebutuhan, stok.
+     * GET wo_id.
+     */
+    public function ajax_wo_plan() {
+        header('Content-Type: application/json');
+        if (!check_access('material_request', 'add') && !check_access('material_request', 'edit')) {
+            echo json_encode(['success' => false, 'message' => 'Tidak ada izin.']);
+            return;
+        }
+        $wo_id = (int) $this->input->get('wo_id');
+        // exclude_mr: saat Edit MR, qty MR itu sendiri tidak dihitung "sudah diminta".
+        $plan  = $wo_id ? $this->Mr_model->get_wo_plan_for_mrf($wo_id, (int) $this->input->get('exclude_mr')) : null;
+        if (!$plan) {
+            echo json_encode(['success' => false, 'message' => 'Work Order tidak ditemukan.']);
+            return;
+        }
+        $h = $plan['header'];
+        $lines = [];
+        foreach ($plan['lines'] as $l) {
+            $lines[] = [
+                'id'        => (int) $l->item_id,
+                'type'      => $l->item_type,
+                'code'      => (string) $l->item_code,
+                'name'      => (string) $l->item_name,
+                'unit'      => (string) $l->unit,
+                'planned'   => $l->planned_qty,
+                'requested' => $l->requested_qty,
+                'issued'    => $l->issued_qty,
+                'remaining' => $l->remaining_qty,
+                'stock'     => $l->stock,
+                'mr_numbers'=> $l->mr_numbers,
+            ];
+        }
+        echo json_encode([
+            'success' => true,
+            'wo' => [
+                'id' => (int) $h->id, 'wo_number' => $h->wo_number, 'status' => $h->status,
+                'sc_number' => $h->sc_number, 'fg_code' => $h->fg_code, 'fg_name' => $h->fg_name,
+                'fg_unit' => $h->fg_unit, 'planned_qty' => (float) $h->planned_qty,
+                'planned_start_date' => $h->planned_start_date,
+            ],
+            'lines' => $lines,
+        ]);
     }
 
     public function search_open_wos() {

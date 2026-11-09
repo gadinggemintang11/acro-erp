@@ -40,7 +40,7 @@ class QC_production extends MY_Controller {
             'qc_records' => $qc_records,
             'qc_stats' => $qc_stats,
             'filters' => $filters,
-            'stages' => ['grinding', 'assembling', 'finishing']
+            'stages' => ['cutting', 'sewing', 'assembling', 'finishing']
         ];
 
         $this->_load_views('qc_production/index', $data);

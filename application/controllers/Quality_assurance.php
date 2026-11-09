@@ -41,7 +41,7 @@ class Quality_assurance extends MY_Controller {
             show_error('Anda tidak memiliki izin.', 403);
         }
 
-        $page = $this->input->get('page') ?? 1;
+        $page = max(1, (int) ($this->input->get('page') ?? 1));
         $per_page = 20;
         $offset = ($page - 1) * $per_page;
 
@@ -87,7 +87,8 @@ class Quality_assurance extends MY_Controller {
             'per_page' => $per_page,
             'filters' => $filters,
             'qa_statuses' => ['Pending', 'In Progress', 'Passed', 'Partial Passed', 'Rejected'],
-            'header_statuses' => ['Pending', 'In Progress', 'Draft', 'Completed', 'Rejected']
+            'header_statuses' => ['Pending', 'In Progress', 'Draft', 'Completed', 'Rejected'],
+            'status_counts' => $this->Quality_assurance_model->count_by_status(),
         ];
 
         $this->load->view('templates/header', $data);
