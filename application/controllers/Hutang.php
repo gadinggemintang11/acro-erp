@@ -90,8 +90,9 @@ class Hutang extends MY_Controller {
             $sheet->setCellValue('G' . $row, (float) $i->total_invoice);
             $sheet->setCellValue('H' . $row, (float) $i->total_paid);
             $sheet->setCellValue('I' . $row, (float) $i->outstanding);
-            $sheet->setCellValue('J' . $row, $i->payment_status);
-            $sheet->setCellValue('K' . $row, ($i->outstanding > 0.01 && $i->days_overdue > 0) ? (int) $i->days_overdue : 0);
+            $is_draft = (($i->status ?? 'Posted') === 'Draft');
+            $sheet->setCellValue('J' . $row, $is_draft ? 'Draft (belum posting)' : $i->payment_status);
+            $sheet->setCellValue('K' . $row, (!$is_draft && $i->outstanding > 0.01 && $i->days_overdue > 0) ? (int) $i->days_overdue : 0);
             $row++;
         }
         $sheet->getStyle('G4:I' . $row)->getNumberFormat()->setFormatCode('#,##0');
@@ -99,10 +100,10 @@ class Hutang extends MY_Controller {
 
         // --- Sheet 2: GRN belum difaktur ---
         $sheet2 = $spreadsheet->createSheet();
-        $sheet2->setTitle('GRN Belum Difaktur');
-        $sheet2->setCellValue('A1', 'GRN SUDAH DITERIMA TAPI BELUM DIFAKTUR');
+        $sheet2->setTitle('GRN-SGR Belum Difaktur');
+        $sheet2->setCellValue('A1', 'BARANG SUDAH DITERIMA (GRN/SGR) TAPI BELUM DIFAKTUR');
         $sheet2->getStyle('A1')->getFont()->setBold(true)->setSize(14);
-        $head2 = ['No. GRN', 'Tgl GRN', 'Supplier', 'No. PO', 'Nilai GRN', 'Umur (hari)'];
+        $head2 = ['No. GRN / SGR', 'Tgl Terima', 'Supplier', 'No. PO', 'Nilai Terima', 'Umur (hari)'];
         $col = 'A'; $row = 3;
         foreach ($head2 as $h) { $sheet2->setCellValue($col . $row, $h); $col++; }
         $sheet2->getStyle('A3:F3')->getFont()->setBold(true);
