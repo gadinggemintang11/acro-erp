@@ -225,17 +225,19 @@ class Purchase_order extends MY_Controller {
             // dan cuma utk 2 orang: pembuat PO & approver yang mengembalikannya
             // (koreksi 2026-09-06 — lihat can_reply_return_thread() di auth_helper).
             'can_reply'        => can_reply_return_thread($header),
-            // Data untuk warna status badge
-            'status_colors'    => [
-                'Draft' => 'warning', 'Submitted' => 'info', 'Confirmed' => 'primary',
-                'Completed' => 'success', 'Cancelled' => 'danger', 'Rejected' => 'secondary'
-            ]
+            // Redesign 2026-11-09: SATU view detail untuk keempat tipe PO
+            // (dulu 4 salinan yang sudah melenceng -- General/Jasa/Asset masih
+            // memakai PPN 11% tetap). Rute & label per tipe dikirim dari sini.
+            'po_type'          => $this->po_type,
+            'po_route'         => $this->menu_key,
+            'approval_route'   => $this->approval_menu_key,
+            'receipts'         => $this->Po_model->get_receipt_overview($id),
         ], $this->_extra_detail_data($header, $id));
 
         $this->load->view('templates/header', $data);
         $this->load->view('templates/sidebar', $data);
         $this->load->view('templates/topbar', $data);
-        $this->load->view($this->menu_key . '/detail', $data);
+        $this->load->view('purchase_order/detail', $data);
         // Footer di-load oleh view detail.php
     }
 
@@ -509,6 +511,13 @@ class Purchase_order extends MY_Controller {
             return;
         }
         $admin_edit = is_po_admin_edit($header);
+
+        // Kurs dari AutoNumeric datang berformat "16,300.0000" -- bersihkan
+        // SEBELUM validasi 'numeric' (sama seperti _validate_and_build_header_data).
+        // Dulu dibersihkan sesudahnya, jadi Edit Header PO non-IDR selalu gagal.
+        if (isset($_POST['exchange_rate'])) {
+            $_POST['exchange_rate'] = preg_replace('/[^\d.]/', '', (string) $_POST['exchange_rate']);
+        }
 
         $this->form_validation->set_rules('po_date', 'Tanggal PO', 'required', ['required' => 'Tanggal PO wajib diisi.']);
         $this->form_validation->set_rules('currency_code', 'Mata Uang', 'required');

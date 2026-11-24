@@ -1,194 +1,214 @@
-<?php
-    // Hitung breakdown per status dari $pos
-    $status_counts = ['Draft'=>0,'Submitted'=>0,'Confirmed'=>0,'Closed'=>0,'Cancelled'=>0];
-    $receipt_counts = ['Not Received'=>0,'Partial'=>0,'Complete'=>0];
-    foreach ($pos as $p) {
-        if (isset($status_counts[$p->status])) $status_counts[$p->status]++;
-        if (isset($receipt_counts[$p->receipt_status])) $receipt_counts[$p->receipt_status]++;
-    }
-    // Rute dikirim eksplisit oleh controller (Pmpo_status/Gmpo_status) sejak
-    // label tampilannya jadi "PO Material"/"PO General" (rebrand Acropoly).
-    $base_url = $status_route ?? (strtolower($po_type_label) . '_status');
+<?php defined('BASEPATH') OR exit('No direct script access allowed');
+/**
+ * Status PO (pmpo_status & gmpo_status) -- redesign 2026-11-09 (user: "tampilan
+ * ini juga ya"), gaya .pp2 sama dengan detail & approval PO.
+ *
+ * Data dari Po_report_model::get_status_page(): kartu ringkasan dihitung dari
+ * semua PO dalam cakupan pencarian/supplier (dulu dari hasil filter, jadi kartu
+ * lain jadi 0), daftar dipaginasi. Penerimaan = GRN/SGR Completed + Asset
+ * Register (sama dgn detail PO). No. PO membuka halaman detail PO yang baru kalau
+ * user punya aksesnya; kalau tidak, laporan detail lama ($detail_route).
+ */
+$this->load->view('purchase_order/_po_style');
 
-    $status_meta = [
-        'Draft'     => ['color' => 'secondary', 'icon' => 'fa-pencil-alt'],
-        'Submitted' => ['color' => 'info',      'icon' => 'fa-paper-plane'],
-        'Confirmed' => ['color' => 'success',   'icon' => 'fa-check-circle'],
-        'Closed'    => ['color' => 'dark',      'icon' => 'fa-lock'],
-        'Cancelled' => ['color' => 'danger',    'icon' => 'fa-ban'],
-    ];
-    $status_label_map = [
-        'Draft'     => lang_line('pdb_status_draft'),
-        'Submitted' => lang_line('pdb_status_submitted'),
-        'Confirmed' => lang_line('pdb_status_confirmed'),
-        'Closed'    => lang_line('pdb_status_closed'),
-        'Cancelled' => lang_line('pdb_status_cancelled'),
-    ];
-    $receipt_label_map = [
-        'Not Received' => lang_line('pdb_receipt_not_received'),
-        'Partial'      => lang_line('pdb_receipt_partial'),
-        'Complete'     => lang_line('pdb_receipt_complete'),
-    ];
-    $po_label_translated = $po_type === 'produksi' ? lang_line('pdb_label_production_mat') : lang_line('pdb_label_general_mat');
+$base     = $status_route ?? 'pmpo_status';
+$mixed    = !empty($mixed_types);
+$f_status = (string) ($filters['status'] ?? '');
+$f_recv   = (string) ($filters['receipt_status'] ?? '');
+$f_search = (string) ($filters['search'] ?? '');
+$f_sup    = (string) ($filters['supplier_id'] ?? '');
+$sc       = $status_counts ?? [];
+$rc       = $receipt_counts ?? [];
+$waiting  = ($sc['Submitted'] ?? 0) + ($sc['Approved Head Dept'] ?? 0) + ($sc['Endorsed'] ?? 0);
+$delete_type = $po_type ?? 'produksi'; // gmpo_list/delete & pmpo_list/delete hanya menerima tipe induknya
+
+$q = function (array $over = []) use ($f_status, $f_recv, $f_search, $f_sup) {
+    $p = array_filter(array_merge(['search' => $f_search, 'supplier_id' => $f_sup, 'status' => $f_status, 'receipt_status' => $f_recv], $over), function ($v) { return $v !== '' && $v !== null; });
+    return $p ? '?' . http_build_query($p) : '';
+};
+$type_meta = [
+    'produksi'     => [lang_line('pod2_type_produksi', 'Material Produksi'), 'tone-brand', 'purchase_order'],
+    'non_produksi' => [lang_line('pod2_type_general', 'General'),            'tone-slate', 'purchase_order_general'],
+    'jasa'         => [lang_line('pod2_type_jasa', 'Jasa'),                  'tone-blue',  'purchase_order_jasa'],
+    'asset'        => [lang_line('pod2_type_asset', 'Asset'),                'tone-amber', 'purchase_order_asset'],
+];
+$access_cache = [];
+$detail_url = function ($p) use ($type_meta, &$access_cache, $detail_route) {
+    $rt = $type_meta[$p->type][2] ?? null;
+    if ($rt && !isset($access_cache[$rt])) $access_cache[$rt] = check_access($rt, 'view');
+    return ($rt && $access_cache[$rt]) ? base_url($rt . '/detail/' . $p->id) : base_url($detail_route . '/' . $p->id);
+};
+$status_label = [
+    'Draft' => lang_line('pdb_status_draft', 'Draft'), 'Submitted' => lang_line('pdb_status_submitted', 'Submitted'),
+    'Confirmed' => lang_line('pdb_status_confirmed', 'Confirmed'), 'Closed' => lang_line('pdb_status_closed', 'Closed'),
+    'Cancelled' => lang_line('pdb_status_cancelled', 'Cancelled'),
+];
+$pill = ['Draft' => 'pp-status--draft', 'Submitted' => 'pp-status--progress', 'Approved Head Dept' => 'pp-status--progress', 'Endorsed' => 'pp-status--progress',
+         'Confirmed' => 'pp-status--completed', 'Closed' => 'pp-status--other', 'Cancelled' => 'pod-status--bad', 'Rejected' => 'pod-status--bad'];
+$recv_meta = [
+    'Not Received' => [lang_line('pst2_recv_none', 'Belum diterima'), 'pp-chip'],
+    'Partial'      => [lang_line('pst2_recv_partial', 'Sebagian'),    'pp-chip pp-chip--warn'],
+    'Complete'     => [lang_line('pst2_recv_complete', 'Lengkap'),    'pp-chip pp-chip--ok'],
+];
+$kpis = [
+    ['Draft',     '',          lang_line('pst2_kpi_draft', 'Draft'),                    'fa-pen',            'tone-amber', $sc['Draft'] ?? 0],
+    ['waiting',   '',          lang_line('pst2_kpi_waiting', 'Menunggu approval'),       'fa-hourglass-half', 'tone-blue',  $waiting],
+    ['Confirmed', 'open',      lang_line('pst2_kpi_open', 'Disetujui, barang belum lengkap'), 'fa-truck',     'tone-brand', $open_receipts ?? 0],
+    ['',          'Complete',  lang_line('pst2_kpi_complete', 'Barang diterima lengkap'), 'fa-check-double', 'tone-green', $rc['Complete'] ?? 0],
+];
+$tabs = [
+    ''          => [lang_line('pst2_tab_all', 'Semua'), $all_count ?? 0],
+    'Draft'     => ['Draft', $sc['Draft'] ?? 0],
+    'waiting'   => [lang_line('pst2_tab_waiting', 'Menunggu'), $waiting],
+    'Confirmed' => ['Confirmed', $sc['Confirmed'] ?? 0],
+    'Closed'    => ['Closed', $sc['Closed'] ?? 0],
+    'Rejected'  => ['Rejected', $sc['Rejected'] ?? 0],
+    'Cancelled' => ['Cancelled', $sc['Cancelled'] ?? 0],
+];
+$qty = function ($n) { $s = number_format((float) $n, 4, '.', ','); return rtrim(rtrim($s, '0'), '.'); };
+$cols = 7 + ($mixed ? 1 : 0);
 ?>
-<div class="container-fluid">
+<style>
+.pst2 .pst-tabs { display: flex; flex-wrap: wrap; gap: .35rem; padding: .85rem 1.25rem 0; }
+.pst2 .pst-tab { display: inline-flex; align-items: center; gap: .45rem; padding: .38rem .8rem; border-radius: 999px; font-size: .8rem; font-weight: 700; color: var(--pp-muted); background: var(--pp-soft); border: 1px solid var(--pp-line); text-decoration: none !important; }
+.pst2 .pst-tab b { font-size: .72rem; padding: .05rem .45rem; border-radius: 999px; background: var(--pp-card); color: var(--pp-text); border: 1px solid var(--pp-line); }
+.pst2 .pst-tab:hover { color: var(--pp-text); border-color: var(--brand-1); }
+.pst2 .pst-tab.is-active { background: var(--brand-1); border-color: var(--brand-1); color: #fff; }
+.pst2 .pst-tab.is-active b { background: rgba(255,255,255,.18); color: #fff; border-color: transparent; }
+.pst2 .pst-recv { min-width: 170px; }
+.pst2 .pst-recv .pod-prog { width: 100%; margin-left: 0; margin-top: .4rem; }
+.pst2 .pst-age { font-weight: 700; font-size: .84rem; white-space: nowrap; }
+.pst2 .pst-age.is-late { color: #d97706; }
+.pst2 .pagination .page-link { border-radius: 8px !important; margin: 0 2px; border-color: var(--pp-line); color: var(--pp-text); }
+.pst2 .pagination .page-item.active .page-link { background: var(--brand-1); border-color: var(--brand-1); color: #fff; }
+</style>
 
-    <div class="d-flex justify-content-between align-items-center mb-4">
+<div class="container-fluid pp2 pod2 pst2">
+    <div class="d-flex align-items-center justify-content-between flex-wrap mb-3" style="gap:.75rem">
         <div>
-            <h3 class="text-gray-800 mb-1">
-                <i class="fas fa-tachometer-alt text-primary mr-2"></i><?= htmlspecialchars($title); ?>
-            </h3>
-            <p class="text-muted small mb-0"><?= sprintf(lang_line('pdb_subtitle_status'), htmlspecialchars($po_type_label)); ?>
-                (<?= $po_label_translated; ?>).
-            </p>
+            <h1 class="h4 mb-0 font-weight-bold" style="color:var(--pp-text)"><i class="fas fa-tachometer-alt mr-2" style="color:var(--brand-1)"></i><?= htmlspecialchars($title ?? 'Status PO'); ?></h1>
+            <div class="small" style="color:var(--pp-muted)"><?= $mixed ? lang_line('pst2_sub_mixed', 'Pantau status approval & penerimaan PO General, Jasa, dan Asset.') : lang_line('pst2_sub', 'Pantau status approval & penerimaan PO Material Produksi.'); ?></div>
         </div>
     </div>
 
-    <!-- Status breakdown cards -->
-    <div class="row mb-4">
-        <?php foreach ($status_meta as $st => $meta): ?>
-        <div class="col-md">
-            <div class="card border-left-<?= $meta['color']; ?> shadow-sm h-100 py-2">
-                <div class="card-body p-3">
-                    <div class="row no-gutters align-items-center">
-                        <div class="col mr-2">
-                            <div class="text-xs font-weight-bold text-<?= $meta['color']; ?> text-uppercase mb-1"><?= $status_label_map[$st] ?? $st; ?></div>
-                            <div class="h4 mb-0 font-weight-bold text-gray-800"><?= number_format($status_counts[$st]); ?></div>
-                        </div>
-                        <div class="col-auto"><i class="fas <?= $meta['icon']; ?> fa-2x text-gray-300"></i></div>
-                    </div>
-                </div>
-            </div>
-        </div>
+    <?php foreach (['error' => 'fa-exclamation-circle'] as $fk => $fi): if ($msg = $this->session->flashdata($fk)): ?>
+        <div class="pp-flash pp-flash--<?= $fk; ?>" role="alert"><i class="fas <?= $fi; ?>"></i><div><?= $msg; ?></div>
+            <button type="button" class="close" onclick="this.parentNode.remove()">&times;</button></div>
+    <?php endif; endforeach; ?>
+
+    <div class="pp-kpis">
+        <?php foreach ($kpis as $k): $active = $f_status === $k[0] && $f_recv === $k[1]; ?>
+            <a href="<?= base_url($base) . $q(['status' => $k[0], 'receipt_status' => $k[1], 'page' => null]); ?>" class="pp-kpi <?= $k[4]; ?><?= $active ? ' is-active' : ''; ?>">
+                <span class="pp-kpi-ico"><i class="fas <?= $k[3]; ?>"></i></span>
+                <span><span class="pp-kpi-num d-block"><?= number_format((int) $k[5]); ?></span><span class="pp-kpi-label d-block"><?= htmlspecialchars($k[2]); ?></span></span>
+            </a>
         <?php endforeach; ?>
     </div>
 
-    <!-- Receipt status breakdown -->
-    <div class="row mb-4">
-        <div class="col-md-4">
-            <div class="card border-left-warning shadow-sm h-100 py-2">
-                <div class="card-body p-3">
-                    <div class="text-xs font-weight-bold text-warning text-uppercase mb-1"><?= lang_line('pdb_receipt_not_received'); ?></div>
-                    <div class="h5 mb-0 font-weight-bold text-gray-800"><?= number_format($receipt_counts['Not Received']); ?> PO</div>
-                </div>
-            </div>
+    <div class="pp-card">
+        <div class="pst-tabs">
+            <?php foreach ($tabs as $tk => $tv): if ($tk !== '' && $tk !== $f_status && !$tv[1] && !in_array($tk, ['Draft', 'waiting', 'Confirmed'], true)) continue; ?>
+                <a href="<?= base_url($base) . $q(['status' => $tk, 'page' => null]); ?>" class="pst-tab<?= $f_status === $tk ? ' is-active' : ''; ?>"><?= htmlspecialchars($tv[0]); ?> <b><?= number_format((int) $tv[1]); ?></b></a>
+            <?php endforeach; ?>
         </div>
-        <div class="col-md-4">
-            <div class="card border-left-info shadow-sm h-100 py-2">
-                <div class="card-body p-3">
-                    <div class="text-xs font-weight-bold text-info text-uppercase mb-1"><?= lang_line('pdb_receipt_partial_received'); ?></div>
-                    <div class="h5 mb-0 font-weight-bold text-gray-800"><?= number_format($receipt_counts['Partial']); ?> PO</div>
+        <div class="pp-card-head" style="border-bottom:1px solid var(--pp-line)">
+            <form method="get" action="<?= base_url($base); ?>" class="pp-toolbar w-100">
+                <?php if ($f_status !== ''): ?><input type="hidden" name="status" value="<?= htmlspecialchars($f_status); ?>"><?php endif; ?>
+                <div class="pp-search"><i class="fas fa-search"></i>
+                    <input type="text" name="search" class="form-control" placeholder="<?= htmlspecialchars(lang_line('pst2_search_ph', 'Cari no. PO / PR / supplier')); ?>" value="<?= htmlspecialchars($f_search); ?>">
                 </div>
-            </div>
-        </div>
-        <div class="col-md-4">
-            <div class="card border-left-success shadow-sm h-100 py-2">
-                <div class="card-body p-3">
-                    <div class="text-xs font-weight-bold text-success text-uppercase mb-1"><?= lang_line('pdb_receipt_complete'); ?></div>
-                    <div class="h5 mb-0 font-weight-bold text-gray-800"><?= number_format($receipt_counts['Complete']); ?> PO</div>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Filter + table -->
-    <div class="card border-0 shadow-sm rounded">
-        <div class="card-header py-3 d-flex flex-wrap justify-content-between align-items-center">
-            <h6 class="m-0 font-weight-bold text-primary">
-                <i class="fas fa-list mr-1"></i> <?= sprintf(lang_line('pdb_list_label'), htmlspecialchars($po_type_label)); ?>
-            </h6>
-            <form method="get" class="form-inline flex-wrap mt-2 mt-md-0">
-                <input type="text" name="search" class="form-control form-control-sm mr-2"
-                       placeholder="<?= htmlspecialchars(lang_line('pdb_search_placeholder')); ?>"
-                       value="<?= htmlspecialchars($filters['search'] ?? ''); ?>" style="min-width:180px;">
-                <select name="status" class="form-control form-control-sm mr-2">
-                    <option value=""><?= lang_line('pdb_opt_all_status'); ?></option>
-                    <?php foreach (array_keys($status_meta) as $st): ?>
-                        <option value="<?= $st; ?>" <?= ($filters['status'] ?? '') == $st ? 'selected' : ''; ?>><?= $status_label_map[$st] ?? $st; ?></option>
-                    <?php endforeach; ?>
+                <select name="receipt_status" class="form-control" style="max-width:230px">
+                    <option value=""><?= lang_line('pst2_opt_all_receipt', '-- Semua Penerimaan --'); ?></option>
+                    <option value="open" <?= $f_recv === 'open' ? 'selected' : ''; ?>><?= lang_line('pst2_recv_open', 'Belum lengkap'); ?></option>
+                    <?php foreach ($recv_meta as $rk => $rv): ?><option value="<?= $rk; ?>" <?= $f_recv === $rk ? 'selected' : ''; ?>><?= htmlspecialchars($rv[0]); ?></option><?php endforeach; ?>
                 </select>
-                <select name="receipt_status" class="form-control form-control-sm mr-2">
-                    <option value=""><?= lang_line('pdb_opt_all_receipt'); ?></option>
-                    <option value="Not Received" <?= ($filters['receipt_status'] ?? '') == 'Not Received' ? 'selected' : ''; ?>><?= lang_line('pdb_receipt_not_received'); ?></option>
-                    <option value="Partial"      <?= ($filters['receipt_status'] ?? '') == 'Partial' ? 'selected' : ''; ?>><?= lang_line('pdb_receipt_partial'); ?></option>
-                    <option value="Complete"     <?= ($filters['receipt_status'] ?? '') == 'Complete' ? 'selected' : ''; ?>><?= lang_line('pdb_receipt_complete'); ?></option>
+                <select name="supplier_id" class="form-control" style="max-width:230px">
+                    <option value=""><?= lang_line('pdb_opt_all_supplier', '-- Semua Supplier --'); ?></option>
+                    <?php foreach (($suppliers ?? []) as $s): ?><option value="<?= (int) $s->id; ?>" <?= $f_sup === (string) $s->id ? 'selected' : ''; ?>><?= htmlspecialchars($s->nama_supplier); ?></option><?php endforeach; ?>
                 </select>
-                <select name="supplier_id" class="form-control form-control-sm mr-2">
-                    <option value=""><?= lang_line('pdb_opt_all_supplier'); ?></option>
-                    <?php foreach ($suppliers as $s): ?>
-                        <option value="<?= $s->id; ?>" <?= ($filters['supplier_id'] ?? '') == $s->id ? 'selected' : ''; ?>><?= htmlspecialchars($s->nama_supplier); ?></option>
-                    <?php endforeach; ?>
-                </select>
-                <button type="submit" class="btn btn-primary btn-sm mr-1"><i class="fas fa-search fa-sm"></i></button>
-                <a href="<?= base_url($base_url); ?>" class="btn btn-secondary btn-sm"><i class="fas fa-redo fa-sm"></i></a>
+                <button type="submit" class="btn btn-pp"><i class="fas fa-filter mr-1"></i><?= lang_line('btn_filter', 'Filter'); ?></button>
+                <?php if ($f_search !== '' || $f_sup !== '' || $f_recv !== '' || $f_status !== ''): ?><a href="<?= base_url($base); ?>" class="btn btn-light"><i class="fas fa-times mr-1"></i><?= lang_line('btn_reset', 'Reset'); ?></a><?php endif; ?>
             </form>
         </div>
-        <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-striped table-hover align-middle">
-                    <thead class="thead-light text-center">
-                        <tr>
-                            <?php
-                                // Kolom "Tipe" muncul kalau daftar ini memayungi lebih
-                                // dari satu tipe PO — GMPO sejak 2026-09-11 berisi
-                                // General + Jasa + Asset sekaligus.
-                                $show_type = !empty($mixed_types);
-                                $type_labels_st = ['produksi'=>'Produksi','non_produksi'=>'General','jasa'=>'Jasa','asset'=>'Asset'];
-                            ?>
-                            <th><?= lang_line('pdb_th_po_number'); ?></th>
-                            <?php if ($show_type): ?><th><?= lang_line('pdb_th_type', 'Tipe'); ?></th><?php endif; ?>
-                            <th><?= lang_line('pdb_th_pr_number'); ?></th>
-                            <th><?= lang_line('pdb_th_po_date'); ?></th>
-                            <th><?= lang_line('pdb_th_supplier'); ?></th>
-                            <th><?= lang_line('pdb_th_requester'); ?></th>
-                            <th><?= lang_line('pdb_th_status'); ?></th>
-                            <th><?= lang_line('pdb_th_receipt'); ?></th>
-                            <th class="text-right"><?= lang_line('pdb_th_qty_po'); ?></th>
-                            <th class="text-right"><?= lang_line('pdb_th_qty_received'); ?></th>
-                            <th width="110"><?= lang_line('pdb_th_action'); ?></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if (!empty($pos)): foreach ($pos as $p):
-                            $status_cls  = $status_meta[$p->status]['color'] ?? 'secondary';
-                            $receipt_cls = ['Not Received'=>'warning','Partial'=>'info','Complete'=>'success'][$p->receipt_status] ?? 'secondary';
-                        ?>
-                        <tr class="text-center">
-                            <td class="font-weight-bold text-primary"><?= htmlspecialchars($p->po_number); ?></td>
-                            <?php if ($show_type): ?>
-                                <td><span class="badge badge-light border"><?= htmlspecialchars($type_labels_st[$p->type] ?? $p->type); ?></span></td>
+        <div class="table-responsive">
+            <table class="pp-table">
+                <thead><tr>
+                    <th><?= lang_line('pst2_th_po', 'No. PO'); ?></th>
+                    <?php if ($mixed): ?><th><?= lang_line('pdb_th_type', 'Tipe'); ?></th><?php endif; ?>
+                    <th><?= lang_line('pdb_th_supplier', 'Supplier'); ?></th>
+                    <th><?= lang_line('pdb_th_status', 'Status'); ?></th>
+                    <th><?= lang_line('pst2_th_receipt', 'Penerimaan'); ?></th>
+                    <th><?= lang_line('pst2_th_age', 'Waktu'); ?></th>
+                    <th class="num"><?= lang_line('pst2_th_value', 'Nilai (IDR)'); ?></th>
+                    <th class="text-right"></th>
+                </tr></thead>
+                <tbody>
+                <?php if (empty($pos)): ?>
+                    <tr><td colspan="<?= $cols; ?>" class="pp-empty"><i class="fas fa-inbox"></i><?= htmlspecialchars(sprintf(lang_line('pdb_no_data', 'Tidak ada data %s'), $po_type_label ?? 'PO')); ?></td></tr>
+                <?php else: foreach ($pos as $p):
+                    $tm    = $type_meta[$p->type] ?? ['-', 'tone-slate', null];
+                    $url   = $detail_url($p);
+                    $appr  = in_array($p->status, ['Confirmed', 'Closed'], true);
+                    $pct   = (float) $p->total_po_qty > 0 ? min(100, round((float) $p->qty_received_capped / (float) $p->total_po_qty * 100)) : 0;
+                    $rm    = $recv_meta[$p->receipt_status] ?? [$p->receipt_status, 'pp-chip'];
+                    $days  = (int) $p->days_to_warehouse_in;
+                    $late  = $p->status === 'Confirmed' && empty($p->first_grn_date) && $days > 14; ?>
+                    <tr>
+                        <td>
+                            <a href="<?= $url; ?>" class="pp-list-title"><?= htmlspecialchars($p->po_number); ?></a>
+                            <div class="pp-item-code"><i class="far fa-calendar mr-1"></i><?= $p->po_date ? date('d M Y', strtotime($p->po_date)) : '-'; ?></div>
+                        </td>
+                        <?php if ($mixed): ?><td><span class="pp-tag <?= $tm[1]; ?>"><?= htmlspecialchars($tm[0]); ?></span></td><?php endif; ?>
+                        <td>
+                            <div class="font-weight-bold" style="font-size:.84rem"><?= htmlspecialchars($p->nama_supplier ?: '-'); ?></div>
+                            <?php if (!empty($p->pr_number)): ?><div class="pp-item-code"><i class="fas fa-file-import mr-1"></i><?= htmlspecialchars($p->pr_number); ?><?= !empty($p->requester_name) ? ' · ' . htmlspecialchars($p->requester_name) : ''; ?></div><?php endif; ?>
+                        </td>
+                        <td><span class="pp-status <?= $pill[$p->status] ?? 'pp-status--other'; ?>"><?= htmlspecialchars($status_label[$p->status] ?? $p->status); ?></span></td>
+                        <td class="pst-recv">
+                            <?php if ($appr || (float) $p->total_qty_received > 0 || (float) $p->qty_pending > 0): ?>
+                                <span class="<?= $rm[1]; ?>"><?= htmlspecialchars($rm[0]); ?></span>
+                                <span class="pp-item-code ml-1"><?= sprintf(lang_line('pod2_lines_complete', '%d/%d baris lengkap'), (int) $p->n_lines_full, (int) $p->n_lines); ?></span>
+                                <div class="pod-prog<?= $pct > 0 && $pct < 100 ? ' is-partial' : ''; ?>"><span style="width:<?= $pct; ?>%"></span></div>
+                                <?php if ((float) $p->qty_pending > 0): ?><div class="pp-item-code" title="<?= htmlspecialchars(lang_line('pod2_pending_hint', 'Masih di dokumen penerimaan berstatus Draft')); ?>">+<?= $qty($p->qty_pending); ?> draft</div><?php endif; ?>
+                            <?php else: ?>
+                                <span class="pp-item-code"><?= lang_line('pst2_recv_after_approve', 'Setelah PO disetujui'); ?></span>
                             <?php endif; ?>
-                            <td><?= htmlspecialchars($p->pr_number ?: '-'); ?></td>
-                            <td><?= $p->po_date ? date('d M Y', strtotime($p->po_date)) : '-'; ?></td>
-                            <td class="text-left"><?= htmlspecialchars($p->nama_supplier ?: '-'); ?></td>
-                            <td><?= htmlspecialchars($p->requester_name ?: '-'); ?></td>
-                            <td><span class="badge badge-<?= $status_cls; ?>"><?= htmlspecialchars($status_label_map[$p->status] ?? $p->status); ?></span></td>
-                            <td><span class="badge badge-<?= $receipt_cls; ?>"><?= htmlspecialchars($receipt_label_map[$p->receipt_status] ?? $p->receipt_status); ?></span></td>
-                            <td class="text-right"><?= number_format((float)$p->total_po_qty, 2); ?></td>
-                            <td class="text-right"><?= number_format((float)$p->total_qty_received, 2); ?></td>
-                            <td>
-                                <a href="<?= base_url($detail_route . '/' . $p->id); ?>" class="btn btn-sm btn-primary" title="<?= lang_line('pdb_btn_detail'); ?>">
-                                    <i class="fas fa-eye"></i>
-                                </a>
-                                <?php if (!empty($can_delete) && $p->status === 'Draft' && !empty($delete_route)): ?>
-                                    <a href="<?= base_url($delete_route . '/' . $p->id); ?>"
-                                       class="btn btn-sm btn-danger"
-                                       title="<?= lang_line('pdb_btn_delete_draft'); ?>"
-                                       onclick="return confirm('<?= htmlspecialchars(addslashes(sprintf(lang_line('pdb_confirm_delete'), $p->po_number))); ?>');">
-                                        <i class="fas fa-trash"></i>
-                                    </a>
+                        </td>
+                        <td>
+                            <?php if (!empty($p->first_grn_date)): ?>
+                                <div class="pst-age"><?= sprintf(lang_line('pst2_age_first', 'H+%d'), $days); ?></div><div class="pp-item-code"><?= lang_line('pst2_age_first_hint', 'penerimaan pertama'); ?></div>
+                            <?php elseif (in_array($p->status, ['Cancelled', 'Rejected', 'Closed'], true)): ?>
+                                <span class="pp-item-code">—</span>
+                            <?php else: ?>
+                                <div class="pst-age<?= $late ? ' is-late' : ''; ?>"><?= sprintf(lang_line('pst2_age_days', '%d hari'), $days); ?></div><div class="pp-item-code"><?= lang_line('pst2_age_hint', 'sejak tanggal PO'); ?></div>
+                            <?php endif; ?>
+                        </td>
+                        <td class="num"><b><?= number_format((float) $p->total_value, 2, '.', ','); ?></b></td>
+                        <td class="text-right">
+                            <div class="pp-actions">
+                                <a href="<?= $url; ?>" class="btn btn-light" title="<?= htmlspecialchars(lang_line('pdb_btn_detail', 'Detail')); ?>"><i class="fas fa-eye"></i></a>
+                                <?php if (!empty($can_delete) && $p->status === 'Draft' && !empty($delete_route) && $p->type === $delete_type): ?>
+                                    <a href="<?= base_url($delete_route . '/' . $p->id); ?>" class="btn btn-light text-danger btn-delete" title="<?= htmlspecialchars(lang_line('pdb_btn_delete_draft', 'Hapus Draft')); ?>"
+                                       data-message="<?= htmlspecialchars(sprintf(lang_line('pdb_confirm_delete', 'Hapus PO %s?'), $p->po_number)); ?>"><i class="fas fa-trash-alt"></i></a>
                                 <?php endif; ?>
-                            </td>
-                        </tr>
-                        <?php endforeach; else: ?>
-                            <tr><td colspan="<?= $show_type ? 11 : 10 ?>" class="text-center text-muted py-4">
-                                <i class="fas fa-inbox fa-2x mb-2"></i><br>
-                                <?= htmlspecialchars(sprintf(lang_line('pdb_no_data'), $po_type_label)); ?>
-                            </td></tr>
-                        <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
+                            </div>
+                        </td>
+                    </tr>
+                <?php endforeach; endif; ?>
+                </tbody>
+            </table>
+        </div>
+        <div class="pp-foot">
+            <span><b><?= number_format((int) ($total ?? 0)); ?></b> PO<?= ($total ?? 0) != ($all_count ?? 0) ? ' ' . sprintf(lang_line('pst2_of_total', 'dari %s'), number_format((int) ($all_count ?? 0))) : ''; ?></span>
+            <?php if (($total_pages ?? 1) > 1): $cp = (int) $page; ?>
+            <nav aria-label="Page navigation"><ul class="pagination pagination-sm mb-0">
+                <?php if ($cp > 1): ?><li class="page-item"><a class="page-link" href="<?= base_url($base) . $q(['page' => $cp - 1]); ?>">&laquo;</a></li><?php endif; ?>
+                <?php for ($i = max(1, $cp - 2); $i <= min($total_pages, $cp + 2); $i++): ?>
+                    <li class="page-item <?= $i === $cp ? 'active' : ''; ?>"><a class="page-link" href="<?= base_url($base) . $q(['page' => $i]); ?>"><?= $i; ?></a></li>
+                <?php endfor; ?>
+                <?php if ($cp < $total_pages): ?><li class="page-item"><a class="page-link" href="<?= base_url($base) . $q(['page' => $cp + 1]); ?>">&raquo;</a></li><?php endif; ?>
+            </ul></nav>
+            <?php endif; ?>
         </div>
     </div>
 </div>

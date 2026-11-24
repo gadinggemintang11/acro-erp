@@ -23,9 +23,47 @@ class Warehouse_in extends MY_Controller {
         if (!check_access('warehouse_in', 'view')) {
             show_error('Anda tidak memiliki izin.', 403);
         }
+        // Redesign 2026-11-09: cari + filter + paginasi + ringkasan.
+        //   draft   = GRN Draft
+        //   qa_wait = GRN dikonfirmasi, QA belum selesai (Not Started/In Progress)
+        //   qa_done = QA selesai (Passed / Partial Passed / Rejected)
+        $all = $this->Warehouse_in_model->get_all();
+        $grp = function ($r) {
+            if ($r->status === 'Draft') return 'draft';
+            return in_array($r->qa_status, ['Passed', 'Partial Passed', 'Rejected'], true) ? 'qa_done' : 'qa_wait';
+        };
+        $search = trim((string) $this->input->get('search', TRUE));
+        $f_group = (string) $this->input->get('status', TRUE);
+        $f_base  = (string) $this->input->get('base_on', TRUE);
+        $counts = ['draft' => 0, 'qa_wait' => 0, 'qa_done' => 0];
+        foreach ($all as $r) { $r->grp = $grp($r); $counts[$r->grp]++; }
+        $rows = array_values(array_filter($all, function ($r) use ($search, $f_group, $f_base) {
+            if ($f_group !== '' && $r->grp !== $f_group) return false;
+            if ($f_base !== '' && $r->base_on !== $f_base) return false;
+            if ($search === '') return true;
+            return strpos(strtolower($r->grn_number . ' ' . $r->nama_supplier . ' ' . $r->src_numbers . ' ' . $r->delivery_note_number), strtolower($search)) !== false;
+        }));
+        $per_page = 25;
+        $total_pages = max(1, (int) ceil(count($rows) / $per_page));
+        $page = min(max(1, (int) $this->input->get('page')), $total_pages);
+        // PO material/semifinished disetujui yang belum diterima penuh (semua GRN, termasuk Draft)
+        $waiting = $this->db->query("
+            SELECT COUNT(DISTINCT pd.po_header_id) AS n FROM po_details pd
+            JOIN po_header ph ON ph.id = pd.po_header_id AND ph.status = 'Confirmed'
+            LEFT JOIN (SELECT source_doc_detail_id AS did, SUM(receive_qty) AS q FROM grn_details
+                       WHERE source_doc_type = 'PO' GROUP BY source_doc_detail_id) r ON r.did = pd.id
+            WHERE pd.item_type IN ('material', 'semifinished') AND COALESCE(r.q, 0) < pd.qty - 0.0001")->row();
+
         $data = [
             'title'     => lang_line('page_warehouse_in_title'),
-            'grns'      => $this->Warehouse_in_model->get_all(),
+            'grns'      => array_slice($rows, ($page - 1) * $per_page, $per_page),
+            'total'     => count($rows),
+            'all_count' => count($all),
+            'page'      => $page,
+            'total_pages' => $total_pages,
+            'counts'    => $counts,
+            'po_waiting' => (int) ($waiting->n ?? 0),
+            'filters'   => ['search' => $search, 'status' => $f_group, 'base_on' => $f_base],
             'bc_types'  => $this->Commoncode_model->get_by_group('BC_TYPE'),
             'warehouse_types' => [
                 'material' => 'Material',
@@ -257,9 +295,12 @@ class Warehouse_in extends MY_Controller {
         $header = $this->Warehouse_in_model->get_header_by_id($id);
         if (!$header) { show_404(); }
 
+        // QA yang dibuat saat GRN dikonfirmasi -> ditampilkan & ditautkan di detail.
+        $this->load->model('Quality_assurance_model');
         $data = [
             'title'   => lang_line('title_wi_detail'),
             'header'  => $header,
+            'qa'      => $this->Quality_assurance_model->get_qa_header_by_grn_id($id),
             'details' => $this->Warehouse_in_model->get_details_by_id($id),
             'bc_types' => $this->Commoncode_model->get_by_group('BC_TYPE'),
             'user_role' => $this->session->userdata('role_id') // Pass user role to view
@@ -1356,12 +1397,6 @@ class Warehouse_in extends MY_Controller {
             'bc_number' => isset($header->bc_number) ? $header->bc_number : null,
             'bc_date' => isset($header->bc_date) ? $header->bc_date : null
         ];
-        
-        // DEBUG: Log BC values  - FORCE WRITE TO FILE
-        $debug_msg = '[ADD_ITEM] GRN=' . $grn_id . 
-                     ' | Header Object: ' . json_encode((array)$header) .
-                     ' | Data Array: ' . json_encode($data);
-        file_put_contents('/tmp/mingbao_debug.log', $debug_msg . "\n", FILE_APPEND);
         
         if ($this->Warehouse_in_model->insert_item($data)) { $this->session->set_flashdata('success', 'Item diterima.'); }
         else { $this->session->set_flashdata('error', 'Gagal menerima item!'); }

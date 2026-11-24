@@ -130,7 +130,11 @@
         <tr>
             <td><?= $no++; ?></td>
             <td><?= htmlspecialchars($detail->account_code ?? '-'); ?></td>
-            <td><?= htmlspecialchars($detail->account_name ?? '-'); ?></td>
+            <td><?= htmlspecialchars($detail->account_name ?? '-'); ?>
+                <?php if (!empty($detail->fc_currency) && (float) $detail->fc_amount > 0): ?>
+                    <br><small><?= htmlspecialchars($detail->fc_currency); ?> <?= number_format((float) $detail->fc_amount, 2, ',', '.'); ?> @ <?= number_format((float) $detail->fc_rate, 2, ',', '.'); ?></small>
+                <?php endif; ?>
+            </td>
             <td class="number"><?= number_format($detail->debit, 2, ',', '.'); ?></td>
             <td class="number"><?= number_format($detail->kredit, 2, ',', '.'); ?></td>
             <td><?= htmlspecialchars($detail->description ?? ''); ?></td>

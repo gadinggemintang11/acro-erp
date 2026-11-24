@@ -48,10 +48,45 @@ class Pr_monitoring extends MY_Controller {
             'department' => $this->input->get('department', TRUE),
         ];
 
+        $filters['po'] = $this->input->get('po', TRUE); // none | partial | full | open (none+partial)
+
+        // Redesign 2026-11-09: kartu ringkasan dihitung dari semua PR dalam
+        // cakupan pencarian/tipe (tanpa filter status/PO), lalu daftar difilter
+        // & dipaginasi di sini (25 baris).
+        $scope = $filters;
+        unset($scope['status'], $scope['po']);
+        $all = $this->Purchase_request_model->get_all_monitoring($scope);
+
+        $status_counts = [];
+        $po_counts = ['none' => 0, 'partial' => 0, 'full' => 0];
+        foreach ($all as $r) {
+            $r->po_cover = $this->_po_cover($r);
+            $status_counts[$r->status] = ($status_counts[$r->status] ?? 0) + 1;
+            if ($r->status === 'Approved') $po_counts[$r->po_cover]++;
+        }
+        $st = (string) ($filters['status'] ?? '');
+        $po = (string) ($filters['po'] ?? '');
+        $rows = array_values(array_filter($all, function ($r) use ($st, $po) {
+            if ($st !== '' && $r->status !== $st) return false;
+            if ($po === 'open') return $r->po_cover !== 'full';
+            if ($po !== '' && $r->po_cover !== $po) return false;
+            return true;
+        }));
+
+        $per_page = 25;
+        $total_pages = max(1, (int) ceil(count($rows) / $per_page));
+        $page = min(max(1, (int) $this->input->get('page')), $total_pages);
+
         $data = [
             'title'          => lang_line('title_pr_monitoring', 'PR List (Monitoring)'),
             'filters'        => $filters,
-            'records'        => $this->Purchase_request_model->get_all_monitoring($filters),
+            'records'        => array_slice($rows, ($page - 1) * $per_page, $per_page),
+            'total'          => count($rows),
+            'all_count'      => count($all),
+            'page'           => $page,
+            'total_pages'    => $total_pages,
+            'status_counts'  => $status_counts,
+            'po_counts'      => $po_counts,
             'type_labels'    => self::TYPE_LABEL,
             'type_routes'    => self::TYPE_DETAIL_ROUTE,
             'statuses'       => ['Draft', 'Submitted', 'Approved', 'Rejected'],
@@ -62,5 +97,13 @@ class Pr_monitoring extends MY_Controller {
         $this->load->view('templates/topbar', $data);
         $this->load->view('pr_monitoring/index', $data);
         $this->load->view('templates/footer');
+    }
+
+    /** Cakupan PO sebuah PR: none | partial | full (qty PO aktif vs qty PR). */
+    private function _po_cover($r) {
+        $need = (float) $r->total_qty;
+        $got  = (float) ($r->ordered_qty ?? 0);
+        if ($got <= 0) return 'none';
+        return ($need > 0 && $got >= $need - 0.0001) ? 'full' : 'partial';
     }
 }

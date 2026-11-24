@@ -26,10 +26,21 @@ class Warehouse_in_model extends CI_Model {
             GROUP BY grn_header_id
         ";
         
-        $this->db->select('
-            h.id, h.grn_number, h.grn_date, h.status, h.base_on, h.qa_status,
-            COALESCE(s.nama_supplier, s_po.nama_supplier, s_mir.nama_supplier) as nama_supplier
-        ');
+        // Kolom ringkasan utk daftar (redesign 2026-11-09). src_numbers = nomor
+        // PO / MIR sumber, dipisah '|'.
+        $this->db->select("
+            h.id, h.grn_number, h.grn_date, h.status, h.base_on, h.qa_status, h.warehouse_type,
+            h.delivery_note_number, h.confirmed_at,
+            COALESCE(s.nama_supplier, s_po.nama_supplier, s_mir.nama_supplier) as nama_supplier,
+            (SELECT COUNT(*) FROM grn_details x WHERE x.grn_header_id = h.id) AS item_count,
+            (SELECT COALESCE(SUM(x.receive_qty), 0) FROM grn_details x WHERE x.grn_header_id = h.id) AS total_qty,
+            (SELECT COALESCE(SUM(x.total_value), 0) FROM grn_details x WHERE x.grn_header_id = h.id) AS total_value,
+            (SELECT GROUP_CONCAT(DISTINCT COALESCE(p.po_number, m.mir_number) SEPARATOR '|')
+               FROM grn_details x
+               LEFT JOIN po_header p ON x.source_doc_type = 'PO' AND p.id = x.source_doc_header_id
+               LEFT JOIN mir_header m ON x.source_doc_type = 'MIR' AND m.id = x.source_doc_header_id
+              WHERE x.grn_header_id = h.id) AS src_numbers
+        ", FALSE);
         $this->db->from($this->table_header . ' h');
         $this->db->join('suppliers s', 'h.supplier_id = s.id', 'left');
         
@@ -69,13 +80,9 @@ class Warehouse_in_model extends CI_Model {
         $query = $this->db->get();
         $header = $query ? $query->row() : null;
         
-        // DEBUG: Log header object properties
-        if ($header) {
-            file_put_contents('/tmp/mingbao_debug.log', 
-                '[get_header_by_id] ID=' . $id . ' | Header props: ' . json_encode((array)$header) . "\n", 
-                FILE_APPEND);
-        }
-        
+        // (Log debug ke /tmp/mingbao_debug.log sisa era lama dibuang 2026-11-09 --
+        // menulis seluruh isi header ke /tmp setiap detail GRN dibuka.)
+
         // Enhance supplier info if null (fallback to PO/MIR)
         if ($header) {
             $header = $this->enhance_supplier_info($header);

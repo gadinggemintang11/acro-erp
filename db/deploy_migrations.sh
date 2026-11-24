@@ -132,6 +132,7 @@ MIGRATIONS=(
   migration_tahap_produksi_acropoly.sql
   migration_sidebar_mr_list.sql
   migration_sidebar_accounting_split.sql
+  migration_jurnal_valas_per_baris.sql
 )
 
 log() { echo "$@" | tee -a "$LOG_FILE"; }

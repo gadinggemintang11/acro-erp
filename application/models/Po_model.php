@@ -243,9 +243,12 @@ class Po_model extends CI_Model {
         $stages = array_values(array_unique($stages));
         if (empty($stages)) return [];
 
-        $this->db->select('h.id, h.po_number, h.po_date, h.status, h.type, h.has_ppn,
+        // currency_code + subtotal_base (mata uang PO) ditambah 2026-11-09 utk
+        // daftar Approval PO -- `subtotal` tetap = total lokal (IDR) seperti semula.
+        $this->db->select('h.id, h.po_number, h.po_date, h.status, h.type, h.has_ppn, h.currency_code,
             s.nama_supplier, u.fullname as created_by_name,
-            COALESCE(SUM(d.total_local), 0) as subtotal'
+            COALESCE(SUM(d.total_local), 0) as subtotal,
+            COALESCE(SUM(d.qty * d.base_price), 0) as subtotal_base'
             . ', h.ppn_rate'
             . (db_has_column('po_header', 'ppn_inclusive') ? ', h.ppn_inclusive' : ''));
         $this->db->from($this->table_header . ' h');
@@ -262,7 +265,7 @@ class Po_model extends CI_Model {
                 $this->db->where('h.type', $type);
             }
         }
-        $this->db->group_by('h.id, h.po_number, h.po_date, h.status, h.type, h.has_ppn, h.ppn_rate, '
+        $this->db->group_by('h.id, h.po_number, h.po_date, h.status, h.type, h.has_ppn, h.currency_code, h.ppn_rate, '
             . (db_has_column('po_header', 'ppn_inclusive') ? 'h.ppn_inclusive, ' : '')
             . 's.nama_supplier, u.fullname');
         $this->db->order_by('h.id', 'DESC');
@@ -637,6 +640,84 @@ class Po_model extends CI_Model {
         $this->db->limit(1);
         $query = $this->db->get();
         return ($query && $query->num_rows() > 0);
+    }
+
+    /**
+     * Ringkasan penerimaan satu PO untuk halaman detail (redesign 2026-11-09).
+     *
+     * "Diterima" per baris = GRN Completed + SGR Completed + unit di Asset
+     * Register -- definisi yang SAMA dengan Ap_auto_model::po_line_status()
+     * (dasar tagihan), supaya angka di detail PO tidak beda dengan yang bisa
+     * ditagih. Dokumen Draft dihitung terpisah sebagai "dalam proses".
+     *
+     * @return array [
+     *   'lines' => [po_detail_id => ['received' => float, 'pending' => float]],
+     *   'docs'  => [ {kind: grn|service|sgr, id, number, date, status, qty, lines}, ... ],
+     * ]
+     */
+    public function get_receipt_overview($po_id) {
+        $po_id = (int) $po_id;
+        $lines = [];
+        $docs  = [];
+        if ($po_id <= 0) return ['lines' => $lines, 'docs' => $docs];
+
+        $add = function ($did, $qty, $completed) use (&$lines) {
+            $did = (int) $did;
+            if (!isset($lines[$did])) $lines[$did] = ['received' => 0.0, 'pending' => 0.0];
+            $lines[$did][$completed ? 'received' : 'pending'] += (float) $qty;
+        };
+
+        // GRN barang + penyelesaian jasa (keduanya di grn_header; jasa = warehouse_type 'jasa')
+        $rows = $this->db->query(
+            "SELECT gh.id, gh.grn_number, gh.grn_date, gh.status, gh.warehouse_type, gh.qa_status,
+                    gd.source_doc_detail_id AS did, gd.receive_qty
+             FROM grn_details gd JOIN grn_header gh ON gh.id = gd.grn_header_id
+             WHERE gd.source_doc_type = 'PO' AND gd.source_doc_header_id = ?
+             ORDER BY gh.grn_date, gh.id", [$po_id])->result();
+        foreach ($rows as $r) {
+            $add($r->did, $r->receive_qty, $r->status === 'Completed');
+            $k = 'grn' . $r->id;
+            if (!isset($docs[$k])) {
+                $docs[$k] = (object) [
+                    'kind' => $r->warehouse_type === 'jasa' ? 'service' : 'grn', 'id' => (int) $r->id,
+                    'number' => $r->grn_number, 'date' => $r->grn_date, 'status' => $r->status,
+                    'qa_status' => $r->qa_status, 'qty' => 0.0, 'lines' => 0,
+                ];
+            }
+            $docs[$k]->qty += (float) $r->receive_qty;
+            $docs[$k]->lines++;
+        }
+
+        // Penerimaan barang general (mesin/inventory) lewat SGR
+        if ($this->db->table_exists('sgr_details')) {
+            $rows = $this->db->query(
+                "SELECT sh.id, sh.sgr_number, sh.sgr_date, sh.status, sd.source_doc_detail_id AS did, sd.receive_qty
+                 FROM sgr_details sd JOIN sgr_header sh ON sh.id = sd.sgr_header_id
+                 WHERE sd.source_doc_type = 'PO' AND sd.source_doc_header_id = ?
+                 ORDER BY sh.sgr_date, sh.id", [$po_id])->result();
+            foreach ($rows as $r) {
+                $add($r->did, $r->receive_qty, $r->status === 'Completed');
+                $k = 'sgr' . $r->id;
+                if (!isset($docs[$k])) {
+                    $docs[$k] = (object) [
+                        'kind' => 'sgr', 'id' => (int) $r->id, 'number' => $r->sgr_number, 'date' => $r->sgr_date,
+                        'status' => $r->status, 'qa_status' => null, 'qty' => 0.0, 'lines' => 0,
+                    ];
+                }
+                $docs[$k]->qty += (float) $r->receive_qty;
+                $docs[$k]->lines++;
+            }
+        }
+
+        // Aset: tiap unit di asset_register = 1 qty diterima
+        if ($this->db->table_exists('asset_register')) {
+            $rows = $this->db->query(
+                "SELECT po_detail_id AS did, COUNT(*) AS qty FROM asset_register
+                 WHERE po_header_id = ? GROUP BY po_detail_id", [$po_id])->result();
+            foreach ($rows as $r) $add($r->did, $r->qty, true);
+        }
+
+        return ['lines' => $lines, 'docs' => array_values($docs)];
     }
 
     // ============================================================

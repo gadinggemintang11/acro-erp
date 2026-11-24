@@ -181,6 +181,75 @@ class JurnalUmum extends MY_Controller {
         return null;
     }
 
+    /**
+     * Susun ulang baris detail dari form (whitelist kolom) + tangani baris akun valas.
+     *
+     * Jurnal ber-mata uang IDR boleh memakai akun valas (mis. Bank USD) — untuk jurnal
+     * OVB / pindah buku antar mata uang (Bank IDR -> Bank USD dan sebaliknya). Di form,
+     * debit/kredit baris valas diisi dalam mata uang AKUN + kurs (fc_rate) dan nilai
+     * Rupiah (fc_idr). Di sini debit/kredit dikonversi ke IDR (mata uang header, rate 1)
+     * sehingga GL & laporan tidak berubah; nilai asli valas disimpan di
+     * fc_currency / fc_amount / fc_rate.
+     *
+     * Return [array $rows, string|null $error].
+     */
+    private function _normalize_detail_rows($details, $header_currency)
+    {
+        $acc = [];
+        foreach ($this->model->get_postable_accounts() as $a) {
+            $acc[(int) $a->id] = $a;
+        }
+
+        $rows = [];
+        $no   = 0;
+        foreach ((array) $details as $d) {
+            $no++;
+            $account_id = (int) ($d['account_id'] ?? 0);
+            $debit      = round((float) ($d['debit'] ?? 0), 2);
+            $kredit     = round((float) ($d['kredit'] ?? 0), 2);
+            if ($account_id <= 0 || ($debit <= 0 && $kredit <= 0)) continue;
+
+            $row = [
+                'account_id'  => $account_id,
+                'debit'       => $debit,
+                'kredit'      => $kredit,
+                'description' => (string) ($d['description'] ?? ''),
+                'is_ppn_line' => 0,
+            ];
+
+            $acc_cur = isset($acc[$account_id]) ? ($acc[$account_id]->currency ?: 'IDR') : 'IDR';
+            if ($header_currency === 'IDR' && $acc_cur !== 'IDR') {
+                $label = $acc[$account_id]->account_code . ' (' . $acc_cur . ')';
+                if ($debit > 0 && $kredit > 0) {
+                    return [null, "Baris {$no} akun {$label}: isi Debit ATAU Kredit saja."];
+                }
+                $fc_amount = $debit > 0 ? $debit : $kredit;
+                $rate      = (float) ($d['fc_rate'] ?? 0);
+                $idr       = round((float) ($d['fc_idr'] ?? 0), 2);
+                if ($idr <= 0 && $rate > 0) {
+                    $idr = round($fc_amount * $rate, 2);
+                }
+                if ($idr <= 0) {
+                    return [null, "Baris {$no} akun {$label}: isi Kurs / nilai Rupiah untuk baris valas."];
+                }
+                if ($debit > 0) { $row['debit'] = $idr; } else { $row['kredit'] = $idr; }
+                $row['fc_currency'] = $acc_cur;
+                $row['fc_amount']   = $fc_amount;
+                $row['fc_rate']     = round($idr / $fc_amount, 6);
+            }
+            $rows[] = $row;
+        }
+        return [$rows, null];
+    }
+
+    private function _has_fc_rows($details)
+    {
+        foreach ($details as $d) {
+            if (!empty($d['fc_currency'])) return true;
+        }
+        return false;
+    }
+
     public function index()
     {
         $data['title'] = lang_line('jurnal_umum_title', 'Jurnal Umum (Jurnal Entry)');
@@ -237,8 +306,15 @@ class JurnalUmum extends MY_Controller {
             return;
         }
 
-        $details = $this->input->post('details');
         $rate = (float) $this->input->post('exchange_rate');
+
+        // Whitelist kolom + konversi baris akun valas (jurnal OVB) ke IDR.
+        list($details, $fc_err) = $this->_normalize_detail_rows($this->input->post('details'), $this->input->post('currency'));
+        if ($fc_err) {
+            $this->session->set_flashdata('error', $fc_err);
+            $this->create();
+            return;
+        }
 
         // Susun field PPN dari input
         $ppn_type    = $ppn_enabled ? $this->input->post('ppn_type') : null;
@@ -278,6 +354,11 @@ class JurnalUmum extends MY_Controller {
         $wht = $this->_resolve_wht();
         if ($wht['total'] > 0 && $this->input->post('currency') !== 'IDR') {
             $this->session->set_flashdata('error', 'WHT hanya berlaku untuk mata uang IDR.');
+            $this->create();
+            return;
+        }
+        if ($wht['total'] > 0 && $this->_has_fc_rows($details)) {
+            $this->session->set_flashdata('error', 'WHT tidak bisa digabung dengan baris akun valas. Pisahkan jurnalnya.');
             $this->create();
             return;
         }
@@ -390,6 +471,7 @@ class JurnalUmum extends MY_Controller {
         if ($total_wht > 0 && !empty($data['details'])) {
             $idx = -1; $max = 0;
             foreach ($data['details'] as $i => $d) {
+                if (!empty($d->fc_currency)) continue; // baris valas tidak pernah kena WHT
                 if ((float) $d->kredit > $max) { $max = (float) $d->kredit; $idx = $i; }
             }
             if ($idx >= 0 && $max > 0) {
@@ -483,28 +565,12 @@ class JurnalUmum extends MY_Controller {
             'exchange_rate' => (float) $this->input->post('exchange_rate')
         ];
 
-        // Collect details data (user rows)
-        $details_data = [];
-        $details_post = $this->input->post('details');
-
-        if (!empty($details_post) && is_array($details_post)) {
-            foreach ($details_post as $detail) {
-                $account_id = isset($detail['account_id']) ? $detail['account_id'] : '';
-                if (empty($account_id)) continue;
-
-                $debit  = (float) (isset($detail['debit'])  ? $detail['debit']  : 0);
-                $kredit = (float) (isset($detail['kredit']) ? $detail['kredit'] : 0);
-
-                if ($debit > 0 || $kredit > 0) {
-                    $details_data[] = [
-                        'account_id'  => $account_id,
-                        'debit'       => $debit,
-                        'kredit'      => $kredit,
-                        'description' => isset($detail['description']) ? $detail['description'] : '',
-                        'is_ppn_line' => 0,
-                    ];
-                }
-            }
+        // Collect details data (user rows) + konversi baris akun valas (jurnal OVB) ke IDR.
+        list($details_data, $fc_err) = $this->_normalize_detail_rows($this->input->post('details'), $this->input->post('currency'));
+        if ($fc_err) {
+            $this->session->set_flashdata('error', $fc_err);
+            $this->edit($id);
+            return;
         }
 
         // Append baris PPN otomatis
@@ -516,6 +582,11 @@ class JurnalUmum extends MY_Controller {
         // Append baris WHT (Cr Hutang PPh) + Bank jadi net
         if ($wht['total'] > 0 && $this->input->post('currency') !== 'IDR') {
             $this->session->set_flashdata('error', 'WHT hanya berlaku untuk mata uang IDR.');
+            $this->edit($id);
+            return;
+        }
+        if ($wht['total'] > 0 && $this->_has_fc_rows($details_data)) {
+            $this->session->set_flashdata('error', 'WHT tidak bisa digabung dengan baris akun valas. Pisahkan jurnalnya.');
             $this->edit($id);
             return;
         }
@@ -860,7 +931,7 @@ class JurnalUmum extends MY_Controller {
             $sheet->setCellValue('C' . $row, $detail->account_name ?? '-');
             $sheet->setCellValue('D' . $row, (float)$detail->debit);
             $sheet->setCellValue('E' . $row, (float)$detail->kredit);
-            $sheet->setCellValue('F' . $row, $detail->description ?? '');
+            $sheet->setCellValue('F' . $row, trim(($detail->description ?? '') . ' ' . $this->_fc_note($detail)));
             
             $sheet->getStyle('D' . $row . ':E' . $row)->getNumberFormat()->setFormatCode('#,##0.00');
             $row++;
@@ -1325,11 +1396,12 @@ class JurnalUmum extends MY_Controller {
             'PPN Enabled','PPN Type','PPN Percent','DPP Amount','PPN Amount',
             'WHT23 Enabled','WHT23 DPP','WHT23 Rate','WHT23 Amount',
             'WHT42 Enabled','WHT42 DPP','WHT42 Rate','WHT42 Amount',
-            'Account Code','Account Name','Debit','Credit','Line Description','is_ppn_line','is_wht_line'];
+            'Account Code','Account Name','Debit','Credit','Line Description','is_ppn_line','is_wht_line',
+            'FC Currency','FC Amount','FC Rate'];
         $sheet->fromArray($cols, null, 'A1');
-        $sheet->getStyle('A1:AE1')->getFont()->setBold(true);
-        $sheet->getStyle('A1:AE1')->getFill()->setFillType('solid')->getStartColor()->setARGB('FF4472C4');
-        $sheet->getStyle('A1:AE1')->getFont()->getColor()->setARGB('FFFFFFFF');
+        $sheet->getStyle('A1:AH1')->getFont()->setBold(true);
+        $sheet->getStyle('A1:AH1')->getFill()->setFillType('solid')->getStartColor()->setARGB('FF4472C4');
+        $sheet->getStyle('A1:AH1')->getFont()->getColor()->setARGB('FFFFFFFF');
 
         $r = 2;
         $exported_ids = [];
@@ -1348,6 +1420,7 @@ class JurnalUmum extends MY_Controller {
                     $j->wht42_enabled, $j->wht42_dpp, $j->wht42_rate, $j->wht42_amount,
                     $d->account_code ?? '', $d->account_name ?? '', $d->debit ?? 0, $d->kredit ?? 0,
                     $d->description ?? '', $d->is_ppn_line ?? 0, $d->is_wht_line ?? 0,
+                    $d->fc_currency ?? '', $d->fc_amount ?? '', $d->fc_rate ?? '',
                 ];
                 $sheet->fromArray($row, null, 'A' . $r);
                 $first = false;
@@ -1509,7 +1582,7 @@ class JurnalUmum extends MY_Controller {
                     $debit  = (float) ($d['AA'] ?? 0);
                     $kredit = (float) ($d['AB'] ?? 0);
                     $td += $debit; $tc += $kredit;
-                    $details[] = [
+                    $line = [
                         'account_id'  => $aid,
                         'debit'       => $debit,
                         'kredit'      => $kredit,
@@ -1517,6 +1590,13 @@ class JurnalUmum extends MY_Controller {
                         'is_ppn_line' => (int) ($d['AD'] ?? 0),
                         'is_wht_line' => (int) ($d['AE'] ?? 0),
                     ];
+                    $fc_cur = trim((string) ($d['AF'] ?? ''));
+                    if ($fc_cur !== '' && (float) ($d['AG'] ?? 0) > 0) {
+                        $line['fc_currency'] = $fc_cur;
+                        $line['fc_amount']   = (float) $d['AG'];
+                        $line['fc_rate']     = (float) ($d['AH'] ?? 0);
+                    }
+                    $details[] = $line;
                 }
                 if ($bad || empty($details)) continue;
 
@@ -1538,6 +1618,13 @@ class JurnalUmum extends MY_Controller {
             $this->session->set_flashdata('error', 'Gagal membaca file backup: ' . $e->getMessage());
             redirect('jurnalumum/import_full');
         }
+    }
+
+    /** Keterangan nilai valas baris jurnal OVB, mis. "[USD 1,000.00 @ 16,250.00]"; '' untuk baris biasa. */
+    private function _fc_note($d)
+    {
+        if (empty($d->fc_currency) || (float) ($d->fc_amount ?? 0) <= 0) return '';
+        return '[' . $d->fc_currency . ' ' . number_format((float) $d->fc_amount, 2) . ' @ ' . number_format((float) $d->fc_rate, 2) . ']';
     }
 
     /** Normalisasi nilai tanggal dari Excel (string 'Y-m-d' atau serial). */

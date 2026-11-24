@@ -1,197 +1,185 @@
-<?php
+<?php defined('BASEPATH') OR exit('No direct script access allowed');
+/**
+ * Receiving Item Form (SGR) -- detail. Redesign 2026-11-09, gaya .pp2.
+ * Logika modal "Pilih Item PO" & "Edit Item" (JS di bawah) tidak berubah;
+ * hanya tampilan. Izin per kategori dari controller ($can_edit/$can_approve).
+ */
+$this->load->view('production_process/_pp_style');
+
 $is_draft = ($header->status == 'Draft');
 // Controller mengirim izin per kategori (_can_sgr). Dulu view hanya cek menu
 // blanket, jadi user yang cuma punya izin SGR General/Produksi tidak melihat
 // tombol apa pun padahal controller mengizinkan.
 $can_edit = $can_edit ?? check_access('supplier_general_item_receipt', 'edit');
-// Approve/unapprove pakai izin Confirm, sama dengan controller (dulu Add, jadi
-// pembuat dokumen otomatis bisa approve — tidak sesuai PDF ROLE LEVEL).
+// Approve/unapprove pakai izin Confirm, sama dengan controller.
 $can_approve = $can_approve ?? check_access('supplier_general_item_receipt', 'confirm');
-$grand_total = 0;
-foreach ($details as $d) { $grand_total += (float)($d->total_value ?? 0); }
+$grand_total = 0; $total_qty = 0;
+foreach ($details as $d) { $grand_total += (float) ($d->total_value ?? 0); $total_qty += (float) $d->receive_qty; }
+$cat      = $header->category ?: 'Lainnya';
+$cat_tone = ['General' => 'tone-blue', 'Produksi' => 'tone-slate', 'Lainnya' => 'tone-amber'][$cat] ?? 'tone-slate';
+$back     = $cat === 'General' ? 'supplier_general_item_receipt/index/general' : ($cat === 'Produksi' ? 'supplier_general_item_receipt/index/produksi' : 'supplier_general_item_receipt');
+$wh_label = ['machine' => lang_line('sgr2_wh_machine', 'Mesin'), 'inventory' => lang_line('sgr2_wh_inventory', 'Inventaris')];
+$fmt_dt   = function ($v, $time = true) { return (!empty($v) && strpos((string) $v, '0000') !== 0) ? date($time ? 'd M Y H:i' : 'd M Y', strtotime($v)) : null; };
+$qty      = function ($n) { $s = number_format((float) $n, 4, '.', ','); return rtrim(rtrim($s, '0'), '.'); };
+$n_items  = count($details);
+$pos      = []; foreach ($details as $d) { if (!empty($d->source_doc_number)) $pos[$d->source_doc_header_id] = $d->source_doc_number; }
+$steps = [
+    ['cls' => 'is-done', 'icon' => 'fa-check', 'label' => lang_line('pod2_step_created', 'Dibuat'), 'meta' => trim(($header->creator_name ?? '-') . ($fmt_dt($header->created_at ?? null) ? ' · ' . $fmt_dt($header->created_at) : ''))],
+    ['cls' => $n_items ? 'is-done' : 'is-current', 'icon' => $n_items ? 'fa-check' : 'fa-file-import', 'label' => lang_line('sgr2_step_items', 'Item dari PO'),
+     'meta' => $n_items ? sprintf(lang_line('sgr2_items_meta', '%d item · %d PO'), $n_items, count($pos)) : lang_line('sgr2_wait_items', 'Pilih item PO yang datang')],
+    ['cls' => !$is_draft ? 'is-done' : ($n_items ? 'is-current' : ''), 'icon' => !$is_draft ? 'fa-check' : 'fa-warehouse', 'label' => lang_line('sgr2_step_approved', 'Disetujui · stok masuk'),
+     'meta' => !$is_draft ? trim(($header->approver_name ?? '-') . ($fmt_dt($header->approved_at ?? null) ? ' · ' . $fmt_dt($header->approved_at) : '')) : ($n_items ? lang_line('pod2_wait_approval', 'Menunggu approval') : '—')],
+];
+$bc_text = trim((($header->bc_type_desc ?? '') ?: ($header->bc_type_code ?? '')) . (!empty($header->bc_number) ? ' · ' . $header->bc_number : ''));
 ?>
-<div class="container-fluid">
-    <div class="d-sm-flex align-items-center justify-content-between mb-4">
-        <h3 class="h4 mb-0 text-gray-800">
-            <i class="fas fa-clipboard-check text-primary mr-2"></i>
-            <?= lang_line('sgr_detail_title', 'Detail SGR'); ?>
-            <span class="badge badge-primary ml-2"><?= htmlspecialchars($header->sgr_number); ?></span>
-            <?php if ($header->status === 'Completed'): ?>
-                <span class="badge badge-success ml-1"><?= lang_line('sgr_badge_approved'); ?></span>
-            <?php else: ?>
-                <span class="badge badge-secondary ml-1"><?= lang_line('sgr_badge_draft'); ?></span>
-            <?php endif; ?>
-        </h3>
-        <div>
-            <?php if ($is_draft && $can_edit): ?>
-                <button type="button" class="btn btn-success btn-sm mr-1" data-toggle="modal" data-target="#poAutoLoadModalSgr">
-                    <i class="fas fa-file-import mr-1"></i> <?= lang_line('sgr_btn_pick_load_po'); ?>
-                </button>
-                <button type="button" class="btn btn-warning btn-sm mr-1" data-toggle="modal" data-target="#editSgrHeaderModal">
-                    <i class="fas fa-edit"></i> <?= lang_line('sgr_btn_edit_header'); ?>
-                </button>
-            <?php endif; ?>
+<style>
+.sgrd .pod-steps { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .6rem; margin-bottom: 1.25rem; }
+.sgrd .pod-step { display: flex; gap: .65rem; padding: .8rem .9rem; border-radius: 14px; background: var(--pp-card); border: 1px solid var(--pp-line); box-shadow: var(--pp-shadow); min-width: 0; }
+.sgrd .pod-step-dot { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: 0 0 auto; font-size: .82rem; background: var(--pp-soft); color: var(--pp-muted); border: 1px solid var(--pp-line); }
+.sgrd .pod-step.is-done .pod-step-dot { background: #10b981; color: #fff; border-color: transparent; }
+.sgrd .pod-step.is-current { border-color: var(--brand-1); box-shadow: 0 0 0 3px rgba(var(--brand-rgb), .12), var(--pp-shadow); }
+.sgrd .pod-step.is-current .pod-step-dot { background: var(--brand-1); color: #fff; border-color: transparent; }
+.sgrd .pod-step-name { font-weight: 700; font-size: .84rem; }
+.sgrd .pod-step-meta { font-size: .72rem; color: var(--pp-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 767.98px) { .sgrd .pod-steps { grid-template-columns: 1fr; } }
+.sgrd .sgr-empty { text-align: center; padding: 2.2rem 1rem; }
+.sgrd .sgr-empty i.big { font-size: 2rem; color: var(--pp-muted); opacity: .4; display: block; margin-bottom: .6rem; }
+.sgrd .sgr-note { display: flex; gap: .7rem; align-items: flex-start; padding: .8rem 1rem; border-radius: 12px; margin-bottom: 1rem; font-size: .85rem; background: var(--pp-card); border: 1px solid var(--pp-line); }
+.sgrd td .pp-chip { margin-top: .25rem; }
+/* modal lama (Bootstrap) -> gaya pp-modal */
+.pp-modal .table thead th { font-size: .68rem; text-transform: uppercase; letter-spacing: .04em; color: #64748b; background: #f8fafc; }
+.pp-modal .card { border-radius: 12px; border-color: #e2e8f0; }
+.pp-modal .card-header { background: #f8fafc; }
+</style>
 
-            <?php if ($is_draft && $can_approve && !empty($details)): ?>
-                <a href="<?= base_url('supplier_general_item_receipt/approve/' . $header->id); ?>"
-                   class="btn btn-primary btn-sm mr-1"
-                   onclick="return confirm('<?= lang_line('sgr_confirm_approve', 'Yakin approve SGR? Barang akan masuk stock.'); ?>')">
-                    <i class="fas fa-check-circle"></i> <?= lang_line('sgr_btn_approve'); ?>
-                </a>
-            <?php elseif (!$is_draft && $can_approve): ?>
-                <a href="<?= base_url('supplier_general_item_receipt/unapprove/' . $header->id); ?>"
-                   class="btn btn-danger btn-sm mr-1"
-                   onclick="return confirm('<?= lang_line('sgr_confirm_unapprove', 'Yakin batalkan approval? Stok akan dikembalikan.'); ?>')">
-                    <i class="fas fa-times-circle"></i> <?= lang_line('sgr_btn_unapprove'); ?>
-                </a>
-            <?php endif; ?>
-
-            <a href="<?= base_url('supplier_general_item_receipt/export_pdf/' . $header->id); ?>" target="_blank" class="btn btn-danger btn-sm mr-1">
-                <i class="fas fa-file-pdf"></i> <?= lang_line('sgr_btn_pdf'); ?>
-            </a>
-            <a href="<?= base_url('supplier_general_item_receipt'); ?>" class="btn btn-secondary btn-sm">
-                <i class="fas fa-arrow-left mr-1"></i> <?= lang_line('sgr_btn_back'); ?>
-            </a>
-        </div>
-    </div>
-
-    <?php if ($this->session->flashdata('success')): ?>
-        <div class="alert alert-success"><?= $this->session->flashdata('success'); ?></div>
-    <?php endif; ?>
-    <?php if ($this->session->flashdata('error')): ?>
-        <div class="alert alert-danger"><?= $this->session->flashdata('error'); ?></div>
-    <?php endif; ?>
-    <?php if ($this->session->flashdata('warning')): ?>
-        <div class="alert alert-warning"><?= $this->session->flashdata('warning'); ?></div>
-    <?php endif; ?>
-
-    <!-- Header info -->
-    <div class="card shadow mb-4">
-        <div class="card-body">
-            <div class="row">
-                <div class="col-md-3"><strong><?= lang_line('sgr_label_sgr_date'); ?></strong> <?= date('d M Y', strtotime($header->sgr_date)); ?></div>
-                <div class="col-md-3"><strong><?= lang_line('sgr_label_warehouse_type'); ?></strong> <?= htmlspecialchars(ucfirst($header->warehouse_type)); ?></div>
-                <div class="col-md-3"><strong><?= lang_line('sgr_category', 'Kategori'); ?></strong>
-                    <?php $hc = $header->category ?? 'Lainnya'; ?>
-                    <span class="badge badge-<?= $hc === 'Produksi' ? 'dark' : ($hc === 'General' ? 'secondary' : 'light text-muted') ?>"><?= htmlspecialchars($hc) ?></span>
+<div class="container-fluid pp2 sgrd">
+    <section class="pp-hero">
+        <div class="pp-hero-top">
+            <div class="pp-hero-id">
+                <div class="pp-hero-icon"><i class="fas fa-dolly-flatbed"></i></div>
+                <div style="min-width:0">
+                    <div class="pp-hero-kicker"><?= lang_line('sgr2_title', 'Receiving Item Form'); ?> · <?= htmlspecialchars($cat); ?></div>
+                    <h1 class="pp-hero-title"><?= htmlspecialchars($header->sgr_number); ?> <span class="pp-status <?= $is_draft ? 'pp-status--draft' : 'pp-status--completed'; ?>"><?= $is_draft ? 'Draft' : lang_line('sgr2_approved', 'Disetujui'); ?></span></h1>
+                    <div class="pp-hero-subline"><i class="far fa-calendar mr-1"></i><?= $fmt_dt($header->sgr_date, false); ?><span class="mx-1">·</span><i class="fas fa-store mr-1"></i><?= htmlspecialchars($header->nama_supplier ?: '-'); ?></div>
                 </div>
-                <div class="col-md-3"><strong><?= lang_line('sgr_label_supplier'); ?></strong> <?= htmlspecialchars($header->nama_supplier ?? '-'); ?></div>
             </div>
-            <div class="row mt-2">
-                <div class="col-md-4"><strong><?= lang_line('sgr_label_delivery_note'); ?></strong> <?= htmlspecialchars($header->delivery_note_number ?? '-'); ?></div>
-                <div class="col-md-4"><strong><?= lang_line('sgr_label_bc'); ?></strong> <?= htmlspecialchars(($header->bc_type_desc ?? $header->bc_type_code) ?: '-'); ?> <?= !empty($header->bc_number) ? ' / ' . htmlspecialchars($header->bc_number) : ''; ?></div>
-                <div class="col-md-4"><strong><?= lang_line('sgr_label_bc_date'); ?></strong> <?= !empty($header->bc_date) ? date('d M Y', strtotime($header->bc_date)) : '-'; ?></div>
-            </div>
-            <div class="row mt-2">
-                <div class="col-md-12"><strong><?= lang_line('sgr_label_remarks'); ?></strong> <?= htmlspecialchars($header->remarks ?? '-'); ?></div>
-            </div>
-            <div class="row mt-2">
-                <div class="col-md-6"><strong><?= lang_line('sgr_label_created_by'); ?></strong> <?= htmlspecialchars($header->creator_name ?? '-'); ?>
-                    <small class="text-muted">(<?= !empty($header->created_at) ? date('d M Y H:i', strtotime($header->created_at)) : '-'; ?>)</small>
-                </div>
-                <?php if (!empty($header->approved_at)): ?>
-                <div class="col-md-6"><strong><?= lang_line('sgr_label_approved_by'); ?></strong> <?= htmlspecialchars($header->approver_name ?? '-'); ?>
-                    <small class="text-muted">(<?= date('d M Y H:i', strtotime($header->approved_at)); ?>)</small>
-                </div>
+            <div class="pp-hero-actions">
+                <?php if ($is_draft && $can_edit): ?>
+                    <button type="button" class="btn pp-btn-light" data-toggle="modal" data-target="#poAutoLoadModalSgr"><i class="fas fa-file-import mr-1"></i><?= lang_line('sgr2_pick_po', 'Pilih Item PO'); ?></button>
                 <?php endif; ?>
+                <?php if ($is_draft && $can_approve && $n_items): ?>
+                    <a href="<?= base_url('supplier_general_item_receipt/approve/' . $header->id); ?>" class="btn pp-btn-light btn-confirm"
+                       data-message="<?= htmlspecialchars(sprintf(lang_line('sgr2_approve_q', 'Setujui %s?'), $header->sgr_number)); ?>"
+                       data-text="<?= htmlspecialchars(lang_line('sgr2_approve_text', 'Barang langsung masuk stok gudang.')); ?>" data-icon="question" data-confirm-text="<?= htmlspecialchars(lang_line('poa_yes_approve', 'Ya, Setujui')); ?>"><i class="fas fa-check-double mr-1"></i><?= lang_line('sgr_btn_approve', 'Approve'); ?></a>
+                <?php elseif (!$is_draft && $can_approve): ?>
+                    <a href="<?= base_url('supplier_general_item_receipt/unapprove/' . $header->id); ?>" class="btn pp-btn-glass btn-confirm"
+                       data-message="<?= htmlspecialchars(lang_line('sgr2_unapprove_q', 'Batalkan approval dokumen ini?')); ?>"
+                       data-text="<?= htmlspecialchars(lang_line('sgr2_unapprove_text', 'Stok dari dokumen ini ditarik kembali dan dokumen kembali ke Draft. Ditolak kalau stoknya sudah terpakai.')); ?>" data-icon="warning" data-confirm-text="<?= htmlspecialchars(lang_line('sgr2_yes_unapprove', 'Ya, Batalkan')); ?>"><i class="fas fa-undo mr-1"></i><?= lang_line('sgr_btn_unapprove', 'Unapprove'); ?></a>
+                <?php endif; ?>
+                <?php if ($is_draft && $can_edit): ?>
+                    <button type="button" class="btn pp-btn-glass" data-toggle="modal" data-target="#editSgrHeaderModal"><i class="fas fa-pen mr-1"></i><?= lang_line('sgr_btn_edit_header', 'Edit Header'); ?></button>
+                <?php endif; ?>
+                <a href="<?= base_url('supplier_general_item_receipt/export_pdf/' . $header->id); ?>" target="_blank" class="btn pp-btn-glass no-loader"><i class="fas fa-file-pdf mr-1"></i>PDF</a>
+                <a href="<?= base_url($back); ?>" class="btn pp-btn-glass btn-load"><i class="fas fa-arrow-left mr-1"></i><?= lang_line('pod2_back', 'Kembali'); ?></a>
             </div>
         </div>
-    </div>
+        <div class="pp-hero-meta">
+            <div class="pp-meta"><div class="pp-meta-label"><?= lang_line('sgr_category', 'Kategori'); ?></div><div class="pp-meta-value"><?= htmlspecialchars($cat); ?></div></div>
+            <div class="pp-meta"><div class="pp-meta-label"><?= lang_line('sgr_warehouse_type', 'Tipe Gudang'); ?></div><div class="pp-meta-value"><?= htmlspecialchars($wh_label[$header->warehouse_type] ?? ucfirst($header->warehouse_type)); ?></div></div>
+            <div class="pp-meta"><div class="pp-meta-label"><?= lang_line('sgr2_dn', 'Surat jalan'); ?></div><div class="pp-meta-value"><?= htmlspecialchars($header->delivery_note_number ?: '-'); ?></div></div>
+            <div class="pp-meta"><div class="pp-meta-label"><?= lang_line('sgr2_bc', 'Dokumen BC'); ?></div><div class="pp-meta-value" title="<?= htmlspecialchars($bc_text); ?>"><?= htmlspecialchars($bc_text ?: '-'); ?><?= !empty($header->bc_date) ? ' <small>' . date('d M Y', strtotime($header->bc_date)) . '</small>' : ''; ?></div></div>
+            <div class="pp-meta"><div class="pp-meta-label"><?= lang_line('sgr2_th_items', 'Item'); ?></div><div class="pp-meta-value"><?= $n_items; ?> <small><?= lang_line('prm2_lines', 'baris'); ?> · qty <?= $qty($total_qty); ?></small></div></div>
+            <div class="pp-meta"><div class="pp-meta-label"><?= lang_line('sgr2_th_value', 'Nilai'); ?></div><div class="pp-meta-value"><?= number_format($grand_total, 2, '.', ','); ?></div></div>
+        </div>
+    </section>
 
-    <!-- Items table -->
-    <div class="card shadow mb-4">
-        <div class="card-header d-flex justify-content-between align-items-center">
-            <h6 class="m-0 font-weight-bold text-primary"><?= lang_line('sgr_card_items'); ?></h6>
-            <?php if ($is_draft && $can_edit): ?>
-                <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#poAutoLoadModalSgr">
-                    <i class="fas fa-plus mr-1"></i> <?= lang_line('sgr_btn_add_item'); ?>
-                </button>
+    <?php foreach (['error' => 'fa-exclamation-circle', 'warning' => 'fa-exclamation-triangle'] as $fk => $fi): if ($msg = $this->session->flashdata($fk)): ?>
+        <div class="pp-flash pp-flash--<?= $fk; ?>" role="alert"><i class="fas <?= $fi; ?>"></i><div><?= $msg; ?></div>
+            <button type="button" class="close" onclick="this.parentNode.remove()">&times;</button></div>
+    <?php endif; endforeach; ?>
+
+    <?php if (trim((string) $header->remarks) !== ''): ?>
+        <div class="sgr-note"><i class="fas fa-sticky-note mt-1 text-muted"></i><div><b><?= lang_line('sgr_remarks', 'Keterangan'); ?></b><br><?= nl2br(htmlspecialchars($header->remarks)); ?></div></div>
+    <?php endif; ?>
+
+    <nav class="pod-steps" aria-label="<?= htmlspecialchars(lang_line('sgr2_flow', 'Alur penerimaan')); ?>">
+        <?php foreach ($steps as $st): ?>
+        <div class="pod-step <?= $st['cls']; ?>">
+            <span class="pod-step-dot"><i class="fas <?= $st['icon']; ?>"></i></span>
+            <span style="min-width:0"><span class="pod-step-name d-block"><?= htmlspecialchars($st['label']); ?></span><span class="pod-step-meta d-block" title="<?= htmlspecialchars($st['meta']); ?>"><?= htmlspecialchars($st['meta']); ?></span></span>
+        </div>
+        <?php endforeach; ?>
+    </nav>
+
+    <div class="pp-card">
+        <div class="pp-card-head">
+            <h2><span class="pp-ico"><i class="fas fa-list-ul"></i></span><span><?= lang_line('sgr2_items', 'Item Diterima'); ?> (<?= $n_items; ?>)
+                <span class="d-block pp-sub"><?= lang_line('sgr2_items_sub', 'Nilai satuan mengikuti harga di PO.'); ?></span></span></h2>
+            <?php if ($is_draft && $can_edit && $n_items): ?>
+                <button type="button" class="btn btn-light btn-sm" data-toggle="modal" data-target="#poAutoLoadModalSgr"><i class="fas fa-plus mr-1"></i><?= lang_line('sgr2_add_items', 'Tambah dari PO'); ?></button>
             <?php endif; ?>
         </div>
-        <div class="card-body">
-            <div class="table-responsive">
-                <table class="table table-striped">
-                    <thead class="thead-light text-center">
-                        <tr>
-                            <th><?= lang_line('sgr_th_no'); ?></th>
-                            <th><?= lang_line('sgr_th_po_no'); ?></th>
-                            <th><?= lang_line('sgr_th_item_code'); ?></th>
-                            <th><?= lang_line('sgr_th_item_name'); ?></th>
-                            <th><?= lang_line('sgr_th_type'); ?></th>
-                            <th><?= lang_line('cr_category', 'Kategori'); ?></th>
-                            <th><?= lang_line('sgr_th_qty'); ?></th>
-                            <th><?= lang_line('sgr_th_unit'); ?></th>
-                            <th><?= lang_line('sgr_th_unit_value'); ?></th>
-                            <th><?= lang_line('sgr_th_total'); ?></th>
-                            <?php if ($is_draft && $can_edit): ?><th>Aksi</th><?php endif; ?>
-                        </tr>
-                    </thead>
-                    <tbody>
-                        <?php if (!empty($details)): $no = 1; foreach ($details as $d): ?>
-                        <tr class="text-center">
-                            <td><?= $no++; ?></td>
-                            <td><?= htmlspecialchars($d->source_doc_number ?? '-'); ?></td>
-                            <td><?= htmlspecialchars($d->item_code ?? '-'); ?></td>
-                            <td class="text-left"><?= htmlspecialchars($d->item_name ?? '-'); ?>
-                                <?php if (!empty($d->bc_type_code) || !empty($d->bc_number)): ?>
-                                    <div class="small text-muted">BC: <?= htmlspecialchars(trim(($d->bc_type_code ?? '') . ' ' . ($d->bc_number ?? ''))); ?><?= !empty($d->bc_date) ? ' · ' . date('d M Y', strtotime($d->bc_date)) : ''; ?></div>
-                                <?php endif; ?>
-                            </td>
-                            <td><?= htmlspecialchars(ucfirst($d->item_type)); ?></td>
-                            <td>
-                                <?php if (!empty($d->category)): ?>
-                                    <span class="badge badge-<?= $d->category === 'Produksi' ? 'dark' : 'secondary' ?>"><?= htmlspecialchars($d->category) ?></span>
-                                <?php else: ?>
-                                    <span class="text-muted">-</span>
-                                <?php endif; ?>
-                            </td>
-                            <td><?= number_format((float)$d->receive_qty, 2); ?></td>
-                            <td><?= htmlspecialchars($d->satuan ?? '-'); ?></td>
-                            <td class="text-right"><?= number_format((float)$d->unit_value, 2); ?></td>
-                            <td class="text-right"><?= number_format((float)$d->total_value, 2); ?></td>
-                            <?php if ($is_draft && $can_edit): ?>
-                            <td class="text-nowrap">
-                                <?php if ($d->source_doc_type === 'PO'): ?>
-                                <button type="button" class="btn btn-sm btn-warning mr-1" data-toggle="modal" data-target="#editSgrItemModal" data-detail-id="<?= $d->id; ?>" title="Edit qty & BC">
-                                    <i class="fas fa-edit"></i>
-                                </button>
-                                <?php endif; ?>
-                                <a href="<?= base_url('supplier_general_item_receipt/delete_item/' . $header->id . '/' . $d->id); ?>"
-                                   class="btn btn-sm btn-danger btn-delete"
-                                   data-message="Yakin hapus item ini?">
-                                    <i class="fas fa-trash"></i>
-                                </a>
-                            </td>
-                            <?php endif; ?>
-                        </tr>
-                        <?php endforeach; else: ?>
-                        <tr><td colspan="<?= ($is_draft && $can_edit) ? 11 : 10; ?>" class="text-center text-muted py-3"><?= lang_line('sgr_no_items'); ?></td></tr>
-                        <?php endif; ?>
-                    </tbody>
-                    <?php if (!empty($details)): ?>
-                    <tfoot>
-                        <tr>
-                            <th colspan="9" class="text-right"><?= lang_line('sgr_grand_total'); ?></th>
-                            <th class="text-right"><?= number_format($grand_total, 2); ?></th>
-                            <?php if ($is_draft && $can_edit): ?><th></th><?php endif; ?>
-                        </tr>
-                    </tfoot>
-                    <?php endif; ?>
-                </table>
+        <?php if (!$n_items): ?>
+            <div class="sgr-empty">
+                <i class="fas fa-dolly-flatbed big"></i>
+                <div class="font-weight-bold mb-1"><?= lang_line('sgr2_empty', 'Belum ada item.'); ?></div>
+                <div class="pp-item-code mb-3"><?= lang_line('sgr2_empty_hint', 'Pilih PO lalu centang item yang benar-benar datang beserta qty-nya.'); ?></div>
+                <?php if ($is_draft && $can_edit): ?><button type="button" class="btn btn-pp" data-toggle="modal" data-target="#poAutoLoadModalSgr"><i class="fas fa-file-import mr-1"></i><?= lang_line('sgr2_pick_po', 'Pilih Item PO'); ?></button><?php endif; ?>
             </div>
+        <?php else: ?>
+        <div class="table-responsive">
+            <table class="pp-table">
+                <thead><tr>
+                    <th style="width:42px">#</th>
+                    <th><?= lang_line('pod2_th_item', 'Item'); ?></th>
+                    <th><?= lang_line('sgr2_th_type_cat', 'Tipe / Kategori'); ?></th>
+                    <th class="num"><?= lang_line('po_qty', 'Qty'); ?></th>
+                    <th class="num"><?= lang_line('sgr_th_unit_value', 'Nilai Satuan'); ?></th>
+                    <th class="num"><?= lang_line('po_total', 'Total'); ?></th>
+                    <?php if ($is_draft && $can_edit): ?><th class="text-right" style="width:90px"></th><?php endif; ?>
+                </tr></thead>
+                <tbody>
+                <?php $no = 1; foreach ($details as $d): ?>
+                    <tr>
+                        <td class="text-muted font-weight-bold" style="font-size:.76rem"><?= $no++; ?></td>
+                        <td>
+                            <div class="pp-item-name"><?= htmlspecialchars($d->item_name ?: '-'); ?></div>
+                            <div class="pp-item-code"><?= htmlspecialchars($d->item_code ?: '-'); ?></div>
+                            <?php if (!empty($d->source_doc_number)): ?><span class="pp-chip"><i class="fas fa-file-invoice"></i><?= htmlspecialchars($d->source_doc_number); ?></span><?php endif; ?>
+                            <?php if (!empty($d->bc_type_code) || !empty($d->bc_number)): ?><div class="pp-item-code mt-1">BC: <?= htmlspecialchars(trim(($d->bc_type_code ?? '') . ' ' . ($d->bc_number ?? ''))); ?><?= !empty($d->bc_date) ? ' · ' . date('d M Y', strtotime($d->bc_date)) : ''; ?></div><?php endif; ?>
+                        </td>
+                        <td><span class="pp-tag tone-slate"><?= htmlspecialchars($wh_label[$d->item_type] ?? ucfirst($d->item_type)); ?></span>
+                            <?php if (!empty($d->category)): ?> <span class="pp-tag <?= $d->category === 'Produksi' ? 'tone-slate' : 'tone-blue'; ?>"><?= htmlspecialchars($d->category); ?></span><?php endif; ?></td>
+                        <td class="num"><b><?= $qty($d->receive_qty); ?></b> <small class="text-muted"><?= htmlspecialchars($d->satuan ?? ''); ?></small></td>
+                        <td class="num"><?= number_format((float) $d->unit_value, 2, '.', ','); ?></td>
+                        <td class="num font-weight-bold"><?= number_format((float) $d->total_value, 2, '.', ','); ?></td>
+                        <?php if ($is_draft && $can_edit): ?>
+                        <td class="text-right"><div class="pp-actions">
+                            <?php if ($d->source_doc_type === 'PO'): ?><button type="button" class="btn btn-light" data-toggle="modal" data-target="#editSgrItemModal" data-detail-id="<?= (int) $d->id; ?>" title="<?= htmlspecialchars(lang_line('sgr2_edit_item', 'Edit qty & BC')); ?>"><i class="fas fa-pen"></i></button><?php endif; ?>
+                            <a href="<?= base_url('supplier_general_item_receipt/delete_item/' . $header->id . '/' . $d->id); ?>" class="btn btn-light text-danger btn-delete" data-message="<?= htmlspecialchars(sprintf(lang_line('pod2_delete_item_q', 'Hapus item %s?'), $d->item_name ?? '')); ?>"><i class="fas fa-trash-alt"></i></a>
+                        </div></td>
+                        <?php endif; ?>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+                <tfoot>
+                    <tr><td colspan="5" class="text-right font-weight-bold" style="background:var(--pp-soft)"><?= lang_line('sgr_grand_total', 'Grand Total'); ?></td><td class="num font-weight-bold" style="background:var(--pp-soft);font-size:1rem"><?= number_format($grand_total, 2, '.', ','); ?></td><?php if ($is_draft && $can_edit): ?><td style="background:var(--pp-soft)"></td><?php endif; ?></tr>
+                </tfoot>
+            </table>
         </div>
+        <?php endif; ?>
     </div>
 </div>
 
 <?php if ($is_draft && $can_edit): ?>
 <!-- Modal Edit Header -->
-<div class="modal fade" id="editSgrHeaderModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade pp-modal" id="editSgrHeaderModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <form method="post" action="<?= base_url('supplier_general_item_receipt/update_header/' . $header->id); ?>">
             <div class="modal-content">
-                <div class="modal-header bg-warning text-dark">
-                    <h5 class="modal-title"><?= lang_line('sgr_modal_edit_header_title'); ?></h5>
-                    <button type="button" class="close text-dark" data-dismiss="modal">&times;</button>
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-pen mr-2"></i><?= lang_line('sgr_modal_edit_header_title'); ?></h5>
+                    <button type="button" class="close" data-dismiss="modal">&times;</button>
                 </div>
                 <div class="modal-body">
                     <div class="row">
@@ -239,8 +227,8 @@ foreach ($details as $d) { $grand_total += (float)($d->total_value ?? 0); }
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="submit" class="btn btn-warning"><?= lang_line('sgr_btn_save'); ?></button>
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal"><?= lang_line('sgr_btn_cancel'); ?></button>
+                    <button type="button" class="btn btn-light" data-dismiss="modal"><?= lang_line('sgr_btn_cancel'); ?></button>
+                    <button type="submit" class="btn btn-pp"><i class="fas fa-save mr-1"></i><?= lang_line('sgr_btn_save'); ?></button>
                 </div>
             </div>
         </form>
@@ -251,12 +239,12 @@ foreach ($details as $d) { $grand_total += (float)($d->total_value ?? 0); }
      pilih item & qty tertentu (penerimaan parsial), tiap baris menampilkan
      status penerimaannya. Menggantikan modal "Tambah Item" 1-per-1 dan
      "Load semua item PO". -->
-<div class="modal fade" id="poAutoLoadModalSgr" tabindex="-1" aria-hidden="true">
+<div class="modal fade pp-modal" id="poAutoLoadModalSgr" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content border-0 shadow">
-            <div class="modal-header bg-success text-white">
-                <h5 class="modal-title"><i class="fas fa-file-import mr-2"></i>Pilih Item PO yang Diterima</h5>
-                <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+            <div class="modal-header">
+                <h5 class="modal-title"><i class="fas fa-file-import mr-2"></i><?= lang_line('sgr2_pick_po_title', 'Pilih Item PO yang Diterima'); ?></h5>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
             </div>
             <div class="modal-body">
                 <div class="d-flex flex-wrap align-items-center mb-2" style="gap:.5rem;">
@@ -286,8 +274,8 @@ foreach ($details as $d) { $grand_total += (float)($d->total_value ?? 0); }
             <div class="modal-footer justify-content-between">
                 <div class="small text-muted" id="sgrPoSummary">Belum ada item dipilih.</div>
                 <div>
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal"><?= lang_line('sgr_btn_cancel', 'Batal'); ?></button>
-                    <button type="button" id="sgrAutoLoadBtn" class="btn btn-success" disabled>
+                    <button type="button" class="btn btn-light" data-dismiss="modal"><?= lang_line('sgr_btn_cancel', 'Batal'); ?></button>
+                    <button type="button" id="sgrAutoLoadBtn" class="btn btn-pp" disabled>
                         <i class="fas fa-check mr-1"></i> Muat Item Terpilih
                     </button>
                 </div>
@@ -298,12 +286,12 @@ foreach ($details as $d) { $grand_total += (float)($d->total_value ?? 0); }
 
 <!-- Modal Edit Item. Qty dibatasi sisa PO (dihitung server), BC per baris,
      nilai satuan tetap mengikuti harga PO. -->
-<div class="modal fade" id="editSgrItemModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade pp-modal" id="editSgrItemModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <form id="editSgrItemForm" novalidate>
             <div class="modal-content border-0 shadow">
-                <div class="modal-header bg-warning text-dark">
-                    <h5 class="modal-title"><i class="fas fa-edit mr-2"></i>Edit Item Penerimaan</h5>
+                <div class="modal-header">
+                    <h5 class="modal-title"><i class="fas fa-pen mr-2"></i><?= lang_line('sgr2_edit_item_title', 'Edit Item Penerimaan'); ?></h5>
                     <button type="button" class="close" data-dismiss="modal">&times;</button>
                 </div>
                 <div class="modal-body">
@@ -364,8 +352,8 @@ foreach ($details as $d) { $grand_total += (float)($d->total_value ?? 0); }
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal"><?= lang_line('sgr_btn_cancel', 'Batal'); ?></button>
-                    <button type="submit" class="btn btn-warning" id="esSave" disabled><i class="fas fa-save mr-1"></i> Simpan</button>
+                    <button type="button" class="btn btn-light" data-dismiss="modal"><?= lang_line('sgr_btn_cancel', 'Batal'); ?></button>
+                    <button type="submit" class="btn btn-pp" id="esSave" disabled><i class="fas fa-save mr-1"></i> Simpan</button>
                 </div>
             </div>
         </form>

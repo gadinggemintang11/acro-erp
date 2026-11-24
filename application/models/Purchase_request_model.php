@@ -561,7 +561,19 @@ class Purchase_request_model extends CI_Model {
                 WHERE po_d.pr_header_id = h.id) AS po_status,
             (SELECT MAX(po_d.po_header_id)
                 FROM po_details po_d
-                WHERE po_d.pr_header_id = h.id) AS latest_po_id
+                WHERE po_d.pr_header_id = h.id) AS latest_po_id,
+            -- Progres PO (redesign PR Monitoring 2026-11-09): qty yang sudah
+            -- masuk PO aktif (bukan Rejected/Cancelled) + daftar PO
+            -- id:nomor:status:tipe dipisah | utk tautan.
+            (SELECT COALESCE(SUM(po_d.qty), 0)
+                FROM po_details po_d
+                INNER JOIN po_header po_h ON po_h.id = po_d.po_header_id
+                WHERE po_d.pr_header_id = h.id AND po_h.status NOT IN ('Rejected', 'Cancelled')) AS ordered_qty,
+            (SELECT GROUP_CONCAT(DISTINCT CONCAT(po_h.id, ':', po_h.po_number, ':', po_h.status, ':', po_h.type)
+                              ORDER BY po_h.id SEPARATOR '|')
+                FROM po_details po_d
+                INNER JOIN po_header po_h ON po_h.id = po_d.po_header_id
+                WHERE po_d.pr_header_id = h.id) AS po_refs
         ", false);
         $this->db->from($this->table_header . ' h');
         $this->db->join('users u', 'h.requester_id = u.id', 'left');

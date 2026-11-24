@@ -100,9 +100,46 @@ class Supplier_general_item_receipt extends MY_Controller {
             }
         }
 
+        // Redesign 2026-11-09: cari + filter status + paginasi di sini; kartu
+        // ringkasan dihitung dari semua dokumen dalam kategori yang dibuka.
+        $all = $this->Supplier_general_item_receipt_model->get_all($categories_filter);
+        $search = trim((string) $this->input->get('search', TRUE));
+        $f_status = (string) $this->input->get('status', TRUE);
+        $status_counts = ['Draft' => 0, 'Completed' => 0];
+        foreach ($all as $r) $status_counts[$r->status] = ($status_counts[$r->status] ?? 0) + 1;
+        $rows = array_values(array_filter($all, function ($r) use ($search, $f_status) {
+            if ($f_status !== '' && $r->status !== $f_status) return false;
+            if ($search === '') return true;
+            $hay = strtolower($r->sgr_number . ' ' . $r->nama_supplier . ' ' . $r->po_numbers . ' ' . $r->delivery_note_number);
+            return strpos($hay, strtolower($search)) !== false;
+        }));
+        $per_page = 25;
+        $total_pages = max(1, (int) ceil(count($rows) / $per_page));
+        $page = min(max(1, (int) $this->input->get('page')), $total_pages);
+
+        // Tab kategori yang boleh dibuka user + izin per kategori utk tombol
+        // (dulu tombol Hapus hanya cek menu blanket, beda dgn controller).
+        $cat_tabs = [];
+        foreach (['general' => 'General', 'produksi' => 'Produksi'] as $slug => $c) {
+            if ($this->_can_sgr($c, 'view')) $cat_tabs[$slug] = $c;
+        }
+        $perm = [];
+        foreach (self::CATEGORIES as $c) {
+            $perm[$c] = ['add' => $this->_can_sgr($c, 'add'), 'delete' => $this->_can_sgr($c, 'delete')];
+        }
+
         $data = [
             'title'    => lang_line('sgr_page_title', 'Supplier General Item Receipt'),
-            'sgrs'     => $this->Supplier_general_item_receipt_model->get_all($categories_filter),
+            'sgrs'     => array_slice($rows, ($page - 1) * $per_page, $per_page),
+            'total'    => count($rows),
+            'all_count' => count($all),
+            'page'     => $page,
+            'total_pages' => $total_pages,
+            'status_counts' => $status_counts,
+            'filters'  => ['search' => $search, 'status' => $f_status],
+            'cat_tabs' => $cat_tabs,
+            'can_blanket' => check_access($this->menu_key, 'view'),
+            'perm'     => $perm,
             'bc_types' => $this->Commoncode_model->get_by_group('BC_TYPE'),
             'warehouse_types' => [
                 'machine'   => 'Machine / Equipment',

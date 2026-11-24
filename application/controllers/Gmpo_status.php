@@ -42,9 +42,11 @@ class Gmpo_status extends MY_Controller {
             'delete_route'  => 'gmpo_list/delete',
             'can_delete'    => check_access('gmpo_list', 'delete') || check_access('purchase_order_general', 'delete'),
             'filters'       => $filters,
-            'pos'           => $this->Po_report_model->get_all($filters),
             'suppliers'     => $this->Po_report_model->get_suppliers(),
         ];
+        // Redesign 2026-11-09: kartu ringkasan dari semua data + paginasi
+        // (pos, total, page, total_pages, status_counts, receipt_counts, ...).
+        $data = array_merge($data, $this->Po_report_model->get_status_page($filters, (int) $this->input->get('page')));
 
         $this->_render('purchase_dashboard/status', $data);
     }

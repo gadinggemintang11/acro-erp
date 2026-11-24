@@ -32,10 +32,19 @@ class Supplier_general_item_receipt_model extends CI_Model {
             GROUP BY sgr_header_id
         ";
 
-        $this->db->select('
+        // item_count/total_qty/total_value/po_numbers ditambah utk daftar
+        // (redesign 2026-11-09). po_numbers dipisah '|'.
+        $this->db->select("
             h.id, h.sgr_number, h.sgr_date, h.status, h.base_on, h.warehouse_type, h.category,
-            COALESCE(s.nama_supplier, s_po.nama_supplier) as nama_supplier
-        ');
+            h.delivery_note_number, h.approved_at,
+            COALESCE(s.nama_supplier, s_po.nama_supplier) as nama_supplier,
+            (SELECT COUNT(*) FROM sgr_details x WHERE x.sgr_header_id = h.id) AS item_count,
+            (SELECT COALESCE(SUM(x.receive_qty), 0) FROM sgr_details x WHERE x.sgr_header_id = h.id) AS total_qty,
+            (SELECT COALESCE(SUM(x.total_value), 0) FROM sgr_details x WHERE x.sgr_header_id = h.id) AS total_value,
+            (SELECT GROUP_CONCAT(DISTINCT p.po_number ORDER BY p.po_number SEPARATOR '|')
+               FROM sgr_details x JOIN po_header p ON p.id = x.source_doc_header_id
+              WHERE x.sgr_header_id = h.id AND x.source_doc_type = 'PO') AS po_numbers
+        ", FALSE);
         $this->db->from($this->table_header . ' h');
         $this->db->join('suppliers s', 'h.supplier_id = s.id', 'left');
         $this->db->join("({$first_detail_subquery}) sd_first", 'h.id = sd_first.sgr_header_id', 'left');

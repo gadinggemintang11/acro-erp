@@ -20,19 +20,43 @@ class Po_report extends MY_Controller {
         }
 
         $filters = [
-            'search' => $this->input->get('search', TRUE),
-            'supplier_id' => $this->input->get('supplier_id', TRUE),
-            'status' => $this->input->get('status', TRUE),
+            'search'         => $this->input->get('search', TRUE),
+            'supplier_id'    => $this->input->get('supplier_id', TRUE),
+            'status'         => $this->input->get('status', TRUE),
             'receipt_status' => $this->input->get('receipt_status', TRUE),
-            'type' => $this->input->get('type', TRUE),
+            'type'           => $this->input->get('type', TRUE),
+            'date_from'      => $this->input->get('date_from', TRUE),
+            'date_to'        => $this->input->get('date_to', TRUE),
         ];
 
+        // Redesign 2026-11-09: ringkasan = rekap hasil filter saat ini (laporan),
+        // bukan lagi get_summary_stats() yang menghitung ganda & memakai status
+        // 'Open' yang tidak pernah ada. Daftar dipaginasi 25 baris.
+        $all = $this->Po_report_model->get_all($filters);
+        $summary = ['count' => count($all), 'value' => 0.0, 'approved' => 0, 'Not Received' => 0, 'Partial' => 0, 'Complete' => 0, 'lead_sum' => 0, 'lead_n' => 0];
+        foreach ($all as $r) {
+            $summary['value'] += (float) $r->total_value;
+            if (in_array($r->status, ['Confirmed', 'Closed'], true)) {
+                $summary['approved']++;
+                $summary[$r->receipt_status] = ($summary[$r->receipt_status] ?? 0) + 1;
+            }
+            if (!empty($r->first_grn_date)) { $summary['lead_sum'] += (int) $r->days_to_warehouse_in; $summary['lead_n']++; }
+        }
+        $summary['lead_avg'] = $summary['lead_n'] ? round($summary['lead_sum'] / $summary['lead_n'], 1) : null;
+
+        $per_page = 25;
+        $total_pages = max(1, (int) ceil(count($all) / $per_page));
+        $page = min(max(1, (int) $this->input->get('page')), $total_pages);
+
         $data = [
-            'title' => lang_line('page_po_report_title'),
-            'filters' => $filters,
-            'pos' => $this->Po_report_model->get_all($filters),
-            'suppliers' => $this->Po_report_model->get_suppliers(),
-            'stats' => $this->Po_report_model->get_summary_stats()
+            'title'       => lang_line('page_po_report_title'),
+            'filters'     => $filters,
+            'pos'         => array_slice($all, ($page - 1) * $per_page, $per_page),
+            'total'       => count($all),
+            'page'        => $page,
+            'total_pages' => $total_pages,
+            'summary'     => $summary,
+            'suppliers'   => $this->Po_report_model->get_suppliers(),
         ];
 
         $this->_render('po_report/index', $data);
@@ -59,7 +83,8 @@ class Po_report extends MY_Controller {
             'title' => lang_line('po_report_detail_title', 'Detail PO') . ' - ' . $po_data['header']->po_number,
             'po_header' => $po_data['header'],
             'po_details' => $po_data['details'],
-            'grns' => $po_data['grns']
+            'grns' => $po_data['grns'],
+            'receipts' => $po_data['receipts'],
         ];
 
         $this->_render('po_report/detail', $data);

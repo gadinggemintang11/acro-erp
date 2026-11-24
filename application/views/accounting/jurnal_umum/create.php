@@ -281,6 +281,15 @@
                                             </option>
                                         <?php endforeach; ?>
                                     </select>
+                                    <div class="fc-box mt-1" style="display:none;">
+                                        <div class="input-group input-group-sm">
+                                            <div class="input-group-prepend"><span class="input-group-text"><?= lang_line('ju_fc_rate', 'Kurs') ?>&nbsp;<span class="fc-code"></span></span></div>
+                                            <input type="number" step="any" min="0" name="details[<?= $i; ?>][fc_rate]" class="form-control fc-rate text-right" style="max-width:90px;" value="<?= html_escape($detail['fc_rate'] ?? ''); ?>">
+                                            <div class="input-group-append"><span class="input-group-text">= Rp</span></div>
+                                            <input type="text" name="details[<?= $i; ?>][fc_idr]" class="form-control fc-idr text-right" value="<?= html_escape($detail['fc_idr'] ?? ''); ?>">
+                                        </div>
+                                        <small class="text-muted"><?= lang_line('ju_fc_hint', 'Debit/Kredit baris ini diisi dalam mata uang akun. Kurs default dari Kurs Pajak — ganti dengan kurs bank untuk OVB.') ?></small>
+                                    </div>
                                 </td>
                                 <td>
                                     <div class="input-group">
@@ -349,6 +358,15 @@
                     </option>
                 <?php endforeach; ?>
             </select>
+            <div class="fc-box mt-1" style="display:none;">
+                <div class="input-group input-group-sm">
+                    <div class="input-group-prepend"><span class="input-group-text"><?= lang_line('ju_fc_rate', 'Kurs') ?>&nbsp;<span class="fc-code"></span></span></div>
+                    <input type="number" step="any" min="0" name="details[0][fc_rate]" class="form-control fc-rate text-right" style="max-width:90px;" value="">
+                    <div class="input-group-append"><span class="input-group-text">= Rp</span></div>
+                    <input type="text" name="details[0][fc_idr]" class="form-control fc-idr text-right" value="">
+                </div>
+                <small class="text-muted"><?= lang_line('ju_fc_hint', 'Debit/Kredit baris ini diisi dalam mata uang akun. Kurs default dari Kurs Pajak — ganti dengan kurs bank untuk OVB.') ?></small>
+            </div>
         </td>
         <td>
             <div class="input-group">
@@ -388,6 +406,7 @@ const I18N_JUC = {
     kurs_unavailable:      <?= json_encode(lang_line('ju_js_kurs_unavailable', 'Kurs tidak tersedia, isi manual.')) ?>,
     kurs_failed:           <?= json_encode(lang_line('ju_js_kurs_failed', 'Gagal mengambil kurs, isi manual.')) ?>,
     detail_filter_tpl:     <?= json_encode(lang_line('ju_js_detail_section_filter_tpl', 'Detail Jurnal (Hanya akun dengan mata uang <span class="font-weight-bold">%s</span> yang tampil)')) ?>,
+    detail_mixed:          <?= json_encode(lang_line('ju_js_detail_section_mixed', 'Detail Jurnal (Akun IDR & valas tampil — baris akun valas, mis. Bank USD, diisi nominal valas + kurs untuk jurnal OVB)')) ?>,
     balanced:              <?= json_encode(lang_line('ju_balanced', 'BALANCE')) ?>,
     unbalanced:            <?= json_encode(lang_line('ju_unbalanced', 'UNBALANCE')) ?>
 };
@@ -421,12 +440,86 @@ document.addEventListener("DOMContentLoaded", function() {
         minimumValue: "0"
     };
 
+    // ===== Baris akun valas di jurnal IDR (jurnal OVB / pindah buku antar mata uang) =====
+    // Debit/Kredit baris valas diisi dalam mata uang AKUN (mis. USD) + kurs; nilai Rupiah
+    // (fc-idr) yang dipakai untuk balance & disimpan ke GL.
+    const FX_OPTS  = { decimalCharacter: '.', digitGroupSeparator: ',', decimalPlaces: 2, minimumValue: "0" };
+    const IDR_OPTS = { decimalCharacter: ',', digitGroupSeparator: '.', decimalPlaces: 2, minimumValue: "0" };
+    const KURS_URL = '<?= base_url('kurs_pajak/ajax_get_rate'); ?>';
+    const fxRateCache = {};
+
+    function numOf(el) {
+        if (!el) return 0;
+        const a = AutoNumeric.getAutoNumericElement(el);
+        return a ? a.getNumber() : (parseFloat(el.value) || 0);
+    }
+    function setNum(el, v) {
+        if (!el) return;
+        const a = AutoNumeric.getAutoNumericElement(el);
+        if (a) a.set(v); else el.value = v;
+    }
+    // Re-init AutoNumeric tanpa salah baca angka saat format pemisah berubah (IDR <-> valas).
+    function reinitNumeric(el, opts) {
+        const a = AutoNumeric.getAutoNumericElement(el);
+        const raw = a ? a.getNumericString() : (el.value || '0');
+        if (a) a.remove();
+        el.value = '';
+        // set() terpisah: konstruktor dgn initialValue tidak menampilkan angka saat re-init kedua.
+        new AutoNumeric(el, opts).set(raw === '' ? '0' : raw);
+    }
+    function rowAccountCurrency(row) {
+        const sel = row.querySelector('.account-select');
+        const opt = sel ? sel.options[sel.selectedIndex] : null;
+        return (opt && opt.dataset.currency) ? opt.dataset.currency : '';
+    }
+    function isForeignRow(row) {
+        const c = rowAccountCurrency(row);
+        return currencySelect.value === 'IDR' && c !== '' && c !== 'IDR';
+    }
+    function rowFcAmount(row) {
+        const d = numOf(row.querySelector('.debit-input'));
+        return d > 0 ? d : numOf(row.querySelector('.kredit-input'));
+    }
+    function recalcFcIdr(row) {
+        const rate = parseFloat(row.querySelector('.fc-rate').value) || 0;
+        if (rate > 0) setNum(row.querySelector('.fc-idr'), Math.round(rowFcAmount(row) * rate * 100) / 100);
+    }
+    function fetchFxRate(cur, cb) {
+        if (fxRateCache[cur]) { cb(fxRateCache[cur]); return; }
+        $.getJSON(KURS_URL, { currency: cur, date: document.getElementById('journal_date').value })
+            .done(function(res) { if (res.ok && res.rate) { fxRateCache[cur] = res.rate; cb(res.rate); } });
+    }
+    function refreshRowFc(row) {
+        const box = row.querySelector('.fc-box');
+        if (!box) return;
+        const foreign = isForeignRow(row);
+        const cur = rowAccountCurrency(row);
+        box.style.display = foreign ? '' : 'none';
+        row.querySelectorAll('.fc-code').forEach(el => el.textContent = cur);
+        const sym = getCurrencySymbol(foreign ? cur : currencySelect.value);
+        row.querySelectorAll('.currency-symbol').forEach(el => el.textContent = sym);
+        initializeAutoNumeric(row.querySelectorAll('.input-currency'));
+        const idrEl = row.querySelector('.fc-idr');
+        if (idrEl && !AutoNumeric.getAutoNumericElement(idrEl)) reinitNumeric(idrEl, IDR_OPTS);
+        row.dataset.fc = foreign ? '1' : '0';
+        if (foreign) {
+            const rateEl = row.querySelector('.fc-rate');
+            if (!(parseFloat(rateEl.value) > 0)) {
+                fetchFxRate(cur, function(rate) {
+                    if (!(parseFloat(rateEl.value) > 0) && isForeignRow(row)) {
+                        rateEl.value = rate;
+                        recalcFcIdr(row);
+                        calculateTotals();
+                    }
+                });
+            }
+        }
+    }
+
     function initializeAutoNumeric(elements) {
         $(elements).each(function() {
-            if (AutoNumeric.getAutoNumericElement(this)) {
-                AutoNumeric.getAutoNumericElement(this).remove();
-            }
-            new AutoNumeric(this, autoNumericOptions);
+            const row = this.closest('tr');
+            reinitNumeric(this, (row && isForeignRow(row)) ? FX_OPTS : autoNumericOptions);
         });
     }
 
@@ -485,8 +578,39 @@ document.addEventListener("DOMContentLoaded", function() {
                     AutoNumeric.getAutoNumericElement(row.querySelector(".debit-input")).set(0);
                 }
             }
+            if (isForeignRow(row)) recalcFcIdr(row);
+            calculateTotals();
+        } else if (e.target.classList.contains("fc-rate")) {
+            recalcFcIdr(row);
+            calculateTotals();
+        } else if (e.target.classList.contains("fc-idr")) {
+            // Nilai Rupiah diketik langsung (mis. dari rekening koran) -> kurs efektif dihitung ulang.
+            const amt = rowFcAmount(row), idr = numOf(e.target);
+            if (amt > 0 && idr > 0) row.querySelector('.fc-rate').value = +(idr / amt).toFixed(6);
             calculateTotals();
         }
+    });
+
+    // Ganti akun: pindah antara akun IDR <-> akun valas mengubah arti angka Debit/Kredit.
+    $(detailBody).on('change', '.account-select', function() {
+        const row = this.closest('tr');
+        const was = row.dataset.fc === '1';
+        refreshRowFc(row);
+        const now = row.dataset.fc === '1';
+        if (was === now) return;
+        const dEl = row.querySelector('.debit-input'), kEl = row.querySelector('.kredit-input');
+        const idrEl = row.querySelector('.fc-idr');
+        if (now) {
+            // IDR -> valas: nominal lama dalam Rupiah, isi ulang dalam valas.
+            setNum(dEl, 0); setNum(kEl, 0); setNum(idrEl, 0);
+        } else {
+            // valas -> IDR: pakai nilai Rupiah-nya.
+            const idr = numOf(idrEl);
+            if (numOf(dEl) > 0) setNum(dEl, idr); else if (numOf(kEl) > 0) setNum(kEl, idr);
+            setNum(idrEl, 0);
+            row.querySelector('.fc-rate').value = '';
+        }
+        calculateTotals();
     });
 
     rateInput.addEventListener("input", calculateTotals);
@@ -516,8 +640,14 @@ document.addEventListener("DOMContentLoaded", function() {
             const debitEl = row.querySelector(".debit-input");
             const kreditEl = row.querySelector(".kredit-input");
             if (!debitEl || !kreditEl) return;
-            totalDebit += AutoNumeric.getAutoNumericElement(debitEl).getNumber();
-            totalKredit += AutoNumeric.getAutoNumericElement(kreditEl).getNumber();
+            let d = numOf(debitEl), k = numOf(kreditEl);
+            if (isForeignRow(row)) {
+                const idr = numOf(row.querySelector('.fc-idr'));
+                d = d > 0 ? idr : 0;
+                k = (d === 0 && k > 0) ? idr : 0;
+            }
+            totalDebit += d;
+            totalKredit += k;
         });
 
         const ppnAmt = getPPNAmount();
@@ -643,7 +773,9 @@ document.addEventListener("DOMContentLoaded", function() {
             masterAccountList.forEach(optionNode => {
                 if (optionNode.value === '') return;
                 const accountCurrency = optionNode.dataset.currency;
-                if (accountCurrency === selectedCurrency) {
+                // Jurnal IDR: semua akun tampil (akun valas -> baris valas utk jurnal OVB).
+                // Jurnal valas: hanya akun dengan mata uang yang sama.
+                if (selectedCurrency === 'IDR' || accountCurrency === selectedCurrency) {
                     select.appendChild(optionNode.cloneNode(true));
                 }
             });
@@ -651,6 +783,7 @@ document.addEventListener("DOMContentLoaded", function() {
             select.value = selectedValue || '';
 
             $(select).select2({ dropdownParent: $(select).closest('td') });
+            refreshRowFc(select.closest('tr'));
         });
     }
 
@@ -663,7 +796,9 @@ document.addEventListener("DOMContentLoaded", function() {
 
         const detailCardHeader = document.querySelector('#detail-table').closest('.card').querySelector('.card-header h6');
         if(detailCardHeader) {
-            detailCardHeader.innerHTML = I18N_JUC.detail_filter_tpl.replace('%s', selectedCurrency);
+            detailCardHeader.innerHTML = (selectedCurrency === 'IDR')
+                ? I18N_JUC.detail_mixed
+                : I18N_JUC.detail_filter_tpl.replace('%s', selectedCurrency);
         }
 
         if (selectedCurrency !== 'IDR' && ppnEnabledCb.checked) {
@@ -723,7 +858,7 @@ document.addEventListener("DOMContentLoaded", function() {
     });
 
     $('#journal-form').on('submit', function() {
-        $('#detail-table .input-currency').each(function() {
+        $('#detail-table .input-currency, #detail-table .fc-idr').each(function() {
             const anElement = AutoNumeric.getAutoNumericElement(this);
             if (anElement) {
                 $(this).val(anElement.getNumber());

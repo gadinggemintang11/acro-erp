@@ -13,15 +13,15 @@
  */
 $pull_pr_route = $pull_pr_route ?? 'purchase_order';
 ?>
-<div class="modal fade" id="pullPrModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade pp-modal" id="pullPrModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-centered">
         <form method="POST" action="<?= base_url($pull_pr_route . '/pull_from_pr/' . $header->id); ?>" id="pullPrForm">
             <div class="modal-content border-0 shadow">
-                <div class="modal-header bg-info text-white">
+                <div class="modal-header">
                     <h5 class="modal-title">
                         <i class="fas fa-file-import mr-2"></i> Tarik Item dari Purchase Request
                     </h5>
-                    <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+                    <button type="button" class="close" data-dismiss="modal">&times;</button>
                 </div>
 
                 <div class="modal-body">
@@ -79,8 +79,8 @@ $pull_pr_route = $pull_pr_route ?? 'purchase_order';
                 <div class="modal-footer justify-content-between">
                     <small class="text-muted"><strong id="pullPrCount">0</strong> baris dipilih</small>
                     <div>
-                        <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
-                        <button type="submit" class="btn btn-info" id="pullPrSubmit" disabled>
+                        <button type="button" class="btn btn-light" data-dismiss="modal">Batal</button>
+                        <button type="submit" class="btn btn-pp" id="pullPrSubmit" disabled>
                             <i class="fas fa-file-import mr-1"></i> Tarik ke PO
                         </button>
                     </div>

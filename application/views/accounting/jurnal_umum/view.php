@@ -170,7 +170,13 @@
                                             <span class="badge badge-info ml-1" title="<?= lang_line('ju_ppn_line_tooltip', 'Baris PPN otomatis') ?>"><?= lang_line('ju_ppn_line_badge', 'PPN') ?></span>
                                         <?php endif; ?>
                                     </td>
-                                    <td><?= $d->account_name; ?></td>
+                                    <td><?= $d->account_name; ?>
+                                        <?php if (!empty($d->fc_currency) && (float) $d->fc_amount > 0): ?>
+                                            <br><span class="badge badge-warning" title="<?= lang_line('ju_fc_badge_tooltip', 'Nilai valas asli baris ini (jurnal OVB / pindah buku antar mata uang)') ?>">
+                                                <?= htmlspecialchars($d->fc_currency); ?> <?= number_format((float) $d->fc_amount, 2); ?> @ <?= number_format((float) $d->fc_rate, 2); ?>
+                                            </span>
+                                        <?php endif; ?>
+                                    </td>
                                     <td class="text-right"><?= $d->debit > 0 ? number_format($d->debit, 2) : '-'; ?></td>
                                     <td class="text-right"><?= $d->kredit > 0 ? number_format($d->kredit, 2) : '-'; ?></td>
                                     <td class="text-right bg-gray-100"><?= $d->debit_local > 0 ? number_format($d->debit_local, 2) : '-'; ?></td>

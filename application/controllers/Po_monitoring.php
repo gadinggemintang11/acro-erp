@@ -86,6 +86,7 @@ class Po_monitoring extends MY_Controller {
             'po_header'  => $po_data['header'],
             'po_details' => $po_data['details'],
             'grns'       => $po_data['grns'],
+            'receipts'   => $po_data['receipts'],
         ];
 
         $this->_render('po_report/detail', $data);

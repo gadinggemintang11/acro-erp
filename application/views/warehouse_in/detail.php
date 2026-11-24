@@ -1,165 +1,198 @@
-<div class="container-fluid">
-    <div class="d-sm-flex align-items-center justify-content-between mb-4">
-        <h3 class="h4 mb-0 text-gray-800">
-            <i class="fas fa-clipboard-check text-primary mr-2"></i><?= lang_line('warehouse_in_detail', 'Detail GRN'); ?>
-            <span class="badge badge-primary ml-2"><?= htmlspecialchars($header->grn_number); ?></span>
-        </h3>
-        <div>
-            <?php if ($header->status == 'Draft' && check_access('warehouse_in', 'edit')): ?>
-                 <!-- TOMBOL PILIH MIR (untuk Base On = MIR) -->
-                 <?php if ($header->base_on == 'MIR'): ?>
-                 <button type="button" class="btn btn-info btn-sm mr-1" data-toggle="modal" data-target="#mirAutoLoadModal" title="Pilih dan load items dari beberapa MIR">
-                     <i class="fas fa-file-import mr-1"></i> Pilih & Load MIR
-                 </button>
-                 <?php endif; ?>
+<?php defined('BASEPATH') OR exit('No direct script access allowed');
+/**
+ * Warehouse In / Receiving Material Form (GRN) -- detail. Redesign 2026-11-09,
+ * gaya .pp2. Modal & JS di bawah (pilih PO / MIR / retur, edit qty) tidak
+ * berubah logikanya. QA hasil konfirmasi GRN ditampilkan & ditautkan ($qa).
+ */
+$this->load->view('production_process/_pp_style');
 
-                 <!-- TOMBOL PILIH PO (untuk Base On = PO) -->
-                 <?php if ($header->base_on == 'PO'): ?>
-                 <button type="button" class="btn btn-success btn-sm mr-1" data-toggle="modal" data-target="#poAutoLoadModal" title="Pilih dan load items dari beberapa PO">
-                     <i class="fas fa-file-import mr-1"></i> Pilih & Load PO
-                 </button>
-                 <?php endif; ?>
+$st        = $header->status;
+$is_draft  = $st === 'Draft';
+$can_edit  = check_access('warehouse_in', 'edit');
+$is_admin  = is_admin();   // edit/hapus item MIR khusus Admin (lihat Warehouse_in::update_mir_item)
+$details   = $details ?? [];
+$n_items   = count($details);
+$grand     = 0; $tot_qty = 0;
+foreach ($details as $d) { $grand += (float) ($d->total_value ?? 0); $tot_qty += (float) $d->receive_qty; }
+$srcs      = []; foreach ($details as $d) { if (!empty($d->source_doc_number)) $srcs[$d->source_doc_number] = true; }
+$fmt_dt    = function ($v, $time = true) { return (!empty($v) && strpos((string) $v, '0000') !== 0) ? date($time ? 'd M Y H:i' : 'd M Y', strtotime($v)) : null; };
+$qty       = function ($n) { $s = number_format((float) $n, 4, '.', ','); return rtrim(rtrim($s, '0'), '.'); };
+$base_lbl  = ['PO' => 'Purchase Order', 'MIR' => 'MIR', 'Goods Return' => lang_line('wi2_goods_return', 'Retur Supplier')][$header->base_on] ?? $header->base_on;
+$wh_lbl    = ['material' => 'Material', 'semifinished' => lang_line('wi2_semifinished', 'Semi-finished')][$header->warehouse_type] ?? ucfirst((string) $header->warehouse_type);
+$qa_done   = $qa && in_array($qa->status, ['Completed'], true);
+$qa_label  = [
+    'Not Started' => lang_line('wi2_qa_not_started', 'QA belum mulai'), 'In Progress' => lang_line('wi2_qa_progress', 'QA berjalan'),
+    'Passed' => lang_line('wi2_qa_passed', 'QA Pass'), 'Partial Passed' => lang_line('wi2_qa_partial', 'QA Pass sebagian'), 'Rejected' => lang_line('wi2_qa_rejected', 'QA Reject'),
+][$header->qa_status ?? ''] ?? null;
+$steps = [
+    ['cls' => 'is-done', 'icon' => 'fa-check', 'label' => lang_line('pod2_step_created', 'Dibuat'), 'meta' => trim(($header->creator_name ?? '-') . ($fmt_dt($header->created_at ?? null) ? ' · ' . $fmt_dt($header->created_at) : ''))],
+    ['cls' => $n_items ? 'is-done' : 'is-current', 'icon' => $n_items ? 'fa-check' : 'fa-file-import', 'label' => lang_line('wi2_step_items', 'Item diterima'),
+     'meta' => $n_items ? sprintf(lang_line('wi2_items_meta', '%d item · qty %s'), $n_items, $qty($tot_qty)) : lang_line('wi2_wait_items', 'Pilih item dari dokumen sumber')],
+    ['cls' => !$is_draft ? 'is-done' : ($n_items ? 'is-current' : ''), 'icon' => !$is_draft ? 'fa-check' : 'fa-clipboard-check', 'label' => lang_line('wi2_step_confirm', 'Dikonfirmasi'),
+     'meta' => !$is_draft ? trim(($header->confirmer_name ?? '-') . ($fmt_dt($header->confirmed_at ?? null) ? ' · ' . $fmt_dt($header->confirmed_at) : '')) : ($n_items ? lang_line('wi2_wait_confirm', 'Menunggu konfirmasi gudang') : '—')],
+    ['cls' => $is_draft ? '' : (in_array($header->qa_status, ['Passed', 'Partial Passed', 'Rejected'], true) ? 'is-done' : 'is-current'), 'icon' => in_array($header->qa_status, ['Passed', 'Partial Passed', 'Rejected'], true) ? 'fa-check' : 'fa-microscope',
+     'label' => 'Quality Assurance', 'meta' => $is_draft ? lang_line('wi2_qa_after_confirm', 'Setelah GRN dikonfirmasi') : (($qa_label ?: '-') . ($qa ? ' · ' . $qa->qa_number : ''))],
+];
+$bc_text = trim((($header->bc_type_desc ?? '') ?: ($header->bc_type_code ?? '')) . (!empty($header->bc_number) ? ' · ' . $header->bc_number : ''));
+?>
+<style>
+.wid .pod-steps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: .6rem; margin-bottom: 1.25rem; }
+.wid .pod-step { display: flex; gap: .65rem; padding: .8rem .9rem; border-radius: 14px; background: var(--pp-card); border: 1px solid var(--pp-line); box-shadow: var(--pp-shadow); min-width: 0; color: var(--pp-text); text-decoration: none !important; }
+.wid a.pod-step:hover { border-color: var(--brand-1); }
+.wid .pod-step-dot { width: 34px; height: 34px; border-radius: 10px; display: grid; place-items: center; flex: 0 0 auto; font-size: .82rem; background: var(--pp-soft); color: var(--pp-muted); border: 1px solid var(--pp-line); }
+.wid .pod-step.is-done .pod-step-dot { background: #10b981; color: #fff; border-color: transparent; }
+.wid .pod-step.is-current { border-color: var(--brand-1); box-shadow: 0 0 0 3px rgba(var(--brand-rgb), .12), var(--pp-shadow); }
+.wid .pod-step.is-current .pod-step-dot { background: var(--brand-1); color: #fff; border-color: transparent; }
+.wid .pod-step-name { font-weight: 700; font-size: .84rem; }
+.wid .pod-step-meta { font-size: .72rem; color: var(--pp-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+@media (max-width: 991.98px) { .wid .pod-steps { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.wid .wi-empty { text-align: center; padding: 2.2rem 1rem; }
+.wid .wi-empty i.big { font-size: 2rem; color: var(--pp-muted); opacity: .4; display: block; margin-bottom: .6rem; }
+.wid .wi-note { display: flex; gap: .7rem; align-items: flex-start; padding: .8rem 1rem; border-radius: 12px; margin-bottom: 1rem; font-size: .85rem; background: var(--pp-card); border: 1px solid var(--pp-line); }
+.pp-modal .table thead th { font-size: .68rem; text-transform: uppercase; letter-spacing: .04em; color: #64748b; background: #f8fafc; }
+.pp-modal .card { border-radius: 12px; border-color: #e2e8f0; }
+.pp-modal .card-header { background: #f8fafc; }
+</style>
 
-                 <!-- TOMBOL GOODS RETURN -->
-                 <?php if ($header->base_on == 'Goods Return'): ?>
-                 <button type="button" class="btn btn-warning btn-sm mr-1" id="btnLoadGoodsReturn">
-                     <i class="fas fa-undo mr-1"></i> Pilih & Load Goods Return
-                 </button>
-                 <?php endif; ?>
-
-                 <a href="<?= base_url('warehouse_in/confirm_grn/'.$header->id); ?>" class="btn btn-primary btn-sm mr-1" onclick="return confirm('<?= lang_line('warehouse_in_confirm_action', 'Yakin konfirmasi GRN? Stok akan ditambahkan.'); ?>')">
-                    <i class="fas fa-check-circle fa-sm"></i> <?= lang_line('warehouse_in_confirm', 'Confirm GRN'); ?>
-                 </a>
-            <?php elseif ($header->status == 'Completed' && check_access('warehouse_in', 'edit')): ?>
-                 <a href="<?= base_url('warehouse_in/unconfirm_grn/'.$header->id); ?>" class="btn btn-danger btn-sm mr-1" onclick="return confirm('<?= lang_line('warehouse_in_unconfirm_action', 'Yakin batalkan konfirmasi? Stok akan dikembalikan.'); ?>')">
-                    <i class="fas fa-times-circle fa-sm"></i> <?= lang_line('warehouse_in_unconfirm', 'Unconfirm'); ?>
-                 </a>
-            <?php endif; ?>
-
-             <?php if ($header->status == 'Draft' && check_access('warehouse_in', 'edit')): ?>
-             <button type="button" class="btn btn-warning btn-sm mr-1" data-toggle="modal" data-target="#editHeaderModalDetail">
-                 <i class="fas fa-edit fa-sm"></i> <?= lang_line('warehouse_in_edit_header', 'Edit Header'); ?>
-             </button>
-             <?php endif; ?>
-
-             <a href="<?= base_url('warehouse_in/export_excel/'.$header->id); ?>" target="_blank" class="btn btn-success btn-sm mr-1">
-                <i class="fas fa-file-excel fa-sm"></i> <?= lang_line('warehouse_in_export_excel', 'Excel'); ?>
-            </a>
-             <a href="<?= base_url('warehouse_in/export_pdf/'.$header->id); ?>" target="_blank" class="btn btn-danger btn-sm mr-1">
-                <i class="fas fa-file-pdf fa-sm"></i> <?= lang_line('warehouse_in_export_pdf', 'PDF'); ?>
-            </a>
-            <a href="<?= base_url('warehouse_in'); ?>" class="btn btn-secondary btn-sm btn-load">
-                <i class="fas fa-arrow-left fa-sm mr-2"></i><?= lang_line('warehouse_in_back_to_list', 'Kembali'); ?>
-            </a>
-        </div>
-    </div>
-
-    <div class="card shadow mb-4">
-        <div class="card-body">
-             <div class="row">
-                <div class="col-md-4"><strong><?= lang_line('warehouse_in_grn_date', 'Tanggal GRN'); ?>:</strong> <?= date('d M Y', strtotime($header->grn_date)); ?></div>
-                <div class="col-md-4"><strong><?= lang_line('warehouse_in_base_on', 'Dasar'); ?>:</strong> <?= $header->base_on; ?></div>
-                <div class="col-md-4"><strong><?= lang_line('warehouse_in_warehouse_type', 'Gudang'); ?>:</strong> <?= ucfirst($header->warehouse_type); ?></div>
+<div class="container-fluid pp2 wid">
+    <section class="pp-hero">
+        <div class="pp-hero-top">
+            <div class="pp-hero-id">
+                <div class="pp-hero-icon"><i class="fas fa-truck-loading"></i></div>
+                <div style="min-width:0">
+                    <div class="pp-hero-kicker"><?= lang_line('wi2_title', 'Receiving Material Form (GRN)'); ?> · <?= htmlspecialchars($base_lbl); ?></div>
+                    <h1 class="pp-hero-title"><?= htmlspecialchars($header->grn_number); ?> <span class="pp-status <?= $is_draft ? 'pp-status--draft' : 'pp-status--completed'; ?>"><?= $is_draft ? 'Draft' : lang_line('wi2_confirmed', 'Dikonfirmasi'); ?></span></h1>
+                    <div class="pp-hero-subline"><i class="far fa-calendar mr-1"></i><?= $fmt_dt($header->grn_date, false); ?><span class="mx-1">·</span><i class="fas fa-store mr-1"></i><?= htmlspecialchars($header->nama_supplier ?: '-'); ?></div>
+                </div>
             </div>
-             <div class="row mt-2">
-                 <div class="col-md-4"><strong><?= lang_line('warehouse_in_supplier', 'Supplier'); ?>:</strong> <?= htmlspecialchars($header->nama_supplier ?? '-'); ?></div>
-                 <div class="col-md-4"><strong><?= lang_line('warehouse_in_delivery_note', 'No. Surat Jalan'); ?>:</strong> <?= htmlspecialchars($header->delivery_note_number ?? '-'); ?></div>
-                 <div class="col-md-4"><strong><?= lang_line('warehouse_in_status', 'Status'); ?>:</strong> <span class="badge badge-<?= $header->status == 'Completed' ? 'success' : 'info'; ?>"><?= $header->status; ?></span></div>
-             </div>
-             <?php if($header->bc_type_code || $header->bc_number): ?> <hr>
-              <div class="row">
-                <div class="col-md-4"><strong><?= lang_line('warehouse_in_bc_type', 'BC Type'); ?>:</strong> <?= htmlspecialchars($header->bc_type_code ?? '-'); ?></div>
-                <div class="col-md-4"><strong><?= lang_line('warehouse_in_bc_number', 'BC Number'); ?>:</strong> <?= htmlspecialchars($header->bc_number ?? '-'); ?></div>
-                <div class="col-md-4"><strong><?= lang_line('warehouse_in_bc_date', 'BC Date'); ?>:</strong> <?= $header->bc_date ? date('d M Y', strtotime($header->bc_date)) : '-'; ?></div>
-              </div>
-             <?php endif; ?>
-             <?php if($header->remarks): ?> <hr>
-                 <p class="mb-0"><strong><?= lang_line('warehouse_in_remarks', 'Catatan'); ?>:</strong> <?= nl2br(htmlspecialchars($header->remarks)); ?></p>
-             <?php endif; ?>
+            <div class="pp-hero-actions">
+                <?php if ($is_draft && $can_edit): ?>
+                    <?php if ($header->base_on == 'PO'): ?><button type="button" class="btn pp-btn-light" data-toggle="modal" data-target="#poAutoLoadModal"><i class="fas fa-file-import mr-1"></i><?= lang_line('wi2_pick_po', 'Pilih Item PO'); ?></button><?php endif; ?>
+                    <?php if ($header->base_on == 'MIR'): ?><button type="button" class="btn pp-btn-light" data-toggle="modal" data-target="#mirAutoLoadModal"><i class="fas fa-file-import mr-1"></i><?= lang_line('wi2_pick_mir', 'Pilih Item MIR'); ?></button><?php endif; ?>
+                    <?php if ($header->base_on == 'Goods Return'): ?><button type="button" class="btn pp-btn-light" id="btnLoadGoodsReturn"><i class="fas fa-undo mr-1"></i><?= lang_line('wi2_pick_gr', 'Pilih Retur Supplier'); ?></button><?php endif; ?>
+                    <?php if ($n_items): ?>
+                        <a href="<?= base_url('warehouse_in/confirm_grn/' . $header->id); ?>" class="btn pp-btn-light btn-confirm"
+                           data-message="<?= htmlspecialchars(sprintf(lang_line('wi2_confirm_q', 'Konfirmasi %s?'), $header->grn_number)); ?>"
+                           data-text="<?= htmlspecialchars(lang_line('wi2_confirm_text', 'Dokumen Quality Assurance dibuat otomatis. Stok baru bertambah setelah QA disetujui (hanya qty PASS).')); ?>"
+                           data-icon="question" data-confirm-text="<?= htmlspecialchars(lang_line('wi2_yes_confirm', 'Ya, Konfirmasi')); ?>"><i class="fas fa-check-double mr-1"></i><?= lang_line('warehouse_in_confirm', 'Confirm GRN'); ?></a>
+                    <?php endif; ?>
+                    <button type="button" class="btn pp-btn-glass" data-toggle="modal" data-target="#editHeaderModalDetail"><i class="fas fa-pen mr-1"></i><?= lang_line('warehouse_in_edit_header', 'Edit Header'); ?></button>
+                <?php elseif ($st == 'Completed' && $can_edit): ?>
+                    <?php if ($qa): ?><a href="<?= base_url('quality_assurance/detail/' . $qa->id); ?>" class="btn pp-btn-light"><i class="fas fa-microscope mr-1"></i><?= lang_line('wi2_open_qa', 'Buka QA'); ?></a><?php endif; ?>
+                    <a href="<?= base_url('warehouse_in/unconfirm_grn/' . $header->id); ?>" class="btn pp-btn-glass btn-confirm"
+                       data-message="<?= htmlspecialchars(lang_line('wi2_unconfirm_q', 'Batalkan konfirmasi GRN ini?')); ?>"
+                       data-text="<?= htmlspecialchars(lang_line('wi2_unconfirm_text', 'GRN kembali ke Draft. Ditolak kalau item sudah diperiksa di Quality Assurance.')); ?>"
+                       data-icon="warning" data-confirm-text="<?= htmlspecialchars(lang_line('sgr2_yes_unapprove', 'Ya, Batalkan')); ?>"><i class="fas fa-undo mr-1"></i><?= lang_line('warehouse_in_unconfirm', 'Unconfirm'); ?></a>
+                <?php elseif ($qa): ?>
+                    <a href="<?= base_url('quality_assurance/detail/' . $qa->id); ?>" class="btn pp-btn-light"><i class="fas fa-microscope mr-1"></i><?= lang_line('wi2_open_qa', 'Buka QA'); ?></a>
+                <?php endif; ?>
+                <a href="<?= base_url('warehouse_in/export_pdf/' . $header->id); ?>" target="_blank" class="btn pp-btn-glass no-loader"><i class="fas fa-file-pdf mr-1"></i>PDF</a>
+                <a href="<?= base_url('warehouse_in/export_excel/' . $header->id); ?>" target="_blank" class="btn pp-btn-glass no-loader"><i class="fas fa-file-excel mr-1"></i>Excel</a>
+                <a href="<?= base_url('warehouse_in'); ?>" class="btn pp-btn-glass btn-load"><i class="fas fa-arrow-left mr-1"></i><?= lang_line('pod2_back', 'Kembali'); ?></a>
+            </div>
         </div>
-    </div>
+        <div class="pp-hero-meta">
+            <div class="pp-meta"><div class="pp-meta-label"><?= lang_line('wi2_th_base', 'Dasar'); ?></div><div class="pp-meta-value"><?= htmlspecialchars($base_lbl); ?></div></div>
+            <div class="pp-meta"><div class="pp-meta-label"><?= lang_line('warehouse_in_warehouse_type', 'Gudang'); ?></div><div class="pp-meta-value"><?= htmlspecialchars($wh_lbl ?: '-'); ?></div></div>
+            <div class="pp-meta"><div class="pp-meta-label"><?= lang_line('sgr2_dn', 'Surat jalan'); ?></div><div class="pp-meta-value"><?= htmlspecialchars($header->delivery_note_number ?: '-'); ?></div></div>
+            <div class="pp-meta"><div class="pp-meta-label"><?= lang_line('sgr2_bc', 'Dokumen BC'); ?></div><div class="pp-meta-value" title="<?= htmlspecialchars($bc_text); ?>"><?= htmlspecialchars($bc_text ?: '-'); ?><?= !empty($header->bc_date) ? ' <small>' . date('d M Y', strtotime($header->bc_date)) . '</small>' : ''; ?></div></div>
+            <div class="pp-meta"><div class="pp-meta-label"><?= lang_line('wi2_sources', 'Dokumen sumber'); ?></div><div class="pp-meta-value" title="<?= htmlspecialchars(implode(', ', array_keys($srcs))); ?>"><?= $srcs ? htmlspecialchars(implode(', ', array_keys($srcs))) : '-'; ?></div></div>
+            <div class="pp-meta"><div class="pp-meta-label"><?= lang_line('wi2_th_value', 'Nilai (IDR)'); ?></div><div class="pp-meta-value"><?= number_format($grand, 2, '.', ','); ?></div></div>
+        </div>
+    </section>
 
-    <div class="card shadow mb-4">
-        <div class="card-header py-3 d-flex flex-row align-items-center justify-content-between">
-            <h6 class="m-0 font-weight-bold text-primary"><?= lang_line('warehouse_in_received_items', 'Item Diterima'); ?></h6>
-            <?php if ($header->status == 'Draft' && check_access('warehouse_in', 'edit')): ?>
-            <button class="btn btn-success btn-sm" data-toggle="modal" data-target="#addItemModal">
-                <i class="fas fa-plus fa-sm"></i> <?= lang_line('warehouse_in_add_item', 'Terima Item Baru'); ?>
-            </button>
+    <?php foreach (['error' => 'fa-exclamation-circle', 'warning' => 'fa-exclamation-triangle', 'info' => 'fa-info-circle'] as $fk => $fi): if ($msg = $this->session->flashdata($fk)): ?>
+        <div class="pp-flash pp-flash--<?= $fk === 'info' ? 'warning' : $fk; ?>" role="alert"><i class="fas <?= $fi; ?>"></i><div><?= $msg; ?></div>
+            <button type="button" class="close" onclick="this.parentNode.remove()">&times;</button></div>
+    <?php endif; endforeach; ?>
+
+    <?php if (trim((string) $header->remarks) !== ''): ?>
+        <div class="wi-note"><i class="fas fa-sticky-note mt-1 text-muted"></i><div><b><?= lang_line('warehouse_in_remarks', 'Keterangan'); ?></b><br><?= nl2br(htmlspecialchars($header->remarks)); ?></div></div>
+    <?php endif; ?>
+
+    <nav class="pod-steps" aria-label="<?= htmlspecialchars(lang_line('sgr2_flow', 'Alur penerimaan')); ?>">
+        <?php foreach ($steps as $i => $s): $link = ($i === 3 && $qa) ? base_url('quality_assurance/detail/' . $qa->id) : null; ?>
+        <<?= $link ? 'a href="' . $link . '"' : 'div'; ?> class="pod-step <?= $s['cls']; ?>">
+            <span class="pod-step-dot"><i class="fas <?= $s['icon']; ?>"></i></span>
+            <span style="min-width:0"><span class="pod-step-name d-block"><?= htmlspecialchars($s['label']); ?><?= $link ? ' <i class="fas fa-external-link-alt" style="font-size:.6rem;opacity:.6"></i>' : ''; ?></span><span class="pod-step-meta d-block" title="<?= htmlspecialchars($s['meta']); ?>"><?= htmlspecialchars($s['meta']); ?></span></span>
+        </<?= $link ? 'a' : 'div'; ?>>
+        <?php endforeach; ?>
+    </nav>
+
+    <div class="pp-card">
+        <div class="pp-card-head">
+            <h2><span class="pp-ico"><i class="fas fa-list-ul"></i></span><span><?= lang_line('warehouse_in_received_items', 'Item Diterima'); ?> (<?= $n_items; ?>)
+                <span class="d-block pp-sub"><?= lang_line('wi2_items_sub', 'Nilai dalam IDR (harga PO × kurs).'); ?></span></span></h2>
+            <?php if ($is_draft && $can_edit): ?>
+                <button class="btn btn-light btn-sm" data-toggle="modal" data-target="#addItemModal"><i class="fas fa-plus mr-1"></i><?= lang_line('wi2_add_single', 'Tambah satu item'); ?></button>
             <?php endif; ?>
         </div>
-        <div class="card-body p-0">
-             <div class="table-responsive">
-                <table class="table table-bordered table-sm mb-0">
-                    <thead class="thead-light text-center">
-                        <tr>
-                            <th><?= lang_line('no', 'No'); ?></th> <th><?= lang_line('warehouse_in_source_doc', 'No. Sumber'); ?></th> <th><?= lang_line('warehouse_in_item_code', 'Kode Item'); ?></th> <th><?= lang_line('warehouse_in_item_name', 'Nama Item'); ?></th>
-                            <th><?= lang_line('warehouse_in_unit', 'Satuan'); ?></th> <th><?= lang_line('warehouse_in_receive_qty', 'Qty Terima'); ?></th> <th><?= lang_line('warehouse_in_unit_value', 'Nilai Satuan (IDR)'); ?></th> <th><?= lang_line('warehouse_in_total_value', 'Total Nilai (IDR)'); ?></th> <th><?= lang_line('warehouse_in_actions', 'Aksi'); ?></th>
-                        </tr>
-                    </thead>
-                    <tbody>
-                         <?php if(!empty($details)): $no = 1; $grand_total_value = 0; foreach($details as $d): ?>
-                        <tr>
-                            <td class="text-center"><?= $no++; ?></td>
-                            <td><?= htmlspecialchars($d->source_doc_number); ?></td>
-                            <td><?= htmlspecialchars($d->item_code); ?></td>
-                            <td><?= htmlspecialchars($d->item_name); ?></td>
-                            <td><?= htmlspecialchars($d->satuan ?? '-'); ?></td>
-                            <td class="text-right"><?= number_format($d->receive_qty, 2); ?></td>
-                            <td class="text-right"><?= number_format($d->unit_value ?? 0, 2); ?></td>
-                            <td class="text-right"><?= number_format($d->total_value ?? 0, 2); ?></td>
-                            <td class="text-center">
-                                <?php if ($header->status == 'Draft' && check_access('warehouse_in', 'edit')): ?>
-                                    <?php
-                                        // Samakan dengan controller: hanya role Admin (lihat Warehouse_in::update_mir_item).
-                                        $is_admin = is_admin();
-                                    ?>
-                                    <?php if ($header->base_on == 'MIR'): ?>
-                                    <!-- Hanya Admin yang bisa edit dan delete MIR items -->
-                                    <?php if ($is_admin): ?>
-                                    <button type="button" class="btn btn-warning btn-xs btn-sm mr-1" data-toggle="modal" data-target="#editMirItemModal"
-                                            data-detail-id="<?= $d->id; ?>" data-receive-qty="<?= $d->receive_qty; ?>" data-unit-value="<?= $d->unit_value; ?>"
-                                            data-item-name="<?= htmlspecialchars($d->item_name); ?>" data-is-admin="1">
-                                        <i class="fas fa-edit"></i> Edit
-                                    </button>
-                                    <a href="<?= base_url('warehouse_in/delete_item/'.$d->grn_header_id.'/'.$d->id); ?>" class="btn btn-danger btn-xs btn-delete"> <i class="fas fa-trash"></i> </a>
-                                    <?php else: ?>
-                                    <!-- Non-admin: Tidak ada button -->
-                                    <span class="text-muted">-</span>
-                                    <?php endif; ?>
-                                    <?php else: ?>
-                                    <!-- Item PO: edit qty (dibatasi sisa PO) + data BC per baris -->
-                                    <button type="button" class="btn btn-warning btn-xs btn-sm mr-1" data-toggle="modal" data-target="#editQtyOnlyModal"
-                                            data-detail-id="<?= $d->id; ?>">
-                                        <i class="fas fa-edit"></i> Edit
-                                    </button>
-                                    <a href="<?= base_url('warehouse_in/delete_item/'.$d->grn_header_id.'/'.$d->id); ?>" class="btn btn-danger btn-xs btn-delete"> <i class="fas fa-trash"></i> </a>
-                                    <?php endif; ?>
-                                <?php endif; ?>
-                            </td>
-                        </tr>
-                        <?php $grand_total_value += ($d->total_value ?? 0); endforeach; ?>
-                         <tr class="bg-light font-weight-bold">
-                            <td colspan="7" class="text-right"><?= lang_line('warehouse_in_grand_total', 'Grand Total Nilai (IDR)'); ?></td>
-                            <td class="text-right"><?= number_format($grand_total_value, 2); ?></td> <td></td>
-                        </tr>
-                        <?php else: ?> <tr><td colspan="9" class="text-center text-muted py-5"><?= lang_line('warehouse_in_no_items', 'Belum ada item yang diterima'); ?></td></tr>
+        <?php if (!$n_items): ?>
+            <div class="wi-empty">
+                <i class="fas fa-truck-loading big"></i>
+                <div class="font-weight-bold mb-1"><?= lang_line('warehouse_in_no_items', 'Belum ada item yang diterima'); ?></div>
+                <div class="pp-item-code mb-3"><?= lang_line('wi2_empty_hint', 'Pilih dokumen sumber lalu centang item yang benar-benar datang beserta qty-nya.'); ?></div>
+                <?php if ($is_draft && $can_edit): ?>
+                    <?php if ($header->base_on == 'PO'): ?><button type="button" class="btn btn-pp" data-toggle="modal" data-target="#poAutoLoadModal"><i class="fas fa-file-import mr-1"></i><?= lang_line('wi2_pick_po', 'Pilih Item PO'); ?></button><?php endif; ?>
+                    <?php if ($header->base_on == 'MIR'): ?><button type="button" class="btn btn-pp" data-toggle="modal" data-target="#mirAutoLoadModal"><i class="fas fa-file-import mr-1"></i><?= lang_line('wi2_pick_mir', 'Pilih Item MIR'); ?></button><?php endif; ?>
+                <?php endif; ?>
+            </div>
+        <?php else: ?>
+        <div class="table-responsive">
+            <table class="pp-table">
+                <thead><tr>
+                    <th style="width:42px">#</th>
+                    <th><?= lang_line('pod2_th_item', 'Item'); ?></th>
+                    <th class="num"><?= lang_line('warehouse_in_receive_qty', 'Qty Terima'); ?></th>
+                    <th class="num"><?= lang_line('warehouse_in_unit_value', 'Nilai Satuan (IDR)'); ?></th>
+                    <th class="num"><?= lang_line('warehouse_in_total_value', 'Total (IDR)'); ?></th>
+                    <?php if ($is_draft && $can_edit): ?><th class="text-right" style="width:90px"></th><?php endif; ?>
+                </tr></thead>
+                <tbody>
+                <?php $no = 1; foreach ($details as $d): ?>
+                    <tr>
+                        <td class="text-muted font-weight-bold" style="font-size:.76rem"><?= $no++; ?></td>
+                        <td>
+                            <div class="pp-item-name"><?= htmlspecialchars($d->item_name ?: '-'); ?></div>
+                            <div class="pp-item-code"><?= htmlspecialchars($d->item_code ?: '-'); ?></div>
+                            <?php if (!empty($d->source_doc_number)): ?><span class="pp-chip mt-1"><i class="fas fa-file-invoice"></i><?= htmlspecialchars($d->source_doc_number); ?></span><?php endif; ?>
+                        </td>
+                        <td class="num"><b><?= $qty($d->receive_qty); ?></b> <small class="text-muted"><?= htmlspecialchars($d->satuan ?? ''); ?></small></td>
+                        <td class="num"><?= number_format((float) ($d->unit_value ?? 0), 2, '.', ','); ?></td>
+                        <td class="num font-weight-bold"><?= number_format((float) ($d->total_value ?? 0), 2, '.', ','); ?></td>
+                        <?php if ($is_draft && $can_edit): ?>
+                        <td class="text-right"><div class="pp-actions">
+                            <?php if ($header->base_on == 'MIR'): ?>
+                                <?php if ($is_admin): ?>
+                                    <button type="button" class="btn btn-light" data-toggle="modal" data-target="#editMirItemModal" data-detail-id="<?= (int) $d->id; ?>" data-receive-qty="<?= $d->receive_qty; ?>" data-unit-value="<?= $d->unit_value; ?>" data-item-name="<?= htmlspecialchars($d->item_name); ?>" data-is-admin="1" title="Edit"><i class="fas fa-pen"></i></button>
+                                    <a href="<?= base_url('warehouse_in/delete_item/' . $d->grn_header_id . '/' . $d->id); ?>" class="btn btn-light text-danger btn-delete"><i class="fas fa-trash-alt"></i></a>
+                                <?php else: ?><span class="pp-item-code">—</span><?php endif; ?>
+                            <?php else: ?>
+                                <button type="button" class="btn btn-light" data-toggle="modal" data-target="#editQtyOnlyModal" data-detail-id="<?= (int) $d->id; ?>" title="<?= htmlspecialchars(lang_line('sgr2_edit_item', 'Edit qty & BC')); ?>"><i class="fas fa-pen"></i></button>
+                                <a href="<?= base_url('warehouse_in/delete_item/' . $d->grn_header_id . '/' . $d->id); ?>" class="btn btn-light text-danger btn-delete" data-message="<?= htmlspecialchars(sprintf(lang_line('pod2_delete_item_q', 'Hapus item %s?'), $d->item_name ?? '')); ?>"><i class="fas fa-trash-alt"></i></a>
+                            <?php endif; ?>
+                        </div></td>
                         <?php endif; ?>
-                    </tbody>
-                </table>
-            </div>
+                    </tr>
+                <?php endforeach; ?>
+                </tbody>
+                <tfoot>
+                    <tr><td colspan="4" class="text-right font-weight-bold" style="background:var(--pp-soft)"><?= lang_line('warehouse_in_grand_total', 'Grand Total (IDR)'); ?></td><td class="num font-weight-bold" style="background:var(--pp-soft);font-size:1rem"><?= number_format($grand, 2, '.', ','); ?></td><?php if ($is_draft && $can_edit): ?><td style="background:var(--pp-soft)"></td><?php endif; ?></tr>
+                </tfoot>
+            </table>
         </div>
+        <?php endif; ?>
     </div>
 </div>
 
 <?php if ($header->status == 'Draft'): ?>
-<div class="modal fade" id="addItemModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade pp-modal" id="addItemModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <form id="addItemForm" method="post" action="<?= base_url('warehouse_in/add_item/'.$header->id); ?>">
              <div class="modal-content border-0 shadow">
-                <div class="modal-header bg-success text-white">
+                <div class="modal-header">
                     <h5 class="modal-title"><i class="fas fa-plus mr-2"></i><?= lang_line('warehouse_in_add_item', 'Terima Item Baru'); ?></h5>
-                    <button type="button" class="close text-white" data-dismiss="modal">&times;</button>
+                    <button type="button" class="close" data-dismiss="modal">&times;</button>
                 </div>
                 <div class="modal-body">
                     <div class="row">
@@ -190,8 +223,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="submit" class="btn btn-success btn-load"><i class="fas fa-save mr-1"></i> <?= lang_line('warehouse_in_save', 'Simpan Penerimaan'); ?></button>
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal"><?= lang_line('warehouse_in_cancel', 'Batal'); ?></button>
+                    <button type="submit" class="btn btn-pp btn-load"><i class="fas fa-save mr-1"></i> <?= lang_line('warehouse_in_save', 'Simpan Penerimaan'); ?></button>
+                    <button type="button" class="btn btn-light" data-dismiss="modal"><?= lang_line('warehouse_in_cancel', 'Batal'); ?></button>
                 </div>
             </div>
         </form>
@@ -200,12 +233,12 @@
 
 <!-- Modal MIR Auto-Load (untuk status Draft dengan base_on = MIR) - NOW SUPPORTS MULTI-MIR -->
 <?php if ($header->base_on == 'MIR' && $header->status == 'Draft' && empty($details)): ?>
-<div class="modal fade" id="mirAutoLoadModal" tabindex="-1" data-backdrop="static" data-keyboard="false" aria-hidden="true">
+<div class="modal fade pp-modal" id="mirAutoLoadModal" tabindex="-1" data-backdrop="static" data-keyboard="false" aria-hidden="true">
     <div class="modal-dialog modal-lg">
         <div class="modal-content border-0 shadow">
-            <div class="modal-header bg-info text-white">
+            <div class="modal-header">
                 <h5 class="modal-title"><i class="fas fa-file-import mr-2"></i>Pilih MIR untuk Auto-Load Items (Bisa Pilih Beberapa)</h5>
-                <button type="button" class="close text-white" data-dismiss="modal" style="opacity: 1;">&times;</button>
+                <button type="button" class="close" data-dismiss="modal">&times;</button>
             </div>
             <div class="modal-body">
                 <p><strong>Pilih satu atau lebih MIR</strong> untuk secara otomatis memuat semua item yang diminta. Anda tinggal mengonfirmasi penerimaan tanpa perlu input manual item satu per satu.</p>
@@ -258,10 +291,10 @@
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-info btn-load" id="mirAutoLoadBtn">
+                <button type="button" class="btn btn-pp btn-load" id="mirAutoLoadBtn">
                     <i class="fas fa-check mr-1"></i> Load Items dari MIR Terpilih
                 </button>
-                <button type="button" class="btn btn-secondary" id="mirSkipBtn">Skip untuk Sekarang</button>
+                <button type="button" class="btn btn-light" id="mirSkipBtn">Skip untuk Sekarang</button>
             </div>
         </div>
     </div>
@@ -272,14 +305,14 @@
 <?php if ($header->base_on == 'PO' && $header->status == 'Draft' && check_access('warehouse_in','edit')): ?>
 <!-- Modal Pilih Item PO. User 2026-09-14: bisa pilih item & qty tertentu
      (penerimaan partial), dan tiap baris menampilkan status penerimaannya. -->
-<div class="modal fade" id="poAutoLoadModal" tabindex="-1" role="dialog" aria-labelledby="poAutoLoadModalLabel" aria-hidden="true">
+<div class="modal fade pp-modal" id="poAutoLoadModal" tabindex="-1" role="dialog" aria-labelledby="poAutoLoadModalLabel" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content border-0 shadow">
-            <div class="modal-header bg-success text-white">
+            <div class="modal-header">
                 <h5 class="modal-title" id="poAutoLoadModalLabel">
                     <i class="fas fa-file-import mr-2"></i>Pilih Item PO yang Diterima
                 </h5>
-                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close">
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
                     <span aria-hidden="true">&times;</span>
                 </button>
             </div>
@@ -310,8 +343,8 @@
             <div class="modal-footer justify-content-between">
                 <div class="small text-muted" id="poSelectionSummary">Belum ada item dipilih.</div>
                 <div>
-                    <button type="button" class="btn btn-secondary" id="poSkipBtn">Batal</button>
-                    <button type="button" class="btn btn-success" id="poAutoLoadBtn" disabled>
+                    <button type="button" class="btn btn-light" id="poSkipBtn">Batal</button>
+                    <button type="button" class="btn btn-pp" id="poAutoLoadBtn" disabled>
                         <i class="fas fa-check mr-1"></i> Muat Item Terpilih
                     </button>
                 </div>
@@ -322,11 +355,11 @@
 <?php endif; ?>
 
 <!-- Modal Edit MIR Item (qty and/or unit_value) -->
-<div class="modal fade" id="editMirItemModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade pp-modal" id="editMirItemModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <form id="editMirItemForm" method="post">
             <div class="modal-content border-0 shadow">
-                <div class="modal-header bg-warning text-dark">
+                <div class="modal-header">
                     <h5 class="modal-title"><i class="fas fa-edit mr-2"></i>Edit Item MIR</h5>
                     <button type="button" class="close" data-dismiss="modal">&times;</button>
                 </div>
@@ -344,8 +377,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="submit" class="btn btn-warning btn-load"><i class="fas fa-save mr-1"></i> Simpan</button>
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-pp btn-load"><i class="fas fa-save mr-1"></i> Simpan</button>
+                    <button type="button" class="btn btn-light" data-dismiss="modal">Batal</button>
                 </div>
             </div>
         </form>
@@ -355,11 +388,11 @@
 <!-- Modal Edit Item PO. User 2026-09-14: bisa edit qty "dll". Qty dibatasi
      sisa PO (dihitung server), data BC bisa diubah per baris, nilai satuan
      tetap mengikuti harga PO. -->
-<div class="modal fade" id="editQtyOnlyModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade pp-modal" id="editQtyOnlyModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <form id="editQtyOnlyForm" method="post" novalidate>
             <div class="modal-content border-0 shadow">
-                <div class="modal-header bg-warning text-dark">
+                <div class="modal-header">
                     <h5 class="modal-title"><i class="fas fa-edit mr-2"></i>Edit Item Penerimaan</h5>
                     <button type="button" class="close" data-dismiss="modal">&times;</button>
                 </div>
@@ -425,8 +458,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
-                    <button type="submit" class="btn btn-warning" id="editItemSave" disabled><i class="fas fa-save mr-1"></i> Simpan</button>
+                    <button type="button" class="btn btn-light" data-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-pp" id="editItemSave" disabled><i class="fas fa-save mr-1"></i> Simpan</button>
                 </div>
             </div>
         </form>
@@ -434,11 +467,11 @@
 </div>
 
 <!-- Modal Edit Qty (only for MIR items and admin users) -->
-<div class="modal fade" id="editQtyModal" tabindex="-1" aria-hidden="true">
+<div class="modal fade pp-modal" id="editQtyModal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered">
         <form id="editQtyForm" method="post">
             <div class="modal-content border-0 shadow">
-                <div class="modal-header bg-warning text-dark">
+                <div class="modal-header">
                     <h5 class="modal-title"><i class="fas fa-edit mr-2"></i>Edit Quantity Penerimaan</h5>
                     <button type="button" class="close" data-dismiss="modal">&times;</button>
                 </div>
@@ -451,8 +484,8 @@
                     </div>
                 </div>
                 <div class="modal-footer">
-                    <button type="submit" class="btn btn-warning btn-load"><i class="fas fa-save mr-1"></i> Simpan</button>
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-pp btn-load"><i class="fas fa-save mr-1"></i> Simpan</button>
+                    <button type="button" class="btn btn-light" data-dismiss="modal">Batal</button>
                 </div>
             </div>
         </form>
@@ -461,13 +494,13 @@
 <?php endif; ?>
 
 <?php if ($header->status == 'Draft'): ?>
-<div class="modal fade" id="editHeaderModalDetail" tabindex="-1" aria-hidden="true">
+<div class="modal fade pp-modal" id="editHeaderModalDetail" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-lg modal-dialog-centered">
         <form method="post" action="<?= base_url('warehouse_in/update_header/'.$header->id); ?>">
              <div class="modal-content border-0 shadow">
-                <div class="modal-header bg-warning text-dark">
+                <div class="modal-header">
                     <h5 class="modal-title"><i class="fas fa-edit mr-2"></i>Edit Header GRN</h5>
-                    <button type="button" class="close text-dark" data-dismiss="modal">&times;</button>
+                    <button type="button" class="close" data-dismiss="modal">&times;</button>
                 </div>
                 <div class="modal-body">
                      <div class="row">
@@ -498,8 +531,8 @@
                     <div class="form-group"><label>Keterangan</label><textarea name="remarks" class="form-control" rows="2"><?= htmlspecialchars($header->remarks); ?></textarea></div>
                 </div>
                 <div class="modal-footer">
-                    <button type="submit" class="btn btn-warning btn-load"><i class="fas fa-save mr-1"></i> Simpan Perubahan</button>
-                    <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
+                    <button type="submit" class="btn btn-pp btn-load"><i class="fas fa-save mr-1"></i> Simpan Perubahan</button>
+                    <button type="button" class="btn btn-light" data-dismiss="modal">Batal</button>
                 </div>
             </div>
         </form>
@@ -1172,10 +1205,10 @@ $(document).ready(function() {
 });
 </script>
 <!-- ===== GOODS RETURN MODAL ===== -->
-<div class="modal fade" id="goodsReturnModal" tabindex="-1">
+<div class="modal fade pp-modal" id="goodsReturnModal" tabindex="-1">
     <div class="modal-dialog modal-lg">
         <div class="modal-content">
-            <div class="modal-header bg-warning text-dark">
+            <div class="modal-header">
                 <h5 class="modal-title"><i class="fas fa-undo mr-2"></i>Pilih Goods Return (Retur Supplier)</h5>
                 <button type="button" class="close" data-dismiss="modal">&times;</button>
             </div>
@@ -1205,8 +1238,8 @@ $(document).ready(function() {
                 </div>
             </div>
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary" data-dismiss="modal">Batal</button>
-                <button type="button" class="btn btn-warning" id="btnLoadGrConfirm">
+                <button type="button" class="btn btn-light" data-dismiss="modal">Batal</button>
+                <button type="button" class="btn btn-pp" id="btnLoadGrConfirm">
                     <i class="fas fa-check"></i> Load Item dari Goods Return Terpilih
                 </button>
             </div>

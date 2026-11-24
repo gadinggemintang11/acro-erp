@@ -93,10 +93,18 @@ class Purchase_order_approval extends MY_Controller {
         // PENDING di stage user sesuai permissionnya. $this->_included_types()
         // -- General gabungkan non_produksi+jasa+asset, lihat docblock class.
         $pos = $this->Po_model->get_pending_approvals($can_hod, $can_endorsement, $can_approval, $this->_included_types());
+        $pending_count = count($pos);
 
         // Allow status override via filter (untuk lihat Confirmed/Rejected/dll history).
         if (!empty($filters['status']) || !empty($filters['search'])) {
             $pos = $this->_get_pos($filters);
+        }
+
+        // Jumlah per status utk kartu ringkasan (redesign 2026-11-09).
+        $status_counts = [];
+        foreach ($this->db->select('status, COUNT(*) AS n')->from('po_header')
+                     ->where_in('type', $this->_included_types())->group_by('status')->get()->result() as $r) {
+            $status_counts[$r->status] = (int) $r->n;
         }
 
         $data = [
@@ -106,6 +114,10 @@ class Purchase_order_approval extends MY_Controller {
             'statuses'        => ['Submitted', 'Approved Head Dept', 'Endorsed', 'Confirmed', 'Rejected', 'Cancelled'],
             'po_type'         => $this->po_type,
             'po_type_label'   => $this->po_type_label,
+            'approval_route'  => $this->menu_key,
+            'included_types'  => $this->_included_types(),
+            'pending_count'   => $pending_count,
+            'status_counts'   => $status_counts,
             'can_hod'         => $can_hod,
             'can_endorsement' => $can_endorsement,
             'can_approval'    => $can_approval,
@@ -124,12 +136,16 @@ class Purchase_order_approval extends MY_Controller {
         $this->load->view('templates/header',  $data);
         $this->load->view('templates/sidebar', $data);
         $this->load->view('templates/topbar',  $data);
-        $this->load->view($this->menu_key . '/index', $data);
+        // Redesign 2026-11-09: SATU view untuk keempat tipe (dulu 4 salinan).
+        $this->load->view('purchase_order_approval/index', $data);
         $this->load->view('templates/footer');
     }
 
     private function _get_pos($filters) {
+        // Kolom PPN ikut supaya daftar bisa menampilkan total termasuk PPN,
+        // sama dengan antrian (get_pending_approvals).
         $this->db->select('h.id, h.po_number, h.po_date, h.status, h.currency_code, h.type,
+            h.has_ppn, h.ppn_rate' . (db_has_column('po_header', 'ppn_inclusive') ? ', h.ppn_inclusive' : '') . ',
             s.nama_supplier,
             u.fullname as creator_name,
             COALESCE(SUM(d.qty * d.base_price), 0) as subtotal');
@@ -186,6 +202,10 @@ class Purchase_order_approval extends MY_Controller {
             'audit'           => $audit,
             'approval_logs'   => $this->Po_model->get_approval_logs($id),
             'po_type_label'   => $this->po_type_label,
+            'po_type'         => $this->po_type,
+            'approval_route'  => $this->menu_key,
+            'main_route'      => $this->main_menu_key,
+            'source_prs'      => $this->Po_model->get_source_prs($id),
             // Tombol "Edit PO" di halaman approval (user 2026-09-10: "list view
             // saya hilangkan, 1-nya cara agar saya bisa liat PO saya lewat
             // alamat itu, beri button di situ ya ... untuk edit PO").
@@ -259,7 +279,7 @@ class Purchase_order_approval extends MY_Controller {
         $this->load->view('templates/header',  $data);
         $this->load->view('templates/sidebar', $data);
         $this->load->view('templates/topbar',  $data);
-        $this->load->view($this->menu_key . '/detail', $data);
+        $this->load->view('purchase_order_approval/detail', $data);
         $this->load->view('templates/footer');
     }
 
