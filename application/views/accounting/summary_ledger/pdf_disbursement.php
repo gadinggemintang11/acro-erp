@@ -34,8 +34,10 @@ $vendor_acc  = $header->vendor_bank_account ?? '';
 
 // Account Bank ditulis "no. rekening / atas nama" biar jelas rekening itu punya siapa.
 // Contoh: 8715853830 / Arjuna Catering
-$vendor_acc_line = (trim((string) $vendor_acc) !== '' && trim((string) $vendor_name) !== '')
-    ? trim((string) $vendor_acc) . ' / ' . trim((string) $vendor_name)
+// Atas nama: dari master supplier (bank_account_name) bila ada, selain itu nama vendor.
+$vendor_owner = trim((string) ($header->vendor_bank_owner ?? '')) ?: trim((string) $vendor_name);
+$vendor_acc_line = (trim((string) $vendor_acc) !== '' && $vendor_owner !== '')
+    ? trim((string) $vendor_acc) . ' / ' . $vendor_owner
     : trim((string) $vendor_acc);
 
 // Format angka rate tanpa trailing nol (11.00 -> 11, 2.00 -> 2).
@@ -113,7 +115,7 @@ $due_date = !empty($header->due_date) ? date('d/m/y', strtotime($header->due_dat
 
 <!-- ============ TITLE ============ -->
 <table class="frame" style="border-top: none;">
-    <tr><td class="title-voucher">Voucher Disbursement</td></tr>
+    <tr><td class="title-voucher">Voucher</td></tr>
 </table>
 
 <!-- ============ INFO ============ -->

@@ -469,6 +469,9 @@ class Summary_ledger extends MY_Controller {
             }
         }
 
+        // Judul di template "Voucher Disbursement" -> "Voucher" (permintaan user 2026-11-24).
+        $sheet->setCellValue('B8', 'Voucher');
+
         // ============ HEADER INFO (kanan atas) ============
         // Disamakan dengan contoh: label "Voucher No" (kosong, diisi manual),
         // "Document Date" & "Due Date" (format dd/mm/yy), nilai dari field header.
@@ -485,7 +488,7 @@ class Summary_ledger extends MY_Controller {
         // (snapshot di header). J11 Description dari header.description.
         // Account Bank ditulis "no. rekening / atas nama" — sama dengan versi PDF.
         $v_acc   = trim((string) ($header->vendor_bank_account ?? ''));
-        $v_owner = trim((string) ($header->vendor_name ?? ''));
+        $v_owner = trim((string) ($header->vendor_bank_owner ?? '')) ?: trim((string) ($header->vendor_name ?? ''));
         $v_acc_line = ($v_acc !== '' && $v_owner !== '') ? $v_acc . ' / ' . $v_owner : $v_acc;
 
         $sheet->setCellValue('J10', $header->vendor_name ?? '');

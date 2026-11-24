@@ -597,6 +597,7 @@ class Summary_ledger_model extends CI_Model {
         // Voucher PDF/Excel boleh untuk jurnal apa saja (tidak dibatasi Summary Ledger).
         $header = $this->db->get()->row();
         if (!$header) return null;
+        $this->_fill_from_source_doc($header);
 
         $this->db->select('jd.*, coa.account_code, coa.account_name');
         $this->db->from('journal_details jd');
@@ -606,6 +607,71 @@ class Summary_ledger_model extends CI_Model {
         $details = $this->db->get()->result();
 
         return ['header' => $header, 'details' => $details];
+    }
+
+    /**
+     * Jurnal otomatis dari Faktur / Pembayaran Hutang (AP Invoice / AP Payment)
+     * tidak menyimpan snapshot vendor di header jurnal (snapshot itu hanya diisi
+     * Jurnal Umum manual & Payment Request), sehingga voucher kosong. Isi yang
+     * KOSONG dari dokumen asalnya: nama supplier + bank & no. rekening (master
+     * supplier), jatuh tempo, tgl dokumen, PPN & PPh potong (baris VAT / WHT).
+     * Nilai yang sudah ada di header tidak ditimpa. Hanya untuk tampilan voucher
+     * (tidak menulis ke DB).
+     */
+    private function _fill_from_source_doc($header)
+    {
+        $src = $header->source_module ?? '';
+        $doc_id = (int) ($header->source_doc_id ?? 0);
+        $supplier_id = (int) ($header->supplier_id ?? 0);
+        $due = null; $doc_date = null; $vat = null; $wht = null;
+
+        if ($src === 'AP_PAYMENT' && $doc_id > 0) {
+            $p = $this->db->select('supplier_id, pph_rate, pph_amount')->where('id', $doc_id)->get('ap_payment_header')->row();
+            if ($p) {
+                if (!$supplier_id) $supplier_id = (int) $p->supplier_id;
+                // Jatuh tempo voucher bayar = jatuh tempo faktur paling awal yang dibayar.
+                $due = $this->db->select_min('i.due_date', 'due')
+                    ->from('ap_payment_details d')
+                    ->join('ap_invoice_header i', 'i.id = d.ap_invoice_header_id')
+                    ->where('d.payment_header_id', $doc_id)
+                    ->get()->row('due');
+                if ((float) $p->pph_amount > 0) $wht = [(float) $p->pph_rate, (float) $p->pph_amount];
+            }
+        } elseif ($src === 'AP_INVOICE' && $doc_id > 0) {
+            $a = $this->db->select('supplier_id, invoice_date, due_date, subtotal, ppn_amount, pph_amount')->where('id', $doc_id)->get('ap_invoice_header')->row();
+            if ($a) {
+                if (!$supplier_id) $supplier_id = (int) $a->supplier_id;
+                $due = $a->due_date;
+                $doc_date = $a->invoice_date;
+                $sub = (float) $a->subtotal;
+                if ((float) $a->ppn_amount > 0) $vat = [$sub > 0 ? round((float) $a->ppn_amount / $sub * 100, 2) : 0, (float) $a->ppn_amount];
+                if ((float) $a->pph_amount > 0) $wht = [$sub > 0 ? round((float) $a->pph_amount / $sub * 100, 2) : 0, (float) $a->pph_amount];
+            }
+        }
+
+        if ($supplier_id > 0) {
+            $cols = 'nama_supplier, bank_name, bank_account' . (db_has_column('suppliers', 'bank_account_name') ? ', bank_account_name' : '');
+            $s = $this->db->select($cols)->where('id', $supplier_id)->get('suppliers')->row();
+            if ($s) {
+                if (trim((string) ($header->vendor_name ?? '')) === '')         $header->vendor_name = $s->nama_supplier;
+                if (trim((string) ($header->vendor_bank_name ?? '')) === '')    $header->vendor_bank_name = $s->bank_name;
+                if (trim((string) ($header->vendor_bank_account ?? '')) === '') $header->vendor_bank_account = $s->bank_account;
+                // Atas nama rekening (dipakai di baris "Account Bank": no. rek / atas nama).
+                $header->vendor_bank_owner = trim((string) ($s->bank_account_name ?? ''));
+            }
+        }
+        if (empty($header->due_date) && $due)           $header->due_date = $due;
+        if (empty($header->document_date) && $doc_date) $header->document_date = $doc_date;
+        if ($vat && empty($header->ppn_enabled)) {
+            $header->ppn_enabled = 1;
+            $header->ppn_percent = $vat[0];
+            $header->ppn_amount  = $vat[1];
+        }
+        // PPh potong jadi baris WHT supaya "Total Paid" = yang benar-benar dibayar ke vendor.
+        if ($wht && (float) ($header->wht23_amount ?? 0) <= 0 && (float) ($header->wht42_amount ?? 0) <= 0) {
+            $header->wht23_rate   = $wht[0];
+            $header->wht23_amount = $wht[1];
+        }
     }
 
     /**
