@@ -23,6 +23,11 @@
                     <h6 class="m-0 font-weight-bold text-primary"><?= lang_line('acct_invoice_info'); ?></h6>
                     <?php if($header->status == 'Draft'): ?>
                     <div>
+                        <?php if (!empty($can_edit) && empty($header->prf_header_id)): ?>
+                        <a href="<?= base_url('apinvoice/edit/' . $header->id); ?>" class="btn btn-warning btn-sm">
+                            <i class="fas fa-edit"></i> Edit
+                        </a>
+                        <?php endif; ?>
                         <a href="<?= base_url('apinvoice/delete/' . $header->id); ?>"
                            class="btn btn-danger btn-sm"
                            onclick="return confirm('<?= addslashes(lang_line('acct_confirm_delete_draft_invoice')); ?>');">
@@ -34,9 +39,27 @@
                             <i class="fas fa-check-circle"></i> <?= lang_line('acct_post_journal_btn'); ?>
                         </a>
                     </div>
+                    <?php elseif ($header->status == 'Posted' && !empty($can_edit)): ?>
+                    <div class="text-right">
+                        <?php if (empty($redraft_block)): ?>
+                        <form method="post" action="<?= base_url('apinvoice/redraft/' . $header->id); ?>" class="d-inline form-redraft">
+                            <input type="hidden" name="reason" value="">
+                            <button type="submit" class="btn btn-outline-danger btn-sm"><i class="fas fa-undo"></i> Redraft</button>
+                        </form>
+                        <?php else: ?>
+                        <button type="button" class="btn btn-outline-secondary btn-sm" disabled title="<?= htmlspecialchars($redraft_block); ?>"><i class="fas fa-undo"></i> Redraft</button>
+                        <div class="small text-muted mt-1" style="max-width:420px"><?= htmlspecialchars($redraft_block); ?></div>
+                        <?php endif; ?>
+                    </div>
                     <?php endif; ?>
                 </div>
                 <div class="card-body">
+                    <?php if ($header->status == 'Draft' && !empty($journal_header)): ?>
+                        <div class="alert alert-warning py-2">
+                            <i class="fas fa-undo mr-1"></i> Faktur hasil <strong>redraft</strong>. Jurnal <strong><?= htmlspecialchars($journal_header->journal_no); ?></strong>
+                            berstatus Draft (tidak masuk laporan). Edit bila perlu, lalu klik <strong>Posting Jurnal</strong> — jurnal yang sama diperbarui &amp; diposting ulang.
+                        </div>
+                    <?php endif; ?>
                     <div class="row mb-3">
                         <div class="col-md-3"><strong><?= lang_line('acct_invoice_no_colon'); ?></strong><br><?= $header->invoice_no; ?></div>
                         <div class="col-md-3"><strong><?= lang_line('acct_invoice_date_colon'); ?></strong><br><?= date('d M Y', strtotime($header->invoice_date)); ?></div>
@@ -171,12 +194,16 @@
         </div>
 
         <!-- Jurnal Entri -->
-        <?php if($header->status == 'Posted' && isset($journal_details)): ?>
+        <?php if(in_array($header->status, ['Posted', 'Draft'], true) && isset($journal_details) && !empty($journal_header)): ?>
         <div class="col-lg-12">
             <div class="card shadow mb-4">
                 <div class="card-header py-3">
-                    <h6 class="m-0 font-weight-bold text-success">
-                        <?= lang_line('acct_journal_posted'); ?> - <?= $journal_header->journal_no; ?>
+                    <h6 class="m-0 font-weight-bold <?= $journal_header->status === 'Posted' ? 'text-success' : 'text-warning'; ?>">
+                        <?php if ($journal_header->status === 'Posted'): ?>
+                            <?= lang_line('acct_journal_posted'); ?> - <?= $journal_header->journal_no; ?>
+                        <?php else: ?>
+                            Jurnal <?= $journal_header->journal_no; ?> (Draft &mdash; isi lama, diperbarui saat Posting Jurnal)
+                        <?php endif; ?>
                     </h6>
                 </div>
                 <div class="card-body">
@@ -208,3 +235,14 @@
         <?php endif; ?>
     </div>
 </div>
+
+<script>
+document.querySelectorAll('.form-redraft').forEach(function (f) {
+    f.addEventListener('submit', function (e) {
+        var r = prompt('Faktur ini' + ' akan dikembalikan ke DRAFT supaya bisa diedit.\n' + 'Jurnalnya ikut menjadi Draft (keluar dari laporan) sampai faktur diposting ulang.' + '\n\nAlasan redraft (wajib):');
+        if (r === null) { e.preventDefault(); return; }
+        if (r.trim().length < 5) { e.preventDefault(); alert('Alasan redraft minimal 5 karakter.'); return; }
+        f.querySelector('input[name=reason]').value = r.trim();
+    });
+});
+</script>

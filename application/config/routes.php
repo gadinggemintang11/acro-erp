@@ -120,6 +120,9 @@ $route['apinvoice/store'] = 'ApInvoice/store';
 $route['apinvoice/view/(:num)'] = 'ApInvoice/view/$1';
 $route['apinvoice/post/(:num)'] = 'ApInvoice/post/$1';
 $route['apinvoice/delete/(:num)'] = 'ApInvoice/delete/$1';
+$route['apinvoice/edit/(:num)'] = 'ApInvoice/edit/$1';
+$route['apinvoice/update/(:num)'] = 'ApInvoice/update/$1';
+$route['apinvoice/redraft/(:num)'] = 'ApInvoice/redraft/$1';
 // Rute Ekspor AP Invoice
 $route['apinvoice/export_detail_pdf/(:num)'] = 'ApInvoice/export_detail_pdf/$1';
 $route['apinvoice/export_detail_excel/(:num)'] = 'ApInvoice/export_detail_excel/$1';
@@ -136,6 +139,9 @@ $route['appayment/store'] = 'ApPayment/store';
 $route['appayment/view/(:num)'] = 'ApPayment/view/$1';
 $route['appayment/post/(:num)'] = 'ApPayment/post/$1';
 $route['appayment/delete/(:num)'] = 'ApPayment/delete/$1';
+$route['appayment/edit/(:num)'] = 'ApPayment/edit/$1';
+$route['appayment/update/(:num)'] = 'ApPayment/update/$1';
+$route['appayment/redraft/(:num)'] = 'ApPayment/redraft/$1';
 // Rute Ekspor AP Payment
 $route['appayment/export_detail_pdf/(:num)'] = 'ApPayment/export_detail_pdf/$1';
 $route['appayment/export_detail_excel/(:num)'] = 'ApPayment/export_detail_excel/$1';

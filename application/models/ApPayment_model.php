@@ -275,10 +275,170 @@ class ApPayment_model extends CI_Model {
     
     public function delete_draft_payment($id)
     {
-        $this->db->where('id', $id);
-        $this->db->where('status', 'Draft');
-        $this->db->delete('ap_payment_header'); // Detail akan terhapus (ON DELETE CASCADE)
-        return $this->db->affected_rows() > 0;
+        $p = $this->db->select('id, status, journal_header_id')->where('id', (int) $id)->get('ap_payment_header')->row();
+        if (!$p || $p->status !== 'Draft') return false;
+
+        $this->db->trans_start();
+        // Pembayaran hasil redraft masih membawa jurnal Draft-nya -> ikut dihapus.
+        if (!empty($p->journal_header_id)) {
+            $this->db->where('journal_header_id', (int) $p->journal_header_id)->delete('journal_details');
+            $this->db->where('id', (int) $p->journal_header_id)->where('status', 'Draft')
+                     ->where('source_module', 'AP_PAYMENT')->delete('journal_header');
+        }
+        $this->db->where('id', (int) $id)->where('status', 'Draft')->delete('ap_payment_header'); // Detail ikut terhapus (ON DELETE CASCADE)
+        $deleted = $this->db->affected_rows() > 0;
+        $this->db->trans_complete();
+        return $deleted && $this->db->trans_status() !== FALSE;
+    }
+
+    /**
+     * ======================================
+     * REDRAFT & EDIT (koreksi pembayaran yang sudah diposting)
+     * ======================================
+     * Redraft: pembayaran Posted -> Draft, total_paid faktur dikembalikan,
+     * jurnalnya ikut Draft (nomor jurnal tetap). Posting ulang memperbarui
+     * jurnal yang sama lalu mempostingnya lagi.
+     */
+
+    /** Alasan pembayaran TIDAK boleh di-redraft; null = boleh. */
+    public function redraft_block_reason($p)
+    {
+        if (!$p) return 'Pembayaran tidak ditemukan.';
+        if ($p->status !== 'Posted') return 'Hanya pembayaran berstatus Posted yang bisa di-redraft.';
+        if (!empty($p->prf_header_id)) {
+            $no = $this->db->select('prf_number')->where('id', (int) $p->prf_header_id)->get('prf_header')->row('prf_number');
+            return 'Pembayaran ini dicatat otomatis dari Payment Request' . ($no ? ' ' . $no : '') . ' — koreksi lewat Payment Request tersebut.';
+        }
+        if (empty($p->journal_header_id)) {
+            return 'Jurnal pembayaran ini sudah di-clear saat tutup bulan' . (!empty($p->journal_no_cleared) ? ' (' . $p->journal_no_cleared . ')' : '') . ' — tidak bisa redraft.';
+        }
+        $j = $this->db->select('id, status')->where('id', (int) $p->journal_header_id)->get('journal_header')->row();
+        if (!$j) return 'Jurnal pembayaran ini sudah tidak ada — tidak bisa redraft.';
+        if ($j->status !== 'Posted') return 'Status jurnal pembayaran ini bukan Posted.';
+        return null;
+    }
+
+    /** Pembayaran Posted -> Draft; total_paid faktur dikembalikan; jurnal ikut Draft. */
+    public function redraft_payment($id)
+    {
+        $p = $this->get_header_by_id($id);
+        if ($why = $this->redraft_block_reason($p)) throw new Exception($why);
+
+        $this->db->trans_start();
+        foreach ($this->get_details_by_header_id($id) as $d) {
+            // Dua UPDATE terpisah: urutan evaluasi SET berbeda antar mode MySQL/MariaDB.
+            $this->db->query("UPDATE ap_invoice_header SET total_paid = GREATEST(total_paid - ?, 0) WHERE id = ?",
+                [(float) $d->amount_paid, (int) $d->ap_invoice_header_id]);
+            $this->db->query("
+                UPDATE ap_invoice_header
+                SET payment_status = CASE
+                        WHEN total_paid <= 0.01 THEN 'Unpaid'
+                        WHEN total_paid >= total_invoice - 0.01 THEN 'Paid'
+                        ELSE 'Partial' END
+                WHERE id = ?
+            ", [(int) $d->ap_invoice_header_id]);
+        }
+        $this->db->where('id', (int) $p->journal_header_id)->where('status', 'Posted')
+                 ->update('journal_header', ['status' => 'Draft', 'posted_by' => null, 'posted_at' => null]);
+        $this->db->where('id', (int) $p->id)->where('status', 'Posted')
+                 ->update('ap_payment_header', ['status' => 'Draft', 'posted_by' => null, 'posted_at' => null]);
+        $this->db->trans_complete();
+        if ($this->db->trans_status() === FALSE) throw new Exception('Gagal redraft (transaksi database).');
+        return $p;
+    }
+
+    /**
+     * Faktur yang bisa dibayar di form edit: faktur Posted supplier ini yang
+     * masih bersisa + faktur yang sudah ada di pembayaran ini. Sisa dihitung
+     * tanpa memperhitungkan pembayaran ini sendiri (supaya nominalnya bisa diubah).
+     */
+    public function get_invoices_for_edit($payment)
+    {
+        $current = [];
+        foreach ($this->get_details_by_header_id($payment->id) as $d) $current[(int) $d->ap_invoice_header_id] = (float) $d->amount_paid;
+
+        $this->db->select('api.id, api.invoice_no, api.invoice_date, api.total_invoice, api.total_paid');
+        $this->db->from('ap_invoice_header api');
+        $this->db->where('api.supplier_id', (int) $payment->supplier_id);
+        $this->db->where('api.status', 'Posted');
+        if (db_has_column('ap_invoice_header', 'prf_header_id')) $this->db->where('api.prf_header_id IS NULL', null, false);
+        $this->db->group_start()->where('api.payment_status !=', 'Paid');
+        if ($current) $this->db->or_where_in('api.id', array_keys($current));
+        $this->db->group_end();
+        $this->db->order_by('api.invoice_date', 'ASC')->order_by('api.id', 'ASC');
+        $rows = $this->db->get()->result();
+
+        $reserved = $this->Ap_auto_model->ap_reserved_map(array_map(function ($r) { return $r->id; }, $rows), null, (int) $payment->id);
+        $out = [];
+        foreach ($rows as $r) {
+            $r->sisa_utang  = round((float) $r->total_invoice - (float) $r->total_paid - (float) ($reserved[(int) $r->id] ?? 0), 2);
+            $r->amount_paid = $current[(int) $r->id] ?? 0;
+            if ($r->sisa_utang > 0.01 || $r->amount_paid > 0) $out[] = $r;
+        }
+        return $out;
+    }
+
+    /** Simpan hasil edit pembayaran Draft (supplier & nomor tetap). */
+    public function update_payment($id, $post)
+    {
+        $p = $this->get_header_by_id($id);
+        if (!$p || $p->status !== 'Draft') throw new Exception('Hanya pembayaran Draft yang bisa diedit.');
+        if (!empty($p->prf_header_id)) throw new Exception('Pembayaran dari Payment Request tidak bisa diedit di sini.');
+        if (empty($post['payment_date'])) throw new Exception('Tgl. Bayar wajib diisi.');
+
+        foreach (['debet_account_id' => 'DEBET (Hutang)', 'kredit_account_id' => 'KREDIT (Kas/Bank)'] as $f => $label) {
+            $acc = !empty($post[$f]) ? $this->db->where('id', (int) $post[$f])->where('status', 'active')->get('chart_of_accounts')->row() : null;
+            if (!$acc) throw new Exception("Akun {$label} wajib dipilih dan harus aktif.");
+        }
+
+        $rows = [];
+        $total = 0;
+        $amounts = [];
+        foreach ((array) ($post['details'] ?? []) as $inv_id => $d) {
+            $amt = round((float) ($d['amount_paid'] ?? 0), 2);
+            if ($amt > 0) $amounts[(int) $inv_id] = $amt;
+        }
+        if (empty($amounts)) throw new Exception('Tidak ada jumlah pembayaran yang diinput.');
+
+        $reserved = $this->Ap_auto_model->ap_reserved_map(array_keys($amounts), null, (int) $id);
+        foreach ($amounts as $inv_id => $amt) {
+            $inv = $this->db->where('id', $inv_id)->get('ap_invoice_header')->row();
+            if (!$inv || (int) $inv->supplier_id !== (int) $p->supplier_id || $inv->status !== 'Posted') {
+                throw new Exception('Faktur yang dipilih tidak valid untuk supplier ini.');
+            }
+            if (!empty($inv->prf_header_id)) throw new Exception("Invoice {$inv->invoice_no} dibuat dari Payment Request — bayar lewat Payment Request tersebut.");
+            $sisa = (float) $inv->total_invoice - (float) $inv->total_paid - (float) ($reserved[$inv_id] ?? 0);
+            if ($amt > $sisa + 0.01) throw new Exception("Pembayaran untuk invoice {$inv->invoice_no} melebihi sisa utang (Max: " . number_format($sisa, 2) . ").");
+            $rows[] = ['payment_header_id' => (int) $id, 'ap_invoice_header_id' => $inv_id, 'amount_paid' => $amt];
+            $total += $amt;
+        }
+
+        $pph_rate = (float) ($post['pph_rate'] ?? 0);
+        if ($pph_rate < 0 || $pph_rate > 100) throw new Exception('Tarif PPh harus 0 - 100%.');
+        $pph_amount = 0; $pph_account_id = null;
+        if ($pph_rate > 0) {
+            $acc = !empty($post['pph_account_id']) ? $this->db->where('id', (int) $post['pph_account_id'])->where('status', 'active')->get('chart_of_accounts')->row() : null;
+            if (!$acc) throw new Exception('Akun Hutang PPh harus dipilih (dan aktif) jika ada potong pajak.');
+            $pph_amount = round($total * $pph_rate / 100, 2);
+            $pph_account_id = (int) $acc->id;
+        }
+
+        $this->db->trans_start();
+        $this->db->where('id', (int) $id)->where('status', 'Draft')->update('ap_payment_header', [
+            'payment_date'      => $post['payment_date'],
+            'debet_account_id'  => (int) $post['debet_account_id'],
+            'kredit_account_id' => (int) $post['kredit_account_id'],
+            'total_amount'      => round($total, 2),
+            'pph_rate'          => $pph_rate,
+            'pph_amount'        => $pph_amount,
+            'pph_account_id'    => $pph_account_id,
+            'notes'             => isset($post['notes']) ? $post['notes'] : null,
+        ]);
+        $this->db->where('payment_header_id', (int) $id)->delete('ap_payment_details');
+        $this->db->insert_batch('ap_payment_details', $rows);
+        $this->db->trans_complete();
+        if ($this->db->trans_status() === FALSE) throw new Exception('Gagal menyimpan perubahan (transaksi database).');
+        return true;
     }
 
     /**
@@ -295,6 +455,19 @@ class ApPayment_model extends CI_Model {
 
         if ($header->status != 'Draft') {
             throw new Exception("Hanya status Draft yang bisa di-posting.");
+        }
+
+        // 0. Cek ulang sisa hutang tiap faktur saat posting (bisa berubah sejak
+        //    Draft dibuat, mis. pembayaran lain sudah diposting lebih dulu).
+        foreach ($details as $d) {
+            $inv = $this->db->select('invoice_no, status, total_invoice, total_paid')->where('id', (int) $d->ap_invoice_header_id)->get('ap_invoice_header')->row();
+            if (!$inv || $inv->status !== 'Posted') {
+                throw new Exception('Faktur ' . ($inv->invoice_no ?? '#' . $d->ap_invoice_header_id) . ' tidak berstatus Posted (mungkin sedang di-redraft). Posting fakturnya dulu.');
+            }
+            $sisa = (float) $inv->total_invoice - (float) $inv->total_paid;
+            if ((float) $d->amount_paid > $sisa + 0.01) {
+                throw new Exception('Pembayaran untuk faktur ' . $inv->invoice_no . ' melebihi sisa hutang (sisa ' . number_format($sisa, 2) . '). Edit pembayaran ini dulu.');
+            }
         }
 
         // 1. Update status faktur yang dibayar
@@ -321,7 +494,13 @@ class ApPayment_model extends CI_Model {
              throw new Exception("Akun DEBET (Hutang) atau KREDIT (Kas/Bank) belum dipilih.");
         }
         
-        $journal_no = $this->JurnalUmum_model->get_new_journal_number();
+        // Pembayaran hasil redraft masih membawa jurnal Draft-nya: diperbarui &
+        // diposting ulang (nomor jurnal tetap), bukan membuat jurnal baru.
+        $redraft_journal = !empty($header->journal_header_id)
+            ? $this->db->select('id, journal_no, status')->where('id', (int) $header->journal_header_id)->get('journal_header')->row()
+            : null;
+        if ($redraft_journal && $redraft_journal->status !== 'Draft') $redraft_journal = null;
+        $journal_no = $redraft_journal ? $redraft_journal->journal_no : $this->JurnalUmum_model->get_new_journal_number();
         
         // ✨ NEW: Jurnal dengan header-level account mapping
         // Debit: Akun Hutang (semua invoice dalam batch membayar dari akun hutang yang sama)
@@ -372,7 +551,14 @@ class ApPayment_model extends CI_Model {
             'status' => 'Draft'
         ];
 
-        $journal_id = $this->JurnalUmum_model->insert_journal($journal_header_data, $journal_details);
+        if ($redraft_journal) {
+            $journal_id = (int) $redraft_journal->id;
+            if (!$this->JurnalUmum_model->replace_draft_journal($journal_id, $journal_header_data, $journal_details)) {
+                throw new Exception('Gagal memperbarui jurnal ' . $journal_no . '.');
+            }
+        } else {
+            $journal_id = $this->JurnalUmum_model->insert_journal($journal_header_data, $journal_details);
+        }
         $this->JurnalUmum_model->post_journal($journal_id, $user_id);
         
         // 3. Update status Payment Header

@@ -375,10 +375,218 @@ class ApInvoice_model extends CI_Model {
     
     public function delete_draft_invoice($id)
     {
-        $this->db->where('id', $id);
-        $this->db->where('status', 'Draft');
-        $this->db->delete('ap_invoice_header');
-        return $this->db->affected_rows() > 0;
+        $ap = $this->db->select('id, status, journal_header_id')->where('id', (int) $id)->get('ap_invoice_header')->row();
+        if (!$ap || $ap->status !== 'Draft') return false;
+
+        $this->db->trans_start();
+        // Faktur hasil redraft masih membawa jurnal Draft-nya -> ikut dihapus.
+        if (!empty($ap->journal_header_id)) {
+            $this->db->where('journal_header_id', (int) $ap->journal_header_id)->delete('journal_details');
+            $this->db->where('id', (int) $ap->journal_header_id)->where('status', 'Draft')
+                     ->where('source_module', 'AP_INVOICE')->delete('journal_header');
+        }
+        $this->db->where('id', (int) $id)->where('status', 'Draft')->delete('ap_invoice_header');
+        $deleted = $this->db->affected_rows() > 0;
+        $this->db->trans_complete();
+        return $deleted && $this->db->trans_status() !== FALSE;
+    }
+
+    /**
+     * ======================================
+     * REDRAFT & EDIT (koreksi faktur yang sudah diposting)
+     * ======================================
+     * Redraft: faktur Posted -> Draft, jurnalnya ikut Draft (keluar dari laporan,
+     * nomor jurnal tetap). Setelah diedit & diposting ulang, jurnal yang sama
+     * diperbarui lalu diposting lagi.
+     */
+
+    /** Alasan faktur TIDAK boleh di-redraft; null = boleh. */
+    public function redraft_block_reason($ap)
+    {
+        if (!$ap) return 'Faktur tidak ditemukan.';
+        if ($ap->status !== 'Posted') return 'Hanya faktur berstatus Posted yang bisa di-redraft.';
+        if (!empty($ap->prf_header_id)) {
+            return 'Faktur ini dibuat otomatis dari Payment Request' . (!empty($ap->prf_number) ? ' ' . $ap->prf_number : '')
+                 . ' — koreksi lewat Payment Request tersebut.';
+        }
+        $pays = $this->db->select('p.payment_no, p.status')
+            ->from('ap_payment_details d')
+            ->join('ap_payment_header p', 'p.id = d.payment_header_id')
+            ->where('d.ap_invoice_header_id', (int) $ap->id)
+            ->get()->result();
+        if ($pays) {
+            $nos = array_unique(array_map(function ($p) { return $p->payment_no . ' (' . $p->status . ')'; }, $pays));
+            return 'Faktur sudah dipakai di Pembayaran Hutang: ' . implode(', ', $nos)
+                 . '. Redraft lalu hapus / ubah pembayaran tersebut dulu.';
+        }
+        if ((float) $ap->total_paid > Ap_auto_model::AMT_EPS) {
+            return 'Faktur sudah tercatat dibayar Rp ' . number_format((float) $ap->total_paid, 2) . '. Batalkan pembayarannya dulu.';
+        }
+        $prf = $this->db->select('ph.prf_number')
+            ->from('prf_details x')
+            ->join('prf_header ph', 'ph.id = x.prf_header_id')
+            ->where('x.ap_invoice_header_id', (int) $ap->id)
+            ->where_not_in('ph.status', Ap_auto_model::PRF_DEAD_STATUSES)
+            ->get()->result();
+        if ($prf) {
+            return 'Faktur masih ditarik di Payment Request: '
+                 . implode(', ', array_unique(array_map(function ($r) { return $r->prf_number; }, $prf))) . '.';
+        }
+        $j = !empty($ap->journal_header_id)
+            ? $this->db->select('id, status')->where('id', (int) $ap->journal_header_id)->get('journal_header')->row()
+            : null;
+        if (!$j) return 'Jurnal faktur ini sudah tidak ada (kemungkinan di-clear saat tutup bulan) — tidak bisa redraft.';
+        if ($j->status !== 'Posted') return 'Status jurnal faktur ini bukan Posted.';
+        return null;
+    }
+
+    /** Faktur Posted -> Draft; jurnal ikut Draft. Throw Exception bila ditolak. */
+    public function redraft_invoice($id)
+    {
+        $ap = $this->get_invoice_header_by_id($id);
+        if ($why = $this->redraft_block_reason($ap)) throw new Exception($why);
+
+        $this->db->trans_start();
+        $this->db->where('id', (int) $ap->journal_header_id)->where('status', 'Posted')
+                 ->update('journal_header', ['status' => 'Draft', 'posted_by' => null, 'posted_at' => null]);
+        $this->db->where('id', (int) $ap->id)->where('status', 'Posted')
+                 ->update('ap_invoice_header', ['status' => 'Draft', 'confirmed_by' => null, 'confirmed_at' => null]);
+        $this->db->trans_complete();
+        if ($this->db->trans_status() === FALSE) throw new Exception('Gagal redraft (transaksi database).');
+        return $ap;
+    }
+
+    /** Tarif PPN / PPh tersimpan (header hanya menyimpan nominal). */
+    public function stored_tax_rates($ap)
+    {
+        $sub = (float) $ap->subtotal;
+        return [
+            'ppn' => $sub > 0 ? round((float) $ap->ppn_amount / $sub * 100, 2) : 0,
+            'pph' => $sub > 0 ? round((float) $ap->pph_amount / $sub * 100, 2) : 0,
+        ];
+    }
+
+    /**
+     * Simpan hasil edit faktur Draft. Baris PO/GRN hanya boleh dari baris yang
+     * sudah ada (qty / akun / keterangan bisa diubah, baris bisa dihapus);
+     * faktur Jasa / Non-GRN boleh tambah baris. Batas tagih dicek ulang di server.
+     */
+    public function update_invoice($id, $post)
+    {
+        $ap = $this->get_invoice_header_by_id($id);
+        if (!$ap || $ap->status !== 'Draft') throw new Exception('Hanya faktur Draft yang bisa diedit.');
+        if (!empty($ap->prf_header_id)) throw new Exception('Faktur dari Payment Request tidak bisa diedit di sini.');
+
+        $invoice_no = trim((string) ($post['invoice_no'] ?? ''));
+        if ($invoice_no === '') throw new Exception('No. Faktur wajib diisi.');
+        $dup = $this->db->where('invoice_no', $invoice_no)->where('id !=', (int) $id)->count_all_results('ap_invoice_header');
+        if ($dup > 0) throw new Exception("No. Faktur {$invoice_no} sudah dipakai faktur lain.");
+        if (empty($post['invoice_date']) || empty($post['due_date'])) throw new Exception('Tgl. Faktur & Jatuh Tempo wajib diisi.');
+
+        $ppn_rate = (float) ($post['ppn_rate'] ?? 0);
+        $pph_rate = (float) ($post['pph_rate'] ?? 0);
+        if ($ppn_rate < 0 || $ppn_rate > 100 || $pph_rate < 0 || $pph_rate > 100) throw new Exception('Tarif PPN / PPh harus 0 - 100%.');
+
+        $existing = [];
+        foreach ($this->db->where('ap_invoice_header_id', (int) $id)->get('ap_invoice_details')->result() as $d) {
+            $existing[(int) $d->id] = $d;
+        }
+
+        $type = $ap->invoice_type;
+        $rows = [];
+        foreach ((array) ($post['details'] ?? []) as $key => $p) {
+            if (!empty($p['remove'])) continue;
+            $old = (ctype_digit((string) $key) && isset($existing[(int) $key])) ? $existing[(int) $key] : null;
+            if ($type !== 'NON_GRN' && !$old) continue; // baris PO/GRN hanya dari data tersimpan
+            $qty  = round((float) ($p['qty'] ?? 0), 4);
+            $desc = trim((string) ($p['description'] ?? ($old->description ?? '')));
+            if ($desc === '') $desc = $old->description ?? '-';
+            if ($qty <= 0) throw new Exception('Qty harus lebih dari 0 (' . $desc . ').');
+            $row = ['description' => $desc, 'qty' => $qty];
+
+            if ($type === 'PO_BASED') {
+                if (empty($p['debet_account_id'])) throw new Exception('Akun DEBET wajib diisi untuk semua baris.');
+                $row += [
+                    'po_detail_id' => (int) $old->po_detail_id, 'item_id' => $old->item_id, 'item_type' => $old->item_type,
+                    'debet_account_id' => (int) $p['debet_account_id'], 'account_id' => (int) $p['debet_account_id'],
+                    'kredit_account_id' => null, 'grn_detail_id' => null, 'unit_price' => (float) $old->unit_price,
+                ];
+            } elseif ($type === 'GRN_BASED') {
+                if ($qty > (float) $old->qty + Ap_auto_model::QTY_EPS) {
+                    throw new Exception('Qty ' . $desc . ' tidak boleh melebihi qty awal (' . (float) $old->qty . '). Untuk menambah tagihan, buat faktur baru.');
+                }
+                if (empty($p['debet_account_id']) || empty($p['kredit_account_id'])) throw new Exception('Akun DEBET & KREDIT wajib diisi untuk semua baris.');
+                $row += [
+                    'grn_detail_id' => $old->grn_detail_id, 'item_id' => $old->item_id, 'item_type' => $old->item_type,
+                    'debet_account_id' => (int) $p['debet_account_id'], 'kredit_account_id' => (int) $p['kredit_account_id'],
+                    'account_id' => $old->account_id, 'po_detail_id' => null, 'unit_price' => (float) $old->unit_price,
+                ];
+            } else { // NON_GRN (jasa / biaya)
+                if (empty($p['account_id'])) throw new Exception('Akun wajib diisi untuk semua baris.');
+                $price = (float) ($p['unit_price'] ?? 0);
+                if ($price < 0) throw new Exception('Harga tidak boleh minus (' . $desc . ').');
+                $row += [
+                    'account_id' => (int) $p['account_id'], 'debet_account_id' => (int) $p['account_id'], 'kredit_account_id' => null,
+                    'item_id' => null, 'item_type' => null, 'po_detail_id' => null, 'grn_detail_id' => null, 'unit_price' => $price,
+                ];
+            }
+            $rows[] = $row;
+        }
+        if (empty($rows)) throw new Exception('Faktur harus punya minimal satu baris. Kalau semua baris salah, hapus faktur Draft ini.');
+
+        $po_header_id = null;
+        if ($type === 'PO_BASED') {
+            // Batas tagih per baris PO (faktur ini sendiri dikecualikan) + harga dikunci ke PO.
+            $want = [];
+            foreach ($rows as $r) $want[$r['po_detail_id']] = ($want[$r['po_detail_id']] ?? 0) + $r['qty'];
+            $po_ids = array_map(function ($r) { return (int) $r->po_header_id; },
+                $this->db->select('po_header_id')->where_in('id', array_keys($want))->get('po_details')->result());
+            $status = $this->Ap_auto_model->po_line_status($po_ids, null, (int) $id);
+            foreach ($want as $pdid => $qty) {
+                $st = $status[$pdid] ?? null;
+                if (!$st) throw new Exception('Baris PO tidak ditemukan.');
+                if ($qty > $st->remaining_qty + Ap_auto_model::QTY_EPS) {
+                    throw new Exception('Qty ' . $st->description . ' (PO ' . $st->po_number . ') melebihi sisa yang bisa ditagih (' . (float) $st->remaining_qty . ').');
+                }
+            }
+            foreach ($rows as $k => $r) $rows[$k]['unit_price'] = $status[$r['po_detail_id']]->dpp_unit_price;
+            if (count(array_unique($po_ids)) === 1) $po_header_id = (int) reset($po_ids);
+        }
+
+        $grn_ids = null;
+        if ($type === 'GRN_BASED') {
+            $gd_ids = array_values(array_filter(array_map(function ($r) { return (int) $r['grn_detail_id']; }, $rows)));
+            $hdr = $gd_ids ? $this->db->distinct()->select('grn_header_id')->where_in('id', $gd_ids)->get('grn_details')->result() : [];
+            // Disimpan sebagai string: dicari dengan JSON_SEARCH (hanya cocok ke nilai string).
+            $grn_ids = json_encode(array_values(array_map(function ($r) { return (string) $r->grn_header_id; }, $hdr)));
+        }
+
+        $subtotal = 0;
+        foreach ($rows as $k => $r) {
+            $rows[$k]['total_price'] = round($r['qty'] * (float) $r['unit_price'], 2);
+            $rows[$k]['ap_invoice_header_id'] = (int) $id;
+            $subtotal += $rows[$k]['total_price'];
+        }
+        $ppn_amount = round($subtotal * $ppn_rate / 100, 2);
+        $pph_amount = round($subtotal * $pph_rate / 100, 2);
+
+        $this->db->trans_start();
+        $this->db->where('id', (int) $id)->where('status', 'Draft')->update('ap_invoice_header', [
+            'invoice_no'    => $invoice_no,
+            'invoice_date'  => $post['invoice_date'],
+            'due_date'      => $post['due_date'],
+            'grn_ids'       => ($type === 'GRN_BASED') ? $grn_ids : $ap->grn_ids,
+            'po_header_id'  => ($type === 'PO_BASED') ? $po_header_id : $ap->po_header_id,
+            'subtotal'      => round($subtotal, 2),
+            'ppn_amount'    => $ppn_amount,
+            'pph_amount'    => $pph_amount,
+            'total_invoice' => round($subtotal + $ppn_amount - $pph_amount, 2),
+        ]);
+        $this->db->where('ap_invoice_header_id', (int) $id)->delete('ap_invoice_details');
+        $this->db->insert_batch('ap_invoice_details', $rows);
+        $this->db->trans_complete();
+        if ($this->db->trans_status() === FALSE) throw new Exception('Gagal menyimpan perubahan (transaksi database).');
+        return true;
     }
 
     /**
@@ -409,7 +617,13 @@ class ApInvoice_model extends CI_Model {
         if($header->pph_amount > 0 && !$acc_pph_id) throw new Exception("Akun 'Utang PPh 23' belum di-setting.");
         if($header->invoice_type == 'GRN_BASED' && !$acc_clearing_id) throw new Exception("Akun 'GRN Clearing' belum di-setting.");
 
-        $journal_no = $this->jurnal->get_new_journal_number();
+        // Faktur hasil redraft masih membawa jurnal Draft-nya: jurnal itu diperbarui
+        // & diposting ulang (nomor jurnal tetap), bukan membuat jurnal baru.
+        $redraft_journal = !empty($header->journal_header_id)
+            ? $this->db->select('id, journal_no, status')->where('id', (int) $header->journal_header_id)->get('journal_header')->row()
+            : null;
+        if ($redraft_journal && $redraft_journal->status !== 'Draft') $redraft_journal = null;
+        $journal_no = $redraft_journal ? $redraft_journal->journal_no : $this->jurnal->get_new_journal_number();
         $journal_details = [];
         $total_debit = 0;
         $total_kredit = 0;
@@ -489,7 +703,14 @@ class ApInvoice_model extends CI_Model {
             'status' => 'Draft'
         ];
 
-        $journal_id = $this->jurnal->insert_journal($journal_header_data, $journal_details);
+        if ($redraft_journal) {
+            $journal_id = (int) $redraft_journal->id;
+            if (!$this->jurnal->replace_draft_journal($journal_id, $journal_header_data, $journal_details)) {
+                throw new Exception('Gagal memperbarui jurnal ' . $journal_no . '.');
+            }
+        } else {
+            $journal_id = $this->jurnal->insert_journal($journal_header_data, $journal_details);
+        }
         $this->jurnal->post_journal($journal_id, $user_id);
         
         $this->db->where('id', $header_id);

@@ -441,6 +441,8 @@ class JurnalUmum extends MY_Controller {
         $data['title'] = sprintf(lang_line('title_ju_view', 'View Jurnal: %s'), $data['header']->journal_no);
         $data['details'] = $this->model->get_details_by_header_id($id);
         $data['can_edit'] = $this->model->can_edit_journal($id);
+        $data['module_lock'] = $this->model->module_lock_message($data['header']);
+        $data['module_doc_path'] = $this->model->module_doc_path($data['header']);
         
         $this->load->view('templates/header', $data);
         $this->load->view('templates/sidebar', $data);
@@ -453,6 +455,11 @@ class JurnalUmum extends MY_Controller {
     {
         $data['header'] = $this->model->get_header_by_id($id);
         if (!$data['header']) show_404();
+
+        if ($lock = $this->model->module_lock_message($data['header'])) {
+            $this->session->set_flashdata('error', $lock);
+            redirect('jurnalumum/view/' . $id);
+        }
         
         // Check if can edit
         if (!$this->model->can_edit_journal($id)) {
@@ -496,6 +503,11 @@ class JurnalUmum extends MY_Controller {
     {
         $header = $this->model->get_header_by_id($id);
         if (!$header) show_404();
+
+        if ($lock = $this->model->module_lock_message($header)) {
+            $this->session->set_flashdata('error', $lock);
+            redirect('jurnalumum/view/' . $id);
+        }
         
         // Check if can edit
         if (!$this->model->can_edit_journal($id)) {
@@ -642,6 +654,10 @@ class JurnalUmum extends MY_Controller {
             $this->session->set_flashdata('error', 'Hanya jurnal status Draft yang bisa di-posting.');
             redirect('jurnalumum/view/' . $id);
         }
+        if ($lock = $this->model->module_lock_message($header)) {
+            $this->session->set_flashdata('error', $lock);
+            redirect('jurnalumum/view/' . $id);
+        }
 
         if ($header->total_debit != $header->total_kredit) {
              $this->session->set_flashdata('error', 'Jurnal tidak seimbang (Unbalanced). Posting dibatalkan.');
@@ -689,6 +705,17 @@ class JurnalUmum extends MY_Controller {
                     'id' => $id,
                     'journal_no' => $header ? $header->journal_no : 'Unknown',
                     'reason' => 'Status bukan Draft'
+                ];
+                continue;
+            }
+
+            // Jurnal milik Faktur/Pembayaran Hutang hasil redraft: diposting dari modulnya.
+            if ($lock = $this->model->module_lock_message($header)) {
+                $failed_count++;
+                $failed_journals[] = [
+                    'id' => $id,
+                    'journal_no' => $header->journal_no,
+                    'reason' => $lock
                 ];
                 continue;
             }
@@ -755,6 +782,10 @@ class JurnalUmum extends MY_Controller {
     public function delete($id)
     {
         $header = $this->model->get_header_by_id($id);
+        if ($lock = $this->model->module_lock_message($header)) {
+            $this->session->set_flashdata('error', $lock);
+            redirect('jurnalumum/view/' . $id);
+        }
         $result = $this->model->delete_draft_journal($id);
         if ($result) {
             if ($header && $header->source_module === 'PRF') {

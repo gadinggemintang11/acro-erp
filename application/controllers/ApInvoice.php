@@ -71,6 +71,8 @@ class ApInvoice extends MY_Controller {
         
         $data['title'] = 'View Faktur Supplier: ' . $data['header']->invoice_no;
         $data['details'] = $this->model->get_invoice_details_by_header_id($id);
+        $data['can_edit'] = $this->_can_edit();
+        $data['redraft_block'] = ($data['header']->status === 'Posted') ? $this->model->redraft_block_reason($data['header']) : null;
         
         if($data['header']->journal_header_id) {
             $data['journal_header'] = $this->JurnalUmum_model->get_header_by_id($data['header']->journal_header_id);
@@ -177,6 +179,99 @@ class ApInvoice extends MY_Controller {
         }
     }
     
+    /** Redraft & edit butuh izin Edit di menu Account Payable. */
+    private function _can_edit()
+    {
+        return check_access('apinvoice', 'edit') || is_admin();
+    }
+
+    /**
+     * Redraft: faktur Posted dikembalikan ke Draft supaya bisa diedit; jurnalnya
+     * ikut Draft (keluar dari laporan) sampai faktur diposting ulang.
+     */
+    public function redraft($id)
+    {
+        if ($this->input->method() !== 'post') { show_error('Metode ilegal.', 405); return; }
+        if (!$this->_can_edit()) { show_error('Anda tidak memiliki izin me-redraft Faktur Supplier.', 403); return; }
+
+        $reason = trim((string) $this->input->post('reason'));
+        if (mb_strlen($reason) < 5) {
+            $this->session->set_flashdata('error', 'Alasan redraft wajib diisi (minimal 5 karakter).');
+            redirect('apinvoice/view/' . $id);
+            return;
+        }
+        try {
+            $ap = $this->model->redraft_invoice($id);
+            $jno = $this->JurnalUmum_model->get_header_by_id($ap->journal_header_id)->journal_no ?? '-';
+            add_log('REDRAFT', 'AP Invoice', 'Redraft faktur ' . $ap->invoice_no . ' (jurnal ' . $jno . ' kembali Draft). Alasan: ' . $reason);
+            $this->session->set_flashdata('success', 'Faktur ' . $ap->invoice_no . ' dikembalikan ke Draft. Jurnal ' . $jno
+                . ' ikut menjadi Draft (tidak masuk laporan) sampai faktur diposting ulang. Silakan edit lalu Posting Jurnal lagi.');
+        } catch (Exception $e) {
+            $this->session->set_flashdata('error', 'Gagal redraft: ' . $e->getMessage());
+        }
+        redirect('apinvoice/view/' . $id);
+    }
+
+    /** Form edit faktur Draft (termasuk hasil redraft). */
+    public function edit($id)
+    {
+        if (!$this->_can_edit()) { show_error('Anda tidak memiliki izin mengedit Faktur Supplier.', 403); return; }
+        $header = $this->model->get_invoice_header_by_id($id);
+        if (!$header) show_404();
+        if ($header->status !== 'Draft' || !empty($header->prf_header_id)) {
+            $this->session->set_flashdata('error', 'Hanya faktur Draft (bukan dari Payment Request) yang bisa diedit. Untuk faktur Posted, klik Redraft dulu.');
+            redirect('apinvoice/view/' . $id);
+            return;
+        }
+        $details = $this->model->get_invoice_details_by_header_id($id);
+
+        // Qty maksimal per baris: PO = sisa bisa ditagih (faktur ini dikecualikan); GRN = qty awal.
+        $max_qty = [];
+        if ($header->invoice_type === 'PO_BASED') {
+            $pdids = array_values(array_filter(array_map(function ($d) { return (int) $d->po_detail_id; }, $details)));
+            $po_ids = $pdids ? array_map(function ($r) { return (int) $r->po_header_id; },
+                $this->db->select('po_header_id')->where_in('id', $pdids)->get('po_details')->result()) : [];
+            $st = $this->Ap_auto_model->po_line_status($po_ids, null, (int) $id);
+            foreach ($details as $d) $max_qty[$d->id] = isset($st[(int) $d->po_detail_id]) ? (float) $st[(int) $d->po_detail_id]->remaining_qty : (float) $d->qty;
+        } elseif ($header->invoice_type === 'GRN_BASED') {
+            foreach ($details as $d) $max_qty[$d->id] = (float) $d->qty;
+        }
+
+        $data = [
+            'title'           => 'Edit Faktur Supplier: ' . $header->invoice_no,
+            'header'          => $header,
+            'details'         => $details,
+            'max_qty'         => $max_qty,
+            'rates'           => $this->model->stored_tax_rates($header),
+            'debet_accounts'  => $this->model->get_debet_accounts(),
+            'kredit_accounts' => $this->model->get_kredit_accounts(),
+            'accounts'        => $this->model->get_postable_accounts_for_expense(),
+            'journal_no'      => $header->journal_header_id ? ($this->JurnalUmum_model->get_header_by_id($header->journal_header_id)->journal_no ?? null) : null,
+        ];
+        $this->load->view('templates/header', $data);
+        $this->load->view('templates/sidebar', $data);
+        $this->load->view('templates/topbar', $data);
+        $this->load->view('accounting/ap_invoice/edit', $data);
+        $this->load->view('templates/footer');
+    }
+
+    /** Simpan hasil edit faktur Draft. */
+    public function update($id)
+    {
+        if ($this->input->method() !== 'post') { show_error('Metode ilegal.', 405); return; }
+        if (!$this->_can_edit()) { show_error('Anda tidak memiliki izin mengedit Faktur Supplier.', 403); return; }
+        try {
+            $this->model->update_invoice($id, $this->input->post());
+            $ap = $this->model->get_invoice_header_by_id($id);
+            add_log('UPDATE', 'AP Invoice', 'Edit faktur Draft ' . $ap->invoice_no . ' (total ' . number_format((float) $ap->total_invoice, 2) . ').');
+            $this->session->set_flashdata('success', 'Perubahan faktur disimpan (masih Draft). Klik Posting Jurnal bila sudah benar.');
+            redirect('apinvoice/view/' . $id);
+        } catch (Exception $e) {
+            $this->session->set_flashdata('error', 'Gagal menyimpan: ' . $e->getMessage());
+            redirect('apinvoice/edit/' . $id);
+        }
+    }
+
     /**
      * Proses Konfirmasi & Posting Jurnal Otomatis
      */

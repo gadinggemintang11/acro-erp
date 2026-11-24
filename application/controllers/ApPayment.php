@@ -64,6 +64,9 @@ class ApPayment extends MY_Controller {
         
         $data['title'] = 'View Pembayaran: ' . $data['header']->payment_no;
         $data['details'] = $this->model->get_details_by_header_id($id);
+        $data['can_edit'] = $this->_can_edit();
+        $data['redraft_block'] = ($data['header']->status === 'Posted') ? $this->model->redraft_block_reason($data['header']) : null;
+        $data['account_names'] = $this->_account_names([$data['header']->debet_account_id, $data['header']->kredit_account_id, $data['header']->pph_account_id]);
         
         // Load data jurnal terkait
         if ($data['header']->journal_header_id) {
@@ -129,6 +132,95 @@ class ApPayment extends MY_Controller {
         } else {
             $this->session->set_flashdata('error', 'Gagal menghapus. Hanya status Draft yang bisa dihapus.');
             redirect('appayment/view/' . $id);
+        }
+    }
+
+    /** Redraft & edit butuh izin Edit di menu Payable Payment. */
+    private function _can_edit()
+    {
+        return check_access('appayment', 'edit') || is_admin();
+    }
+
+    /** id akun => "kode - nama" (untuk tampilan). */
+    private function _account_names(array $ids)
+    {
+        $ids = array_values(array_filter(array_map('intval', $ids)));
+        if (!$ids) return [];
+        $out = [];
+        foreach ($this->db->select('id, account_code, account_name')->where_in('id', $ids)->get('chart_of_accounts')->result() as $a) {
+            $out[(int) $a->id] = $a->account_code . ' - ' . $a->account_name;
+        }
+        return $out;
+    }
+
+    /**
+     * Redraft: pembayaran Posted dikembalikan ke Draft; sisa hutang faktur
+     * dikembalikan dan jurnalnya ikut Draft sampai diposting ulang.
+     */
+    public function redraft($id)
+    {
+        if ($this->input->method() !== 'post') { show_error('Metode ilegal.', 405); return; }
+        if (!$this->_can_edit()) { show_error('Anda tidak memiliki izin me-redraft Pembayaran Hutang.', 403); return; }
+
+        $reason = trim((string) $this->input->post('reason'));
+        if (mb_strlen($reason) < 5) {
+            $this->session->set_flashdata('error', 'Alasan redraft wajib diisi (minimal 5 karakter).');
+            redirect('appayment/view/' . $id);
+            return;
+        }
+        try {
+            $p = $this->model->redraft_payment($id);
+            $jno = $this->JurnalUmum_model->get_header_by_id($p->journal_header_id)->journal_no ?? '-';
+            add_log('REDRAFT', 'AP Payment', 'Redraft pembayaran ' . $p->payment_no . ' (jurnal ' . $jno . ' kembali Draft, sisa hutang faktur dikembalikan). Alasan: ' . $reason);
+            $this->session->set_flashdata('success', 'Pembayaran ' . $p->payment_no . ' dikembalikan ke Draft. Sisa hutang faktur sudah dikembalikan dan jurnal '
+                . $jno . ' ikut menjadi Draft sampai pembayaran diposting ulang.');
+        } catch (Exception $e) {
+            $this->session->set_flashdata('error', 'Gagal redraft: ' . $e->getMessage());
+        }
+        redirect('appayment/view/' . $id);
+    }
+
+    /** Form edit pembayaran Draft (termasuk hasil redraft). */
+    public function edit($id)
+    {
+        if (!$this->_can_edit()) { show_error('Anda tidak memiliki izin mengedit Pembayaran Hutang.', 403); return; }
+        $header = $this->model->get_header_by_id($id);
+        if (!$header) show_404();
+        if ($header->status !== 'Draft' || !empty($header->prf_header_id)) {
+            $this->session->set_flashdata('error', 'Hanya pembayaran Draft (bukan dari Payment Request) yang bisa diedit. Untuk pembayaran Posted, klik Redraft dulu.');
+            redirect('appayment/view/' . $id);
+            return;
+        }
+        $data = [
+            'title'                => 'Edit Pembayaran: ' . $header->payment_no,
+            'header'               => $header,
+            'invoices'             => $this->model->get_invoices_for_edit($header),
+            'debet_accounts'       => $this->model->get_debet_accounts(),
+            'kredit_accounts'      => $this->model->get_kredit_accounts(),
+            'pph_payable_accounts' => $this->model->get_pph_payable_accounts(),
+            'journal_no'           => $header->journal_header_id ? ($this->JurnalUmum_model->get_header_by_id($header->journal_header_id)->journal_no ?? null) : null,
+        ];
+        $this->load->view('templates/header', $data);
+        $this->load->view('templates/sidebar', $data);
+        $this->load->view('templates/topbar', $data);
+        $this->load->view('accounting/ap_payment/edit', $data);
+        $this->load->view('templates/footer');
+    }
+
+    /** Simpan hasil edit pembayaran Draft. */
+    public function update($id)
+    {
+        if ($this->input->method() !== 'post') { show_error('Metode ilegal.', 405); return; }
+        if (!$this->_can_edit()) { show_error('Anda tidak memiliki izin mengedit Pembayaran Hutang.', 403); return; }
+        try {
+            $this->model->update_payment($id, $this->input->post());
+            $p = $this->model->get_header_by_id($id);
+            add_log('UPDATE', 'AP Payment', 'Edit pembayaran Draft ' . $p->payment_no . ' (total ' . number_format((float) $p->total_amount, 2) . ').');
+            $this->session->set_flashdata('success', 'Perubahan pembayaran disimpan (masih Draft). Klik Posting bila sudah benar.');
+            redirect('appayment/view/' . $id);
+        } catch (Exception $e) {
+            $this->session->set_flashdata('error', 'Gagal menyimpan: ' . $e->getMessage());
+            redirect('appayment/edit/' . $id);
         }
     }
 

@@ -31,12 +31,24 @@
 
     <?php $this->load->view('templates/partials/alerts'); ?>
 
+    <?php if (!empty($module_lock)): ?>
+        <div class="alert alert-warning"><i class="fas fa-lock mr-1"></i> <?= htmlspecialchars($module_lock); ?></div>
+    <?php endif; ?>
+
     <div class="row">
         <div class="col-lg-12">
             <div class="card shadow mb-4">
                 <div class="card-header py-3 d-flex justify-content-between align-items-center">
                     <h6 class="m-0 font-weight-bold text-primary"><?= lang_line('ju_info_title', 'Informasi Jurnal') ?></h6>
-                    <?php if($header->status == 'Draft'): ?>
+                    <?php if (!empty($module_lock)): ?>
+                    <div>
+                        <?php if (!empty($module_doc_path)): ?>
+                        <a href="<?= base_url($module_doc_path); ?>" class="btn btn-primary btn-sm">
+                            <i class="fas fa-external-link-alt"></i> <?= lang_line('ju_btn_open_source_doc', 'Buka Dokumen Asal') ?>
+                        </a>
+                        <?php endif; ?>
+                    </div>
+                    <?php elseif($header->status == 'Draft'): ?>
                     <div>
                         <a href="<?= base_url('jurnalumum/edit/' . $header->id); ?>" class="btn btn-warning btn-sm mr-2">
                             <i class="fas fa-edit"></i> <?= lang_line('ju_btn_edit', 'Edit') ?>

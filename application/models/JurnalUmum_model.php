@@ -105,11 +105,66 @@ class JurnalUmum_model extends CI_Model {
 
     public function can_edit_journal($header_id)
     {
-        $this->db->select('status');
+        $this->db->select('status, source_module');
         $this->db->where('id', $header_id);
         $journal = $this->db->get('journal_header')->row();
-        
-        return ($journal && $journal->status === 'Draft');
+
+        return ($journal && $journal->status === 'Draft' && !isset(self::MODULE_MANAGED[$journal->source_module ?? '']));
+    }
+
+    /**
+     * Jurnal milik dokumen modul lain yang bisa di-redraft (Faktur / Pembayaran
+     * Hutang). Saat dokumennya di-redraft, jurnalnya ikut jadi Draft; jurnal itu
+     * TIDAK boleh diedit / diposting / dihapus dari Jurnal Umum (bisa beda dengan
+     * dokumennya) — dikelola dari modul asalnya. Nilai = path controller modul.
+     */
+    const MODULE_MANAGED = ['AP_INVOICE' => 'apinvoice', 'AP_PAYMENT' => 'appayment'];
+
+    /** Pesan penolakan bila jurnal Draft ini dikelola modul lain; null bila bebas. */
+    public function module_lock_message($header)
+    {
+        if (!$header || ($header->status ?? '') !== 'Draft') return null;
+        $m = $header->source_module ?? '';
+        if (!isset(self::MODULE_MANAGED[$m])) return null;
+        $label = ($m === 'AP_INVOICE') ? 'Faktur Supplier (AP Invoice)' : 'Pembayaran Hutang (AP Payment)';
+        return "Jurnal ini milik {$label} yang sedang di-redraft. Edit & posting ulang lewat dokumen tersebut — jurnal ikut diperbarui otomatis.";
+    }
+
+    /** Link ke dokumen asal jurnal yang dikelola modul lain (null bila bukan). */
+    public function module_doc_path($header)
+    {
+        $m = $header->source_module ?? '';
+        if (!isset(self::MODULE_MANAGED[$m]) || empty($header->source_doc_id)) return null;
+        return self::MODULE_MANAGED[$m] . '/view/' . (int) $header->source_doc_id;
+    }
+
+    /**
+     * Ganti isi jurnal Draft (header + semua baris) lalu biarkan tetap Draft.
+     * Dipakai saat dokumen hasil redraft diposting ulang: nomor jurnal tetap sama.
+     * Tidak memakai affected_rows (UPDATE tanpa perubahan nilai = 0 baris).
+     * Dipanggil di dalam transaksi pemanggil. Return TRUE / FALSE.
+     */
+    public function replace_draft_journal($header_id, $header_data, $details_data)
+    {
+        $cur = $this->db->select('id, status')->where('id', (int) $header_id)->get('journal_header')->row();
+        if (!$cur || $cur->status !== 'Draft') return false;
+
+        unset($header_data['journal_no'], $header_data['created_by'], $header_data['created_at']);
+        $header_data['status'] = 'Draft';
+        $this->db->where('id', (int) $header_id)->update('journal_header', $header_data);
+
+        $this->db->delete('journal_details', ['journal_header_id' => (int) $header_id]);
+        $rate = (float) ($header_data['exchange_rate'] ?? 1);
+        foreach ($details_data as $detail) {
+            if (empty($detail['account_id']) || ((float) $detail['debit'] <= 0 && (float) $detail['kredit'] <= 0)) continue;
+            $detail['journal_header_id'] = (int) $header_id;
+            $detail['debit_local']  = (float) $detail['debit'] * $rate;
+            $detail['kredit_local'] = (float) $detail['kredit'] * $rate;
+            if (!isset($detail['is_ppn_line'])) $detail['is_ppn_line'] = 0;
+            if (!isset($detail['is_wht_line'])) $detail['is_wht_line'] = 0;
+            $this->db->insert('journal_details', $detail);
+        }
+        return true;
     }
     
     public function process_import_data($sheet_data)
