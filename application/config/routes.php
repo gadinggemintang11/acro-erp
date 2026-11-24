@@ -266,3 +266,25 @@ $route['api/approvals/pending'] = 'api/approvals/pending';
 $route['api/approvals/(:any)/(:num)/approve'] = 'api/approvals/approve_doc/$1/$2';
 $route['api/approvals/(:any)/(:num)/reject'] = 'api/approvals/reject_doc/$1/$2';
 $route['api/approvals/(:any)/(:num)'] = 'api/approvals/detail/$1/$2';
+
+// ===== Controller ber-nama campuran huruf besar/kecil =====
+// URL huruf kecil (mis. apinvoice/ajax_get_po_lines) membuat CI mencari file
+// "Apinvoice.php". Di macOS (filesystem tidak peka huruf) file ApInvoice.php
+// tetap ketemu, tapi di server Linux hasilnya 404. Route pelengkap di bawah
+// memetakan SEMUA method yang belum punya route eksplisit di atas (route di
+// atas tetap didahulukan karena dicek lebih dulu). Controller baru yang
+// namanya campuran huruf besar/kecil: tambahkan ke daftar ini.
+foreach ([
+    'ApInvoice', 'ApPayment', 'ArInvoice', 'ArReceipt', 'BeaCukai', 'CashBank',
+    'JurnalUmum', 'YearEndClosing', 'SettingAkun', 'StockOpname', 'ProdReturn',
+    'LapMutasiFinished', 'LapMutasiMaterial', 'LapMutasiMesin', 'LapMutasiScrap',
+    'LapMutasiWIP', 'LapPemasukanBB', 'LapPengeluaranBarang',
+    'QC_production', 'Scrap_In', 'Scrap_Out', 'Scrap_Stock',
+] as $__ctrl) {
+    $__url = strtolower($__ctrl);
+    if (!isset($route[$__url])) {
+        $route[$__url] = $__ctrl . '/index';
+    }
+    $route[$__url . '/(.+)'] = $__ctrl . '/$1';
+}
+unset($__ctrl, $__url);
