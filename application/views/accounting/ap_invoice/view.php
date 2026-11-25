@@ -143,6 +143,10 @@
                                     <td>
                                         <?= $d->account_id ? "({$d->account_code}) {$d->account_name}" : $d->description; ?>
                                         <?= $d->account_id ? "<br><small class='text-muted'>Ket: {$d->description}</small>" : ''; ?>
+                                        <?php if (!empty($d->is_extra_cost)): ?>
+                                            <br><span class="badge badge-info"><?= lang_line('apinv_extra_badge', 'Biaya tambahan'); ?></span>
+                                            <?php if (!empty($d->ppn_exempt)): ?><span class="badge badge-secondary"><?= lang_line('apinv_extra_no_ppn', 'tanpa PPN'); ?></span><?php endif; ?>
+                                        <?php endif; ?>
                                     </td>
                                     <td class="text-right"><?= number_format((float)$d->qty, 2); ?></td>
                                     <td class="text-right"><?= number_format($d->unit_price, 2); ?></td>

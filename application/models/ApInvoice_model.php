@@ -268,6 +268,9 @@ class ApInvoice_model extends CI_Model {
             if (count(array_unique($po_ids)) === 1) $po_header_id = (int) reset($po_ids);
         }
 
+        // Biaya tambahan di luar PO/GRN (mis. biaya kirim) -- divalidasi sebelum transaksi.
+        $extra_rows = ($invoice_type !== 'NON_GRN') ? $this->_build_extra_rows($post_data['extras'] ?? []) : [];
+
         $this->db->trans_start();
         $ppn_rate = (float) ($post_data['ppn_rate'] ?? 0);
         $pph_rate = (float) ($post_data['pph_rate'] ?? 0);
@@ -309,9 +312,10 @@ class ApInvoice_model extends CI_Model {
             $detail_batch[] = $detail_data;
         }
 
-        $ppn_amount = $subtotal * ($ppn_rate / 100);
-        $pph_amount = $subtotal * ($pph_rate / 100);
-        $total_invoice = ($subtotal + $ppn_amount) - $pph_amount;
+        foreach ($extra_rows as $x) $detail_batch[] = $x;
+        // PPN hanya dari baris yang ikut PPN (baris biaya tambahan bisa dikecualikan).
+        list($subtotal, $ppn_amount, $pph_amount, $total_invoice) = $this->_invoice_totals($detail_batch, $ppn_rate, $pph_rate);
+        $detail_batch = $this->_uniform_rows($detail_batch);
 
         $header_data = [
             'invoice_no' => $post_data['invoice_no'],
@@ -456,14 +460,100 @@ class ApInvoice_model extends CI_Model {
         return $ap;
     }
 
-    /** Tarif PPN / PPh tersimpan (header hanya menyimpan nominal). */
+    /** Tarif PPN / PPh tersimpan (header hanya menyimpan nominal). PPN dari dasar kena PPN. */
     public function stored_tax_rates($ap)
     {
         $sub = (float) $ap->subtotal;
+        $exempt = 0;
+        if ($this->extras_supported()) {
+            $exempt = (float) $this->db->select_sum('total_price', 's')->where('ap_invoice_header_id', (int) $ap->id)
+                ->where('ppn_exempt', 1)->get('ap_invoice_details')->row('s');
+        }
+        $taxable = $sub - $exempt;
         return [
-            'ppn' => $sub > 0 ? round((float) $ap->ppn_amount / $sub * 100, 2) : 0,
+            'ppn' => $taxable > 0 ? round((float) $ap->ppn_amount / $taxable * 100, 2) : 0,
             'pph' => $sub > 0 ? round((float) $ap->pph_amount / $sub * 100, 2) : 0,
         ];
+    }
+
+    /**
+     * ======================================
+     * BIAYA TAMBAHAN (mis. biaya kirim di luar PO)
+     * ======================================
+     * Baris faktur tanpa PO/GRN: akun + keterangan + nominal (qty 1), boleh tidak
+     * ikut PPN. Dijurnal Dr akun baris itu (default Setting Akun
+     * `akun_biaya_kirim_pembelian`), masuk total Hutang Dagang.
+     */
+    public function extras_supported()
+    {
+        return db_has_column('ap_invoice_details', 'is_extra_cost') && db_has_column('ap_invoice_details', 'ppn_exempt');
+    }
+
+    /** Akun default baris biaya tambahan (Setting Akun), null bila belum diset. */
+    public function default_extra_account_id()
+    {
+        $this->load->model('SettingAkun_model');
+        return $this->SettingAkun_model->get_account_id('akun_biaya_kirim_pembelian', 'IDR');
+    }
+
+    /** Baris biaya tambahan dari form (extras[...][account_id|description|amount|ppn|remove]). */
+    private function _build_extra_rows($extras)
+    {
+        $rows = [];
+        foreach ((array) $extras as $x) {
+            if (!is_array($x) || !empty($x['remove'])) continue;
+            $amount = round((float) ($x['amount'] ?? 0), 2);
+            $desc   = trim((string) ($x['description'] ?? ''));
+            $acc    = (int) ($x['account_id'] ?? 0);
+            if ($amount == 0 && $desc === '') continue; // baris kosong diabaikan
+            if (!$this->extras_supported()) {
+                throw new Exception('Fitur biaya tambahan belum aktif: jalankan migrasi migration_ap_invoice_biaya_tambahan.sql.');
+            }
+            if ($amount <= 0) throw new Exception('Nominal biaya tambahan harus lebih dari 0' . ($desc !== '' ? " ({$desc})" : '') . '.');
+            $ok = $acc > 0 && $this->db->where('id', $acc)->where('status', 'active')->where('is_header', 0)->count_all_results('chart_of_accounts') > 0;
+            if (!$ok) throw new Exception('Akun biaya tambahan wajib dipilih (akun detail yang aktif)' . ($desc !== '' ? " ({$desc})" : '') . '.');
+            $rows[] = [
+                'description' => $desc !== '' ? mb_substr($desc, 0, 255) : 'Biaya tambahan',
+                'qty' => 1, 'unit_price' => $amount, 'total_price' => $amount,
+                'account_id' => $acc, 'debet_account_id' => $acc,
+                'is_extra_cost' => 1, 'ppn_exempt' => empty($x['ppn']) ? 1 : 0,
+            ];
+        }
+        return $rows;
+    }
+
+    /** Samakan kunci semua baris (insert_batch CI3 menolak baris dengan kunci berbeda). */
+    private function _uniform_rows(array $rows)
+    {
+        $keys = ['description', 'qty', 'unit_price', 'total_price', 'po_detail_id', 'grn_detail_id',
+                 'item_id', 'item_type', 'debet_account_id', 'kredit_account_id', 'account_id'];
+        $defaults = [];
+        if ($this->extras_supported()) {
+            $keys[] = 'is_extra_cost'; $keys[] = 'ppn_exempt';
+            $defaults = ['is_extra_cost' => 0, 'ppn_exempt' => 0];
+        }
+        $out = [];
+        foreach ($rows as $r) {
+            $n = [];
+            foreach ($keys as $k) $n[$k] = array_key_exists($k, $r) ? $r[$k] : ($defaults[$k] ?? null);
+            if (array_key_exists('ap_invoice_header_id', $r)) $n['ap_invoice_header_id'] = $r['ap_invoice_header_id'];
+            $out[] = $n;
+        }
+        return $out;
+    }
+
+    /** [subtotal, ppn, pph, total]. PPN hanya dari baris yang tidak ppn_exempt; PPh dari subtotal. */
+    private function _invoice_totals(array $rows, $ppn_rate, $pph_rate)
+    {
+        $sub = 0; $taxable = 0;
+        foreach ($rows as $r) {
+            $t = (float) $r['total_price'];
+            $sub += $t;
+            if (empty($r['ppn_exempt'])) $taxable += $t;
+        }
+        $ppn = round($taxable * (float) $ppn_rate / 100, 2);
+        $pph = round($sub * (float) $pph_rate / 100, 2);
+        return [round($sub, 2), $ppn, $pph, round($sub + $ppn - $pph, 2)];
     }
 
     /**
@@ -497,6 +587,7 @@ class ApInvoice_model extends CI_Model {
         foreach ((array) ($post['details'] ?? []) as $key => $p) {
             if (!empty($p['remove'])) continue;
             $old = (ctype_digit((string) $key) && isset($existing[(int) $key])) ? $existing[(int) $key] : null;
+            if ($old && !empty($old->is_extra_cost)) continue; // biaya tambahan dikirim lewat extras[]
             if ($type !== 'NON_GRN' && !$old) continue; // baris PO/GRN hanya dari data tersimpan
             $qty  = round((float) ($p['qty'] ?? 0), 4);
             $desc = trim((string) ($p['description'] ?? ($old->description ?? '')));
@@ -561,14 +652,16 @@ class ApInvoice_model extends CI_Model {
             $grn_ids = json_encode(array_values(array_map(function ($r) { return (string) $r->grn_header_id; }, $hdr)));
         }
 
-        $subtotal = 0;
         foreach ($rows as $k => $r) {
             $rows[$k]['total_price'] = round($r['qty'] * (float) $r['unit_price'], 2);
-            $rows[$k]['ap_invoice_header_id'] = (int) $id;
-            $subtotal += $rows[$k]['total_price'];
         }
-        $ppn_amount = round($subtotal * $ppn_rate / 100, 2);
-        $pph_amount = round($subtotal * $pph_rate / 100, 2);
+        // Biaya tambahan (mis. biaya kirim) -- hanya faktur Berdasarkan PO / GRN.
+        if ($type !== 'NON_GRN') {
+            foreach ($this->_build_extra_rows($post['extras'] ?? []) as $x) $rows[] = $x;
+        }
+        foreach ($rows as $k => $r) $rows[$k]['ap_invoice_header_id'] = (int) $id;
+        list($subtotal, $ppn_amount, $pph_amount, $total_invoice) = $this->_invoice_totals($rows, $ppn_rate, $pph_rate);
+        $rows = $this->_uniform_rows($rows);
 
         $this->db->trans_start();
         $this->db->where('id', (int) $id)->where('status', 'Draft')->update('ap_invoice_header', [
@@ -577,10 +670,10 @@ class ApInvoice_model extends CI_Model {
             'due_date'      => $post['due_date'],
             'grn_ids'       => ($type === 'GRN_BASED') ? $grn_ids : $ap->grn_ids,
             'po_header_id'  => ($type === 'PO_BASED') ? $po_header_id : $ap->po_header_id,
-            'subtotal'      => round($subtotal, 2),
+            'subtotal'      => $subtotal,
             'ppn_amount'    => $ppn_amount,
             'pph_amount'    => $pph_amount,
-            'total_invoice' => round($subtotal + $ppn_amount - $pph_amount, 2),
+            'total_invoice' => $total_invoice,
         ]);
         $this->db->where('ap_invoice_header_id', (int) $id)->delete('ap_invoice_details');
         $this->db->insert_batch('ap_invoice_details', $rows);

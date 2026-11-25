@@ -53,6 +53,9 @@ class ApInvoice extends MY_Controller {
         // ✨ NEW: Ambil list akun untuk pilihan pajak (PPN & PPh)
         $data['ppn_accounts'] = $this->model->get_ppn_accounts();
         $data['pph_accounts'] = $this->model->get_pph_accounts();
+        // Biaya tambahan (mis. biaya kirim di luar PO) -- aktif setelah migrasi.
+        $data['extras_supported']   = $this->model->extras_supported();
+        $data['default_extra_acct'] = $data['extras_supported'] ? $this->model->default_extra_account_id() : null;
         
         $this->load->view('templates/header', $data);
         $this->load->view('templates/sidebar', $data);
@@ -223,7 +226,12 @@ class ApInvoice extends MY_Controller {
             redirect('apinvoice/view/' . $id);
             return;
         }
-        $details = $this->model->get_invoice_details_by_header_id($id);
+        $all_details = $this->model->get_invoice_details_by_header_id($id);
+        // Baris biaya tambahan (mis. biaya kirim) dipisah dari baris barang PO/GRN.
+        $details = []; $extras = [];
+        foreach ($all_details as $d) {
+            if (!empty($d->is_extra_cost) && $header->invoice_type !== 'NON_GRN') $extras[] = $d; else $details[] = $d;
+        }
 
         // Qty maksimal per baris: PO = sisa bisa ditagih (faktur ini dikecualikan); GRN = qty awal.
         $max_qty = [];
@@ -241,6 +249,9 @@ class ApInvoice extends MY_Controller {
             'title'           => 'Edit Faktur Supplier: ' . $header->invoice_no,
             'header'          => $header,
             'details'         => $details,
+            'extras'          => $extras,
+            'extras_supported'   => $this->model->extras_supported(),
+            'default_extra_acct' => $this->model->extras_supported() ? $this->model->default_extra_account_id() : null,
             'max_qty'         => $max_qty,
             'rates'           => $this->model->stored_tax_rates($header),
             'debet_accounts'  => $this->model->get_debet_accounts(),

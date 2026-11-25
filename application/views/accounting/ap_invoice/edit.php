@@ -136,6 +136,45 @@ $fmt_qty = function ($v) { return rtrim(rtrim(number_format((float) $v, 4, '.', 
             </div>
         </div>
 
+        <?php if (!$is_non && !empty($extras_supported)): ?>
+        <div class="card shadow mb-4">
+            <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="m-0 font-weight-bold text-primary"><?= lang_line('apinv_extra_title', 'Biaya Tambahan (di luar PO)'); ?></h6>
+                    <small class="text-muted"><?= lang_line('apinv_extra_note', 'Mis. biaya kirim yang ditagih supplier tapi tidak ada di PO. Dijurnal ke akun yang dipilih dan masuk total Hutang Dagang. Hapus centang "Kena PPN" bila biaya ini tidak dikenai PPN.'); ?></small>
+                </div>
+                <button type="button" id="add-extra" class="btn btn-primary btn-sm"><i class="fas fa-plus"></i> <?= lang_line('apinv_extra_add', 'Tambah Biaya'); ?></button>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-sm mb-0">
+                        <thead class="thead-light">
+                            <tr>
+                                <th style="width:32%"><?= lang_line('apinv_extra_account', 'Akun'); ?></th>
+                                <th><?= lang_line('apinv_extra_desc', 'Keterangan'); ?></th>
+                                <th style="width:18%" class="text-right"><?= lang_line('apinv_extra_amount', 'Nominal'); ?></th>
+                                <th style="width:10%" class="text-center"><?= lang_line('apinv_extra_ppn', 'Kena PPN'); ?></th>
+                                <th style="width:6%"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="extra-body">
+                            <?php foreach (($extras ?? []) as $x): $xk = 'e' . (int) $x->id; ?>
+                            <tr class="extra-row">
+                                <td><select name="extras[<?= $xk; ?>][account_id]" class="form-control form-control-sm acc-select" required>
+                                    <option value="">-- Pilih --</option><?= $acc_options($debet_accounts, $x->debet_account_id ?: $x->account_id); ?></select></td>
+                                <td><input type="text" name="extras[<?= $xk; ?>][description]" class="form-control form-control-sm" value="<?= htmlspecialchars($x->description); ?>" required></td>
+                                <td><input type="number" name="extras[<?= $xk; ?>][amount]" class="form-control form-control-sm text-right extra-amount" value="<?= (float) $x->total_price; ?>" min="0" step="0.01" required></td>
+                                <td class="text-center align-middle"><input type="checkbox" name="extras[<?= $xk; ?>][ppn]" value="1" class="extra-ppn" <?= empty($x->ppn_exempt) ? 'checked' : ''; ?>></td>
+                                <td class="text-center"><button type="button" class="btn btn-danger btn-sm btn-del-extra" title="Hapus biaya"><i class="fas fa-trash"></i></button></td>
+                            </tr>
+                            <?php endforeach; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <div class="card shadow mb-4">
             <div class="card-body">
                 <div class="row justify-content-end">
@@ -172,6 +211,19 @@ $fmt_qty = function ($v) { return rtrim(rtrim(number_format((float) $v, 4, '.', 
 </template>
 <?php endif; ?>
 
+<?php if (!$is_non && !empty($extras_supported)): ?>
+<template id="extra-row-tpl">
+    <tr class="extra-row">
+        <td><select name="extras[__X__][account_id]" class="form-control form-control-sm acc-select" required>
+            <option value="">-- Pilih --</option><?= $acc_options($debet_accounts, $default_extra_acct ?? 0); ?></select></td>
+        <td><input type="text" name="extras[__X__][description]" class="form-control form-control-sm" value="<?= htmlspecialchars(lang_line('apinv_extra_default_desc', 'Biaya kirim')); ?>" required></td>
+        <td><input type="number" name="extras[__X__][amount]" class="form-control form-control-sm text-right extra-amount" value="0" min="0" step="0.01" required></td>
+        <td class="text-center align-middle"><input type="checkbox" name="extras[__X__][ppn]" value="1" class="extra-ppn" checked></td>
+        <td class="text-center"><button type="button" class="btn btn-danger btn-sm btn-del-extra" title="Hapus biaya"><i class="fas fa-trash"></i></button></td>
+    </tr>
+</template>
+<?php endif; ?>
+
 <script>
 $(function () {
     var fmt = function (n) { return (Math.round(n * 100) / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }); };
@@ -189,7 +241,14 @@ $(function () {
             $r.find('input:not(.remove-line), select').prop('disabled', removed);
             if (!removed) sub += Math.round(t * 100) / 100;
         });
-        var ppn = sub * (parseFloat($('#ppn_rate').val()) || 0) / 100;
+        // Biaya tambahan: masuk subtotal; ikut dasar PPN hanya bila dicentang.
+        var taxable = sub;
+        $('#extra-body .extra-row').each(function () {
+            var amt = parseFloat($(this).find('.extra-amount').val()) || 0;
+            sub += Math.round(amt * 100) / 100;
+            if ($(this).find('.extra-ppn').is(':checked')) taxable += Math.round(amt * 100) / 100;
+        });
+        var ppn = taxable * (parseFloat($('#ppn_rate').val()) || 0) / 100;
         var pph = sub * (parseFloat($('#pph_rate').val()) || 0) / 100;
         $('#t-subtotal').text(fmt(sub));
         $('#t-ppn').text(fmt(ppn));
@@ -207,6 +266,15 @@ $(function () {
         calc();
     });
     $('#lines-body').on('click', '.btn-del-new', function () { $(this).closest('tr').remove(); calc(); });
+
+    var extraIdx = 0;
+    $('#add-extra').on('click', function () {
+        var $row = $(document.getElementById('extra-row-tpl').innerHTML.replace(/__X__/g, 'n' + (extraIdx++))).appendTo('#extra-body');
+        initSelect($row);
+        calc();
+    });
+    $('#extra-body').on('click', '.btn-del-extra', function () { $(this).closest('tr').remove(); calc(); });
+    $('#extra-body').on('input change', '.extra-amount, .extra-ppn', calc);
 
     $('#ap-edit-form').on('submit', function () {
         if ($('#lines-body .line-row').filter(function () { return !$(this).find('.remove-line').is(':checked'); }).length === 0) {

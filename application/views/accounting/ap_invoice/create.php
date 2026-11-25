@@ -140,6 +140,35 @@
             </div>
         </div>
 
+        <!-- Biaya tambahan di luar PO/GRN (mis. biaya kirim) -- 2026-11-25 -->
+        <?php if (!empty($extras_supported)): ?>
+        <div class="card shadow mb-4" id="detail-extra-card" style="display: none;">
+            <div class="card-header py-3 d-flex justify-content-between align-items-center">
+                <div>
+                    <h6 class="m-0 font-weight-bold text-primary"><?= lang_line('apinv_extra_title', 'Biaya Tambahan (di luar PO)'); ?></h6>
+                    <small class="text-muted d-block mt-1"><?= lang_line('apinv_extra_note', 'Mis. biaya kirim yang ditagih supplier tapi tidak ada di PO. Dijurnal ke akun yang dipilih dan masuk total Hutang Dagang. Hapus centang "Kena PPN" bila biaya ini tidak dikenai PPN.'); ?></small>
+                </div>
+                <button type="button" id="add-row-extra" class="btn btn-primary btn-sm"><i class="fas fa-plus"></i> <?= lang_line('apinv_extra_add', 'Tambah Biaya'); ?></button>
+            </div>
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table class="table table-bordered table-sm mb-0">
+                        <thead class="thead-light">
+                            <tr>
+                                <th style="width: 32%;"><?= lang_line('apinv_extra_account', 'Akun'); ?></th>
+                                <th><?= lang_line('apinv_extra_desc', 'Keterangan'); ?></th>
+                                <th style="width: 18%;"><?= lang_line('apinv_extra_amount', 'Nominal'); ?></th>
+                                <th style="width: 10%;" class="text-center"><?= lang_line('apinv_extra_ppn', 'Kena PPN'); ?></th>
+                                <th style="width: 5%;"></th>
+                            </tr>
+                        </thead>
+                        <tbody id="detail-body-extra"></tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+        <?php endif; ?>
+
         <!-- Jasa / Non-GRN -->
         <div class="card shadow mb-4" id="detail-jasa-card" style="display: none;">
             <div class="card-header py-3 d-flex justify-content-between align-items-center">
@@ -205,6 +234,25 @@
     </form>
 </div>
 
+<?php if (!empty($extras_supported)): ?>
+<template id="template-extra-row">
+    <tr>
+        <td>
+            <select name="extras[__I__][account_id]" class="form-control form-control-sm extra-account" required>
+                <option value="">-- <?= lang_line('text_select_item', 'Pilih'); ?> --</option>
+                <?php foreach ($debet_accounts as $acc): ?>
+                    <option value="<?= $acc->id; ?>" <?= ((int) $acc->id === (int) ($default_extra_acct ?? 0)) ? 'selected' : ''; ?>><?= $acc->account_code; ?> - <?= htmlspecialchars($acc->account_name); ?></option>
+                <?php endforeach; ?>
+            </select>
+        </td>
+        <td><input type="text" name="extras[__I__][description]" class="form-control form-control-sm" value="<?= htmlspecialchars(lang_line('apinv_extra_default_desc', 'Biaya kirim')); ?>" required></td>
+        <td><input type="number" name="extras[__I__][amount]" class="form-control form-control-sm text-right extra-amount" value="0" min="0" step="0.01" required></td>
+        <td class="text-center align-middle"><input type="checkbox" name="extras[__I__][ppn]" value="1" class="extra-ppn" checked></td>
+        <td><button type="button" class="btn btn-danger btn-sm remove-extra"><i class="fas fa-trash"></i></button></td>
+    </tr>
+</template>
+<?php endif; ?>
+
 <template id="template-jasa-row">
     <tr>
         <td>
@@ -245,6 +293,10 @@ $(function() {
         const type = $(this).val();
         resetTotals();
         $('#detail-po-card').toggle(type === 'PO_BASED');
+        // Biaya tambahan hanya utk faktur Berdasarkan PO / GRN (Non-GRN sudah bebas tambah baris).
+        const withExtra = (type === 'PO_BASED' || type === 'GRN_BASED');
+        $('#detail-extra-card').toggle(withExtra);
+        if (!withExtra) $('#detail-body-extra').empty();
         if (type === 'PO_BASED') {
             $('#detail-grn-card, #detail-jasa-card').hide();
             $('#pph_rate').val(0).prop('readonly', false);
@@ -385,7 +437,7 @@ $(function() {
 
     // Inisialisasi Select2 untuk dropdown akun (debet/kredit/COA) yang baru ditambahkan
     function initAccountSelect2($scope) {
-        $scope.find('select.debet-account, select.kredit-account, select.jasa-account').each(function() {
+        $scope.find('select.debet-account, select.kredit-account, select.jasa-account, select.extra-account').each(function() {
             if ($(this).hasClass('select2-hidden-accessible')) return; // sudah diinit
             $(this).select2({
                 width: '100%',
@@ -410,6 +462,17 @@ $(function() {
     });
 
     $('#detail-body-jasa').on('input', '.qty-jasa, .price-jasa', calculateTotal);
+
+    let extraRowIndex = 0;
+    $('#add-row-extra').click(function() {
+        const $row = $($('#template-extra-row').html().replace(/__I__/g, extraRowIndex++));
+        $('#detail-body-extra').append($row);
+        initAccountSelect2($row);
+        $row.find('.extra-amount').focus().select();
+        calculateTotal();
+    });
+    $('#detail-body-extra').on('click', '.remove-extra', function() { $(this).closest('tr').remove(); calculateTotal(); });
+    $('#detail-body-extra').on('input change', '.extra-amount, .extra-ppn', calculateTotal);
     $('#ppn_rate, #pph_rate').on('input', calculateTotal);
 
     function resetTotals() {
@@ -438,10 +501,20 @@ $(function() {
             });
         }
 
+        // Biaya tambahan (PO/GRN): masuk subtotal; ikut dasar PPN hanya bila dicentang.
+        let taxable = subtotal;
+        if (type === 'PO_BASED' || type === 'GRN_BASED') {
+            $('#detail-body-extra tr').each(function() {
+                const amt = parseFloat($(this).find('.extra-amount').val()) || 0;
+                subtotal += amt;
+                if ($(this).find('.extra-ppn').is(':checked')) taxable += amt;
+            });
+        }
+
         const ppnRate = parseFloat($('#ppn_rate').val()) || 0;
         const pphRate = parseFloat($('#pph_rate').val()) || 0;
 
-        const ppn = subtotal * (ppnRate / 100);
+        const ppn = taxable * (ppnRate / 100);
         const pph = subtotal * (pphRate / 100);
         const total = subtotal + ppn - pph;
 
