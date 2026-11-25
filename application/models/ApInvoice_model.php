@@ -186,8 +186,10 @@ class ApInvoice_model extends CI_Model {
             }
         }
         $left = [];
+        $po_status = [];
         if ($po_ids) {
-            foreach ($this->Ap_auto_model->po_line_status($po_ids) as $pdid => $st) $left[$pdid] = $st->remaining_qty;
+            $po_status = $this->Ap_auto_model->po_line_status($po_ids);
+            foreach ($po_status as $pdid => $st) $left[$pdid] = $st->remaining_qty;
         }
         // Sisa tagihan per baris PO dialokasikan ke penerimaan TERBARU dulu (tagihan
         // lain -- AP berbasis PO / Payment Request -- dianggap melunasi penerimaan
@@ -220,6 +222,10 @@ class ApInvoice_model extends CI_Model {
             }
             $acc = $this->Ap_auto_model->resolve_item_account($r->item_type, $r->item_id);
             $r->default_account_id = $acc['account_id'];
+            // PPN mengikuti PO baris GRN ini (GRN impor/MIR: tanpa PPN).
+            $st = ($r->source_doc_type === 'PO') ? ($po_status[(int) $r->source_doc_detail_id] ?? null) : null;
+            $r->ppn_applied = $st ? (bool) $st->ppn_applied : false;
+            $r->ppn_rate    = $st && $st->ppn_applied ? (float) $st->ppn_rate : 0;
             $out[] = $r;
         }
         return $out;
@@ -313,6 +319,10 @@ class ApInvoice_model extends CI_Model {
         }
 
         foreach ($extra_rows as $x) $detail_batch[] = $x;
+        // Faktur Berdasarkan PO / GRN: tarif & dasar PPN diambil dari PO (isian form diabaikan).
+        if ($invoice_type === 'PO_BASED' || $invoice_type === 'GRN_BASED') {
+            $ppn_rate = $this->_apply_po_ppn($detail_batch, $invoice_type);
+        }
         // PPN hanya dari baris yang ikut PPN (baris biaya tambahan bisa dikecualikan).
         list($subtotal, $ppn_amount, $pph_amount, $total_invoice) = $this->_invoice_totals($detail_batch, $ppn_rate, $pph_rate);
         $detail_batch = $this->_uniform_rows($detail_batch);
@@ -522,6 +532,60 @@ class ApInvoice_model extends CI_Model {
         return $rows;
     }
 
+    /**
+     * PPN faktur Berdasarkan PO / GRN mengikuti PO, BUKAN isian user:
+     * baris dari PO ber-PPN ikut dasar PPN; baris dari PO tanpa PPN atau GRN impor
+     * (MIR -- PPN impor dibayar lewat bea cukai) ditandai ppn_exempt. Baris biaya
+     * tambahan memakai centang "Kena PPN"-nya sendiri. Satu faktur hanya satu tarif.
+     * Return tarif PPN faktur (0 bila tidak ada baris ber-PPN).
+     */
+    private function _apply_po_ppn(array &$rows, $type)
+    {
+        $pd_by_row = []; // index baris => po_detail_id (0 = bukan dari PO)
+        if ($type === 'PO_BASED') {
+            foreach ($rows as $k => $r) {
+                if (empty($r['is_extra_cost'])) $pd_by_row[$k] = (int) ($r['po_detail_id'] ?? 0);
+            }
+        } elseif ($type === 'GRN_BASED') {
+            $gd = [];
+            foreach ($rows as $k => $r) {
+                if (empty($r['is_extra_cost'])) $gd[$k] = (int) ($r['grn_detail_id'] ?? 0);
+            }
+            $map = [];
+            $ids = array_values(array_filter(array_unique($gd)));
+            if ($ids) {
+                foreach ($this->db->select('id, source_doc_type, source_doc_detail_id')->where_in('id', $ids)->get('grn_details')->result() as $g) {
+                    if ($g->source_doc_type === 'PO') $map[(int) $g->id] = (int) $g->source_doc_detail_id;
+                }
+            }
+            foreach ($gd as $k => $gid) $pd_by_row[$k] = $map[$gid] ?? 0;
+        }
+
+        $po_rate = [];
+        $pdids = array_values(array_filter(array_unique($pd_by_row)));
+        if ($pdids) {
+            foreach ($this->db->select('pd.id, h.has_ppn, h.ppn_rate')->from('po_details pd')
+                         ->join('po_header h', 'h.id = pd.po_header_id')->where_in('pd.id', $pdids)->get()->result() as $p) {
+                $po_rate[(int) $p->id] = (!empty($p->has_ppn) && (float) $p->ppn_rate > 0) ? (float) $p->ppn_rate : 0.0;
+            }
+        }
+
+        $rates = []; $any_exempt = false;
+        foreach ($pd_by_row as $k => $pdid) {
+            $rate = $po_rate[$pdid] ?? 0.0;
+            if ($rate > 0) { $rates[(string) $rate] = $rate; $rows[$k]['ppn_exempt'] = 0; }
+            else { $rows[$k]['ppn_exempt'] = 1; $any_exempt = true; }
+        }
+        if (count($rates) > 1) {
+            throw new Exception('Baris faktur berasal dari PO dengan tarif PPN berbeda (' . implode('% & ', array_keys($rates)) . '%). Pisahkan menjadi faktur terpisah per tarif PPN.');
+        }
+        $rate = $rates ? reset($rates) : 0.0;
+        if ($rate > 0 && $any_exempt && !$this->extras_supported()) {
+            throw new Exception('Faktur mencampur baris PO ber-PPN dan tanpa PPN. Jalankan migrasi migration_ap_invoice_biaya_tambahan.sql, atau pisahkan fakturnya.');
+        }
+        return $rate;
+    }
+
     /** Samakan kunci semua baris (insert_batch CI3 menolak baris dengan kunci berbeda). */
     private function _uniform_rows(array $rows)
     {
@@ -660,6 +724,10 @@ class ApInvoice_model extends CI_Model {
             foreach ($this->_build_extra_rows($post['extras'] ?? []) as $x) $rows[] = $x;
         }
         foreach ($rows as $k => $r) $rows[$k]['ap_invoice_header_id'] = (int) $id;
+        // Faktur Berdasarkan PO / GRN: tarif & dasar PPN diambil dari PO (isian form diabaikan).
+        if ($type === 'PO_BASED' || $type === 'GRN_BASED') {
+            $ppn_rate = $this->_apply_po_ppn($rows, $type);
+        }
         list($subtotal, $ppn_amount, $pph_amount, $total_invoice) = $this->_invoice_totals($rows, $ppn_rate, $pph_rate);
         $rows = $this->_uniform_rows($rows);
 

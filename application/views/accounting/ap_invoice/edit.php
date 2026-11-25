@@ -57,7 +57,8 @@ $fmt_qty = function ($v) { return rtrim(rtrim(number_format((float) $v, 4, '.', 
                     </div>
                     <div class="col-md-3 form-group">
                         <label><?= lang_line('apinv_label_ppn_rate', 'PPN (%)'); ?></label>
-                        <input type="number" id="ppn_rate" name="ppn_rate" class="form-control" value="<?= $rates['ppn']; ?>" min="0" max="100" step="0.01">
+                        <input type="number" id="ppn_rate" name="ppn_rate" class="form-control" value="<?= $rates['ppn']; ?>" min="0" max="100" step="0.01" <?= $is_non ? '' : 'readonly'; ?>>
+                        <?php if (!$is_non): ?><small class="form-text text-muted"><?= lang_line('apinv_ppn_from_po', 'PPN otomatis mengikuti PO.'); ?></small><?php endif; ?>
                     </div>
                     <div class="col-md-3 form-group">
                         <label><?= lang_line('apinv_label_pph_rate', 'Potong PPh 23 (%)'); ?></label>
@@ -103,12 +104,13 @@ $fmt_qty = function ($v) { return rtrim(rtrim(number_format((float) $v, 4, '.', 
                         </thead>
                         <tbody id="lines-body">
                             <?php foreach ($details as $d): $k = (int) $d->id; $max = $max_qty[$k] ?? null; ?>
-                            <tr class="line-row">
+                            <tr class="line-row" data-ppn="<?= ($is_non || empty($d->ppn_exempt)) ? 1 : 0; ?>">
                                 <?php if ($is_non): ?>
                                 <td><select name="details[<?= $k; ?>][account_id]" class="form-control form-control-sm acc-select" required>
                                     <option value="">-- Pilih --</option><?= $acc_options($accounts, $d->account_id); ?></select></td>
                                 <?php endif; ?>
-                                <td><input type="text" name="details[<?= $k; ?>][description]" class="form-control form-control-sm" value="<?= htmlspecialchars($d->description); ?>" required></td>
+                                <td><input type="text" name="details[<?= $k; ?>][description]" class="form-control form-control-sm" value="<?= htmlspecialchars($d->description); ?>" required>
+                                    <?php if (!$is_non && !empty($d->ppn_exempt)): ?><span class="badge badge-secondary"><?= lang_line('apinv_badge_no_ppn', 'tanpa PPN'); ?></span><?php endif; ?></td>
                                 <td>
                                     <input type="number" name="details[<?= $k; ?>][qty]" class="form-control form-control-sm text-right qty"
                                            value="<?= $fmt_qty($d->qty); ?>" min="0.0001" step="any" <?= $max !== null ? 'max="' . $fmt_qty($max) . '"' : ''; ?> required>
@@ -231,7 +233,7 @@ $(function () {
         if ($.fn.select2) $ctx.find('.acc-select').select2({ width: '100%', placeholder: '-- Pilih --' });
     }
     function calc() {
-        var sub = 0;
+        var sub = 0, taxItems = 0;
         $('#lines-body .line-row').each(function () {
             var $r = $(this);
             var removed = $r.find('.remove-line').is(':checked');
@@ -240,9 +242,11 @@ $(function () {
             $r.toggleClass('text-muted', removed).css('text-decoration', removed ? 'line-through' : '');
             $r.find('input:not(.remove-line), select').prop('disabled', removed);
             if (!removed) sub += Math.round(t * 100) / 100;
+            // Dasar PPN: baris dari PO tanpa PPN (data-ppn=0) tidak ikut.
+            if (!removed && String($r.attr('data-ppn')) !== '0') taxItems += Math.round(t * 100) / 100;
         });
         // Biaya tambahan: masuk subtotal; ikut dasar PPN hanya bila dicentang.
-        var taxable = sub;
+        var taxable = taxItems;
         $('#extra-body .extra-row').each(function () {
             var amt = parseFloat($(this).find('.extra-amount').val()) || 0;
             sub += Math.round(amt * 100) / 100;

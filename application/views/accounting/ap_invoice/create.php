@@ -63,6 +63,7 @@
                         <div class="form-group">
                             <label><?= lang_line('apinv_label_ppn_rate'); ?></label>
                             <input type="number" id="ppn_rate" name="ppn_rate" class="form-control" value="0" step="0.01">
+                            <small id="ppn_hint" class="form-text text-muted"></small>
                         </div>
                     </div>
                     <div class="col-md-3">
@@ -279,7 +280,13 @@ const I18N_APINV = {
     failed_load_grn:      <?= json_encode(lang_line('acct_failed_load_grn')); ?>,
     alert_select_grn_first:<?= json_encode(lang_line('acct_alert_select_grn_first')); ?>,
     select_short:         <?= json_encode('-- '. lang_line('text_select_item') .' --'); ?>,
-    no_po_to_bill:        <?= json_encode(lang_line('apinv_no_po_to_bill', 'Tidak ada PO yang bisa ditagih untuk supplier ini.')); ?>
+    no_po_to_bill:        <?= json_encode(lang_line('apinv_no_po_to_bill', 'Tidak ada PO yang bisa ditagih untuk supplier ini.')); ?>,
+    no_ppn:               <?= json_encode(lang_line('apinv_badge_no_ppn', 'tanpa PPN')); ?>,
+    ppn_from_po:          <?= json_encode(lang_line('apinv_ppn_from_po', 'PPN otomatis mengikuti PO.')); ?>,
+    ppn_follow_tpl:       <?= json_encode(lang_line('apinv_ppn_follow_tpl', 'PPN %s% mengikuti PO.')); ?>,
+    ppn_po_none:          <?= json_encode(lang_line('apinv_ppn_po_none', 'PO tanpa PPN — PPN 0.')); ?>,
+    ppn_exempt_tpl:       <?= json_encode(lang_line('apinv_ppn_exempt_tpl', '%d baris dari PO tanpa PPN tidak dikenai PPN.')); ?>,
+    ppn_mixed:            <?= json_encode(lang_line('apinv_ppn_mixed', 'Baris dari PO dengan tarif PPN berbeda tidak bisa digabung dalam satu faktur. Buat faktur terpisah untuk:')); ?>
 };
 $(function() {
     let jasaRowIndex = 0;
@@ -297,6 +304,7 @@ $(function() {
         const withExtra = (type === 'PO_BASED' || type === 'GRN_BASED');
         $('#detail-extra-card').toggle(withExtra);
         if (!withExtra) $('#detail-body-extra').empty();
+        syncPpnFromLines();
         if (type === 'PO_BASED') {
             $('#detail-grn-card, #detail-jasa-card').hide();
             $('#pph_rate').val(0).prop('readonly', false);
@@ -339,16 +347,21 @@ $(function() {
         if (!poId) return alert(I18N_APINV.no_po_to_bill);
         $.getJSON('<?= site_url('apinvoice/ajax_get_po_lines'); ?>', { po_id: poId }, function(res) {
             if (!res.success || !res.data.length) return alert(I18N_APINV.no_po_to_bill);
-            if (res.ppn_rate > 0) $('#ppn_rate').val(res.ppn_rate);
+            let curRate = currentLineRate('#detail-body-po');
+            const skipped = [];
             res.data.forEach(function(l) {
                 if ($('#detail-body-po input[data-pdid="' + l.po_detail_id + '"]').length) return;
+                // PPN mengikuti PO; satu faktur hanya boleh satu tarif PPN.
+                const lr = l.ppn_applied ? (parseFloat(l.ppn_rate) || 0) : 0;
+                if (lr > 0 && curRate > 0 && lr !== curRate) { skipped.push(l.po_number + ' (' + lr + '%)'); return; }
+                if (lr > 0) curRate = lr;
                 const idx = poRowIndex++;
                 let dd = '<select name="details[' + idx + '][debet_account_id]" class="form-control form-control-sm debet-account" required><option value="">' + I18N_APINV.select_short + '</option>';
                 debetAccounts.forEach(a => { dd += '<option value="' + a.id + '"' + (String(a.id) === String(l.account_id) ? ' selected' : '') + '>' + a.account_code + ' - ' + a.account_name + '</option>'; });
                 dd += '</select>';
                 const desc = $('<div>').text(l.description).html().replace(/"/g, '&quot;');
-                $('#detail-body-po').append(`<tr>
-                    <td>${desc} <small class="text-muted">(${l.po_number}, maks ${l.remaining_qty})</small>
+                $('#detail-body-po').append(`<tr data-ppn-rate="${lr}">
+                    <td>${desc} <small class="text-muted">(${l.po_number}, maks ${l.remaining_qty})</small> ${ppnBadge(lr)}
                         <input type="hidden" name="details[${idx}][po_detail_id]" value="${l.po_detail_id}" data-pdid="${l.po_detail_id}">
                         <input type="hidden" name="details[${idx}][description]" value="${desc}"></td>
                     <td><input type="number" name="details[${idx}][qty]" class="form-control form-control-sm qty-po" value="${l.remaining_qty}" min="0.01" max="${l.remaining_qty}" step="0.01"></td>
@@ -359,11 +372,42 @@ $(function() {
                 </tr>`);
             });
             initAccountSelect2($('#detail-body-po'));
+            syncPpnFromLines();
             calculateTotal();
+            if (skipped.length) alert(I18N_APINV.ppn_mixed + '\n- ' + skipped.join('\n- '));
         });
     });
     $('#detail-body-po').on('input', '.qty-po', calculateTotal);
-    $('#detail-body-po').on('click', '.remove-po', function() { $(this).closest('tr').remove(); calculateTotal(); });
+    $('#detail-body-po').on('click', '.remove-po', function() { $(this).closest('tr').remove(); syncPpnFromLines(); calculateTotal(); });
+
+    // ===== PPN mengikuti PO (faktur Berdasarkan PO / GRN) =====
+    function ppnBadge(rate) {
+        return rate > 0 ? '<span class="badge badge-info">PPN ' + rate + '%</span>' : '<span class="badge badge-secondary">' + I18N_APINV.no_ppn + '</span>';
+    }
+    function currentLineRate(body) {
+        let rate = 0;
+        $(body + ' tr').each(function() { const r = parseFloat($(this).attr('data-ppn-rate')) || 0; if (r > 0) rate = r; });
+        return rate;
+    }
+    function syncPpnFromLines() {
+        const type = $('#invoice_type').val();
+        if (type !== 'PO_BASED' && type !== 'GRN_BASED') {
+            $('#ppn_rate').prop('readonly', false);
+            $('#ppn_hint').text('');
+            return;
+        }
+        const body = type === 'PO_BASED' ? '#detail-body-po' : '#detail-body-grn';
+        const rows = $(body + ' tr[data-ppn-rate]');
+        const rate = currentLineRate(body);
+        const exempt = rows.filter(function() { return !(parseFloat($(this).attr('data-ppn-rate')) > 0); }).length;
+        $('#ppn_rate').val(rate).prop('readonly', true);
+        let hint = I18N_APINV.ppn_from_po;
+        if (rows.length) {
+            hint = rate > 0 ? I18N_APINV.ppn_follow_tpl.replace('%s', rate) : I18N_APINV.ppn_po_none;
+            if (rate > 0 && exempt) hint += ' ' + I18N_APINV.ppn_exempt_tpl.replace('%d', exempt);
+        }
+        $('#ppn_hint').text(hint);
+    }
 
     function loadPendingGRN() {
         const supplierId = $('#supplier_id').val();
@@ -387,8 +431,13 @@ $(function() {
         if (!ids || !ids.length) return alert(I18N_APINV.alert_select_grn_first);
         $.post('<?= site_url('apinvoice/ajax_get_grn_details'); ?>', { grn_ids: ids }, function(res) {
             $('#detail-body-grn').empty();
-            console.log('ajax_get_grn_details response:', res);
             if (res && res.success && res.data && res.data.length) {
+                const grnRates = new Set(res.data.filter(i => i.ppn_applied).map(i => parseFloat(i.ppn_rate)));
+                if (grnRates.size > 1) {
+                    alert(I18N_APINV.ppn_mixed + ' (' + [...grnRates].join('% & ') + '%)');
+                    syncPpnFromLines(); calculateTotal();
+                    return;
+                }
                 res.data.forEach((i, idx) => {
                     const total = i.qty * i.unit_price;
                     
@@ -408,9 +457,10 @@ $(function() {
                     });
                     kreditDropdown += '</select>';
                     
+                    const gr = i.ppn_applied ? (parseFloat(i.ppn_rate) || 0) : 0;
                     $('#detail-body-grn').append(`
-                        <tr>
-                            <td>${i.description}
+                        <tr data-ppn-rate="${gr}">
+                            <td>${i.description} ${ppnBadge(gr)}
                                 <input type="hidden" name="details[${idx}][description]" value="${i.description}">
                                 <input type="hidden" name="details[${idx}][grn_detail_id]" value="${i.grn_detail_id}">
                                 <input type="hidden" name="details[${idx}][item_id]" value="${i.item_id}">
@@ -424,6 +474,7 @@ $(function() {
                         </tr>`);
                 });
                 initAccountSelect2($('#detail-body-grn'));
+                syncPpnFromLines();
                 calculateTotal();
             } else {
                 const msg = (res && res.message) ? res.message : I18N_APINV.no_grn_items;
@@ -481,10 +532,12 @@ $(function() {
 
     function calculateTotal() {
         let subtotal = 0, type = $('#invoice_type').val();
+        let taxableItems = 0; // PO/GRN: hanya baris dari PO ber-PPN
         if (type === 'GRN_BASED') {
             $('#detail-body-grn tr').each(function() {
                 const val = parseFloat($(this).find('input[type="text"]').val()) || 0;
                 subtotal += val;
+                if (parseFloat($(this).attr('data-ppn-rate')) > 0) taxableItems += val;
             });
         } else if (type === 'PO_BASED') {
             $('#detail-body-po tr').each(function() {
@@ -492,6 +545,7 @@ $(function() {
                 const p = parseFloat($(this).find('.price-po').val()) || 0;
                 $(this).find('.total-po').val((q * p).toFixed(2));
                 subtotal += q * p;
+                if (parseFloat($(this).attr('data-ppn-rate')) > 0) taxableItems += q * p;
             });
         } else if (type === 'NON_GRN') {
             $('#detail-body-jasa tr').each(function() {
@@ -502,7 +556,7 @@ $(function() {
         }
 
         // Biaya tambahan (PO/GRN): masuk subtotal; ikut dasar PPN hanya bila dicentang.
-        let taxable = subtotal;
+        let taxable = (type === 'PO_BASED' || type === 'GRN_BASED') ? taxableItems : subtotal;
         if (type === 'PO_BASED' || type === 'GRN_BASED') {
             $('#detail-body-extra tr').each(function() {
                 const amt = parseFloat($(this).find('.extra-amount').val()) || 0;
