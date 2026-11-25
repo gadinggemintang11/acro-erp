@@ -66,6 +66,8 @@ class CashBank extends MY_Controller {
 
         $data['title'] = sprintf(lang_line('title_cb_view', 'View Transaksi: %s'), $data['header']->doc_no);
         $data['details'] = $this->model->get_details_by_header_id($id);
+        $data['can_edit'] = $this->_can_edit();
+        $data['redraft_block'] = ($data['header']->status === 'Posted') ? $this->model->redraft_block_reason($data['header']) : null;
 
         if ($data['header']->journal_header_id) {
             $data['journal_header'] = $this->JurnalUmum_model->get_header_by_id($data['header']->journal_header_id);
@@ -130,6 +132,94 @@ class CashBank extends MY_Controller {
         } else {
             $this->session->set_flashdata('error', 'Gagal menghapus. Hanya status Draft yang bisa dihapus.');
             redirect('cashbank/view/' . $id);
+        }
+    }
+
+    /** Redraft & edit butuh izin Edit di menu Cash & Bank. */
+    private function _can_edit()
+    {
+        return check_access('cashbank', 'edit') || is_admin();
+    }
+
+    /**
+     * Redraft: transaksi Posted dikembalikan ke Draft supaya bisa diedit;
+     * jurnalnya ikut Draft (keluar dari laporan) sampai diposting ulang.
+     */
+    public function redraft($id)
+    {
+        if ($this->input->method() !== 'post') { show_error('Metode ilegal.', 405); return; }
+        if (!$this->_can_edit()) { show_error('Anda tidak memiliki izin me-redraft transaksi Kas & Bank.', 403); return; }
+
+        $reason = trim((string) $this->input->post('reason'));
+        if (mb_strlen($reason) < 5) {
+            $this->session->set_flashdata('error', 'Alasan redraft wajib diisi (minimal 5 karakter).');
+            redirect('cashbank/view/' . $id);
+            return;
+        }
+        try {
+            $h = $this->model->redraft_transaction($id);
+            $jno = $this->JurnalUmum_model->get_header_by_id($h->journal_header_id)->journal_no ?? '-';
+            add_log('REDRAFT', 'Cash Bank', 'Redraft transaksi ' . $h->doc_no . ' (jurnal ' . $jno . ' kembali Draft). Alasan: ' . $reason);
+            $this->session->set_flashdata('success', 'Transaksi ' . $h->doc_no . ' dikembalikan ke Draft. Jurnal ' . $jno
+                . ' ikut menjadi Draft (tidak masuk laporan) sampai transaksi diposting ulang. Silakan edit lalu Posting lagi.');
+        } catch (Exception $e) {
+            $this->session->set_flashdata('error', 'Gagal redraft: ' . $e->getMessage());
+        }
+        redirect('cashbank/view/' . $id);
+    }
+
+    /** Form edit transaksi Draft (termasuk hasil redraft) -- memakai form create dalam mode edit. */
+    public function edit($id)
+    {
+        if (!$this->_can_edit()) { show_error('Anda tidak memiliki izin mengedit transaksi Kas & Bank.', 403); return; }
+        $header = $this->model->get_header_by_id($id);
+        if (!$header) show_404();
+        if ($header->status !== 'Draft') {
+            $this->session->set_flashdata('error', 'Hanya transaksi Draft yang bisa diedit. Untuk transaksi Posted, klik Redraft dulu.');
+            redirect('cashbank/view/' . $id);
+            return;
+        }
+        $data['title']      = sprintf(lang_line('title_cb_edit', 'Edit Transaksi: %s'), $header->doc_no);
+        $data['header']     = $header;
+        $data['details']    = $this->model->get_details_by_header_id($id);
+        $data['doc_no']     = $header->doc_no;
+        $data['currencies'] = $this->JurnalUmum_model->get_currencies();
+        $data['accounts']   = $this->JurnalUmum_model->get_postable_accounts();
+        $data['journal_no'] = $header->journal_header_id ? ($this->JurnalUmum_model->get_header_by_id($header->journal_header_id)->journal_no ?? null) : null;
+
+        $this->load->view('templates/header', $data);
+        $this->load->view('templates/sidebar', $data);
+        $this->load->view('templates/topbar', $data);
+        $this->load->view('accounting/cash_bank/create', $data);
+        $this->load->view('templates/footer');
+    }
+
+    /** Simpan hasil edit transaksi Draft. */
+    public function update($id)
+    {
+        if ($this->input->method() !== 'post') { show_error('Metode ilegal.', 405); return; }
+        if (!$this->_can_edit()) { show_error('Anda tidak memiliki izin mengedit transaksi Kas & Bank.', 403); return; }
+
+        $this->form_validation->set_rules('transaction_type', 'Tipe Transaksi', 'required|in_list[IN,OUT]');
+        $this->form_validation->set_rules('doc_date', 'Tanggal', 'required');
+        $this->form_validation->set_rules('currency', 'Mata Uang', 'required');
+        $this->form_validation->set_rules('exchange_rate', 'Kurs', 'required|numeric|greater_than[0]');
+        $this->form_validation->set_rules('cash_bank_account_id', 'Akun Kas/Bank', 'required');
+        $this->form_validation->set_rules('description', 'Keterangan', 'required');
+        if ($this->form_validation->run() == FALSE) {
+            $this->session->set_flashdata('error', validation_errors());
+            redirect('cashbank/edit/' . $id);
+            return;
+        }
+        try {
+            $this->model->update_transaction($id, $this->input->post());
+            $h = $this->model->get_header_by_id($id);
+            add_log('UPDATE', 'Cash Bank', 'Edit transaksi Draft ' . $h->doc_no . ' (total ' . $h->currency . ' ' . number_format((float) $h->total_amount, 2) . ').');
+            $this->session->set_flashdata('success', 'Perubahan transaksi disimpan (masih Draft). Klik Posting bila sudah benar.');
+            redirect('cashbank/view/' . $id);
+        } catch (Exception $e) {
+            $this->session->set_flashdata('error', 'Gagal menyimpan: ' . $e->getMessage());
+            redirect('cashbank/edit/' . $id);
         }
     }
 

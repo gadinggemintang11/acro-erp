@@ -173,7 +173,7 @@
                                 <a href="<?= base_url('summary_ledger/voucher_excel/' . $j->id); ?>" class="btn btn-success btn-circle btn-sm" title="<?= lang_line('ju_btn_voucher_excel', 'Print Voucher (Excel)') ?>">
                                     <i class="fas fa-file-excel"></i>
                                 </a>
-                                <?php if($j->status == 'Draft' && !in_array($j->source_module ?? '', ['AP_INVOICE', 'AP_PAYMENT'], true)): ?>
+                                <?php if($j->status == 'Draft' && !isset(JurnalUmum_model::MODULE_MANAGED[$j->source_module ?? ''])): ?>
                                 <a href="<?= base_url('jurnalumum/delete/' . $j->id); ?>" class="btn btn-danger btn-circle btn-sm" title="<?= lang_line('ju_btn_delete', 'Hapus') ?>" onclick="return confirm(<?= htmlspecialchars(json_encode(lang_line('ju_confirm_delete', 'Anda yakin ingin menghapus jurnal DRAFT ini?')), ENT_QUOTES) ?>);">
                                     <i class="fas fa-trash"></i>
                                 </a>

@@ -134,10 +134,103 @@ class CashBank_model extends CI_Model {
     
     public function delete_draft_transaction($id)
     {
-        $this->db->where('id', $id);
-        $this->db->where('status', 'Draft');
-        $this->db->delete('cash_bank_header'); 
-        return $this->db->affected_rows() > 0;
+        $h = $this->db->select('id, status, journal_header_id')->where('id', (int) $id)->get('cash_bank_header')->row();
+        if (!$h || $h->status !== 'Draft') return false;
+
+        $this->db->trans_start();
+        // Transaksi hasil redraft masih membawa jurnal Draft-nya -> ikut dihapus.
+        if (!empty($h->journal_header_id)) {
+            $this->db->where('journal_header_id', (int) $h->journal_header_id)->delete('journal_details');
+            $this->db->where('id', (int) $h->journal_header_id)->where('status', 'Draft')
+                     ->where('source_module', 'CASH_BANK')->delete('journal_header');
+        }
+        $this->db->where('id', (int) $id)->where('status', 'Draft')->delete('cash_bank_header');
+        $deleted = $this->db->affected_rows() > 0;
+        $this->db->trans_complete();
+        return $deleted && $this->db->trans_status() !== FALSE;
+    }
+
+    /**
+     * ======================================
+     * REDRAFT & EDIT (koreksi transaksi yang sudah diposting)
+     * ======================================
+     * Redraft: Posted -> Draft, jurnalnya ikut Draft (keluar dari laporan, nomor
+     * jurnal tetap). Posting ulang memperbarui jurnal yang sama lalu
+     * mempostingnya lagi.
+     */
+
+    /** Alasan transaksi TIDAK boleh di-redraft; null = boleh. */
+    public function redraft_block_reason($h)
+    {
+        if (!$h) return 'Transaksi tidak ditemukan.';
+        if ($h->status !== 'Posted') return 'Hanya transaksi berstatus Posted yang bisa di-redraft.';
+        $j = !empty($h->journal_header_id)
+            ? $this->db->select('id, status')->where('id', (int) $h->journal_header_id)->get('journal_header')->row()
+            : null;
+        if (!$j) return 'Jurnal transaksi ini sudah tidak ada (kemungkinan di-clear saat tutup bulan) — tidak bisa redraft.';
+        if ($j->status !== 'Posted') return 'Status jurnal transaksi ini bukan Posted.';
+        return null;
+    }
+
+    /** Posted -> Draft; jurnal ikut Draft. Throw Exception bila ditolak. */
+    public function redraft_transaction($id)
+    {
+        $h = $this->get_header_by_id($id);
+        if ($why = $this->redraft_block_reason($h)) throw new Exception($why);
+
+        $this->db->trans_start();
+        $this->db->where('id', (int) $h->journal_header_id)->where('status', 'Posted')
+                 ->update('journal_header', ['status' => 'Draft', 'posted_by' => null, 'posted_at' => null]);
+        $this->db->where('id', (int) $h->id)->where('status', 'Posted')
+                 ->update('cash_bank_header', ['status' => 'Draft', 'posted_by' => null, 'posted_at' => null]);
+        $this->db->trans_complete();
+        if ($this->db->trans_status() === FALSE) throw new Exception('Gagal redraft (transaksi database).');
+        return $h;
+    }
+
+    /** Simpan hasil edit transaksi Draft (No. Dokumen tetap). */
+    public function update_transaction($id, $post)
+    {
+        $h = $this->get_header_by_id($id);
+        if (!$h || $h->status !== 'Draft') throw new Exception('Hanya transaksi Draft yang bisa diedit.');
+
+        $rate = (float) ($post['exchange_rate'] ?? 0);
+        if ($rate <= 0) throw new Exception('Kurs harus lebih dari 0.');
+        if (!in_array($post['transaction_type'] ?? '', ['IN', 'OUT'], true)) throw new Exception('Tipe transaksi tidak valid.');
+
+        $rows = [];
+        $total = 0; $total_local = 0;
+        foreach ((array) ($post['details'] ?? []) as $d) {
+            $amount = round((float) ($d['amount'] ?? 0), 2);
+            if ($amount <= 0 || empty($d['account_id'])) continue;
+            $local = $amount * $rate;
+            $total += $amount; $total_local += $local;
+            $rows[] = [
+                'header_id'    => (int) $id,
+                'account_id'   => (int) $d['account_id'],
+                'amount'       => $amount,
+                'amount_local' => $local,
+                'description'  => (string) ($d['description'] ?? ''),
+            ];
+        }
+        if (empty($rows)) throw new Exception('Detail transaksi tidak boleh kosong.');
+
+        $this->db->trans_start();
+        $this->db->where('id', (int) $id)->where('status', 'Draft')->update('cash_bank_header', [
+            'doc_date'             => $post['doc_date'],
+            'transaction_type'     => $post['transaction_type'],
+            'cash_bank_account_id' => (int) $post['cash_bank_account_id'],
+            'currency'             => $post['currency'],
+            'exchange_rate'        => $rate,
+            'total_amount'         => $total,
+            'total_amount_local'   => $total_local,
+            'description'          => $post['description'],
+        ]);
+        $this->db->where('header_id', (int) $id)->delete('cash_bank_details');
+        $this->db->insert_batch('cash_bank_details', $rows);
+        $this->db->trans_complete();
+        if ($this->db->trans_status() === FALSE) throw new Exception('Gagal menyimpan perubahan (transaksi database).');
+        return true;
     }
 
     public function post_transaction($header_id, $user_id)
@@ -151,7 +244,13 @@ class CashBank_model extends CI_Model {
             throw new Exception("Hanya status Draft yang bisa di-posting.");
         }
         
-        $journal_no = $this->JurnalUmum_model->get_new_journal_number();
+        // Transaksi hasil redraft masih membawa jurnal Draft-nya: diperbarui &
+        // diposting ulang (nomor jurnal tetap), bukan membuat jurnal baru.
+        $redraft_journal = !empty($header->journal_header_id)
+            ? $this->db->select('id, journal_no, status')->where('id', (int) $header->journal_header_id)->get('journal_header')->row()
+            : null;
+        if ($redraft_journal && $redraft_journal->status !== 'Draft') $redraft_journal = null;
+        $journal_no = $redraft_journal ? $redraft_journal->journal_no : $this->JurnalUmum_model->get_new_journal_number();
         $journal_details = [];
         $akun_kas_bank = $header->cash_bank_account_id;
         $tipe = $header->transaction_type; // 'IN' or 'OUT'
@@ -208,7 +307,14 @@ class CashBank_model extends CI_Model {
             'status' => 'Draft'
         ];
 
-        $journal_id = $this->JurnalUmum_model->insert_journal($journal_header_data, $journal_details);
+        if ($redraft_journal) {
+            $journal_id = (int) $redraft_journal->id;
+            if (!$this->JurnalUmum_model->replace_draft_journal($journal_id, $journal_header_data, $journal_details)) {
+                throw new Exception('Gagal memperbarui jurnal ' . $journal_no . '.');
+            }
+        } else {
+            $journal_id = $this->JurnalUmum_model->insert_journal($journal_header_data, $journal_details);
+        }
         $this->JurnalUmum_model->post_journal($journal_id, $user_id);
         
         $this->db->where('id', $header->id);

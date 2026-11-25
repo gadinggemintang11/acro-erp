@@ -1,8 +1,24 @@
+<?php
+// Form ini dipakai juga utk EDIT transaksi Draft (CashBank::edit mengirim $header + $details).
+$is_edit = !empty($header);
+$h_date  = $is_edit ? $header->doc_date : date('Y-m-d');
+$h_type  = $is_edit ? $header->transaction_type : 'OUT';
+$h_curr  = $is_edit ? $header->currency : 'IDR';
+$h_rate  = $is_edit ? (float) $header->exchange_rate : 1;
+$h_desc  = $is_edit ? (string) $header->description : '';
+?>
 <div class="container-fluid">
     <h1 class="h3 mb-4 text-gray-800"><?= $title; ?></h1>
     <?php $this->load->view('templates/partials/alerts'); ?>
 
-    <form action="<?= base_url('cashbank/store'); ?>" method="POST" id="cb-form">
+    <?php if ($is_edit && !empty($journal_no)): ?>
+        <div class="alert alert-warning">
+            <i class="fas fa-undo mr-1"></i> Transaksi hasil <strong>redraft</strong>. Jurnal <strong><?= htmlspecialchars($journal_no); ?></strong> berstatus Draft
+            (tidak masuk laporan) dan akan diperbarui otomatis saat transaksi diposting ulang.
+        </div>
+    <?php endif; ?>
+
+    <form action="<?= base_url($is_edit ? 'cashbank/update/' . (int) $header->id : 'cashbank/store'); ?>" method="POST" id="cb-form">
         <div class="card shadow mb-4">
             <div class="card-header py-3">
                 <h6 class="m-0 font-weight-bold text-primary"><?= lang_line('cb_header_section', 'Header Transaksi') ?></h6>
@@ -18,15 +34,15 @@
                     <div class="col-md-3">
                         <div class="form-group">
                             <label><?= lang_line('cb_lbl_date', 'Tanggal *') ?></label>
-                            <input type="date" name="doc_date" class="form-control" value="<?= date('Y-m-d'); ?>" required>
+                            <input type="date" name="doc_date" class="form-control" value="<?= htmlspecialchars($h_date); ?>" required>
                         </div>
                     </div>
                     <div class="col-md-3">
                         <div class="form-group">
                             <label><?= lang_line('cb_lbl_trans_type', 'Tipe Transaksi *') ?></label>
                             <select id="transaction_type" name="transaction_type" class="form-control" required>
-                                <option value="OUT"><?= lang_line('cb_opt_out', 'OUT (Kas/Bank Keluar)') ?></option>
-                                <option value="IN"><?= lang_line('cb_opt_in', 'IN (Kas/Bank Masuk)') ?></option>
+                                <option value="OUT" <?= $h_type === 'OUT' ? 'selected' : ''; ?>><?= lang_line('cb_opt_out', 'OUT (Kas/Bank Keluar)') ?></option>
+                                <option value="IN" <?= $h_type === 'IN' ? 'selected' : ''; ?>><?= lang_line('cb_opt_in', 'IN (Kas/Bank Masuk)') ?></option>
                             </select>
                         </div>
                     </div>
@@ -35,7 +51,7 @@
                             <label><?= lang_line('cb_lbl_currency', 'Mata Uang *') ?></label>
                             <select name="currency" id="currency" class="form-control" required>
                                 <?php foreach($currencies as $curr): ?>
-                                    <option value="<?= $curr->code; ?>" <?= set_select('currency', $curr->code, $curr->code == 'IDR'); ?>>
+                                    <option value="<?= $curr->code; ?>" <?= set_select('currency', $curr->code, $curr->code == $h_curr); ?>>
                                         <?= $curr->code; ?>
                                     </option>
                                 <?php endforeach; ?>
@@ -48,7 +64,7 @@
                         <div class="form-group">
                             <label><?= lang_line('cb_lbl_rate', 'Kurs (Rate) *') ?></label>
                             <input type="number" id="exchange_rate" name="exchange_rate" class="form-control"
-                                   value="1.0000" min="0.0001" step="0.0001" readonly required>
+                                   value="<?= number_format($h_rate, 4, '.', ''); ?>" min="0.0001" step="0.0001" <?= $h_curr === 'IDR' ? 'readonly' : ''; ?> required>
                             <small id="kurs_info" class="form-text text-muted"></small>
                         </div>
                     </div>
@@ -63,7 +79,7 @@
                     <div class="col-md-4">
                         <div class="form-group">
                             <label><?= lang_line('cb_lbl_desc_header', 'Keterangan Header *') ?></label>
-                            <input type="text" name="description" class="form-control"
+                            <input type="text" name="description" class="form-control" value="<?= htmlspecialchars($h_desc); ?>"
                                    placeholder="<?= lang_line('cb_ph_desc_example', 'cth: Pembayaran Operasional Bulan Nov') ?>" required>
                         </div>
                     </div>
@@ -102,8 +118,8 @@
         </div>
 
         <div class="text-right mb-4">
-            <a href="<?= base_url('cashbank'); ?>" class="btn btn-secondary"><?= lang_line('cb_btn_back', 'Kembali') ?></a>
-            <button type="submit" class="btn btn-primary"><?= lang_line('cb_btn_save_draft', 'Simpan Transaksi (Draft)') ?></button>
+            <a href="<?= base_url($is_edit ? 'cashbank/view/' . (int) $header->id : 'cashbank'); ?>" class="btn btn-secondary"><?= lang_line('cb_btn_back', 'Kembali') ?></a>
+            <button type="submit" class="btn btn-primary"><?= $is_edit ? lang_line('cb_btn_save_changes', 'Simpan Perubahan (Draft)') : lang_line('cb_btn_save_draft', 'Simpan Transaksi (Draft)') ?></button>
         </div>
     </form>
 </div>
@@ -151,8 +167,16 @@ const I18N_CB = {
     kurs_failed:              <?= json_encode(lang_line('cb_js_kurs_failed', 'Gagal mengambil kurs, isi manual.')) ?>
 };
 
+// Mode edit: data tersimpan utk mengisi ulang form (null = transaksi baru).
+const CB_INITIAL = <?= $is_edit ? json_encode([
+    'cash_bank_account_id' => (int) $header->cash_bank_account_id,
+    'exchange_rate'        => (float) $header->exchange_rate,
+    'rows'                 => array_map(function ($d) { return ['account_id' => (int) $d->account_id, 'amount' => (float) $d->amount, 'description' => (string) $d->description]; }, $details ?? []),
+]) : 'null'; ?>;
+
 $(document).ready(function() {
     let rowIndex = 0;
+    let initializing = true;
     const detailBody = document.getElementById("detail-body");
     const template = document.getElementById("row-template");
     const currencySelect = document.getElementById("currency");
@@ -207,17 +231,31 @@ $(document).ready(function() {
         });
         const symbol = getCurrencySymbol(currencySelect.value);
         newRow.querySelectorAll('.currency-symbol').forEach(el => el.textContent = symbol);
+        // Ambil <tr>-nya SEBELUM append: setelah appendChild, DocumentFragment kosong,
+        // jadi init di fragment (kode lama) tidak pernah mengenai baris baru --
+        // baris ke-2 dst tidak terformat & tidak ikut total.
+        const tr = newRow.querySelector('tr');
         detailBody.appendChild(newRow);
 
-        initAutoNumeric(newRow.querySelectorAll('.input-currency'));
-        initSelect2(newRow.querySelectorAll('.select2-account'));
+        initAutoNumeric(tr.querySelectorAll('.input-currency'));
+        initSelect2(tr.querySelectorAll('.select2-account'));
 
         filterAccounts(currencySelect.value);
         rowIndex++;
     }
 
-    $('#add-row').click(addRow);
-    addRow();
+    $('#add-row').click(function () { addRow(); });
+    if (CB_INITIAL && CB_INITIAL.rows.length) {
+        CB_INITIAL.rows.forEach(function (r) {
+            addRow();
+            const tr = detailBody.querySelector('tr:last-child');
+            $(tr).find('.account-select').val(String(r.account_id)).trigger('change');
+            AutoNumeric.getAutoNumericElement(tr.querySelector('.amount-input')).set(r.amount);
+            tr.querySelector('input[name$="[description]"]').value = r.description || '';
+        });
+    } else {
+        addRow();
+    }
 
     detailBody.addEventListener("click", function(e) {
         if (e.target.closest(".remove-row")) {
@@ -243,7 +281,7 @@ $(document).ready(function() {
     }
 
     // Load Akun Kas/Bank (Header)
-    function loadCashBankAccounts(currency) {
+    function loadCashBankAccounts(currency, selectedId) {
         const accSelect = $('#cash_bank_account_id');
         accSelect.html('<option value="">' + I18N_CB.loading + '</option>').trigger('change');
 
@@ -253,6 +291,7 @@ $(document).ready(function() {
                 res.data.forEach(acc => {
                     accSelect.append(new Option(`${acc.account_code} - ${acc.account_name}`, acc.id));
                 });
+                if (selectedId) accSelect.val(String(selectedId));
             } else {
                 accSelect.html('<option value="">' + I18N_CB.no_cashbank_for_curr_tpl.replace('%s', currency) + '</option>');
             }
@@ -290,8 +329,13 @@ $(document).ready(function() {
              detailCardHeader.innerHTML = I18N_CB.detail_section_filter_tpl.replace('%s', curr);
         }
 
+        // Mode edit, saat halaman dibuka: pertahankan kurs & akun Kas/Bank tersimpan.
+        const keepSaved = initializing && CB_INITIAL;
         if (curr === 'IDR') {
             rateInput.value = '1.0000'; rateInput.readOnly = true;
+            $('#kurs_info').html('');
+        } else if (keepSaved) {
+            rateInput.value = CB_INITIAL.exchange_rate; rateInput.readOnly = false;
             $('#kurs_info').html('');
         } else {
             rateInput.value = ''; rateInput.readOnly = false;
@@ -318,7 +362,7 @@ $(document).ready(function() {
                 });
         }
 
-        loadCashBankAccounts(curr);
+        loadCashBankAccounts(curr, keepSaved ? CB_INITIAL.cash_bank_account_id : null);
         filterAccounts(curr);
         calcTotal();
     });
@@ -336,5 +380,7 @@ $(document).ready(function() {
     initAutoNumeric(document.querySelectorAll('.input-currency'));
     initSelect2($('.select2-account'));
     currencySelect.dispatchEvent(new Event('change'));
+    initializing = false;
+    calcTotal();
 });
 </script>

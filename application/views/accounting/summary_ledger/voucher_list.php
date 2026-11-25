@@ -80,6 +80,13 @@ $has_selectable = $selectable_count > 0;
                     <i class="fas fa-list"></i> <?= sprintf(lang_line('sl_vl_voucher_list_count', 'Daftar Voucher (%d)'), $total_rows) ?>
                     <span id="selectedCount" class="badge badge-secondary ml-2" style="display:none;"><?= sprintf(lang_line('sl_vl_n_selected', '%d dipilih'), 0) ?></span>
                 </h6>
+                <div class="d-flex align-items-center">
+                <?php if (!empty($vouchers)): ?>
+                    <button type="button" id="btnPrintSelected" class="btn btn-danger btn-sm mr-2" disabled
+                            title="<?= lang_line('sl_vl_btn_print_selected_tip', 'Cetak voucher yang dicentang: 2 voucher per lembar A4 (dipotong di tengah)') ?>">
+                        <i class="fas fa-print"></i> <?= lang_line('sl_vl_btn_print_selected', 'Cetak Voucher Terpilih (2 per A4)') ?>
+                    </button>
+                <?php endif; ?>
                 <?php if ($has_selectable && ($can_post || $can_delete)): ?>
                     <div class="btn-group btn-group-sm" role="group">
                         <?php if ($can_post): ?>
@@ -94,6 +101,7 @@ $has_selectable = $selectable_count > 0;
                         <?php endif; ?>
                     </div>
                 <?php endif; ?>
+                </div>
             </div>
             <div class="card-body">
                 <?php if (empty($vouchers)): ?>
@@ -103,11 +111,9 @@ $has_selectable = $selectable_count > 0;
                         <table class="table table-bordered table-sm table-hover">
                             <thead class="thead-light">
                                 <tr>
-                                    <?php if ($has_selectable): ?>
                                     <th style="width: 32px;" class="text-center">
-                                        <input type="checkbox" id="chkAll" title="<?= lang_line('sl_vl_chkall_title', 'Pilih semua Draft di halaman ini') ?>">
+                                        <input type="checkbox" id="chkAll" title="<?= lang_line('sl_vl_chkall_title_print', 'Pilih semua voucher di halaman ini') ?>">
                                     </th>
-                                    <?php endif; ?>
                                     <th style="width: 40px;">#</th>
                                     <th style="width: 140px;"><?= lang_line('sl_th_journal_no', 'Nomor Jurnal') ?></th>
                                     <th style="width: 100px;"><?= lang_line('sl_th_journal_date', 'Tanggal') ?></th>
@@ -123,13 +129,13 @@ $has_selectable = $selectable_count > 0;
                             <tbody>
                                 <?php foreach ($vouchers as $i => $v): ?>
                                     <tr>
-                                        <?php if ($has_selectable): ?>
                                         <td class="text-center">
-                                            <?php if ($v->status === 'Draft' && $v->source_module === 'Summary Ledger'): ?>
-                                                <input type="checkbox" name="journal_ids[]" value="<?= (int) $v->id; ?>" class="chkRow">
-                                            <?php endif; ?>
+                                            <?php // Semua baris bisa dicentang utk dicetak. Hanya Draft hasil upload yang punya
+                                                  // name -> ikut terkirim ke Post/Delete massal (baris lain tidak). ?>
+                                            <?php $bulk_ok = ($v->status === 'Draft' && $v->source_module === 'Summary Ledger'); ?>
+                                            <input type="checkbox" value="<?= (int) $v->id; ?>" class="chkRow" data-bulk="<?= $bulk_ok ? '1' : '0'; ?>"
+                                                   <?= $bulk_ok ? 'name="journal_ids[]"' : ''; ?> title="<?= htmlspecialchars($v->journal_no); ?>">
                                         </td>
-                                        <?php endif; ?>
                                         <td><?= $row_offset + $i + 1; ?></td>
                                     <td class="font-weight-bold text-primary"><?= htmlspecialchars($v->journal_no); ?></td>
                                     <td><?= date('d M Y', strtotime($v->journal_date)); ?></td>
@@ -223,6 +229,9 @@ const I18N_SL_VL = {
     const chkAll = document.getElementById('chkAll');
     const rows   = () => document.querySelectorAll('.chkRow');
     const checked = () => Array.from(rows()).filter(c => c.checked);
+    const checkedBulk = () => checked().filter(c => c.dataset.bulk === '1');
+    const btnPrint  = document.getElementById('btnPrintSelected');
+    const PRINT_URL = '<?= base_url('summary_ledger/vouchers_pdf'); ?>';
     const btnPost   = document.getElementById('btnBulkPost');
     const btnDelete = document.getElementById('btnBulkDelete');
     const counter   = document.getElementById('selectedCount');
@@ -236,8 +245,10 @@ const I18N_SL_VL = {
             counter.style.display = n > 0 ? 'inline-block' : 'none';
             counter.textContent = I18N_SL_VL.n_selected_tpl.replace('%d', n);
         }
-        if (btnPost)   btnPost.disabled   = (n === 0);
-        if (btnDelete) btnDelete.disabled = (n === 0);
+        const nb = checkedBulk().length; // Post/Delete massal hanya utk Draft hasil upload
+        if (btnPrint)  btnPrint.disabled  = (n === 0);
+        if (btnPost)   btnPost.disabled   = (nb === 0);
+        if (btnDelete) btnDelete.disabled = (nb === 0);
         if (chkAll) {
             const all = rows().length;
             chkAll.checked = (n > 0 && n === all);
@@ -253,8 +264,16 @@ const I18N_SL_VL = {
     }
     rows().forEach(c => c.addEventListener('change', refresh));
 
+    if (btnPrint) {
+        btnPrint.addEventListener('click', () => {
+            const ids = checked().map(c => c.value);
+            if (ids.length === 0) return;
+            window.open(PRINT_URL + '?ids=' + ids.join(','), '_blank');
+        });
+    }
+
     function submitBulk(actionUrl, confirmMsg) {
-        const n = checked().length;
+        const n = checkedBulk().length;
         if (n === 0) return;
         if (!confirm(confirmMsg.replace('{n}', n))) return;
         form.action = actionUrl;

@@ -19,16 +19,39 @@
                             <i class="fas fa-file-pdf"></i> <?= lang_line('cb_export_pdf', 'Ekspor PDF') ?>
                         </a>
                         <?php if ($header->status == 'Draft'): ?>
+                            <?php if (!empty($can_edit)): ?>
+                            <a href="<?= base_url('cashbank/edit/' . $header->id); ?>" class="btn btn-warning btn-sm">
+                                <i class="fas fa-edit"></i> <?= lang_line('cb_btn_edit', 'Edit') ?>
+                            </a>
+                            <?php endif; ?>
                             <a href="<?= base_url('cashbank/delete/' . $header->id); ?>" class="btn btn-danger btn-sm" onclick="return confirm(<?= htmlspecialchars(json_encode(lang_line('cb_confirm_delete', 'Anda yakin ingin menghapus transaksi DRAFT ini?')), ENT_QUOTES) ?>);">
                                 <i class="fas fa-trash"></i> <?= lang_line('cb_btn_delete', 'Hapus') ?>
                             </a>
                             <a href="<?= base_url('cashbank/post/' . $header->id); ?>" class="btn btn-success btn-sm" onclick="return confirm(<?= htmlspecialchars(json_encode(lang_line('cb_confirm_post', "ANDA YAKIN INGIN POSTING TRANSAKSI INI?\nJurnal otomatis akan dibuat dan tidak bisa diubah.")), ENT_QUOTES) ?>);">
                                 <i class="fas fa-check-circle"></i> <?= lang_line('cb_btn_post', 'Posting Transaksi') ?>
                             </a>
+                        <?php elseif ($header->status == 'Posted' && !empty($can_edit)): ?>
+                            <?php if (empty($redraft_block)): ?>
+                            <form method="post" action="<?= base_url('cashbank/redraft/' . $header->id); ?>" class="d-inline form-redraft">
+                                <input type="hidden" name="reason" value="">
+                                <button type="submit" class="btn btn-outline-danger btn-sm"><i class="fas fa-undo"></i> Redraft</button>
+                            </form>
+                            <?php else: ?>
+                            <button type="button" class="btn btn-outline-secondary btn-sm" disabled title="<?= htmlspecialchars($redraft_block); ?>"><i class="fas fa-undo"></i> Redraft</button>
+                            <?php endif; ?>
                         <?php endif; ?>
                     </div>
                 </div>
                 <div class="card-body">
+                    <?php if ($header->status == 'Posted' && !empty($can_edit) && !empty($redraft_block)): ?>
+                        <div class="small text-muted mb-2"><i class="fas fa-info-circle"></i> <?= htmlspecialchars($redraft_block); ?></div>
+                    <?php endif; ?>
+                    <?php if ($header->status == 'Draft' && !empty($journal_header)): ?>
+                        <div class="alert alert-warning py-2">
+                            <i class="fas fa-undo mr-1"></i> Transaksi hasil <strong>redraft</strong>. Jurnal <strong><?= htmlspecialchars($journal_header->journal_no); ?></strong>
+                            berstatus Draft (tidak masuk laporan). Edit bila perlu, lalu klik <strong>Posting Transaksi</strong> — jurnal yang sama diperbarui &amp; diposting ulang.
+                        </div>
+                    <?php endif; ?>
                     <div class="row">
                         <div class="col-md-3"><strong><?= lang_line('cb_label_doc_no', 'No. Dokumen:') ?></strong><br><?= htmlspecialchars($header->doc_no, ENT_QUOTES, 'UTF-8'); ?></div>
                         <div class="col-md-3"><strong><?= lang_line('cb_label_date', 'Tanggal:') ?></strong><br><?= date('d M Y', strtotime($header->doc_date)); ?></div>
@@ -105,13 +128,19 @@
         </div>
 
         <!-- Jurnal Entri -->
-        <?php if ($header->status == 'Posted' && isset($journal_details)): ?>
+        <?php if (in_array($header->status, ['Posted', 'Draft'], true) && isset($journal_details) && !empty($journal_header)): ?>
             <div class="col-lg-12">
                 <div class="card shadow mb-4">
                     <div class="card-header py-3">
+                        <?php if ($journal_header->status === 'Posted'): ?>
                         <h6 class="m-0 font-weight-bold text-success">
                             <?= sprintf(lang_line('cb_section_journal', 'Jurnal Entri (Posted) - %s'), htmlspecialchars($journal_header->journal_no, ENT_QUOTES, 'UTF-8')) ?>
                         </h6>
+                        <?php else: ?>
+                        <h6 class="m-0 font-weight-bold text-warning">
+                            Jurnal <?= htmlspecialchars($journal_header->journal_no, ENT_QUOTES, 'UTF-8'); ?> (Draft &mdash; isi lama, diperbarui saat Posting)
+                        </h6>
+                        <?php endif; ?>
                     </div>
                     <div class="card-body">
                         <div class="table-responsive">
@@ -146,3 +175,14 @@
         <?php endif; ?>
     </div>
 </div>
+
+<script>
+document.querySelectorAll('.form-redraft').forEach(function (f) {
+    f.addEventListener('submit', function (e) {
+        var r = prompt('Transaksi ini akan dikembalikan ke DRAFT supaya bisa diedit.\nJurnalnya ikut menjadi Draft (keluar dari laporan) sampai transaksi diposting ulang.\n\nAlasan redraft (wajib):');
+        if (r === null) { e.preventDefault(); return; }
+        if (r.trim().length < 5) { e.preventDefault(); alert('Alasan redraft minimal 5 karakter.'); return; }
+        f.querySelector('input[name=reason]').value = r.trim();
+    });
+});
+</script>
