@@ -38,6 +38,9 @@
                     <button type="button" id="clearSelectionBtn" class="btn btn-sm btn-warning mr-2">
                         <i class="fas fa-times"></i> <?= lang_line('ju_btn_clear_selection', 'Batal Pilihan') ?>
                     </button>
+                    <button type="button" id="batchVoucherBtn" class="btn btn-sm btn-danger mr-2" title="<?= lang_line('ju_btn_print_vouchers_tip', '2 voucher per lembar A4 (dipotong di tengah)') ?>">
+                        <i class="fas fa-print"></i> <?= lang_line('ju_btn_print_vouchers', 'Cetak Voucher (2 per A4)') ?>
+                    </button>
                     <button type="button" id="batchPostBtn" class="btn btn-sm btn-success">
                         <i class="fas fa-check"></i> <?= lang_line('ju_btn_post_selected', 'Posting Jurnal Terpilih') ?>
                     </button>
@@ -107,12 +110,11 @@
                         <?php foreach ($journals as $j): ?>
                         <tr>
                             <td class="text-center">
-                                <?php if($j->status == 'Draft'): ?>
+                                <?php // Semua jurnal bisa dipilih (Cetak Voucher); Posting massal hanya memproses yang Draft. ?>
                                 <div class="custom-control custom-checkbox">
-                                    <input type="checkbox" class="custom-control-input journal-checkbox" id="checkbox_<?= $j->id; ?>" value="<?= $j->id; ?>" title="<?= lang_line('ju_tooltip_select_journal', 'Pilih jurnal ini') ?>">
+                                    <input type="checkbox" class="custom-control-input journal-checkbox" id="checkbox_<?= $j->id; ?>" value="<?= $j->id; ?>" data-status="<?= htmlspecialchars($j->status); ?>" title="<?= lang_line('ju_tooltip_select_journal', 'Pilih jurnal ini') ?>">
                                     <label class="custom-control-label" for="checkbox_<?= $j->id; ?>"></label>
                                 </div>
-                                <?php endif; ?>
                             </td>
                             <td>
                                 <a href="<?= base_url('jurnalumum/view/' . $j->id); ?>" class="text-primary font-weight-bold">
@@ -300,6 +302,7 @@ const I18N_JU = {
     dt_all:            <?= json_encode(lang_line('ju_dt_all', 'Semua')) ?>,
     swal_attention:    <?= json_encode(lang_line('ju_swal_attention', 'Perhatian')) ?>,
     swal_no_journal:   <?= json_encode(lang_line('ju_swal_no_journal_selected', 'Tidak ada jurnal yang dipilih.')) ?>,
+    swal_no_draft:     <?= json_encode(lang_line('ju_swal_no_draft_selected', 'Tidak ada jurnal Draft di pilihan. Posting hanya untuk jurnal Draft.')) ?>,
     swal_confirm_title:<?= json_encode(lang_line('ju_swal_confirm_post_title', 'Konfirmasi Posting')) ?>,
     swal_confirm_html: <?= json_encode(lang_line('ju_swal_confirm_post_html_tpl', '<p>Anda akan memposting <strong>{n} jurnal</strong>.</p><p>Proses ini tidak dapat dibatalkan setelah dikonfirmasi.</p>')) ?>,
     swal_yes_post:     <?= json_encode(lang_line('ju_swal_yes_post_now', 'Ya, Posting Sekarang')) ?>,
@@ -447,14 +450,30 @@ $(document).ready(function() {
         updateBatchActionArea();
     });
 
+    // Cetak voucher jurnal terpilih: 2 voucher per lembar A4 portrait.
+    $('#batchVoucherBtn').on('click', function() {
+        var ids = [];
+        $('.journal-checkbox:checked').each(function() { ids.push($(this).val()); });
+        if (ids.length === 0) {
+            Swal.fire(I18N_JU.swal_attention, I18N_JU.swal_no_journal, 'warning');
+            return;
+        }
+        window.open('<?= base_url('summary_ledger/vouchers_pdf'); ?>?ids=' + ids.join(','), '_blank');
+    });
+
     $('#batchPostBtn').on('click', function() {
         var selectedIds = [];
+        // Posting massal hanya utk jurnal Draft (checkbox juga ada di jurnal Posted utk cetak voucher).
         $('.journal-checkbox:checked').each(function() {
-            selectedIds.push($(this).val());
+            if ($(this).data('status') === 'Draft') selectedIds.push($(this).val());
         });
 
-        if (selectedIds.length === 0) {
+        if ($('.journal-checkbox:checked').length === 0) {
             Swal.fire(I18N_JU.swal_attention, I18N_JU.swal_no_journal, 'warning');
+            return;
+        }
+        if (selectedIds.length === 0) {
+            Swal.fire(I18N_JU.swal_attention, I18N_JU.swal_no_draft, 'warning');
             return;
         }
 

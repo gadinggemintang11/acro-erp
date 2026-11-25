@@ -15,7 +15,7 @@
             <a href="<?= base_url('summary_ledger/voucher_pdf/' . $header->id); ?>"
                target="_blank"
                class="btn btn-outline-danger btn-sm mr-2"
-               title="<?= lang_line('ju_voucher_pdf_tooltip', 'Cetak Voucher Disbursement (PDF)') ?>">
+               title="<?= lang_line('ju_voucher_pdf_tooltip', 'Cetak Voucher (PDF, A4 dibagi 2)') ?>">
                 <i class="fas fa-file-invoice-dollar"></i> <?= lang_line('ju_voucher_pdf', 'Voucher PDF') ?>
             </a>
             <a href="<?= base_url('summary_ledger/voucher_excel/' . $header->id); ?>"

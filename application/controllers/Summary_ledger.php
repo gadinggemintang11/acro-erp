@@ -402,19 +402,40 @@ class Summary_ledger extends MY_Controller {
     }
 
     /**
-     * Generate PDF Voucher Disbursement untuk satu journal hasil import.
+     * PDF Voucher 1 jurnal. Kertas A4 portrait dibagi 2 (voucher landscape di
+     * setengah atas + garis potong) -- lihat pdf_disbursement.php.
      */
     public function voucher_pdf($journal_id)
     {
         $bundle = $this->model->get_journal_for_pdf($journal_id);
         if (!$bundle) show_404();
+        $filename = 'Voucher_' . str_replace('/', '-', $bundle['header']->journal_no) . '_' . date('YmdHis') . '.pdf';
+        $this->_stream_vouchers([$bundle], $filename);
+    }
 
-        $data = [
-            'header'  => $bundle['header'],
-            'details' => $bundle['details'],
-        ];
+    /**
+     * PDF banyak voucher sekaligus: 2 voucher per lembar A4 portrait.
+     * ?ids=12,15,20 (urutan dipertahankan; dipanggil dari Jurnal Umum -> pilih -> Cetak Voucher).
+     */
+    public function vouchers_pdf()
+    {
+        $ids = array_values(array_unique(array_filter(array_map('intval', explode(',', (string) $this->input->get('ids'))))));
+        if (empty($ids)) show_error('Tidak ada jurnal yang dipilih untuk dicetak.', 400);
+        $ids = array_slice($ids, 0, 200);
 
-        $html = $this->load->view('accounting/summary_ledger/pdf_disbursement', $data, true);
+        $bundles = [];
+        foreach ($ids as $id) {
+            $b = $this->model->get_journal_for_pdf($id);
+            if ($b) $bundles[] = $b;
+        }
+        if (empty($bundles)) show_404();
+        $this->_stream_vouchers($bundles, 'Voucher_' . count($bundles) . '-jurnal_' . date('YmdHis') . '.pdf');
+    }
+
+    /** Render & tampilkan PDF voucher (A4 portrait, 2 voucher per lembar). */
+    private function _stream_vouchers(array $bundles, $filename)
+    {
+        $html = $this->load->view('accounting/summary_ledger/pdf_disbursement', ['vouchers' => $bundles], true);
 
         $tmpDir = APPPATH . 'cache/dompdf/tmp';
         if (!is_dir($tmpDir)) @mkdir($tmpDir, 0777, true);
@@ -427,11 +448,10 @@ class Summary_ledger extends MY_Controller {
 
         $dompdf = new Dompdf($options);
         $dompdf->loadHtml($html);
-        $dompdf->setPaper('A4', 'landscape');
+        $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
 
         // Inline preview — Attachment:0 bikin browser render PDF, bukan auto-download
-        $filename = 'Disbursement_' . str_replace('/', '-', $bundle['header']->journal_no) . '_' . date('YmdHis') . '.pdf';
         $dompdf->stream($filename, ['Attachment' => 0, 'compress' => 1]);
     }
 
