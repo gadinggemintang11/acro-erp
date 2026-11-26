@@ -134,6 +134,8 @@ MIGRATIONS=(
   migration_sidebar_accounting_split.sql
   migration_jurnal_valas_per_baris.sql
   migration_ap_invoice_biaya_tambahan.sql
+  migration_aset_tetap_penyusutan.sql
+  migration_aset_mutasi_revaluasi.sql
 )
 
 log() { echo "$@" | tee -a "$LOG_FILE"; }
