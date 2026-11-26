@@ -331,24 +331,27 @@ class ApInvoice extends MY_Controller {
 
         $data['header'] = $header;
         $data['details'] = $this->model->get_invoice_details_by_header_id($id);
-        $data['title'] = 'Faktur Supplier: ' . $header->invoice_no;
+        $data['title'] = 'Faktur Supplier';
 
-        
+        // Desain sama dengan Bukti Kas/Bank: A4 portrait dibagi 2 (lihat pdf_template.php)
         $html = $this->load->view('accounting/ap_invoice/pdf_template', $data, true);
 
-        
+        $tmpDir = APPPATH . 'cache/dompdf/tmp';
+        if (!is_dir($tmpDir)) @mkdir($tmpDir, 0777, true);
+
         $options = new Options();
         $options->set('isHtml5ParserEnabled', true);
         $options->set('isRemoteEnabled', true);
+        $options->setTempDir($tmpDir);
+        $options->setFontCache(APPPATH . 'cache/dompdf');
         $dompdf = new Dompdf($options);
 
         $dompdf->loadHtml($html);
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
 
-        
         $filename = "AP-Invoice-" . str_replace('/', '-', $header->invoice_no) . ".pdf";
-        $dompdf->stream($filename, ["Attachment" => 0]);
+        $dompdf->stream($filename, ["Attachment" => 0, 'compress' => 1]);
     }
 
 

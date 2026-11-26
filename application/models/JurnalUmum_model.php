@@ -128,7 +128,7 @@ class JurnalUmum_model extends CI_Model {
         if (!isset(self::MODULE_MANAGED[$m])) return null;
         $labels = ['AP_INVOICE' => 'Faktur Supplier (AP Invoice)', 'AP_PAYMENT' => 'Pembayaran Hutang (AP Payment)', 'CASH_BANK' => 'Transaksi Kas & Bank', 'ASSET_DEPRECIATION' => 'Batch Penyusutan & Amortisasi'];
         $label = $labels[$m] ?? $m;
-        return "Jurnal ini milik {$label} yang sedang di-redraft. Edit & posting ulang lewat dokumen tersebut — jurnal ikut diperbarui otomatis.";
+        return "Jurnal ini milik {$label} yang masih Draft (di-redraft / dibatalkan postingnya). Edit & posting ulang lewat dokumen tersebut — jurnal ikut diperbarui otomatis.";
     }
 
     /** Link ke dokumen asal jurnal yang dikelola modul lain (null bila bukan). */

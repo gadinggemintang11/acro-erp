@@ -253,17 +253,27 @@ class ApPayment extends MY_Controller {
         $header = $this->model->get_header_by_id($id);
         if (!$header) show_404();
 
+        // Form sekarang menyimpan akun Kas/Bank di kredit_account_id (payment_account_id = 0).
+        if (empty($header->payment_account_name) && !empty($header->kredit_account_id)) {
+            $header->payment_account_name = $this->db->select('account_name')->where('id', (int) $header->kredit_account_id)
+                                                     ->get('chart_of_accounts')->row('account_name');
+        }
+
         $data['header'] = $header;
         $data['details'] = $this->model->get_details_by_header_id($id);
-        $data['title'] = 'Bukti Pembayaran: ' . $header->payment_no;
+        $data['title'] = 'Bukti Pembayaran Utang';
 
-        // Render view ke dalam HTML
+        // Desain sama dengan Bukti Kas/Bank: A4 portrait dibagi 2 (lihat pdf_template.php)
         $html = $this->load->view('accounting/ap_payment/pdf_template', $data, true);
 
-        // Konfigurasi Dompdf
+        $tmpDir = APPPATH . 'cache/dompdf/tmp';
+        if (!is_dir($tmpDir)) @mkdir($tmpDir, 0777, true);
+
         $options = new Options();
         $options->set('isHtml5ParserEnabled', true);
         $options->set('isRemoteEnabled', true);
+        $options->setTempDir($tmpDir);
+        $options->setFontCache(APPPATH . 'cache/dompdf');
         $dompdf = new Dompdf($options);
 
         $dompdf->loadHtml($html);
@@ -272,7 +282,7 @@ class ApPayment extends MY_Controller {
 
         // Output PDF ke browser
         $filename = "AP-Payment-" . str_replace('/', '-', $header->payment_no) . ".pdf";
-        $dompdf->stream($filename, ["Attachment" => 0]);
+        $dompdf->stream($filename, ["Attachment" => 0, 'compress' => 1]);
     }
 
     // Ekspor Detail Pembayaran ke Excel

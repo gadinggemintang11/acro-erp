@@ -29,6 +29,24 @@ class Asset_depreciation_model extends CI_Model {
 
     public static function period_key($y, $m) { return (int) $y * 12 + (int) $m; }
 
+    /**
+     * Penyusutan garis lurus yang jatuh tempo s/d periode (y, m) untuk satu baris
+     * asset_register = target akumulasi s/d periode - akumulasi saat ini (0 bila
+     * tidak ada). Dipakai batch (compute) & cek sebelum revaluasi.
+     */
+    public static function due_amount($a, $y, $m)
+    {
+        $umur = (int) $a->umur_manfaat_bulan;
+        if (empty($a->disusutkan) || $umur <= 0 || empty($a->mulai_penyusutan)) return 0.0;
+        $dep = round((float) $a->nilai_perolehan - (float) $a->nilai_residu, 2);
+        if ($dep <= 0) return 0.0;
+        $months = self::period_key($y, $m) - self::period_key(date('Y', strtotime($a->mulai_penyusutan)), date('n', strtotime($a->mulai_penyusutan))) + 1;
+        if ($months <= 0) return 0.0;
+        $target = $months >= $umur ? $dep : min($dep, round($dep / $umur * $months, 2));
+        $amount = round($target - (float) $a->akumulasi_penyusutan, 2);
+        return $amount > 0.004 ? $amount : 0.0;
+    }
+
     public static function period_label($y, $m)
     {
         $bln = [1 => 'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
@@ -115,13 +133,8 @@ class Asset_depreciation_model extends CI_Model {
             ->order_by('ar.no_asset', 'ASC')->get()->result();
         foreach ($assets as $a) {
             $dep = round((float) $a->nilai_perolehan - (float) $a->nilai_residu, 2);
-            if ($dep <= 0) continue;
-            $start = self::period_key(date('Y', strtotime($a->mulai_penyusutan)), date('n', strtotime($a->mulai_penyusutan)));
-            $months = $pk - $start + 1;
-            if ($months <= 0) continue;
-            $target = $months >= (int) $a->umur_manfaat_bulan ? $dep : min($dep, round($dep / (int) $a->umur_manfaat_bulan * $months, 2));
-            $amount = round($target - (float) $a->akumulasi_penyusutan, 2);
-            if ($amount <= 0.004) continue;
+            $amount = self::due_amount($a, $y, $m);
+            if ($amount <= 0) continue;
             if (empty($a->coa_akum) || empty($a->coa_beban)) {
                 $out['errors'][] = $a->no_asset . ' (' . $a->nama . '): akun Akumulasi / Beban Penyusutan belum diisi (atur di Master Asset atau di data aset).';
                 continue;
@@ -321,6 +334,15 @@ class Asset_depreciation_model extends CI_Model {
             ->where('d.depreciation_header_id', (int) $id)->get()->result();
         foreach ($assets as $d) {
             if ($d->ar_status === 'Disposed') throw new Exception('Aset ' . $d->no_asset . ' sudah dilepas setelah penyusutan ini. Batalkan pelepasannya dulu.');
+        }
+        // Revaluasi / pelepasan sebagian yang dibuat SETELAH batch ini diposting memakai
+        // nilai hasil batch ini -> batalkan mutasinya dulu.
+        $ids = array_map(function ($d) { return (int) $d->asset_register_id; }, $assets);
+        if ($ids && $this->db->table_exists('asset_mutations')) {
+            $mut = $this->db->select('m.jenis, ar.no_asset')->from('asset_mutations m')->join('asset_register ar', 'ar.id = m.asset_register_id')
+                ->where_in('m.asset_register_id', $ids)->where('m.dep_period_at >=', self::period_key($b->periode_year, $b->periode_month))
+                ->order_by('m.id', 'DESC')->limit(1)->get()->row();
+            if ($mut) throw new Exception('Aset ' . $mut->no_asset . ' sudah ' . ($mut->jenis === 'REVALUASI' ? 'direvaluasi' : 'dilepas sebagian') . ' setelah penyusutan ini diposting. Batalkan dulu mutasi itu di kartu aset.');
         }
         $prepaids = $this->db->where('depreciation_header_id', (int) $id)->get('prepaid_amortization_details')->result();
 

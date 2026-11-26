@@ -22,7 +22,7 @@ $exim_items = ['exim_verification', 'mir', 'fg_delivery'];
 $it_inventory_items = ['lappemasukanbb', 'lappengeluaranbarang', 'lapmutasiscrap', 'lapmutasimaterial', 'lapmutasifinished', 'lapmutasiwip', 'lapmutasimesin'];
 
 // 3. Accounting
-$accounting_items = ['coa', 'jurnalumum', 'summary_ledger', 'voucher_disbursement_list', 'apinvoice', 'hutang', 'piutang', 'prf', 'prf_approval', 'prf_payment', 'prf_list', 'erf', 'erf_approval', 'erf_payment', 'erf_list', 'settingakun', 'appayment', 'arinvoice','arreceipt', 'neraca', 'cashbank','laba_rugi','balance_sheet', 'cash_flow', 'trial_balance', 'reports', 'stockopname', 'adjustment', 'kurs_pajak'];
+$accounting_items = ['coa', 'jurnalumum', 'summary_ledger', 'voucher_disbursement_list', 'apinvoice', 'hutang', 'piutang', 'prf', 'prf_approval', 'prf_payment', 'prf_list', 'erf', 'erf_approval', 'erf_payment', 'erf_list', 'settingakun', 'appayment', 'arinvoice','arreceipt', 'neraca', 'cashbank','laba_rugi','balance_sheet', 'cash_flow', 'trial_balance', 'reports', 'stockopname', 'adjustment', 'kurs_pajak', 'asset_register', 'asset_depreciation', 'prepaid_expense'];
 
 // 2. Configuration
 $master_items = ['master_supplier', 'master_customer', 'master_material', 'master_semifinished', 'master_scrap', 'master_fg', 'master_machine', 'master_inventory', 'master_karyawan', 'master_jasa', 'master_asset'];
@@ -61,7 +61,7 @@ $canViewScrap = check_access('scrap_in', 'view') || check_access('scrap_stock', 
 $canViewSubkon = check_access('subkon_order', 'view') || check_access('subkon_out', 'view') || check_access('subkon_in', 'view');
 $canViewFg = check_access('fg_receipt', 'view') || check_access('fg_receipt_approval', 'view') || check_access('fg_stock', 'view');
 $canViewBom = check_access('bom', 'view');
-$canViewAccounting = check_access('jurnalumum', 'view') || check_access('summary_ledger', 'view') || check_access('voucher_disbursement_list', 'view') || check_access('settingakun', 'view') || check_access('apinvoice', 'view') || check_access('hutang', 'view') || check_access('piutang', 'view') || check_access('prf', 'view') || check_access('prf_approval', 'view') || check_access('prf_payment', 'view') || check_access('prf_list', 'view') || check_access('erf', 'view') || check_access('erf_approval', 'view') || check_access('erf_payment', 'view') || check_access('erf_list', 'view') || check_access('appayment', 'view') || check_access('arinvoice', 'view')|| check_access('arreceipt', 'view') || check_access('cashbank', 'view') || check_access('coa', 'view') || check_access('laba_rugi', 'view') || check_access('neraca', 'view') || check_access('trial_balance', 'view') || check_access('cash_flow', 'view') || check_access('stockopname', 'view') || check_access('adjustment', 'view') || check_access('kurs_pajak', 'view');
+$canViewAccounting = check_access('jurnalumum', 'view') || check_access('summary_ledger', 'view') || check_access('voucher_disbursement_list', 'view') || check_access('settingakun', 'view') || check_access('apinvoice', 'view') || check_access('hutang', 'view') || check_access('piutang', 'view') || check_access('prf', 'view') || check_access('prf_approval', 'view') || check_access('prf_payment', 'view') || check_access('prf_list', 'view') || check_access('erf', 'view') || check_access('erf_approval', 'view') || check_access('erf_payment', 'view') || check_access('erf_list', 'view') || check_access('appayment', 'view') || check_access('arinvoice', 'view')|| check_access('arreceipt', 'view') || check_access('cashbank', 'view') || check_access('coa', 'view') || check_access('laba_rugi', 'view') || check_access('neraca', 'view') || check_access('trial_balance', 'view') || check_access('cash_flow', 'view') || check_access('stockopname', 'view') || check_access('adjustment', 'view') || check_access('kurs_pajak', 'view') || check_access('asset_register', 'view') || check_access('asset_depreciation', 'view') || check_access('prepaid_expense', 'view');
 $canViewMaster = check_access('master_supplier', 'view') || check_access('master_customer', 'view') || check_access('master_material', 'view') || check_access('master_semifinished', 'view') || check_access('master_scrap', 'view') || check_access('master_fg', 'view') || check_access('master_machine', 'view') || check_access('master_inventory', 'view') || check_access('master_karyawan', 'view') || check_access('master_jasa', 'view') || check_access('master_asset', 'view');
 $canViewSystem = check_access('commoncode', 'view') || check_access('roleaccess', 'view') || check_access('user', 'view') || check_access('log_activity', 'view') || check_access('developer_mode', 'view');
 $canViewDocSharing = check_access('document_sharing', 'view');
@@ -991,6 +991,7 @@ document.addEventListener('DOMContentLoaded', function() {
     $isAccFundActive    = in_array($current, ['prf', 'prf_approval', 'prf_payment', 'prf_list', 'erf', 'erf_approval', 'erf_payment', 'erf_list'], true);
     $isAccLedgerActive  = in_array($current, ['jurnalumum', 'summary_ledger', 'voucher_disbursement_list', 'cashbank'], true);
     $isAccAparActive    = in_array($current, ['apinvoice', 'appayment', 'hutang', 'arinvoice', 'arreceipt', 'piutang'], true);
+    $isAccAssetActive   = in_array($current, ['asset_register', 'asset_depreciation', 'prepaid_expense', 'asset_report'], true);
     $isAccReportActive  = in_array($current, ['reports', 'laba_rugi', 'neraca', 'balance_sheet', 'trial_balance', 'cash_flow'], true);
     $isAccStockActive   = in_array($current, ['stockopname', 'adjustment'], true);
     $isAccSettingActive = in_array($current, ['coa', 'settingakun', 'kurs_pajak'], true);
@@ -1070,6 +1071,21 @@ document.addEventListener('DOMContentLoaded', function() {
                     <?php endif; ?>
                 <?php endif; ?>
     <?php $sections['acc_apar'] = $sb_dropdown('acc_apar', 'fa-file-invoice-dollar', lang_line('sidebar_acc_apar', 'Hutang & Piutang'), $isAccAparActive, ob_get_clean()); ?>
+
+    <?php /* ---- 3b. Aset & Penyusutan (2026-11-26) ---- */ ob_start(); ?>
+                <?php if (check_access('asset_register', 'view')): ?>
+                    <a data-lk="sidebar_asset_register" class="collapse-item <?= ($current == 'asset_register') ? 'active' : ''; ?>" href="<?= $base; ?>asset_register"><i class="fas fa-building" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_asset_register', 'Aset Tetap'); ?></a>
+                <?php endif; ?>
+                <?php if (check_access('asset_depreciation', 'view')): ?>
+                    <a data-lk="sidebar_asset_depreciation" class="collapse-item <?= ($current == 'asset_depreciation') ? 'active' : ''; ?>" href="<?= $base; ?>asset_depreciation"><i class="fas fa-calculator" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_asset_depreciation', 'Penyusutan & Amortisasi'); ?></a>
+                <?php endif; ?>
+                <?php if (check_access('prepaid_expense', 'view')): ?>
+                    <a data-lk="sidebar_prepaid_expense" class="collapse-item <?= ($current == 'prepaid_expense') ? 'active' : ''; ?>" href="<?= $base; ?>prepaid_expense"><i class="fas fa-hourglass-half" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_prepaid_expense', 'Biaya Dibayar Dimuka'); ?></a>
+                <?php endif; ?>
+                <?php if (check_access('asset_register', 'view') || check_access('asset_depreciation', 'view')): ?>
+                    <a data-lk="sidebar_asset_report" class="collapse-item <?= ($current == 'asset_report') ? 'active' : ''; ?>" href="<?= $base; ?>asset_report"><i class="fas fa-file-alt" style="font-size: 0.7rem; margin-right: 0.3rem;"></i> <?= lang_line('sidebar_asset_report', 'Laporan Aset'); ?></a>
+                <?php endif; ?>
+    <?php $sections['acc_asset'] = $sb_dropdown('acc_asset', 'fa-building', lang_line('sidebar_acc_asset', 'Aset & Penyusutan'), $isAccAssetActive, ob_get_clean()); ?>
 
     <?php /* ---- 4. Laporan Keuangan ---- */ ob_start(); ?>
                 <?php if (check_access('laba_rugi', 'view')): ?>

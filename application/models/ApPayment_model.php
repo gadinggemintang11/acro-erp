@@ -23,10 +23,11 @@ class ApPayment_model extends CI_Model {
 
     public function get_header_by_id($id)
     {
-        $this->db->select('ap.*, s.nama_supplier, coa.account_code, coa.account_name as payment_account_name');
+        $this->db->select('ap.*, s.nama_supplier, coa.account_code, coa.account_name as payment_account_name, u.fullname as creator_name');
         $this->db->from('ap_payment_header ap');
         $this->db->join('suppliers s', 'ap.supplier_id = s.id', 'left');
         $this->db->join('chart_of_accounts coa', 'ap.payment_account_id = coa.id', 'left');
+        $this->db->join('users u', 'ap.created_by = u.id', 'left');
         $this->db->where('ap.id', $id);
         return $this->db->get()->row();
     }

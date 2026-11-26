@@ -1,108 +1,159 @@
+<?php
+/**
+ * PDF Faktur Supplier (AP Invoice). Desain sama dengan Bukti Kas/Bank &
+ * Bukti Pembayaran Utang (mengikuti Voucher Summary Ledger), permintaan user
+ * 2026-11-26: kertas A4 PORTRAIT dibagi 2 -> faktur landscape di setengah atas
+ * + garis potong. Isi = data faktur yang sama seperti sebelumnya.
+ * Item terlalu banyak untuk setengah halaman -> dicetak 1 halaman penuh.
+ *
+ * Variabel: $title, $header (ApInvoice_model::get_invoice_header_by_id), $details.
+ */
+$logo_path = FCPATH . site_asset('logo_pdf', 'assets/img/logo_pdf.png');
+$logo_data = file_exists($logo_path) ? 'data:image/png;base64,' . base64_encode(file_get_contents($logo_path)) : '';
+
+$fmt = function ($v) { return number_format((float) $v, 2, '.', ','); };
+$item_desc = function ($d) { return $d->account_id ? "({$d->account_code}) {$d->account_name}" : (string) $d->description; };
+
+// Perkiraan tinggi tabel item (kolom Deskripsi ~55 karakter/baris).
+$units = 0;
+foreach ($details as $d) $units += max(1, (int) ceil(mb_strlen($item_desc($d)) / 55));
+$full     = ($units > 7);
+$min_rows = $full ? 6 : 2; // baris kosong minimal di tabel item
+?>
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <title><?= $title; ?></title>
-    <style>
-        body { font-family: sans-serif; font-size: 10pt; }
-        .container { width: 100%; margin: 0 auto; }
-        .header, .footer { text-align: center; }
-        .header h1 { margin: 0; }
-        .header p { margin: 5px 0; }
-        .content { margin-top: 20px; }
-        table { width: 100%; border-collapse: collapse; }
-        th, td { border: 1px solid #000; padding: 8px; text-align: left; }
-        th { background-color: #f2f2f2; }
-        .text-right { text-align: right; }
-        .font-weight-bold { font-weight: bold; }
-        .mb-3 { margin-bottom: 1rem; }
-        .row::after { content: ""; clear: both; display: table; }
-        .col-6 { float: left; width: 50%; }
-    </style>
+<meta charset="utf-8">
+<title><?= htmlspecialchars($title); ?></title>
+<style>
+    /* Garis potong tepat di tengah kertas: 8mm + 136mm + 4.5mm = 148.5mm (sama dengan voucher). */
+    @page { margin: 8mm 10mm 4mm 10mm; }
+    body { font-family: DejaVu Sans, sans-serif; font-size: 7pt; color: #222; margin: 0; }
+    table { border-collapse: collapse; width: 100%; }
+    .slot { height: 136mm; overflow: hidden; }
+    .slot-full { height: 282mm; overflow: hidden; }
+    .cut { height: 5.5mm; padding-top: 4.5mm; }
+    .cut-line { border-top: 1px dashed #888; text-align: center; font-size: 6pt; color: #888; padding-top: 0.5mm; }
+
+    .frame { border: 1px solid #000; }
+    .frame td, .frame th { border: 1px solid #000; padding: 0.6mm 1.5mm; vertical-align: top; }
+    .bt0 { border-top: none; }
+    .frame .inner td { border: none; border-bottom: 1px solid #000; padding: 0.9mm 1.5mm; }
+    .frame .inner td.last { border-bottom: none; }
+    .frame .info td { border: none; padding: 0.3mm 1mm; }
+    .vmid { vertical-align: middle !important; }
+    .center { text-align: center; }
+    .right { text-align: right; }
+    .b { font-weight: bold; }
+    .company-name { font-size: 10pt; font-weight: bold; }
+    .company-meta { font-size: 6.3pt; line-height: 1.2; }
+    .title-doc { text-align: center; font-size: 10.5pt; font-weight: bold; padding: 1mm 0 !important; }
+    .dt th { text-align: center; font-weight: bold; }
+    .dt td.section { padding: 0.8mm 1.5mm; }
+    .printed { margin-top: 1mm; color: #666; font-size: 6pt; }
+</style>
 </head>
 <body>
-    <div class="container">
-        <div class="header">
-            <h1>FAKTUR SUPPLIER</h1>
-            <p>Nomor: <?= htmlspecialchars($header->invoice_no); ?></p>
-        </div>
+<div class="<?= $full ? 'slot-full' : 'slot'; ?>">
 
-        <div class="content">
-            <div class="row mb-3">
-                <div class="col-6">
-                    <strong>Supplier:</strong><br>
-                    <?= htmlspecialchars($header->nama_supplier); ?>
-                </div>
-                <div class="col-6" style="text-align: right;">
-                    <strong>Tanggal Faktur:</strong> <?= date('d M Y', strtotime($header->invoice_date)); ?><br>
-                    <strong>Jatuh Tempo:</strong> <?= date('d M Y', strtotime($header->due_date)); ?>
-                </div>
-            </div>
-
-            <h4>Detail Item</h4>
-            <table>
-                <thead>
-                    <tr>
-                        <th>Deskripsi</th>
-                        <th class="text-right">Qty</th>
-                        <th class="text-right">Harga Satuan</th>
-                        <th class="text-right">Total</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <?php foreach($details as $d): ?>
-                    <tr>
-                        <td>
-                            <?= htmlspecialchars($d->account_id ? "({$d->account_code}) {$d->account_name}" : $d->description); ?>
-                        </td>
-                        <td class="text-right"><?= number_format((float)$d->qty, 2); ?></td>
-                        <td class="text-right"><?= number_format($d->unit_price, 2); ?></td>
-                        <td class="text-right"><?= number_format($d->total_price, 2); ?></td>
-                    </tr>
-                    <?php endforeach; ?>
-                </tbody>
+<table class="frame">
+    <tr>
+        <td class="center vmid" style="width: 20mm;">
+            <?php if ($logo_data): ?><img src="<?= $logo_data; ?>" style="width: 15mm; height: auto;"><?php endif; ?>
+        </td>
+        <td class="vmid">
+            <div class="company-name"><?= htmlspecialchars(company_info('company_name')); ?></div>
+            <div class="company-meta"><?= implode('<br>', array_map('htmlspecialchars', company_contact_lines())); ?></div>
+        </td>
+        <td style="width: 60mm; padding: 0;">
+            <table class="inner">
+                <tr><td class="b" style="width: 22mm;">No. Faktur</td><td>: <?= htmlspecialchars($header->invoice_no); ?></td></tr>
+                <tr><td class="b">Tanggal Faktur</td><td>: <?= date('d M Y', strtotime($header->invoice_date)); ?></td></tr>
+                <tr><td class="b last">Jatuh Tempo</td><td class="last">: <?= date('d M Y', strtotime($header->due_date)); ?></td></tr>
             </table>
+        </td>
+    </tr>
+</table>
 
-            <div class="row" style="margin-top: 20px;">
-                <div class="col-6">
-                    <!-- Kolom kiri bisa untuk catatan -->
-                </div>
-                <div class="col-6">
-                    <table style="width: 100%;">
-                        <tr>
-                            <th style="width: 50%;">Subtotal</th>
-                            <td class="text-right"><?= number_format($header->subtotal, 2); ?></td>
-                        </tr>
-                        <tr>
-                            <th>PPN</th>
-                            <td class="text-right"><?= number_format($header->ppn_amount, 2); ?></td>
-                        </tr>
-                        <tr>
-                            <th>Potongan PPh</th>
-                            <td class="text-right">(-) <?= number_format($header->pph_amount, 2); ?></td>
-                        </tr>
-                        <tr class="font-weight-bold">
-                            <td>Total Tagihan</td>
-                            <td class="text-right"><?= number_format($header->total_invoice, 2); ?></td>
-                        </tr>
-                    </table>
-                </div>
-            </div>
+<table class="frame bt0">
+    <tr><td class="title-doc"><?= htmlspecialchars($title); ?></td></tr>
+</table>
 
-            <div class="row" style="margin-top: 50px;">
-                <div class="col-6" style="text-align: center;">
-                    <p>Disiapkan oleh,</p>
-                    <br><br><br>
-                    <p>(_________________________)</p>
-                </div>
-                <div class="col-6" style="text-align: center;">
-                    <p>Disetujui oleh,</p>
-                    <br><br><br>
-                    <p>(_________________________)</p>
-                </div>
-            </div>
+<table class="frame bt0">
+    <tr>
+        <td style="padding: 1.5mm 2.5mm;">
+            <table class="info">
+                <tr>
+                    <td class="b" style="width: 24mm;">Supplier</td><td style="width: 2mm;">:</td><td><?= htmlspecialchars((string) $header->nama_supplier); ?></td>
+                </tr>
+            </table>
+        </td>
+    </tr>
+</table>
 
-        </div>
-    </div>
+<table class="frame bt0 dt">
+    <thead>
+        <tr><td colspan="5" class="b section">Detail Item</td></tr>
+        <tr>
+            <th style="width: 7mm;">No</th>
+            <th>Deskripsi</th>
+            <th style="width: 24mm;">Qty</th>
+            <th style="width: 32mm;">Harga Satuan</th>
+            <th style="width: 34mm;">Total</th>
+        </tr>
+    </thead>
+    <tbody>
+        <?php $no = 1; foreach ($details as $d): ?>
+            <tr>
+                <td class="center"><?= $no++; ?></td>
+                <td><?= htmlspecialchars($item_desc($d)); ?></td>
+                <td class="right"><?= $fmt($d->qty); ?></td>
+                <td class="right"><?= $fmt($d->unit_price); ?></td>
+                <td class="right"><?= $fmt($d->total_price); ?></td>
+            </tr>
+        <?php endforeach; ?>
+        <?php for ($k = count($details); $k < $min_rows; $k++): ?>
+            <tr><td>&nbsp;</td><td></td><td></td><td></td><td></td></tr>
+        <?php endfor; ?>
+    </tbody>
+    <tfoot>
+        <tr>
+            <td colspan="4" class="b">Subtotal</td>
+            <td class="right"><?= $fmt($header->subtotal); ?></td>
+        </tr>
+        <tr>
+            <td colspan="4" class="b">PPN</td>
+            <td class="right"><?= $fmt($header->ppn_amount); ?></td>
+        </tr>
+        <tr>
+            <td colspan="4" class="b">Potongan PPh</td>
+            <td class="right">(-) <?= $fmt($header->pph_amount); ?></td>
+        </tr>
+        <tr>
+            <td colspan="4" class="b">Total Tagihan</td>
+            <td class="right b"><?= $fmt($header->total_invoice); ?></td>
+        </tr>
+    </tfoot>
+</table>
+
+<table class="frame" style="margin-top: 1.2mm;">
+    <tr>
+        <td class="center b" style="width: 33.33%;">Dibuat Oleh</td>
+        <td class="center b" style="width: 33.33%;">Diperiksa Oleh</td>
+        <td class="center b" style="width: 33.34%;">Disetujui Oleh</td>
+    </tr>
+    <tr><td style="height: <?= $full ? '18mm' : '11mm'; ?>;"></td><td></td><td></td></tr>
+    <tr>
+        <td class="center"><?= !empty($header->creator_name) ? htmlspecialchars($header->creator_name) : '&nbsp;'; ?></td>
+        <td></td><td></td>
+    </tr>
+</table>
+
+<div class="printed">Dicetak pada : <?= date('d/m/Y H:i'); ?> WIB</div>
+
+</div>
+<?php if (!$full): ?>
+<div class="cut"><div class="cut-line">- - - - - - - - - - - - - - - - potong di sini - - - - - - - - - - - - - - - -</div></div>
+<?php endif; ?>
 </body>
 </html>

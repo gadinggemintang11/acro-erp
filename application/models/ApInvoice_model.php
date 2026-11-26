@@ -365,7 +365,7 @@ class ApInvoice_model extends CI_Model {
      */
     public function get_invoice_header_by_id($id)
     {
-        $this->db->select('ap.*, s.nama_supplier, s.jenis as supplier_type,
+        $this->db->select('ap.*, s.nama_supplier, s.jenis as supplier_type, u.fullname as creator_name,
                           (SELECT prf.prf_number FROM prf_header prf WHERE prf.id = ap.prf_header_id) as prf_number,
                           (SELECT GROUP_CONCAT(DISTINCT ph.po_number SEPARATOR ", ") FROM ap_invoice_details x JOIN po_details pd ON pd.id = x.po_detail_id JOIN po_header ph ON ph.id = pd.po_header_id WHERE x.ap_invoice_header_id = ap.id) as po_numbers,
                           (SELECT GROUP_CONCAT(DISTINCT gh.base_on) 
@@ -374,6 +374,7 @@ class ApInvoice_model extends CI_Model {
                           ) as grn_base_on', FALSE);
         $this->db->from('ap_invoice_header ap');
         $this->db->join('suppliers s', 'ap.supplier_id = s.id');
+        $this->db->join('users u', 'ap.created_by = u.id', 'left');
         $this->db->where('ap.id', $id);
         return $this->db->get()->row();
     }

@@ -58,6 +58,7 @@ if (!function_exists('sidebar_section_lang_keys')) {
             'acc_fund'         => ['sidebar_acc_fund', 'Pengajuan Dana'],
             'accounting'       => ['sidebar_acc_ledger', 'Kas, Bank & Jurnal'],
             'acc_apar'         => ['sidebar_acc_apar', 'Hutang & Piutang'],
+            'acc_asset'        => ['sidebar_acc_asset', 'Aset & Penyusutan'],
             'acc_report'       => ['sidebar_acc_report', 'Laporan Keuangan'],
             'acc_stock'        => ['sidebar_acc_stock', 'Stock Opname'],
             'acc_setting'      => ['sidebar_acc_setting', 'Pengaturan Akuntansi'],
@@ -83,7 +84,7 @@ if (!function_exists('sidebar_section_groups')) {
             'sales_prod' => ['sidebar_grp_sales_prod', 'Penjualan & Produksi', 'fa-industry',  ['order', 'produksi', 'fg', 'exim']],
             'supply'     => ['sidebar_grp_supply',     'Pengadaan & Gudang',   'fa-boxes',     ['permintaan', 'purchase', 'warehouse', 'qa', 'scrap', 'subkon']],
             'customs'    => ['sidebar_grp_customs',    'Kepabeanan',           'fa-landmark',  ['it_inventory']],
-            'finance'    => ['sidebar_grp_finance',    'Keuangan & Akuntansi',             'fa-coins',     ['acc_fund', 'accounting', 'acc_apar', 'acc_report', 'acc_stock', 'acc_setting']],
+            'finance'    => ['sidebar_grp_finance',    'Keuangan & Akuntansi',             'fa-coins',     ['acc_fund', 'accounting', 'acc_apar', 'acc_asset', 'acc_report', 'acc_stock', 'acc_setting']],
             'admin'      => ['sidebar_grp_admin',      'Data & Sistem',        'fa-cogs',      ['master', 'document_sharing', 'system']],
         ];
     }
