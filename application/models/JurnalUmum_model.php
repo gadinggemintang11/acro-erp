@@ -118,7 +118,7 @@ class JurnalUmum_model extends CI_Model {
      * TIDAK boleh diedit / diposting / dihapus dari Jurnal Umum (bisa beda dengan
      * dokumennya) — dikelola dari modul asalnya. Nilai = path controller modul.
      */
-    const MODULE_MANAGED = ['AP_INVOICE' => 'apinvoice', 'AP_PAYMENT' => 'appayment', 'CASH_BANK' => 'cashbank'];
+    const MODULE_MANAGED = ['AP_INVOICE' => 'apinvoice', 'AP_PAYMENT' => 'appayment', 'CASH_BANK' => 'cashbank', 'ASSET_DEPRECIATION' => 'asset_depreciation'];
 
     /** Pesan penolakan bila jurnal Draft ini dikelola modul lain; null bila bebas. */
     public function module_lock_message($header)
@@ -126,7 +126,7 @@ class JurnalUmum_model extends CI_Model {
         if (!$header || ($header->status ?? '') !== 'Draft') return null;
         $m = $header->source_module ?? '';
         if (!isset(self::MODULE_MANAGED[$m])) return null;
-        $labels = ['AP_INVOICE' => 'Faktur Supplier (AP Invoice)', 'AP_PAYMENT' => 'Pembayaran Hutang (AP Payment)', 'CASH_BANK' => 'Transaksi Kas & Bank'];
+        $labels = ['AP_INVOICE' => 'Faktur Supplier (AP Invoice)', 'AP_PAYMENT' => 'Pembayaran Hutang (AP Payment)', 'CASH_BANK' => 'Transaksi Kas & Bank', 'ASSET_DEPRECIATION' => 'Batch Penyusutan & Amortisasi'];
         $label = $labels[$m] ?? $m;
         return "Jurnal ini milik {$label} yang sedang di-redraft. Edit & posting ulang lewat dokumen tersebut — jurnal ikut diperbarui otomatis.";
     }

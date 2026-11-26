@@ -325,17 +325,19 @@ class CashBank extends MY_Controller {
     }
 
     /**
-     * PDF 1 transaksi = format Voucher Summary Ledger (permintaan user 2026-11-26):
-     * kertas A4 portrait dibagi 2, voucher landscape di setengah atas + garis potong.
-     * Template: summary_ledger/pdf_disbursement.php + _voucher_block.php.
+     * PDF 1 transaksi (Bukti Kas/Bank Masuk/Keluar). Desain mengikuti Voucher
+     * Summary Ledger: A4 portrait dibagi 2, bukti di setengah atas + garis potong.
      */
     public function export_pdf_detail($id)
     {
-        $cb = $this->model->get_header_by_id($id);
-        if (!$cb) show_404();
-        $bundle = $this->_voucher_bundle($cb, $this->model->get_details_by_header_id($id));
+        $data['header'] = $this->model->get_header_by_id($id);
+        if (!$data['header']) show_404();
 
-        $html = $this->load->view('accounting/summary_ledger/pdf_disbursement', ['vouchers' => [$bundle]], true);
+        $data['title'] = ($data['header']->transaction_type == 'IN') ?
+            lang_line('title_cb_receipt_in', 'Bukti Kas/Bank Masuk') : lang_line('title_cb_receipt_out', 'Bukti Kas/Bank Keluar');
+        $data['details'] = $this->model->get_details_by_header_id($id);
+
+        $html = $this->load->view('accounting/cash_bank/pdf_detail_view', $data, true);
 
         $tmpDir = APPPATH . 'cache/dompdf/tmp';
         if (!is_dir($tmpDir)) @mkdir($tmpDir, 0777, true);
@@ -350,51 +352,7 @@ class CashBank extends MY_Controller {
         $dompdf->loadHtml($html);
         $dompdf->setPaper('A4', 'portrait');
         $dompdf->render();
-        $dompdf->stream('Voucher_' . str_replace('/', '-', $cb->doc_no) . '.pdf', ['Attachment' => 0, 'compress' => 1]);
-    }
-
-    /**
-     * Susun data voucher (format Summary_ledger_model::get_journal_for_pdf) dari
-     * transaksi Kas/Bank. Baris jurnal = sama dengan yang dibuat post_transaction
-     * (OUT: detail Debit, Kas/Bank Kredit; IN: Kas/Bank Debit, detail Kredit),
-     * nilai dalam IDR (local). Draft pun bisa dicetak (belum ada jurnal).
-     */
-    private function _voucher_bundle($cb, $details)
-    {
-        $is_in = ($cb->transaction_type == 'IN');
-
-        $journal_no = '';
-        if (!empty($cb->journal_header_id)) {
-            $journal_no = (string) $this->db->select('journal_no')->where('id', (int) $cb->journal_header_id)
-                                            ->get('journal_header')->row('journal_no');
-        }
-
-        $header = (object) [
-            'journal_no'          => $journal_no,
-            'journal_date'        => $cb->doc_date,
-            'document_date'       => $cb->doc_date,
-            'due_date'            => null,
-            'description'         => $cb->description,
-            'voucher_no'          => $cb->doc_no,
-            'voucher_total_label' => $is_in ? 'Total Received' : 'Total Paid',
-            'voucher_sig_last'    => $is_in ? 'Received By' : 'Paid By',
-        ];
-
-        $line = function ($code, $name, $desc, $debit, $kredit) {
-            return (object) ['account_code' => $code, 'account_name' => $name, 'description' => $desc,
-                             'debit_local' => $debit, 'kredit_local' => $kredit];
-        };
-        $cash_line = $line($cb->account_code, $cb->payment_account_name, $cb->description,
-                           $is_in ? (float) $cb->total_amount_local : 0, $is_in ? 0 : (float) $cb->total_amount_local);
-
-        $lines = $is_in ? [$cash_line] : [];
-        foreach ($details as $d) {
-            $amt = (float) $d->amount_local;
-            $lines[] = $line($d->account_code, $d->account_name, $d->description, $is_in ? 0 : $amt, $is_in ? $amt : 0);
-        }
-        if (!$is_in) $lines[] = $cash_line;
-
-        return ['header' => $header, 'details' => $lines];
+        $dompdf->stream('CashBank_' . str_replace('/', '-', $data['header']->doc_no) . '.pdf', ['Attachment' => 0, 'compress' => 1]);
     }
 
     private function generate_pdf($html, $filename, $paper = 'A4', $orientation = 'portrait')

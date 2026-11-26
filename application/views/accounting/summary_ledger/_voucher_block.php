@@ -40,11 +40,6 @@ $doc_date = !empty($header->document_date) ? date('d/m/y', strtotime($header->do
 $due_date = !empty($header->due_date) ? date('d/m/y', strtotime($header->due_date)) : '';
 
 $min_rows = !empty($full) ? 6 : 2; // baris kosong minimal di tabel jurnal
-
-// Override opsional dari modul lain (mis. Cash Bank); default = voucher Summary Ledger.
-$voucher_no  = (string) ($header->voucher_no ?? '');           // kosong = diisi tangan
-$total_label = (string) ($header->voucher_total_label ?? 'Total Paid');
-$sig_last    = (string) ($header->voucher_sig_last ?? 'Paid By');
 ?>
 <table class="frame">
     <tr>
@@ -57,7 +52,7 @@ $sig_last    = (string) ($header->voucher_sig_last ?? 'Paid By');
         </td>
         <td style="width: 56mm; padding: 0;">
             <table class="inner">
-                <tr><td class="b" style="width: 23mm;">Voucher No</td><td>: <?= htmlspecialchars($voucher_no); ?></td></tr>
+                <tr><td class="b" style="width: 23mm;">Voucher No</td><td>: </td></tr>
                 <tr><td class="b">Document Date</td><td>: <?= $doc_date; ?></td></tr>
                 <tr><td class="b last">Due Date</td><td class="last">: <?= $due_date; ?></td></tr>
             </table>
@@ -137,7 +132,7 @@ $sig_last    = (string) ($header->voucher_sig_last ?? 'Paid By');
         </tr>
         <?php endif; ?>
         <tr>
-            <td colspan="3" class="b"><?= htmlspecialchars($total_label); ?></td>
+            <td colspan="3" class="b">Total Paid</td>
             <td></td><td class="right b"><?= $fmt($total_paid); ?></td><td></td>
         </tr>
     </tfoot>
@@ -148,7 +143,7 @@ $sig_last    = (string) ($header->voucher_sig_last ?? 'Paid By');
         <td class="center b" style="width: 25%;">Prepared By</td>
         <td class="center b" style="width: 25%;">Checked By</td>
         <td class="center b" style="width: 25%;">Approved By</td>
-        <td class="center b" style="width: 25%;"><?= htmlspecialchars($sig_last); ?></td>
+        <td class="center b" style="width: 25%;">Paid By</td>
     </tr>
     <tr><td style="height: <?= !empty($full) ? '18mm' : '11mm'; ?>;"></td><td></td><td></td><td></td></tr>
     <tr><td>&nbsp;</td><td></td><td></td><td></td></tr>
