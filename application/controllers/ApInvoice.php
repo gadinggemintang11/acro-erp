@@ -245,6 +245,26 @@ class ApInvoice extends MY_Controller {
             foreach ($details as $d) $max_qty[$d->id] = (float) $d->qty;
         }
 
+        // Faktur PO/GRN: PPN ditampilkan sesuai PO (sama dengan yang dihitung saat simpan),
+        // bukan angka tersimpan -- penting utk faktur lama yang terlanjur tanpa PPN.
+        $rates = $this->model->stored_tax_rates($header);
+        $ppn_notice = null;
+        if (in_array($header->invoice_type, ['PO_BASED', 'GRN_BASED'], true)) {
+            $pv = $this->model->po_ppn_preview($header, $all_details);
+            if ($pv['error']) {
+                $ppn_notice = ['type' => 'danger', 'text' => $pv['error']];
+            } else {
+                if (abs((float) $pv['rate'] - (float) $rates['ppn']) > 0.001) {
+                    $ppn_notice = ['type' => 'info', 'text' => 'PPN akan disesuaikan dengan PO: ' . rtrim(rtrim(number_format($pv['rate'], 2, '.', ''), '0'), '.')
+                        . '% (sebelumnya ' . rtrim(rtrim(number_format((float) $rates['ppn'], 2, '.', ''), '0'), '.') . '%). Klik Simpan lalu Posting Jurnal untuk menerapkannya.'];
+                }
+                $rates['ppn'] = $pv['rate'];
+                foreach ($details as $d) {
+                    if (isset($pv['exempt'][(int) $d->id])) $d->ppn_exempt = $pv['exempt'][(int) $d->id];
+                }
+            }
+        }
+
         $data = [
             'title'           => 'Edit Faktur Supplier: ' . $header->invoice_no,
             'header'          => $header,
@@ -253,7 +273,8 @@ class ApInvoice extends MY_Controller {
             'extras_supported'   => $this->model->extras_supported(),
             'default_extra_acct' => $this->model->extras_supported() ? $this->model->default_extra_account_id() : null,
             'max_qty'         => $max_qty,
-            'rates'           => $this->model->stored_tax_rates($header),
+            'rates'           => $rates,
+            'ppn_notice'      => $ppn_notice,
             'debet_accounts'  => $this->model->get_debet_accounts(),
             'kredit_accounts' => $this->model->get_kredit_accounts(),
             'accounts'        => $this->model->get_postable_accounts_for_expense(),

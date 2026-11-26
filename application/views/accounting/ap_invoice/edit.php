@@ -28,6 +28,10 @@ $fmt_qty = function ($v) { return rtrim(rtrim(number_format((float) $v, 4, '.', 
         </div>
     <?php endif; ?>
 
+    <?php if (!empty($ppn_notice)): ?>
+        <div class="alert alert-<?= $ppn_notice['type']; ?>"><i class="fas fa-percent mr-1"></i> <?= htmlspecialchars($ppn_notice['text']); ?></div>
+    <?php endif; ?>
+
     <form action="<?= base_url('apinvoice/update/' . $header->id); ?>" method="POST" id="ap-edit-form">
         <div class="card shadow mb-4">
             <div class="card-header py-3"><h6 class="m-0 font-weight-bold text-primary"><?= lang_line('apinv_form_header', 'Header Faktur'); ?></h6></div>

@@ -423,15 +423,19 @@ class ApInvoice_model extends CI_Model {
             return 'Faktur ini dibuat otomatis dari Payment Request' . (!empty($ap->prf_number) ? ' ' . $ap->prf_number : '')
                  . ' — koreksi lewat Payment Request tersebut.';
         }
-        $pays = $this->db->select('p.payment_no, p.status')
+        // Hanya pembayaran POSTED yang menghalangi. Pembayaran Draft boleh tetap menempel:
+        // tidak bisa diposting selama faktur Draft, dan nominalnya dicek ulang terhadap
+        // sisa hutang saat posting (ApPayment_model::post_payment).
+        $pays = $this->db->select('p.payment_no')
             ->from('ap_payment_details d')
             ->join('ap_payment_header p', 'p.id = d.payment_header_id')
             ->where('d.ap_invoice_header_id', (int) $ap->id)
+            ->where('p.status', 'Posted')
             ->get()->result();
         if ($pays) {
-            $nos = array_unique(array_map(function ($p) { return $p->payment_no . ' (' . $p->status . ')'; }, $pays));
-            return 'Faktur sudah dipakai di Pembayaran Hutang: ' . implode(', ', $nos)
-                 . '. Redraft lalu hapus / ubah pembayaran tersebut dulu.';
+            $nos = array_unique(array_map(function ($p) { return $p->payment_no; }, $pays));
+            return 'Faktur sudah dibayar lewat Pembayaran Hutang ' . implode(', ', $nos)
+                 . ' (Posted). Redraft pembayaran tersebut dulu, baru redraft faktur ini.';
         }
         if ((float) $ap->total_paid > Ap_auto_model::AMT_EPS) {
             return 'Faktur sudah tercatat dibayar Rp ' . number_format((float) $ap->total_paid, 2) . '. Batalkan pembayarannya dulu.';
@@ -584,6 +588,28 @@ class ApInvoice_model extends CI_Model {
             throw new Exception('Faktur mencampur baris PO ber-PPN dan tanpa PPN. Jalankan migrasi migration_ap_invoice_biaya_tambahan.sql, atau pisahkan fakturnya.');
         }
         return $rate;
+    }
+
+    /**
+     * Pratinjau PPN dari PO untuk form edit faktur Berdasarkan PO / GRN (sama
+     * dengan yang dihitung saat disimpan). Return ['rate' => float,
+     * 'exempt' => [detail_id => 0|1], 'error' => string|null].
+     */
+    public function po_ppn_preview($header, array $details)
+    {
+        $rows = []; $ids = [];
+        foreach ($details as $d) {
+            $rows[] = ['po_detail_id' => $d->po_detail_id, 'grn_detail_id' => $d->grn_detail_id, 'is_extra_cost' => $d->is_extra_cost ?? 0, 'ppn_exempt' => $d->ppn_exempt ?? 0];
+            $ids[] = (int) $d->id;
+        }
+        try {
+            $rate = $this->_apply_po_ppn($rows, $header->invoice_type);
+        } catch (Exception $e) {
+            return ['rate' => null, 'exempt' => [], 'error' => $e->getMessage()];
+        }
+        $exempt = [];
+        foreach ($rows as $k => $r) $exempt[$ids[$k]] = (int) ($r['ppn_exempt'] ?? 0);
+        return ['rate' => $rate, 'exempt' => $exempt, 'error' => null];
     }
 
     /** Samakan kunci semua baris (insert_batch CI3 menolak baris dengan kunci berbeda). */

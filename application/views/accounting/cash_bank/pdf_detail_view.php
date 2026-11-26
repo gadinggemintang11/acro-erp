@@ -1,4 +1,4 @@
-<!DOCTYPE html><html><head><title><?= $title; ?></title><style>body{font-family:Arial,sans-serif;font-size:12px;margin:0;padding:0;} .container{width:90%;margin:20px auto;} h2{text-align:center;margin-bottom:0;} p{text-align:center;margin-top:0;}.table{width:100%;border-collapse:collapse;margin-top:20px;} .table th, .table td{border:1px solid #000;padding:8px;} .table th{background-color:#f2f2f2;text-align:center;} .text-right{text-align:right;} .header-table{width:100%;margin-bottom:30px;} .header-table td{padding:5px;} .total-table{width:50%;float:right;margin-top:20px;} .total-table td{padding:5px;}</style></head><body>
+<!DOCTYPE html><html><head><title><?= $title; ?></title><style>body{font-family:Arial,sans-serif;font-size:12px;margin:0;padding:0;} .container{width:90%;margin:20px auto;} h2{text-align:center;margin-bottom:0;} p{text-align:center;margin-top:0;}.table{width:100%;border-collapse:collapse;margin-top:20px;} .table th, .table td{border:1px solid #000;padding:8px;} .table th{background-color:#f2f2f2;text-align:center;} .text-right{text-align:right;} .header-table{width:100%;margin-bottom:30px;} .header-table td{padding:5px;} .total-table{width:50%;float:right;margin-top:20px;} .total-table td{padding:5px;} .clear{clear:both;} .sig-table{width:100%;border-collapse:collapse;margin-top:30px;page-break-inside:avoid;} .sig-table td{border:1px solid #000;text-align:center;width:25%;padding:6px;} .sig-table .sig-head{font-weight:bold;background-color:#f2f2f2;} .sig-table .sig-space{height:70px;} .sig-table .sig-name{height:18px;}</style></head><body>
     <div class="container">
         <h2><?= $title; ?></h2>
         <p><?= $header->doc_no; ?></p>
@@ -52,9 +52,32 @@
             <?php if($header->currency != 'IDR'): ?>
             <tr style="font-size:0.9em;">
                 <th>(Ekuivalen IDR)</th>
-                <td class="text-right">Rp <?= number_format($header-total_amount_local, 2); ?></td>
+                <td class="text-right">Rp <?= number_format($header->total_amount_local, 2); ?></td>
             </tr>
             <?php endif; ?>
+        </table>
+        <div class="clear"></div>
+
+        <?php $last_sig = ($header->transaction_type == 'IN') ? 'Penyetor' : 'Penerima'; ?>
+        <table class="sig-table">
+            <tr>
+                <td class="sig-head">Dibuat Oleh</td>
+                <td class="sig-head">Diperiksa Oleh</td>
+                <td class="sig-head">Disetujui Oleh</td>
+                <td class="sig-head"><?= $last_sig; ?></td>
+            </tr>
+            <tr>
+                <td class="sig-space"></td>
+                <td class="sig-space"></td>
+                <td class="sig-space"></td>
+                <td class="sig-space"></td>
+            </tr>
+            <tr>
+                <td class="sig-name"><?= !empty($header->creator_name) ? htmlspecialchars($header->creator_name) : '&nbsp;'; ?></td>
+                <td class="sig-name">&nbsp;</td>
+                <td class="sig-name">&nbsp;</td>
+                <td class="sig-name">&nbsp;</td>
+            </tr>
         </table>
     </div>
 </body></html>
